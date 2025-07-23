@@ -1,0 +1,24 @@
+# Node.js
+central-api-gateway/node_modules/
+central-api-gateway/.env
+
+# Ballerina build artifacts and local files
+**/target/
+**/*.balx
+
+# VSCode settings
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment variables files (if any besides .env)
+*.env.*
