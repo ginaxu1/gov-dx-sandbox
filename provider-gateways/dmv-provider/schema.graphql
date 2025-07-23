@@ -1,0 +1,12 @@
+type DriverLicense {
+  id: ID!
+  name: String!
+  licenseNumber: String!
+  issueDate: String!
+  expiryDate: String!
+  photoUrl: String
+}
+
+type Query {
+  driverLicenseById(id: ID!): DriverLicense
+}
