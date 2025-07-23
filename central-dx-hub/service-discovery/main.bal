@@ -1,4 +1,3 @@
-// Jul 21 @14:55 - TODO: can't get past errors in bal build. So Choreo deployment fails. Try GO or PYthon to get past this instead of wasting time debugging Ballerina.
 import ballerina/http;
 import ballerina/log;
 import ballerina/os;
@@ -48,7 +47,7 @@ service / on dxListener {
         lock {
             serviceInfo = mockServices.get(serviceName).clone();
         }
-
+  
         if serviceInfo is () {
             // If not found, create and return the NotFound response.
             http:NotFound notFoundResponse = {  
