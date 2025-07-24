@@ -1,0 +1,10 @@
+type Query {
+  user(id: ID!): User
+}
+
+# The base User entity owned by the ROP service.
+type User @key(fields: "id") {
+  id: ID!
+  name: String!
+  dateOfBirth: String
+}
