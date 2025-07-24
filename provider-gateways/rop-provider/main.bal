@@ -1,7 +1,11 @@
 import ballerina/graphql;
+import ballerina/graphql.subgraph;
 import ballerina/log;
 
-// Data types remain the same, but without annotations.
+
+@subgraph:Entity {
+    key: ["id"]
+}
 public type User record {|
     readonly string id;
     string name;
@@ -13,17 +17,17 @@ isolated final table<User> key(id) userData = table [
     {id: "u-456", name: "Jane Smith", dateOfBirth: "1985-05-20"}
 ];
 
-@graphql:ServiceConfig {}
+@subgraph:Subgraph
 isolated service / on new graphql:Listener(9091) {
 
     private final table<User> key(id) users;
+
     function init() {
-        lock {
+        lock { 
 	        self.users = userData.clone();
         }
     }
 
-    // This resource function automatically maps to the 'user' query in the schema file.
     resource function get user(string id) returns User? {
         log:printInfo("ROP Service: Looking for user", id = id);
         lock {
