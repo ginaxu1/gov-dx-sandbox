@@ -1,8 +1,7 @@
-# Node.js
+# Node.js dependencies
 central-api-gateway/node_modules/
-central-api-gateway/.env
 
-# Ballerina build artifacts and local files
+# Ballerina build output
 **/target/
 **/*.balx
 
@@ -13,12 +12,6 @@ central-api-gateway/.env
 .DS_Store
 Thumbs.db
 
-# Log files
+# Logs
 *.log
 
-# Temporary files
-*.tmp
-*.temp
-
-# Environment variables files (if any besides .env)
-*.env.*
