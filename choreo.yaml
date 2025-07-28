@@ -1,0 +1,30 @@
+schemaVersion: 1.2 
+components:
+  - name: rop-provider
+    source:
+      path: "provider-gateways/rop-provider"
+    build:
+      preset: Ballerina
+    endpoints:
+      - name: rop-provider-api 
+        displayName: ROP Provider GraphQL API
+        service:
+          basePath: /
+          port: 9091
+        type: GraphQL
+        networkVisibilities:
+          - Public
+  - name: dmv-provider
+    source:
+      path: "provider-gateways/dmv-provider"
+    build:
+      preset: Ballerina
+    endpoints:
+      - name: dmv-provider-api 
+        displayName: DMV Provider GraphQL API
+        service:
+          basePath: / 
+          port: 9092
+        type: GraphQL
+        networkVisibilities:
+          - Public
