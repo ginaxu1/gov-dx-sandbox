@@ -57,7 +57,7 @@ isolated function resolveReference(map<anydata> representation) returns User|err
 
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9090) {
+isolated service / on new graphql:Listener(9092) {
     resource function get health() returns string {
         return "OK";
     }
