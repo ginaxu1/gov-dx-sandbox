@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: ROP Provider Service API
+  description: |
+    RESTful interface for the Registry of Persons (ROP) Provider Service.
+    This service primarily exposes its data via a GraphQL endpoint, which is consumed
+    by the central GraphQL Supergraph Gateway for federated queries. This API specification
+    defines supplementary REST endpoints like health checks and the GraphQL endpoint itself.
+  version: 1.0.0
+
+servers:
+  - url: / # Base path relative to where the service is deployed (Choreo handles full URL)
+
+paths:
+  /graphql:
+    post:
+      summary: GraphQL Endpoint for ROP Provider Subgraph
+      description: |
+        This endpoint serves as the GraphQL subgraph for the Registry of Persons data.
+        It is primarily accessed internally by the GraphQL Supergraph Gateway for federated queries.
+        You can send GraphQL queries and mutations to this endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: The GraphQL query string.
+                  example: |
+                    query GetPerson {
+                      getPersonByNic(nic: "123456789V") {
+                        fullName
+                        dateOfBirth
+                      }
+                    }
+                variables:
+                  type: object
+                  description: A JSON object of variables for the query.
+                operationName:
+                  type: string
+                  description: The name of the operation to execute.
+      responses:
+        '200':
+          description: GraphQL query executed successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: The result of the GraphQL query.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        message:
+                          type: string
+                        locations:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              line:
+                                type: integer
+                              column:
+                                type: integer
+                        path:
+                          type: array
+                          items: {}
+        '400':
+          description: Invalid GraphQL query or request.
+        '500':
+          description: Internal server error.
+
+  /health:
+    get:
+      summary: Health Check Endpoint
+      description: Returns the health status of the ROP Provider Service.
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ "healthy", "unhealthy" ]
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: The time the health check was performed.
+        '503':
+          description: Service is unhealthy or undergoing maintenance.
