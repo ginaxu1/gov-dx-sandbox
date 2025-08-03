@@ -1,0 +1,44 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  # GraphQL Endpoint for DMT Subgraph
+  - name: dmt-graphql-subgraph
+    displayName: DMT GraphQL Subgraph
+    service:
+      # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
+      # Ballerina GraphQL services usually listen on '/' by default.
+      basePath: /
+      port: 9092 
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: GraphQL 
+    # Network visibility: Organization is generally recommended for backend services
+    # that are consumed internally by your supergraph.
+    networkVisibilities:
+      - Organization
+      - Project # Can also be 'Project' for more restricted internal visibility
+    # Schema file path for documentation/management within Choreo (references openapi spec)
+    # This path is relative to the choreo.yaml file's location in the monorepo.
+    schemaFilePath: ../../docs/api-specs/dmt-provider-api.yaml
+
+  # REST Endpoint for Health Check
+  - name: dmt-health-check
+    displayName: DMT Health Check
+    service:
+      basePath: /health # The specific base path for the health endpoint
+      port: 9092 # The port your Ballerina HTTP listener for health check listens on
+    type: REST # Specify REST type
+    networkVisibilities:
+      - Organization
+      - Project # Health checks are often internal
+    # A schemaFilePath for a simple health check is often optional or can point
+    # to the same openapi.yaml which defines /health
+    schemaFilePath: ../../docs/api-specs/dmt-provider-api.yaml
+
+# No specific outgoing dependencies for now, but could be added if DMT calls other Choreo services
+dependencies: {}
+
+# No specific runtime configurations for now, but could be added for DB connections, etc.
+configurations: {}
