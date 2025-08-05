@@ -1,6 +1,6 @@
 [package]
 org = "tmp"
-name = "user_api_service"
+name = "mock_drp"
 version = "0.1.0"
 distribution = "2201.12.7"
 
