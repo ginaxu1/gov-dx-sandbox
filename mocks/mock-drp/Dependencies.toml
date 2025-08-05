@@ -70,7 +70,7 @@ dependencies = [
 [[package]]
 org = "ballerina"
 name = "http"
-version = "2.14.2"
+version = "2.14.3"
 dependencies = [
 	{org = "ballerina", name = "auth"},
 	{org = "ballerina", name = "cache"},
@@ -309,7 +309,7 @@ modules = [
 
 [[package]]
 org = "tmp"
-name = "user_api_service"
+name = "mock_drp"
 version = "0.1.0"
 dependencies = [
 	{org = "ballerina", name = "http"},
@@ -317,6 +317,6 @@ dependencies = [
 	{org = "ballerinai", name = "observe"}
 ]
 modules = [
-	{org = "tmp", packageName = "user_api_service", moduleName = "user_api_service"}
+	{org = "tmp", packageName = "mock_drp", moduleName = "mock_drp"}
 ]
 
