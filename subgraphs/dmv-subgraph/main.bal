@@ -55,10 +55,28 @@ isolated function resolveReference(map<anydata> representation) returns User|err
     };
 }
 
+
+
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
-@subgraph:Subgraph
+@graphql:ServiceConfig {
+    cors: {
+        allowOrigins: ["https://studio.apollographql.com"],
+        allowCredentials: false,
+        allowMethods: ["GET", "POST", "OPTIONS"],
+        allowHeaders: ["CORELATION_ID"],
+        exposeHeaders: ["X-CUSTOM-HEADER"],
+        maxAge: 84900
+    }
+}
 isolated service / on new graphql:Listener(9092) {
     resource function get health() returns string {
         return "OK";
+    }
+
+    resource function get driverLicenses() returns DriverLicense[]|error {
+        log:printInfo("DMV Service: Fetching all driver licenses");
+        lock {
+	        return licenseData.toArray().clone();
+        }
     }
 }
