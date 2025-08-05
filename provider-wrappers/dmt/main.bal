@@ -1,59 +1,4 @@
 import ballerina/graphql;
-import ballerina/graphql.subgraph;
-import ballerina/log;
-
-// Represents the 'DriverLicense' type in the GraphQL schema.
-public type DriverLicense record {|
-    readonly string id;
-    string licenseNumber;
-    string issueDate;
-    string expiryDate;
-    string? photoUrl;
-    string ownerId; // Internal link to a User
-|};
-
-// Defines the User as a federated entity, specifying its key.
-@subgraph:Entity {
-    key: ["id"],
-    resolveReference: resolveReference
-}
-public type User record {|
-    readonly string id;
-    DriverLicense? driversLicense;
-    boolean hasDriversLicense;
-|};
-
-// Mock data table for driver licenses.
-isolated final table<DriverLicense> key(id) licenseData = table [
-    {id: "dl-abc", licenseNumber: "D12345678", issueDate: "2020-10-10", expiryDate: "2025-10-09", ownerId: "u-123", photoUrl: "http://example.com/photo1.jpg"},
-    {id: "dl-def", licenseNumber: "D87654321", issueDate: "2022-01-01", expiryDate: "2027-12-31", ownerId: "u-456", photoUrl: "http://example.com/photo2.jpg"}
-];
-
-isolated function resolveReference(map<anydata> representation) returns User|error {
-    string id = <string>representation["id"];
-    log:printInfo("DMV Service: Resolving reference for User", userId = id);
-
-    DriverLicense? 'license = ();
-    boolean hasLicense = false;
-
-    table<(DriverLicense & readonly)> result = table [];
-    lock {
-        result = from var dl in licenseData
-            where dl.ownerId == id
-            select dl.cloneReadOnly();
-    }
-
-    if result.length() > 0 {
-        'license = result.toArray()[0];
-        hasLicense = true;
-    }
-
-    return {
-        id: id,
-        driversLicense: 'license,
-        hasDriversLicense: hasLicense
-    };
-}
 
 
 
@@ -61,8 +6,7 @@ isolated function resolveReference(map<anydata> representation) returns User|err
 @graphql:ServiceConfig {
     cors: {
         allowOrigins: ["https://studio.apollographql.com"],
-        allowCredentials: false,
-        allowMethods: ["GET", "POST", "OPTIONS"],
+        allowCredentials: true,
         allowHeaders: ["CORELATION_ID"],
         exposeHeaders: ["X-CUSTOM-HEADER"],
         maxAge: 84900
@@ -72,11 +16,59 @@ isolated service / on new graphql:Listener(9092) {
     resource function get health() returns string {
         return "OK";
     }
-
-    resource function get driverLicenses() returns DriverLicense[]|error {
-        log:printInfo("DMV Service: Fetching all driver licenses");
-        lock {
-	        return licenseData.toArray().clone();
+    resource function get vehicleInfoById(string vehicleId) returns VehicleInfo|error {
+        foreach var vehicle in vehicleData {
+            if vehicle.id == vehicleId {
+                return vehicle;
+            }
         }
+        return error("Vehicle not found");
+    }
+
+    resource function get vehicleInfoByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
+        foreach var vehicle in vehicleData {
+            if vehicle.registrationNumber == registrationNumber {
+                return vehicle;
+            }
+        }
+        return error("Vehicle not found with the given registration number");
+    }
+
+    // New resolver to fetch all vehicles.
+    resource function get getVehicleInfos(string? ownerId) returns VehicleInfo[]|error {
+        if ownerId is string {
+            return from var vehicle in vehicleData
+                   where vehicle.ownerId == ownerId
+                   select vehicle;
+        }
+        return vehicleData.toArray();
+    }
+
+    resource function get driverLicenseById(string licenseId) returns DriverLicense|error {
+        foreach var license in licenseData {
+            if license.id == licenseId {
+                return license;
+            }
+        }
+        return error("Driver license not found");
+    }
+
+    resource function get driverLicensesByOwnerId(string ownerId) returns DriverLicense[]|error {
+        return from var license in licenseData
+               where license.ownerId == ownerId
+               select license;
+    }
+
+    resource function get vehicleClasses() returns VehicleClass[]|error {
+        return vehicleClassData.toArray();
+    }
+
+    resource function get vehicleClassById(string classId) returns VehicleClass|error {
+        foreach var vehicleClass in vehicleClassData {
+            if vehicleClass.id == classId {
+                return vehicleClass;
+            }
+        }
+        return error("Vehicle class not found");
     }
 }
