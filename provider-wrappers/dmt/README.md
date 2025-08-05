@@ -1,0 +1,3 @@
+# Provider Wrapper of Department of Motor Traffic
+This is a subgraph wrapper of Department of Motor Traffic, Sri Lanka. This includes simple use cases where, the wrapper receives graphql requests and responds with mock data. Instead of implementing a mock API service. I just placed some mock data inside this and exposed it.
+In real scenario, this will be translating the GraphQL request to API calls and will return the respective data received (Will be working as an Adapter that sits between the publicly exposed API by DMT and the NDEH)
