@@ -1,18 +1,12 @@
 import ballerina/graphql;
+import ballerina/http;
+import ballerina/graphql.subgraph;
 
 
 
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
-@graphql:ServiceConfig {
-    cors: {
-        allowOrigins: ["https://studio.apollographql.com"],
-        allowCredentials: true,
-        allowHeaders: ["CORELATION_ID"],
-        exposeHeaders: ["X-CUSTOM-HEADER"],
-        maxAge: 84900
-    }
-}
-isolated service / on new graphql:Listener(9092) {
+@subgraph:Subgraph
+isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1) {
     resource function get health() returns string {
         return "OK";
     }
