@@ -122,7 +122,7 @@ isolated final table<PersonData> key(nic) mockPersonDataTable = table [
 
 // --- Mock HTTP Service ---
 // This service simulates the actual DRP backend API.
-// Your main GraphQL service (rop.bal) will communicate with this.
+// The main GraphQL service (provider-wrappers/drp/main.bal) will communicate with this.
 service / on new http:Listener(8080) {
 
     resource function get person/[string nic]() returns PersonData|http:NotFound {
