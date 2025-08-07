@@ -1,16 +1,22 @@
 import ballerina/graphql;
 import ballerina/http;
 import ballerina/graphql.subgraph;
+import ballerina/log;
+
+// read the port from the environment variable
+final int servicePort = 9090;
 
 
 
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1) {
-    resource function get dmt/ health() returns string {
-        return "OK";
+isolated service / on new graphql:Listener(servicePort, httpVersion = http:HTTP_1_1) {
+    // print the service port to the console
+    public isolated function init() {
+        log:printInfo("DMT service is running on port: " + servicePort.toString());
     }
-    resource function get dmt/ vehicleInfoById(string vehicleId) returns VehicleInfo|error {
+
+    isolated resource function get  vehicleInfoById(string vehicleId) returns VehicleInfo|error {
         foreach var vehicle in vehicleData {
             if vehicle.id == vehicleId {
                 return vehicle;
@@ -19,7 +25,7 @@ isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1) {
         return error("Vehicle not found");
     }
 
-    resource function get dmt/ vehicleInfoByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
+    isolated resource function get  vehicleInfoByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
         foreach var vehicle in vehicleData {
             if vehicle.registrationNumber == registrationNumber {
                 return vehicle;
@@ -29,35 +35,40 @@ isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1) {
     }
 
     // New resolver to fetch all vehicles.
-    resource function get dmt/ getVehicleInfos(string? ownerId) returns VehicleInfo[]|error {
-        if ownerId is string {
-            return from var vehicle in vehicleData
-                   where vehicle.ownerId == ownerId
-                   select vehicle;
+    isolated resource function get getVehicleInfos(string? ownerId) returns VehicleInfo[]|error {
+        lock {
+            if ownerId is string {
+                return from var vehicle in vehicleData
+                       where vehicle.ownerId == ownerId
+                       select vehicle;
+            }
         }
-        return vehicleData.toArray();
-    }
 
-    resource function get dmt/ driverLicenseById(string licenseId) returns DriverLicense|error {
-        foreach var license in licenseData {
-            if license.id == licenseId {
-                return license;
+        return vehicleData.toArray();
+        }
+
+    isolated resource function get driverLicenseById(string licenseId) returns DriverLicense|error {
+        lock {            
+            foreach var license in licenseData {
+                if license.id == licenseId {
+                    return license;
+                }
             }
         }
         return error("Driver license not found");
     }
 
-    resource function get dmt/ driverLicensesByOwnerId(string ownerId) returns DriverLicense[]|error {
+    isolated resource function get driverLicensesByOwnerId(string ownerId) returns DriverLicense[]|error {
         return from var license in licenseData
                where license.ownerId == ownerId
                select license;
     }
 
-    resource function get dmt/ vehicleClasses() returns VehicleClass[]|error {
+    isolated resource function get vehicleClasses() returns VehicleClass[]|error {
         return vehicleClassData.toArray();
     }
 
-    resource function get dmt/ vehicleClassById(string classId) returns VehicleClass|error {
+    isolated resource function get vehicleClassById(string classId) returns VehicleClass|error {
         foreach var vehicleClass in vehicleClassData {
             if vehicleClass.id == classId {
                 return vehicleClass;
