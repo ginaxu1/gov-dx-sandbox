@@ -1,6 +1,5 @@
 # Node.js dependencies
-central-api-gateway/node_modules/
-graphql-resolver/node_modules/
+**/node_modules/
 
 # Ballerina build output
 **/target/
