@@ -1,0 +1,73 @@
+import ballerina/graphql;
+import ballerina/graphql.subgraph;
+import ballerina/http;
+import ballerina/log;
+
+// --- DRPAPIClient (Provider Wrapper) ---
+// This client makes a real HTTP call to the backend service.
+isolated service class DRPAPIClient {
+    private final http:Client apiClient;
+    function init(string baseUrl) returns http:ClientError? {
+        self.apiClient = check new (baseUrl);
+    }
+    isolated function getPersonByNic(string nic) returns PersonData|error {
+        log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
+        string path = string `/person/${nic}`;
+        return self.apiClient->get(path);
+    }
+}
+
+// This function initializes the DRPAPIClient and is used in the main GraphQL service.
+public function initializeDRPClient() returns DRPAPIClient|error {
+    return new ("http://localhost:8080");
+}
+
+// Shared instance of the DRPAPIClient to be used across the service.
+// This is initialized once and used for all requests to avoid creating multiple clients.
+final DRPAPIClient sharedDRPClient = check initializeDRPClient();
+
+// --- GraphQL Subgraph Service ---
+@subgraph:Subgraph
+isolated service / on new graphql:Listener(9091) {
+    // Fetches the full person data for a given NIC.
+    resource function get drp/ person(string nic) returns PersonData? {
+        PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
+        if personData is error {
+            log:printWarn("DRP Service: Person not found or error fetching person", nic = nic, err = personData.toString());
+            return ();
+        }
+        return personData;
+    }
+
+    // Fetches only the card status for a given NIC.
+    resource function get drp/ cardStatus(string nic) returns CardStatus? {
+        PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
+        if personData is error {
+            return ();
+        }
+        return personData.cardInfo.cardStatus;
+    }
+
+    // Fetches only the parent information for a given NIC.
+    resource function get drp/ parentInfo(string nic) returns ParentInfo? {
+         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
+        if personData is error {
+            return ();
+        }
+        return personData.parentInfo;
+    }
+
+    // Fetches information about a lost card report, if one exists.
+    resource function get drp/ lostCardInfo(string nic) returns LostCardReplacementInfo? {
+        PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
+        if personData is error {
+            return ();
+        }
+        return personData.lostCardReplacementInfo;
+    }    
+    
+    // Health check endpoint for the DRP service.
+    resource function get drp/ health() returns string {
+        return "OK";
+    }
+}

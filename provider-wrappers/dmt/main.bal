@@ -1,64 +1,68 @@
 import ballerina/graphql;
+import ballerina/http;
 import ballerina/graphql.subgraph;
-import ballerina/log;
 
-// Represents the 'DriverLicense' type in the GraphQL schema.
-public type DriverLicense record {|
-    readonly string id;
-    string licenseNumber;
-    string issueDate;
-    string expiryDate;
-    string? photoUrl;
-    string ownerId; // Internal link to a User
-|};
 
-// Defines the User as a federated entity, specifying its key.
-@subgraph:Entity {
-    key: ["id"],
-    resolveReference: resolveReference
-}
-public type User record {|
-    readonly string id;
-    DriverLicense? driversLicense;
-    boolean hasDriversLicense;
-|};
-
-// Mock data table for driver licenses.
-isolated final table<DriverLicense> key(id) licenseData = table [
-    {id: "dl-abc", licenseNumber: "D12345678", issueDate: "2020-10-10", expiryDate: "2025-10-09", ownerId: "u-123", photoUrl: "http://example.com/photo1.jpg"},
-    {id: "dl-def", licenseNumber: "D87654321", issueDate: "2022-01-01", expiryDate: "2027-12-31", ownerId: "u-456", photoUrl: "http://example.com/photo2.jpg"}
-];
-
-isolated function resolveReference(map<anydata> representation) returns User|error {
-    string id = <string>representation["id"];
-    log:printInfo("DMV Service: Resolving reference for User", userId = id);
-
-    DriverLicense? 'license = ();
-    boolean hasLicense = false;
-
-    table<(DriverLicense & readonly)> result = table [];
-    lock {
-        result = from var dl in licenseData
-            where dl.ownerId == id
-            select dl.cloneReadOnly();
-    }
-
-    if result.length() > 0 {
-        'license = result.toArray()[0];
-        hasLicense = true;
-    }
-
-    return {
-        id: id,
-        driversLicense: 'license,
-        hasDriversLicense: hasLicense
-    };
-}
 
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9092) {
-    resource function get health() returns string {
+isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1) {
+    resource function get dmt/ health() returns string {
         return "OK";
+    }
+    resource function get dmt/ vehicleInfoById(string vehicleId) returns VehicleInfo|error {
+        foreach var vehicle in vehicleData {
+            if vehicle.id == vehicleId {
+                return vehicle;
+            }
+        }
+        return error("Vehicle not found");
+    }
+
+    resource function get dmt/ vehicleInfoByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
+        foreach var vehicle in vehicleData {
+            if vehicle.registrationNumber == registrationNumber {
+                return vehicle;
+            }
+        }
+        return error("Vehicle not found with the given registration number");
+    }
+
+    // New resolver to fetch all vehicles.
+    resource function get dmt/ getVehicleInfos(string? ownerId) returns VehicleInfo[]|error {
+        if ownerId is string {
+            return from var vehicle in vehicleData
+                   where vehicle.ownerId == ownerId
+                   select vehicle;
+        }
+        return vehicleData.toArray();
+    }
+
+    resource function get dmt/ driverLicenseById(string licenseId) returns DriverLicense|error {
+        foreach var license in licenseData {
+            if license.id == licenseId {
+                return license;
+            }
+        }
+        return error("Driver license not found");
+    }
+
+    resource function get dmt/ driverLicensesByOwnerId(string ownerId) returns DriverLicense[]|error {
+        return from var license in licenseData
+               where license.ownerId == ownerId
+               select license;
+    }
+
+    resource function get dmt/ vehicleClasses() returns VehicleClass[]|error {
+        return vehicleClassData.toArray();
+    }
+
+    resource function get dmt/ vehicleClassById(string classId) returns VehicleClass|error {
+        foreach var vehicleClass in vehicleClassData {
+            if vehicleClass.id == classId {
+                return vehicleClass;
+            }
+        }
+        return error("Vehicle class not found");
     }
 }
