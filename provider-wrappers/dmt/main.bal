@@ -7,9 +7,7 @@ import ballerina/graphql.subgraph;
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
 @subgraph:Subgraph
 isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1) {
-    resource function get dmt/ health() returns string {
-        return "OK";
-    }
+
     resource function get dmt/ vehicleInfoById(string vehicleId) returns VehicleInfo|error {
         foreach var vehicle in vehicleData {
             if vehicle.id == vehicleId {
