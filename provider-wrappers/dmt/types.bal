@@ -7,35 +7,54 @@ public type VehicleClass record {|
 
 @subgraph:Entity {
     key: "nic",
-    resolveReference: resolveVehicleInfo
+    resolveReference: resolvePersonData
 }
 public type PersonData record {|
     readonly string nic;
     VehicleInfo[] vehicles;
+    DriverLicense? license;
 |};
 
-isolated function resolveVehicleInfo(subgraph:Representation representation) returns PersonData|error? {
-    string ownerSludi = check representation["nic"].ensureType();
+isolated function resolvePersonData(subgraph:Representation representation) returns PersonData|error? {
+    string ownerNic = check representation["nic"].ensureType();
 
+    PersonData filteredVehicles = {nic: check representation["nic"].ensureType(), vehicles: [], license: null};
+
+    VehicleInfo[] ownedVehicles;
     lock {
-
-        PersonData filteredVehicles = {nic: check representation["nic"].ensureType(), vehicles: []};
+        VehicleInfo[] tempVehicles = [];
         foreach var vehicle in vehicleData {
-            if vehicle.ownerId == ownerSludi {
-                filteredVehicles.vehicles.push(vehicle);
+            if vehicle.ownerNic == ownerNic {
+                tempVehicles.push(vehicle.clone());
             }
         }
-
-        return filteredVehicles.clone();
+        ownedVehicles = tempVehicles.clone();
     }
+
+    filteredVehicles.vehicles = ownedVehicles;
+
+    DriverLicense? foundLicense = null;
+    lock {
+
+        foreach var license in licenseData {
+            if license.ownerNic == ownerNic {
+                foundLicense = license.clone();
+            }
+        }
+    }
+    filteredVehicles.license = foundLicense;
+    return filteredVehicles.clone();
 }
 
+@subgraph:Entity {
+    key: "id ownerNic"
+}
 public type VehicleInfo record {|
     readonly string id;
     string make;
     string model;
     int yearOfManufacture;
-    string ownerId;
+    string ownerNic;
     string engineNumber;
     string conditionAndNotes;
     string registrationNumber;
@@ -48,5 +67,5 @@ public type DriverLicense record {|
     string issueDate;
     string expiryDate;
     string? photoUrl;
-    string ownerId;
+    string ownerNic;
 |};

@@ -5,13 +5,13 @@ import ballerina/log;
 
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9090, httpVersion = http:HTTP_1_1, host = "0.0.0.0") {
+isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1, host = "0.0.0.0") {
     // print the service port to the console
     public isolated function init() {
-        log:printInfo("DMT service is running on port: " + 9090.toString());
+        log:printInfo("DMT service is running on port: " + 9092.toString());
     }
 
-    isolated resource function get vehicleInfoById(string vehicleId) returns VehicleInfo|error {
+    isolated resource function get vehicle/vehicleInfoById(string vehicleId) returns VehicleInfo|error {
         lock {
             foreach var vehicle in vehicleData {
                 if vehicle.id == vehicleId {
@@ -22,7 +22,7 @@ isolated service / on new graphql:Listener(9090, httpVersion = http:HTTP_1_1, ho
         return error("Vehicle not found");
     }
 
-    isolated resource function get vehicleInfoByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
+    isolated resource function get vehicle/vehicleInfoByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
         lock {
             foreach var vehicle in vehicleData {
                 if vehicle.registrationNumber == registrationNumber {
@@ -34,12 +34,12 @@ isolated service / on new graphql:Listener(9090, httpVersion = http:HTTP_1_1, ho
     }
 
     // New resolver to fetch all vehicles.
-    isolated resource function get getVehicleInfos(string? ownerId) returns VehicleInfo[]|error {
+    isolated resource function get vehicle/getVehicleInfos(string? ownerNic) returns VehicleInfo[]|error {
         lock {
-            if ownerId is string {
+            if ownerNic is string {
                 VehicleInfo[] filteredVehicles = [];
                 foreach var vehicle in vehicleData {
-                    if vehicle.ownerId == ownerId {
+                    if vehicle.ownerNic == ownerNic {
                         filteredVehicles.push(vehicle.clone());
                     }
                 }
@@ -50,7 +50,7 @@ isolated service / on new graphql:Listener(9090, httpVersion = http:HTTP_1_1, ho
         }
     }
 
-    isolated resource function get driverLicenseById(string licenseId) returns DriverLicense|error {
+    isolated resource function get vehicle/driverLicenseById(string licenseId) returns DriverLicense|error {
         lock {
             DriverLicense[] licenses = licenseData.toArray().clone();
             foreach var license in licenses {
@@ -62,11 +62,11 @@ isolated service / on new graphql:Listener(9090, httpVersion = http:HTTP_1_1, ho
         return error("Driver license not found");
     }
 
-    isolated resource function get driverLicensesByOwnerId(string ownerId) returns DriverLicense[]|error {
+    isolated resource function get vehicle/driverLicensesByOwnerId(string ownerNic) returns DriverLicense[]|error {
         lock {
             DriverLicense[] selectedLicenses = [];
             foreach var license in licenseData {
-                if license.ownerId == ownerId {
+                if license.ownerNic == ownerNic {
                     selectedLicenses.push(license.clone());
                 }
             }
@@ -74,13 +74,13 @@ isolated service / on new graphql:Listener(9090, httpVersion = http:HTTP_1_1, ho
         }
     }
 
-    isolated resource function get vehicleClasses() returns VehicleClass[]|error {
+    isolated resource function get vehicle/vehicleClasses() returns VehicleClass[]|error {
         lock {
             return vehicleClassData.toArray().clone();
         }
     }
 
-    isolated resource function get vehicleClassById(string classId) returns VehicleClass|error {
+    isolated resource function get vehicle/vehicleClassById(string classId) returns VehicleClass|error {
         lock {
             VehicleClass? vehicleClass = vehicleClassData.get(classId);
             if vehicleClass is () {
