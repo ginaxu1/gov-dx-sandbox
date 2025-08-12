@@ -1,3 +1,4 @@
+import ballerina/graphql.subgraph;
 // This file centralizes all the data structures for the DRP service.
 
 // ---  Enum Definitions based on the DRP schema ---
@@ -71,6 +72,9 @@ public type PersonInfo record {|
 |};
 
 // This is the combined record for the full data set.
+@subgraph:Entity {
+    key: "nic"
+}
 public type PersonData record {|
     *PersonInfo;
     CardInfo cardInfo;

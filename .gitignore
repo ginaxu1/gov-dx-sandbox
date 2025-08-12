@@ -15,3 +15,4 @@ Thumbs.db
 # Logs
 *.log
 
+mocks/mock-dmt/Config.toml

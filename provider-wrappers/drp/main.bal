@@ -30,7 +30,7 @@ final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 @subgraph:Subgraph
 isolated service / on new graphql:Listener(9091) {
     // Fetches the full person data for a given NIC.
-    resource function get drp/ person(string nic) returns PersonData? {
+    resource function get person/ getPersonByNic(string nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
         if personData is error {
             log:printWarn("DRP Service: Person not found or error fetching person", nic = nic, err = personData.toString());
@@ -40,7 +40,7 @@ isolated service / on new graphql:Listener(9091) {
     }
 
     // Fetches only the card status for a given NIC.
-    resource function get drp/ cardStatus(string nic) returns CardStatus? {
+    resource function get cardStatus(string nic) returns CardStatus? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
         if personData is error {
             return ();
@@ -49,7 +49,7 @@ isolated service / on new graphql:Listener(9091) {
     }
 
     // Fetches only the parent information for a given NIC.
-    resource function get drp/ parentInfo(string nic) returns ParentInfo? {
+    resource function get parentInfo(string nic) returns ParentInfo? {
          PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
         if personData is error {
             return ();
@@ -58,7 +58,7 @@ isolated service / on new graphql:Listener(9091) {
     }
 
     // Fetches information about a lost card report, if one exists.
-    resource function get drp/ lostCardInfo(string nic) returns LostCardReplacementInfo? {
+    resource function get lostCardInfo(string nic) returns LostCardReplacementInfo? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
         if personData is error {
             return ();
