@@ -2,6 +2,27 @@
 # This script starts the Minikube cluster for local development.
 # Ensure that Docker is running before executing this script.
 # Check if Docker is running
+
+# Define a function to perform the cleanup
+cleanup() {
+  echo "Caught Ctrl+C! Cleaning up Kubernetes resources..."
+  # Delete all deployments
+  kubectl delete deployment graphql-resolver-deployment
+  kubectl delete deployment provider-wrapper-drp-deployment
+  kubectl delete deployment provider-wrapper-dmt-deployment
+
+  # Delete all services
+  kubectl delete service graphql-resolver-service
+  kubectl delete service provider-wrapper-drp-service
+  kubectl delete service provider-wrapper-dmt-service
+
+  echo "Cleanup complete. Exiting."
+  exit 0
+}
+
+# Set the trap: when SIGINT is received, run the cleanup function
+trap cleanup SIGINT
+
 if ! docker info > /dev/null 2>&1; then
   echo "Docker is not running. Please start Docker and try again."
   exit 1
@@ -45,6 +66,8 @@ eval $(minikube docker-env)
 
 # Build the Docker images for the provider wrappers
 bal build --cloud="docker" provider-wrappers/dmt/
+bal build --cloud="docker" provider-wrappers/drp/
+docker build -t gov-dx-sandbox/graphql-resolver:v0.1.3 graphql-resolver/
 
 if [ $? -ne 0 ]; then
   echo "Failed to build the Docker images for provider wrappers."
@@ -54,8 +77,9 @@ echo "Docker images for provider wrappers built successfully."
 
 
 # Optionally, you can deploy your applications here
-# Uncomment the following line to deploy a sample application
 kubectl apply -f provider-wrappers/dmt/k8s/deployment.yaml
+kubectl apply -f provider-wrappers/drp/k8s/deployment.yaml
+kubectl apply -f graphql-resolver/k8s/deployment.yaml
 
 # Check if the deployment was successful
 if [ $? -ne 0 ]; then
@@ -64,4 +88,8 @@ if [ $? -ne 0 ]; then
 fi
 
 # Print the status of the Minikube cluster
-minikube service provider-wrapper-dmt-service --url
+minikube tunnel
+
+# The script will only reach this point if minikube tunnel exits on its own
+echo "Tunnel stopped, cleaning up."
+cleanup
