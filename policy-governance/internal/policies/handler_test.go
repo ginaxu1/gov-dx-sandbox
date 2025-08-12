@@ -6,8 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
-	"reflect" // New import for deep comparison
 
 	"github.com/go-chi/chi/v5"
 
@@ -26,7 +26,7 @@ func (m *MockPolicyRepository) GetPolicy(ctx context.Context, consumerID, provid
 
 func TestGetAccessPolicy_Success(t *testing.T) {
 	mockPolicy := &models.PolicyMapping{
-		AccessTier:   "Tier 2",
+		AccessTier:   "Confidential",
 		AccessBucket: "govt_access",
 	}
 	mockRepo := &MockPolicyRepository{policy: mockPolicy}
@@ -76,9 +76,10 @@ func TestGetAccessPolicy_DefaultPolicy(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
+	// The handler defaults to "Confidential" and "requires_consent"
 	expectedDefaultPolicy := &models.PolicyMapping{
-		AccessTier:   "Tier 2",
-		AccessBucket: "require_consent",
+		AccessTier:   "Confidential",
+		AccessBucket: "requires_consent",
 	}
 	expectedBody, _ := json.Marshal(expectedDefaultPolicy)
 	var expectedJSON, actualJSON map[string]interface{}
