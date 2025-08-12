@@ -19,3 +19,15 @@ endpoints:
     networkVisibilities:
       - Organization
       - Project # Can also be 'Project' for more restricted internal visibility
+# +optional Defines runtime configurations
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    # +required Name of the environment variable
+    - name: BAL_CONFIG_VAR_PORT
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        configForm:
+          type: int
