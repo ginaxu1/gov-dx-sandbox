@@ -27,9 +27,8 @@ metadata:
 spec:
   selector:
     app: provider-wrapper-drp
-  type: NodePort
+  type: ClusterIP
   ports:
     - protocol: TCP
-      port: 9091
+      port: 80
       targetPort: 9090
-      nodePort: 30081
