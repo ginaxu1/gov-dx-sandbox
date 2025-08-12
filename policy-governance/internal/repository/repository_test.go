@@ -52,7 +52,7 @@ func TestGetPolicy_Success(t *testing.T) {
 
 	// Seed data directly within the test transaction.
 	mappings := []models.PolicyMapping{
-		{PolicyID: "policy_101", ConsumerID: "bank_service_id", ProviderID: "drp_service", AccessTier: "Tier 2", AccessBucket: "require_consent"},
+		{PolicyID: "policy_101", ConsumerID: "hotel_service_id", ProviderID: "drp_service", AccessTier: "Tier 2", AccessBucket: "require_consent"},
 	}
 	if err := tx.Create(&mappings).Error; err != nil {
 		t.Fatalf("failed to seed policies: %v", err)
@@ -60,7 +60,7 @@ func TestGetPolicy_Success(t *testing.T) {
 
 	repo := &PolicyRepository{db: tx}
 	ctx := context.Background()
-	consumerID := "bank_service_id"
+	consumerID := "hotel_service_id"
 	providerID := "drp_service"
 
 	policy, err := repo.GetPolicy(ctx, consumerID, providerID)

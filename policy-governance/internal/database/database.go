@@ -53,10 +53,10 @@ func seedData() {
 	DB.Create(&providers)
 
 	mappings := []models.PolicyMapping{
-		{PolicyID: "policy_101", ConsumerID: "bank_service_id", ProviderID: "drp_service", AccessTier: "Tier 2", AccessBucket: "require_consent"},
+		{PolicyID: "policy_101", ConsumerID: "hotel_service_id", ProviderID: "drp_service", AccessTier: "Tier 2", AccessBucket: "require_consent"},
 		{PolicyID: "policy_102", ConsumerID: "dmt_service_id", ProviderID: "drp_service", AccessTier: "Tier 2", AccessBucket: "govt_access"},
 		{PolicyID: "policy_103", ConsumerID: "citizen_app_id", ProviderID: "drp_service", AccessTier: "Tier 2", AccessBucket: "access_by_consumer_id"},
-		{PolicyID: "policy_104", ConsumerID: "bank_service_id", ProviderID: "dmt_service", AccessTier: "Tier 2", AccessBucket: "require_consent_limited"},
+		{PolicyID: "policy_104", ConsumerID: "hotel_service_id", ProviderID: "dmt_service", AccessTier: "Tier 2", AccessBucket: "require_consent_limited"},
 		{PolicyID: "policy_105", ConsumerID: "citizen_app_id", ProviderID: "dmt_service", AccessTier: "Tier 2", AccessBucket: "access_by_consumer_id"},
 		{PolicyID: "policy_106", ConsumerID: "dmt_service_id", ProviderID: "dmt_service", AccessTier: "Tier 1", AccessBucket: "public"},
 	}
