@@ -19,7 +19,7 @@ isolated service class DRPAPIClient {
 
 // This function initializes the DRPAPIClient and is used in the main GraphQL service.
 public function initializeDRPClient() returns DRPAPIClient|error {
-    return new ("http://localhost:8080");
+    return new ("http://mock-drp-service");
 }
 
 // Shared instance of the DRPAPIClient to be used across the service.
@@ -28,7 +28,7 @@ final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 
 // --- GraphQL Subgraph Service ---
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9091) {
+isolated service / on new graphql:Listener(9090) {
     // Fetches the full person data for a given NIC.
     resource function get drp/ person(string nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);

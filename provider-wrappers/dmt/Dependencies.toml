@@ -32,6 +32,14 @@ dependencies = [
 
 [[package]]
 org = "ballerina"
+name = "cloud"
+version = "3.3.2"
+modules = [
+	{org = "ballerina", packageName = "cloud", moduleName = "cloud"}
+]
+
+[[package]]
+org = "ballerina"
 name = "constraint"
 version = "1.7.0"
 dependencies = [
@@ -245,6 +253,9 @@ dependencies = [
 	{org = "ballerina", name = "lang.value"},
 	{org = "ballerina", name = "observe"}
 ]
+modules = [
+	{org = "ballerina", packageName = "log", moduleName = "log"}
+]
 
 [[package]]
 org = "ballerina"
@@ -361,8 +372,10 @@ org = "tmp"
 name = "dmv_provider"
 version = "0.1.0"
 dependencies = [
+	{org = "ballerina", name = "cloud"},
 	{org = "ballerina", name = "graphql"},
 	{org = "ballerina", name = "http"},
+	{org = "ballerina", name = "log"},
 	{org = "ballerinai", name = "observe"}
 ]
 modules = [
