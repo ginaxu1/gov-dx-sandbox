@@ -25,6 +25,9 @@ cleanup() {
 # Set the trap: when SIGINT is received, run the cleanup function
 trap cleanup SIGINT
 
+# Fail on any error
+set -e
+
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
   echo "Docker is not running. Please start Docker and try again."
@@ -69,8 +72,10 @@ fi
 # Set Minikube Docker environment
 eval $(minikube docker-env)
 
+echo "Starting parallel Docker builds..."
+
 # Build the Docker images for the mocks
-bal build --cloud="docker" mocks/mock-drp/
+bal build --cloud="docker" mocks/mock-drp/ &
 
 if [ $? -ne 0 ]; then
   echo "Failed to build the Docker images for mocks."
@@ -78,9 +83,12 @@ if [ $? -ne 0 ]; then
 fi
 
 # Build the Docker images for the provider wrappers
-bal build --cloud="docker" provider-wrappers/dmt/
-bal build --cloud="docker" provider-wrappers/drp/
-docker build -t gov-dx-sandbox/graphql-resolver:v0.1.3 graphql-resolver/
+bal build --cloud="docker" provider-wrappers/dmt/ &
+bal build --cloud="docker" provider-wrappers/drp/ &
+docker build -t gov-dx-sandbox/graphql-resolver:v0.1.3 graphql-resolver/ &
+
+wait
+echo "All Docker builds completed successfully."
 
 if [ $? -ne 0 ]; then
   echo "Failed to build the Docker images for provider wrappers."
