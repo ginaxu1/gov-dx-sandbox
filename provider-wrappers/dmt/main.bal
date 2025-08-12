@@ -3,12 +3,14 @@ import ballerina/graphql.subgraph;
 import ballerina/http;
 import ballerina/log;
 
+configurable int PORT = ?;
+
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9092, httpVersion = http:HTTP_1_1, host = "0.0.0.0") {
+isolated service / on new graphql:Listener(PORT, httpVersion = http:HTTP_1_1, host = "0.0.0.0") {
     // print the service port to the console
     public isolated function init() {
-        log:printInfo("DMT service is running on port: " + 9092.toString());
+        log:printInfo("DMT service is running on port: " + PORT.toString());
     }
 
     isolated resource function get vehicle/vehicleInfoById(string vehicleId) returns VehicleInfo|error {
