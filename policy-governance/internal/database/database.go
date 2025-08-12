@@ -3,8 +3,11 @@ package database
 
 import (
 	"log"
-	"gorm.io/driver/sqlite"
+	"os"
+
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
 	"policy-governance/internal/models"
 )
 
@@ -12,12 +15,17 @@ var DB *gorm.DB
 
 func InitDB() {
 	var err error
-	DB, err = gorm.Open(sqlite.Open("data/policy.sqlite"), &gorm.Config{})
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		log.Fatal("DATABASE_URL environment variable is not set.")
+	}
+
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{}) // Use postgres.Open
 	if err != nil {
 		log.Fatalf("Failed to connect to the database: %v", err)
 	}
 
-	log.Println("Database connection has been established successfully")
+	log.Println("Database connection has been established successfully.")
 
 	// Auto-migrate the database tables
 	err = DB.AutoMigrate(&models.Provider{}, &models.PolicyMapping{})
@@ -33,7 +41,7 @@ func seedData() {
 	var count int64
 	DB.Model(&models.Provider{}).Count(&count)
 	if count > 0 {
-		log.Println("Database already contains data. Skipping seeding")
+		log.Println("Database already contains data. Skipping seeding.")
 		return
 	}
 
@@ -53,5 +61,5 @@ func seedData() {
 		{PolicyID: "policy_106", ConsumerID: "dmt_service_id", ProviderID: "dmt_service", AccessTier: "Tier 1", AccessBucket: "public"},
 	}
 	DB.Create(&mappings)
-	log.Println("Initial data seeded successfully")
+	log.Println("Initial data seeded successfully.")
 }
