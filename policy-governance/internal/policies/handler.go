@@ -18,8 +18,7 @@ type PolicyHandler struct {
 func NewPolicyHandler(repo repository.PolicyRepositoryInterface) *PolicyHandler {
 	return &PolicyHandler{repo: repo}
 }
-
-// GetAccessPolicy handles requests to retrieve an access policy.
+// Handles the retrieval of access policies based on consumer and provider IDs.
 func (h *PolicyHandler) GetAccessPolicy(w http.ResponseWriter, r *http.Request) {
 	consumerID := chi.URLParam(r, "consumerID")
 	providerID := chi.URLParam(r, "providerID")
@@ -35,11 +34,12 @@ func (h *PolicyHandler) GetAccessPolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Default to a restrictive policy if no explicit mapping is found
+	// If no explicit policy is found, default to a restrictive but potentially accessible tier.
+	// For example, defaulting to "Confidential" requiring consent.
 	if policy == nil {
 		policy = &models.PolicyMapping{
-			AccessTier:   "Tier 2",
-			AccessBucket: "require_consent",
+			AccessTier:   "Confidential",
+			AccessBucket: "requires_consent",
 		}
 	}
 
