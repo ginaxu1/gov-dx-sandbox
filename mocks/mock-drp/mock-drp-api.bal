@@ -81,7 +81,6 @@ type PersonData record {|
     ParentInfo parentInfo;
 |};
 
-
 // --- Mock Data Store ---
 // This is an in-memory table that simulates a database for the mock API.
 isolated final table<PersonData> key(nic) mockPersonDataTable = table [
@@ -123,16 +122,18 @@ isolated final table<PersonData> key(nic) mockPersonDataTable = table [
 // --- Mock HTTP Service ---
 // This service simulates the actual DRP backend API.
 // The main GraphQL service (provider-wrappers/drp/main.bal) will communicate with this.
-service / on new http:Listener(8080) {
+isolated service / on new http:Listener(8080) {
 
-    resource function get person/[string nic]() returns PersonData|http:NotFound {
+    isolated resource function get person/[string nic]() returns PersonData|http:NotFound {
         log:printInfo("Mock DRP API: Request received for person", nic = nic);
         lock {
-            PersonData? person = mockPersonDataTable.get(nic);
-            if person is () {
+            // check whether person exists
+            if (!mockPersonDataTable.hasKey(nic)) {
                 log:printWarn("Mock DRP API: Person not found", nic = nic);
                 return http:NOT_FOUND;
             }
+
+            PersonData person = mockPersonDataTable.get(nic);
             log:printInfo("Mock DRP API: Found person, returning data.", nic = nic);
             return person.clone();
         }
