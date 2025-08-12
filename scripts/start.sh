@@ -10,11 +10,13 @@ cleanup() {
   kubectl delete deployment graphql-resolver-deployment
   kubectl delete deployment provider-wrapper-drp-deployment
   kubectl delete deployment provider-wrapper-dmt-deployment
+  kubectl delete deployment mock-drp-deployment
 
   # Delete all services
   kubectl delete service graphql-resolver-service
   kubectl delete service provider-wrapper-drp-service
   kubectl delete service provider-wrapper-dmt-service
+  kubectl delete service mock-drp-service
 
   echo "Cleanup complete. Exiting."
   exit 0
@@ -23,6 +25,7 @@ cleanup() {
 # Set the trap: when SIGINT is received, run the cleanup function
 trap cleanup SIGINT
 
+# Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
   echo "Docker is not running. Please start Docker and try again."
   exit 1
@@ -54,15 +57,25 @@ else
   echo "Minikube is already running."
 fi
 
+# Check if Minikube started successfully
 if [ $? -ne 0 ]; then
   echo "Failed to start Minikube. Please check your Minikube installation."
   exit 1
+else
+  echo "Minikube started successfully. You can now deploy your applications."
 fi
 
-echo "Minikube started successfully. You can now deploy your applications."
 
 # Set Minikube Docker environment
 eval $(minikube docker-env)
+
+# Build the Docker images for the mocks
+bal build --cloud="docker" mocks/mock-drp/
+
+if [ $? -ne 0 ]; then
+  echo "Failed to build the Docker images for mocks."
+  exit 1
+fi
 
 # Build the Docker images for the provider wrappers
 bal build --cloud="docker" provider-wrappers/dmt/
@@ -72,13 +85,18 @@ docker build -t gov-dx-sandbox/graphql-resolver:v0.1.3 graphql-resolver/
 if [ $? -ne 0 ]; then
   echo "Failed to build the Docker images for provider wrappers."
   exit 1
+else
+  echo "Docker images for provider wrappers built successfully."
 fi
-echo "Docker images for provider wrappers built successfully."
 
+# Deploy the mock services
+kubectl apply -f mocks/mock-drp/k8s/deployment.yaml
 
-# Optionally, you can deploy your applications here
+# Deploy the provider wrappers
 kubectl apply -f provider-wrappers/dmt/k8s/deployment.yaml
 kubectl apply -f provider-wrappers/drp/k8s/deployment.yaml
+
+# Deploy the GraphQL resolver
 kubectl apply -f graphql-resolver/k8s/deployment.yaml
 
 # Check if the deployment was successful

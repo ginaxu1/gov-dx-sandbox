@@ -19,7 +19,7 @@ isolated service class DRPAPIClient {
 
 // This function initializes the DRPAPIClient and is used in the main GraphQL service.
 public function initializeDRPClient() returns DRPAPIClient|error {
-    return new ("http://localhost:8080");
+    return new ("http://mock-drp-service");
 }
 
 // Shared instance of the DRPAPIClient to be used across the service.
