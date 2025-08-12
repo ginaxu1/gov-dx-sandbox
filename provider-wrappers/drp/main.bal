@@ -28,7 +28,7 @@ final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 
 // --- GraphQL Subgraph Service ---
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9091) {
+isolated service / on new graphql:Listener(9090) {
     // Fetches the full person data for a given NIC.
     resource function get drp/ person(string nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
