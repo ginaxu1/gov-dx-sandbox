@@ -1,0 +1,13 @@
+schemaVersion: 1.2
+endpoints:
+  - name: drp-service
+    displayName: DRP Subgraph
+    service:
+      # The base path for your GraphQL endpoint.
+      basePath: /
+      # The port your Ballerina service listens on. This MUST match your Main.bal.
+      port: 9090
+    # The type of the endpoint is GraphQL, not REST.
+    type: GraphQL
+    networkVisibilities: 
+      - Public
