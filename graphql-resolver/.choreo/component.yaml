@@ -4,29 +4,23 @@ schemaVersion: 1.2
 # +optional Incoming connection details for the component
 endpoints:
   # GraphQL Endpoint for DMT Subgraph
-  - name: dmt-graphql-subgraph
-    displayName: DMT GraphQL Subgraph
+  - name: provider-wrapper-drp
+    displayName: DRP Provider Wrapper
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
       basePath: /
-      port: 9090 
+      port: 9090
     # +required Type of traffic that the endpoint is accepting.
     # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
     type: GraphQL 
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Project # Can also be 'Project' for more restricted internal visibility
-# +optional Defines runtime configurations
-configurations:
-  # +optional List of environment variables to be injected into the component.
-  env:
-    # +required Name of the environment variable
-    - name: BAL_CONFIG_VAR_PORT
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        configForm:
-          type: int
+      - Public # Can also be 'Project' for more restricted internal visibility
+dependencies:
+  connectionReferences:
+    - name: drp-connection
+      resourceRef: service:/gov-dx-sandbox/drp/v1/aaa8e/PUBLIC
+    - name: dmt-connection
+      resourceRef: service:/gov-dx-sandbox/dmt/v1/e87b5/PUBLIC
