@@ -5,6 +5,8 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+const port = process.env.PORT || 4000;
+
 // Define your two Ballerina GraphQL services (subgraphs)
 const gateway = new ApolloGateway({
   supergraphSdl: new IntrospectAndCompose({
@@ -28,7 +30,7 @@ const server = new ApolloServer({
 // Start the server
 async function startServer() {
   const { url } = await startStandaloneServer(server, {
-    listen: { port: 4000 },
+    listen: { port },
   });
   console.log(`🚀 Unified Gateway ready at: ${url}`);
 }

@@ -18,6 +18,17 @@ endpoints:
     # that are consumed internally by your supergraph.
     networkVisibilities:
       - Public # Can also be 'Project' for more restricted internal visibility
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    # +required Name of the environment variable
+    - name: PORT
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        configForm:
+          type: number
 dependencies:
   connectionReferences:
     - name: drp-connection
