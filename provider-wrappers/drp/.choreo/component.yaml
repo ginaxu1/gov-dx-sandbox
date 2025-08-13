@@ -31,7 +31,7 @@ configurations:
         configForm:
           type: int
     # +required Name of the environment variable
-    - name: CHOREO_MOCK_DRP_CONNECTION_SERVICEURL
+    - name: BAL_CONFIG_VAR_SERVICEURL
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
@@ -41,7 +41,7 @@ configurations:
           name: mock-drp-connection
           # +required Choreo connection configuration key to refer the value from
           key: ServiceURL
-    - name: CHOREO_MOCK_DRP_CONNECTION_CONSUMERKEY
+    - name: BAL_CONFIG_VAR_CONSUMERKEY
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
@@ -51,7 +51,7 @@ configurations:
           name: mock-drp-connection
           # +required Choreo connection configuration key to refer the value from
           key: ConsumerKey
-    - name: CHOREO_MOCK_DRP_CONNECTION_CONSUMERSECRET
+    - name: BAL_CONFIG_VAR_CONSUMERSECRET
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
@@ -61,7 +61,7 @@ configurations:
           name: mock-drp-connection
           # +required Choreo connection configuration key to refer the value from
           key: ConsumerSecret
-    - name: CHOREO_MOCK_DRP_CONNECTION_TOKENURL
+    - name: BAL_CONFIG_VAR_TOKENURL
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
@@ -71,7 +71,7 @@ configurations:
           name: mock-drp-connection
           # +required Choreo connection configuration key to refer the value from
           key: TokenURL
-    - name: CHOREO_MOCK_DRP_CONNECTION_APIKEY
+    - name: BAL_CONFIG_VAR_APIKEY
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
