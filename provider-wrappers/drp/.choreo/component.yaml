@@ -3,7 +3,7 @@ schemaVersion: 1.2
 
 # +optional Incoming connection details for the component
 endpoints:
-  # GraphQL Endpoint for DMT Subgraph
+  # GraphQL Endpoint for DRP Subgraph
   - name: provider-wrapper-drp
     displayName: DRP Provider Wrapper
     service:
@@ -17,32 +17,4 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Project # Can also be 'Project' for more restricted internal visibility
-# +optional Defines runtime configurations
-configurations:
-  # +optional List of environment variables to be injected into the component.
-  env:
-    # +required Name of the environment variable
-    - name: BAL_CONFIG_VAR_PORT
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        configForm:
-          type: int
-    - name: BAL_CONFIG_VAR_DRP_API_BASE_URL
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        configForm:
-          type: string
-          defaultValue: "http://localhost:9090"
-    - name: BAL_CONFIG_VAR_API_KEY
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        configForm:
-          type: string
-          defaultValue: "your-api-key"
+      - Public # Can also be 'Project' for more restricted internal visibility
