@@ -3,7 +3,7 @@ schemaVersion: 1.2
 
 # +optional Incoming connection details for the component
 endpoints:
-  # GraphQL Endpoint for DMT Subgraph
+  # GraphQL Endpoint for DRP Subgraph
   - name: provider-wrapper-drp
     displayName: DRP Provider Wrapper
     service:

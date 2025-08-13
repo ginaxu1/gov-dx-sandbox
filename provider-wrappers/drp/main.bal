@@ -3,10 +3,10 @@ import ballerina/graphql.subgraph;
 import ballerina/http;
 import ballerina/log;
 
-configurable int PORT = ?;
-configurable string DRP_API_BASE_URL = ?;
-
 // --- DRPAPIClient (Provider Wrapper) ---
+configurable int port = ?;
+configurable string drpApiBaseUrl = ?;
+configurable string apiKey = ?;
 // This client makes a real HTTP call to the backend service.
 isolated service class DRPAPIClient {
     private final http:Client apiClient;
@@ -16,13 +16,15 @@ isolated service class DRPAPIClient {
     isolated function getPersonByNic(string nic) returns PersonData|error {
         log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
         string path = string `/person/${nic}`;
-        return self.apiClient->get(path);
+        return self.apiClient->get(path, headers = {
+            "Test-Key": apiKey
+        });
     }
 }
 
 // This function initializes the DRPAPIClient and is used in the main GraphQL service.
 public function initializeDRPClient() returns DRPAPIClient|error {
-    return new (DRP_API_BASE_URL);
+    return new (drpApiBaseUrl);
 }
 
 // Shared instance of the DRPAPIClient to be used across the service.
@@ -31,7 +33,7 @@ final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 
 // --- GraphQL Subgraph Service ---
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(PORT) {
+isolated service / on new graphql:Listener(port) {
     // Fetches the full person data for a given NIC.
     resource function get person/ getPersonByNic(string nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
