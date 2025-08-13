@@ -38,3 +38,11 @@ configurations:
         configForm:
           type: string
           defaultValue: "http://localhost:9090"
+    - name: BAL_CONFIG_VAR_API_KEY
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        configForm:
+          type: string
+          defaultValue: "your-api-key"
