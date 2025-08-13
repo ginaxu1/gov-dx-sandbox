@@ -17,7 +17,6 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Organization
       - Project # Can also be 'Project' for more restricted internal visibility
     # Schema file path for documentation/management within Choreo (references openapi spec)
     # This path is relative to the choreo.yaml file's location in the monorepo.
@@ -31,7 +30,6 @@ endpoints:
       port: 9092 # The port your Ballerina HTTP listener for health check listens on
     type: REST # Specify REST type
     networkVisibilities:
-      - Organization
       - Project # Health checks are often internal
     # A schemaFilePath for a simple health check is often optional or can point
     # to the same openapi.yaml which defines /health
