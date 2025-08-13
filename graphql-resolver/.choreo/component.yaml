@@ -18,26 +18,6 @@ endpoints:
     # that are consumed internally by your supergraph.
     networkVisibilities:
       - Project # Can also be 'Project' for more restricted internal visibility
-# +optional Defines runtime configurations
-configurations:
-  # +optional List of environment variables to be injected into the component.
-  env:
-    # +required Name of the environment variable
-    - name: DMT_API_URL
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        configForm:
-          type: int
-    - name: DRP_API_URL
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        configForm:
-          type: string
-          defaultValue: "http://localhost:9090"
 dependencies:
   connectionReferences:
     - name: dmt-connection
