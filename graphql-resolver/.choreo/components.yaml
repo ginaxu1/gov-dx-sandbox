@@ -23,14 +23,14 @@ configurations:
   # +optional List of environment variables to be injected into the component.
   env:
     # +required Name of the environment variable
-    - name: BAL_CONFIG_VAR_DMT_API_URL
+    - name: DMT_API_URL
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
         # +required Choreo connection value source
         configForm:
           type: int
-    - name: BAL_CONFIG_VAR_DRP_API_URL
+    - name: DRP_API_URL
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
