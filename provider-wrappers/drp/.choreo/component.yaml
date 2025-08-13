@@ -30,57 +30,6 @@ configurations:
         # +required Choreo connection value source
         configForm:
           type: int
-    # +required Name of the environment variable
-    - name: BAL_CONFIG_VAR_SERVICEURL
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        connectionRef:
-          # +required Choreo connection name to refer the value from
-          name: mock-drp-connection
-          # +required Choreo connection configuration key to refer the value from
-          key: ServiceURL
-    - name: BAL_CONFIG_VAR_CONSUMERKEY
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        connectionRef:
-          # +required Choreo connection name to refer the value from
-          name: mock-drp-connection
-          # +required Choreo connection configuration key to refer the value from
-          key: ConsumerKey
-    - name: BAL_CONFIG_VAR_CONSUMERSECRET
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        connectionRef:
-          # +required Choreo connection name to refer the value from
-          name: mock-drp-connection
-          # +required Choreo connection configuration key to refer the value from
-          key: ConsumerSecret
-    - name: BAL_CONFIG_VAR_TOKENURL
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        connectionRef:
-          # +required Choreo connection name to refer the value from
-          name: mock-drp-connection
-          # +required Choreo connection configuration key to refer the value from
-          key: TokenURL
-    - name: BAL_CONFIG_VAR_APIKEY
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        connectionRef:
-          # +required Choreo connection name to refer the value from
-          name: mock-drp-connection
-          # +required Choreo connection configuration key to refer the value from
-          key: ChoreoApiKey
 dependencies:
     connectionReferences:
     - name: mock-drp-connection
