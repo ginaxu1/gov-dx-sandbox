@@ -4,8 +4,8 @@ schemaVersion: 1.2
 # +optional Incoming connection details for the component
 endpoints:
   # GraphQL Endpoint for DMT Subgraph
-  - name: provider-wrapper-drp
-    displayName: DRP Provider Wrapper
+  - name: graphql-resolver
+    displayName: GraphQL Resolver
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
