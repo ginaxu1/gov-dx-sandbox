@@ -2,16 +2,17 @@ import ballerina/graphql;
 import ballerina/graphql.subgraph;
 import ballerina/http;
 import ballerina/log;
+import ballerina/os;
 
 // --- DRPAPIClient (Provider Wrapper) ---
 configurable int port = ?;
 
 // Read environment variables
-configurable string serviceURL = ?;
-configurable string consumerKey = ?;
-configurable string consumerSecret = ?;
-configurable string tokenURL = ?;
-configurable string choreoApiKey = ?;
+configurable string serviceURL = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_SERVICEURL");
+configurable string consumerKey = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERKEY");
+configurable string consumerSecret = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERSECRET");
+configurable string tokenURL = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_TOKENURL");
+configurable string choreoApiKey = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_APIKEY");
 
 // print the consumerKey and consumerSecret
 
