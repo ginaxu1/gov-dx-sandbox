@@ -12,6 +12,7 @@
   "dependencies": {
     "@apollo/gateway": "^2.11.2",
     "@apollo/server": "^5.0.0",
+    "dotenv": "^17.2.1",
     "graphql": "^16.11.0"
   },
   "type": "module"
