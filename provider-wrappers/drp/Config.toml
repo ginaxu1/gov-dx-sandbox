@@ -1,2 +1,2 @@
-PORT = 9091
-DRP_API_BASE_URL = "http://localhost:8080"
+port = 9091
+drpApiBaseUrl = "http://localhost:8080"
