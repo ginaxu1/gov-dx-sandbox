@@ -4,6 +4,8 @@ import ballerina/http;
 import ballerina/log;
 
 // --- DRPAPIClient (Provider Wrapper) ---
+configurable int port = ?;
+configurable string drpApiBaseUrl = ?;
 // This client makes a real HTTP call to the backend service.
 isolated service class DRPAPIClient {
     private final http:Client apiClient;
@@ -19,7 +21,7 @@ isolated service class DRPAPIClient {
 
 // This function initializes the DRPAPIClient and is used in the main GraphQL service.
 public function initializeDRPClient() returns DRPAPIClient|error {
-    return new ("http://localhost:8080");
+    return new (drpApiBaseUrl);
 }
 
 // Shared instance of the DRPAPIClient to be used across the service.
@@ -28,7 +30,7 @@ final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 
 // --- GraphQL Subgraph Service ---
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(9091) {
+isolated service / on new graphql:Listener(port) {
     // Fetches the full person data for a given NIC.
     resource function get person/ getPersonByNic(string nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
