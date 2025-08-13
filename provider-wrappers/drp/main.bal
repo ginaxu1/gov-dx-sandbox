@@ -2,7 +2,6 @@ import ballerina/graphql;
 import ballerina/graphql.subgraph;
 import ballerina/http;
 import ballerina/log;
-import ballerina/os;
 
 // --- DRPAPIClient (Provider Wrapper) ---
 configurable int port = ?;
