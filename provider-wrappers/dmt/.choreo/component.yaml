@@ -17,4 +17,16 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Public # Can also be 'Project' for more restricted internal visibility
+      - Organization # Can also be 'Project' for more restricted internal visibility
+# +optional Defines runtime configurations
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    # +required Name of the environment variable
+    - name: BAL_CONFIG_VAR_PORT
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        configForm:
+          type: int
