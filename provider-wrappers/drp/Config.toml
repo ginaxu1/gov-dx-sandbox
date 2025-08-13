@@ -1,2 +1,5 @@
 port = 9091
-drpApiBaseUrl = "http://localhost:8080"
+consumerKey = "your_consumer_key"
+consumerSecret = "your_consumer_secret"
+tokenURL = "http://localhost:8080/token"
+choreoApiKey = "your_choreo_api_key"
