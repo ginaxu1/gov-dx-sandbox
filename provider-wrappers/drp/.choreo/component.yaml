@@ -30,14 +30,57 @@ configurations:
         # +required Choreo connection value source
         configForm:
           type: int
-    - name: BAL_CONFIG_VAR_DRP_API_BASE_URL
+    # +required Name of the environment variable
+    - name: CHOREO_MOCK_DRP_CONNECTION_SERVICEURL
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
         # +required Choreo connection value source
-        configForm:
-          type: string
-          defaultValue: "http://localhost:9090"
+        connectionRef:
+          # +required Choreo connection name to refer the value from
+          name: mock-drp-connection
+          # +required Choreo connection configuration key to refer the value from
+          key: ServiceURL
+    - name: CHOREO_MOCK_DRP_CONNECTION_CONSUMERKEY
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        connectionRef:
+          # +required Choreo connection name to refer the value from
+          name: mock-drp-connection
+          # +required Choreo connection configuration key to refer the value from
+          key: ConsumerKey
+    - name: CHOREO_MOCK_DRP_CONNECTION_CONSUMERSECRET
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        connectionRef:
+          # +required Choreo connection name to refer the value from
+          name: mock-drp-connection
+          # +required Choreo connection configuration key to refer the value from
+          key: ConsumerSecret
+    - name: CHOREO_MOCK_DRP_CONNECTION_TOKENURL
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        connectionRef:
+          # +required Choreo connection name to refer the value from
+          name: mock-drp-connection
+          # +required Choreo connection configuration key to refer the value from
+          key: TokenURL
+    - name: CHOREO_MOCK_DRP_CONNECTION_APIKEY
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        connectionRef:
+          # +required Choreo connection name to refer the value from
+          name: mock-drp-connection
+          # +required Choreo connection configuration key to refer the value from
+          key: ChoreoApiKey
 dependencies:
     connectionReferences:
     - name: mock-drp-connection
