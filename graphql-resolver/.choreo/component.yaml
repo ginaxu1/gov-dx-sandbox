@@ -21,14 +21,19 @@ endpoints:
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
-    # +required Name of the environment variable
     - name: PORT
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
-        # +required Choreo connection value source
+        # +required config form value source
         configForm:
-          type: number
+            # +optional display name inside the config form, name will be shown in config form if not specified
+            displayName: Port
+            # +optional default value is true if not specified
+            required: true
+            # +optional default value is string if not specified
+            # Allowed types - string, number, boolean, secret
+            type: number
 dependencies:
   connectionReferences:
     - name: drp-connection
