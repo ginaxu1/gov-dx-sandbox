@@ -14,10 +14,13 @@ configurable string consumerSecret = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSU
 configurable string tokenURL = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_TOKENURL");
 configurable string choreoApiKey = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_APIKEY");
 
+// print the consumerKey and consumerSecret
+
 isolated service class DRPAPIClient {
     private final http:Client apiClient;
 
     function init() returns http:ClientError? {
+        log:printInfo("DRPAPIClient: Initializing", consumerKey = consumerKey, consumerSecret = consumerSecret);
         self.apiClient = check new (serviceURL,
             auth = {
                 tokenUrl: tokenURL,
