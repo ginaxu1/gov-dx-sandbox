@@ -7,12 +7,17 @@ configurable int PORT = ?;
 configurable string DRP_API_BASE_URL = ?;
 
 // --- DRPAPIClient (Provider Wrapper) ---
+configurable int port = ?;
+configurable string drpApiBaseUrl = ?;
+
 // This client makes a real HTTP call to the backend service.
 isolated service class DRPAPIClient {
     private final http:Client apiClient;
+
     function init(string baseUrl) returns http:ClientError? {
         self.apiClient = check new (baseUrl);
     }
+
     isolated function getPersonByNic(string nic) returns PersonData|error {
         log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
         string path = string `/person/${nic}`;
@@ -22,7 +27,7 @@ isolated service class DRPAPIClient {
 
 // This function initializes the DRPAPIClient and is used in the main GraphQL service.
 public function initializeDRPClient() returns DRPAPIClient|error {
-    return new (DRP_API_BASE_URL);
+    return new (drpApiBaseUrl);
 }
 
 // Shared instance of the DRPAPIClient to be used across the service.
@@ -31,9 +36,9 @@ final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 
 // --- GraphQL Subgraph Service ---
 @subgraph:Subgraph
-isolated service / on new graphql:Listener(PORT) {
+isolated service / on new graphql:Listener(port) {
     // Fetches the full person data for a given NIC.
-    resource function get person/ getPersonByNic(string nic) returns PersonData? {
+    resource function get person/getPersonByNic(string nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
         if personData is error {
             log:printWarn("DRP Service: Person not found or error fetching person", nic = nic, err = personData.toString());
@@ -53,7 +58,7 @@ isolated service / on new graphql:Listener(PORT) {
 
     // Fetches only the parent information for a given NIC.
     resource function get parentInfo(string nic) returns ParentInfo? {
-         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
+        PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
         if personData is error {
             return ();
         }
@@ -67,10 +72,10 @@ isolated service / on new graphql:Listener(PORT) {
             return ();
         }
         return personData.lostCardReplacementInfo;
-    }    
-    
+    }
+
     // Health check endpoint for the DRP service.
-    resource function get drp/ health() returns string {
+    resource function get drp/health() returns string {
         return "OK";
     }
 }
