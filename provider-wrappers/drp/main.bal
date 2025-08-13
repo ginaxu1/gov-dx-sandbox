@@ -9,6 +9,7 @@ configurable string DRP_API_BASE_URL = ?;
 // --- DRPAPIClient (Provider Wrapper) ---
 configurable int port = ?;
 configurable string drpApiBaseUrl = ?;
+configurable string apiKey = ?;
 
 // This client makes a real HTTP call to the backend service.
 isolated service class DRPAPIClient {
@@ -21,7 +22,9 @@ isolated service class DRPAPIClient {
     isolated function getPersonByNic(string nic) returns PersonData|error {
         log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
         string path = string `/person/${nic}`;
-        return self.apiClient->get(path);
+        return self.apiClient->get(path, headers = {
+            "Test-Key": apiKey
+        });
     }
 }
 
