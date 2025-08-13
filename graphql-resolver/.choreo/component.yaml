@@ -20,7 +20,7 @@ endpoints:
       - Public # Can also be 'Project' for more restricted internal visibility
 dependencies:
   connectionReferences:
-    - name: drp-connection
+    - name: drp-connection-1
       resourceRef: service:/gov-dx-sandbox/drp/v1/aaa8e/ORGANIZATION
-    - name: dmt-connection
+    - name: dmt-connection-1
       resourceRef: service:/gov-dx-sandbox/dmt/v1/e87b5/ORGANIZATION
