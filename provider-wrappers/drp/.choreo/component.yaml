@@ -19,6 +19,10 @@ endpoints:
     networkVisibilities:
       - Organization # Can also be 'Project' for more restricted internal visibility
 # +optional Defines runtime configurations
+dependencies:
+    connectionReferences:
+    - name: mock-drp-connection
+      resourceRef: service:/mock-provider-data/mock-drp/v1/803f0/PUBLIC
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
@@ -30,7 +34,28 @@ configurations:
         # +required Choreo connection value source
         configForm:
           type: int
-dependencies:
-    connectionReferences:
-    - name: mock-drp-connection
-      resourceRef: service:/mock-provider-data/mock-drp/v1/803f0/PUBLIC
+    - name: BAL_CONFIG_VAR_SERVICEURL
+      valueFrom:
+        connectionRef:
+          name: mock-drp-connection
+          key: ServiceURL
+    - name: BAL_CONFIG_VAR_CONSUMERKEY
+      valueFrom:
+        connectionRef:
+          name: mock-drp-connection
+          key: ConsumerKey
+    - name: BAL_CONFIG_VAR_CONSUMERSECRET
+      valueFrom:
+        connectionRef:
+          name: mock-drp-connection
+          key: ConsumerSecret
+    - name: BAL_CONFIG_VAR_TOKENURL
+      valueFrom:
+        connectionRef:
+          name: mock-drp-connection
+          key: TokenURL
+    - name: BAL_CONFIG_VAR_CHOREO_APIKEY
+      valueFrom:
+        connectionRef:
+          name: mock-drp-connection
+          key: ChoreoAPIKey
