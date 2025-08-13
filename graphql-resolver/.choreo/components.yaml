@@ -38,3 +38,9 @@ configurations:
         configForm:
           type: string
           defaultValue: "http://localhost:9090"
+dependencies:
+    connectionReferences:
+    - name: dmt-connection
+      resourceRef: service:/gov-dx-sandbox/dmt-nl/v1/aaa8e/PROJECT
+    - name: drp-connection
+      resourceRef: service:/gov-dx-sandbox/drp/v1/aaa8e/PROJECT
