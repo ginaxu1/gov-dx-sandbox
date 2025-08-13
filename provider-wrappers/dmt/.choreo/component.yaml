@@ -17,17 +17,26 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Organization
       - Project # Can also be 'Project' for more restricted internal visibility
-# +optional Defines runtime configurations
-configurations:
-  # +optional List of environment variables to be injected into the component.
-  env:
-    # +required Name of the environment variable
-    - name: BAL_CONFIG_VAR_PORT
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
-      valueFrom:
-        # +required Choreo connection value source
-        configForm:
-          type: int
+    # Schema file path for documentation/management within Choreo (references openapi spec)
+    # This path is relative to the choreo.yaml file's location in the monorepo.
+    schemaFilePath: ../../docs/api-specs/dmt-provider-api.yaml
+
+  # REST Endpoint for Health Check
+  - name: dmt-health-check
+    displayName: DMT Health Check
+    service:
+      basePath: /health # The specific base path for the health endpoint
+      port: 9092 # The port your Ballerina HTTP listener for health check listens on
+    type: REST # Specify REST type
+    networkVisibilities:
+      - Project # Health checks are often internal
+    # A schemaFilePath for a simple health check is often optional or can point
+    # to the same openapi.yaml which defines /health
+    schemaFilePath: ../../docs/api-specs/dmt-provider-api.yaml
+
+# No specific outgoing dependencies for now, but could be added if DMT calls other Choreo services
+dependencies: {}
+
+# No specific runtime configurations for now, but could be added for DB connections, etc.
+configurations: {}
