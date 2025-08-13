@@ -38,3 +38,7 @@ configurations:
         configForm:
           type: string
           defaultValue: "http://localhost:9090"
+dependencies:
+    connectionReferences:
+    - name: mock-drp-connection
+      resourceRef: service:/mock-provider-data/mock-drp/v1/803f0/PUBLIC

@@ -2,29 +2,37 @@ import ballerina/graphql;
 import ballerina/graphql.subgraph;
 import ballerina/http;
 import ballerina/log;
+import ballerina/os;
 
 // --- DRPAPIClient (Provider Wrapper) ---
 configurable int port = ?;
-configurable string drpApiBaseUrl = ?;
-configurable string apiKey = ?;
-// This client makes a real HTTP call to the backend service.
+
+// Read environment variables
+configurable string serviceURL = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_SERVICEURL");
+configurable string consumerKey = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERKEY");
+configurable string consumerSecret = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERSECRET");
+configurable string tokenURL = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_TOKENURL");
+configurable string choreoApiKey = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_APIKEY");
 isolated service class DRPAPIClient {
     private final http:Client apiClient;
-    function init(string baseUrl) returns http:ClientError? {
-        self.apiClient = check new (baseUrl);
+    function init() returns http:ClientError? {
+        self.apiClient = check new (serviceURL,
+        auth = {
+            tokenUrl: tokenURL,
+            clientId: consumerKey,
+            clientSecret: consumerSecret
+        });
     }
     isolated function getPersonByNic(string nic) returns PersonData|error {
         log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
         string path = string `/person/${nic}`;
-        return self.apiClient->get(path, headers = {
-            "Test-Key": apiKey
-        });
+        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
     }
 }
 
 // This function initializes the DRPAPIClient and is used in the main GraphQL service.
 public function initializeDRPClient() returns DRPAPIClient|error {
-    return new (drpApiBaseUrl);
+    return new ();
 }
 
 // Shared instance of the DRPAPIClient to be used across the service.
