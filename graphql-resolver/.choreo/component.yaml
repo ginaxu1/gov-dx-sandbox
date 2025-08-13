@@ -17,10 +17,10 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Project # Can also be 'Project' for more restricted internal visibility
+      - Public # Can also be 'Project' for more restricted internal visibility
 dependencies:
   connectionReferences:
     - name: dmt-connection
       resourceRef: service:/gov-dx-sandbox/dmt-nl/v1/aaa8e/PROJECT
-    - name: drp-connection
+    - name: drp-connection-2
       resourceRef: service:/gov-dx-sandbox/drp/v1/aaa8e/PROJECT
