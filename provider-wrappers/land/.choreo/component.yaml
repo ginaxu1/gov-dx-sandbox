@@ -1,0 +1,37 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  # GraphQL Endpoint for Land Subgraph
+  - name: provider-wrapper-land
+    displayName: Land Provider Wrapper
+    service:
+      # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
+      # Ballerina GraphQL services usually listen on '/' by default.
+      basePath: /
+      port: 9091 # Changed port to avoid conflict with DRP's 9090
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: GraphQL
+    # Network visibility: Organization is generally recommended for backend services
+    # that are consumed internally by your supergraph.
+    networkVisibilities:
+      - Organization # Can also be 'Project' for more restricted internal visibility
+
+# +optional Defines runtime configurations
+dependencies:
+    connectionReferences:
+    - name: mock-land-connection-1 # Updated name for the land connection
+      resourceRef: service:/mock-provider-data/mock-land/v1/YOUR_LAND_SERVICE_ID/PUBLIC # Placeholder for your mock land service ID in Choreo
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    # +required Name of the environment variable
+    - name: BAL_CONFIG_VAR_PORT
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        configForm:
+          type: number
