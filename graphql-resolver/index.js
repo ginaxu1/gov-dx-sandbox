@@ -25,6 +25,7 @@ const gateway = new ApolloGateway({
 // Create the server that will expose the single, unified graph
 const server = new ApolloServer({
   gateway,
+  introspection: true
 });
 
 // Start the server
