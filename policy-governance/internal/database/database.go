@@ -1,68 +1,61 @@
-// internal/database/database.go
 package database
 
 import (
-	"log"
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-
 	"policy-governance/internal/models"
+
+	"github.com/jackc/pgx/v4"
 )
 
-var DB *gorm.DB
+var conn *pgx.Conn
 
-func InitDB() {
-	var err error
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		log.Fatal("DATABASE_URL environment variable is not set.")
+var GetConsumerPolicy = func(consumerId string) (*models.Policy, error) {
+	if conn == nil {
+		return nil, fmt.Errorf("database connection is not initialized")
 	}
 
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{}) // Use postgres.Open
+	var policyJson []byte
+	query := `SELECT policy FROM consumer_policies WHERE consumer_id = $1`
+	err := conn.QueryRow(context.Background(), query, consumerId).Scan(&policyJson)
 	if err != nil {
-		log.Fatalf("Failed to connect to the database: %v", err)
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("no policy found for consumer: %s", consumerId)
+		}
+		return nil, fmt.Errorf("failed to query policy: %w", err)
 	}
 
-	log.Println("Database connection has been established successfully.")
-
-	// Auto-migrate the database tables
-	err = DB.AutoMigrate(&models.Provider{}, &models.PolicyMapping{})
+	var policy models.Policy
+	err = json.Unmarshal(policyJson, &policy)
 	if err != nil {
-		log.Fatalf("Failed to auto-migrate database tables: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal policy JSON: %w", err)
 	}
-	log.Println("Database synchronized. Tables created/updated.")
 
-	seedData()
+	return &policy, nil
 }
 
-func seedData() {
-	var count int64
-	DB.Model(&models.Provider{}).Count(&count)
-	if count > 0 {
-		log.Println("Database already contains data. Skipping seeding.")
-		return
+func Init() error {
+	var err error
+	databaseUrl := os.Getenv("DATABASE_URL")
+	if databaseUrl == "" {
+		return fmt.Errorf("DATABASE_URL environment variable is not set")
 	}
 
-	log.Println("Seeding initial data...")
-	providers := []models.Provider{
-		{ProviderID: "drp_service", ProviderName: "DRP", IsGovtEntity: true},
-		{ProviderID: "dmt_service", ProviderName: "DMT", IsGovtEntity: true},
-		{ProviderID: "drc_service", ProviderName: "DRC", IsGovtEntity: true},
+	conn, err = pgx.Connect(context.Background(), databaseUrl)
+	if err != nil {
+		return fmt.Errorf("unable to connect to database: %w", err)
 	}
-	DB.Create(&providers)
 
-	mappings := []models.PolicyMapping{
-		{PolicyID: "policy_101", ConsumerID: "hotel_service_id", ProviderID: "drp_service", AccessTier: "Confidential", AccessBucket: "requires_consent"},
-		{PolicyID: "policy_102", ConsumerID: "dmt_service_id", ProviderID: "drp_service", AccessTier: "Confidential", AccessBucket: "govt_access"},
-		{PolicyID: "policy_103", ConsumerID: "citizen_app_id", ProviderID: "drp_service", AccessTier: "Confidential", AccessBucket: "access_by_consumer_id"},
-		{PolicyID: "policy_104", ConsumerID: "hotel_service_id", ProviderID: "dmt_service", AccessTier: "Limited Access", AccessBucket: "requires_consent_limited"},
-		{PolicyID: "policy_105", ConsumerID: "citizen_app_id", ProviderID: "dmt_service", AccessTier: "Confidential", AccessBucket: "access_by_consumer_id"},
-		{PolicyID: "policy_106", ConsumerID: "dmt_service_id", ProviderID: "dmt_service", AccessTier: "Public", AccessBucket: "none"},
-		{PolicyID: "policy_107", ConsumerID: "dmt_service_id", ProviderID: "drc_service", AccessTier: "Secret", AccessBucket: "platform_denial"},
-		{PolicyID: "policy_108", ConsumerID: "dmt_service_id", ProviderID: "drc_service", AccessTier: "Confidential", AccessBucket: "govt_access"},
+	fmt.Println("Successfully connected to the database!")
+	return nil
+}
+
+func Close() {
+	if conn != nil {
+		conn.Close(context.Background())
+		fmt.Println("Database connection closed.")
 	}
-	DB.Create(&mappings)
-	log.Println("Initial data seeded successfully.")
 }
