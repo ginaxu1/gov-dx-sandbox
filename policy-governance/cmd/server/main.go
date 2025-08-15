@@ -1,4 +1,3 @@
-// cmd/server/main.go
 package main
 
 import (
@@ -10,49 +9,59 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-
 	"policy-governance/internal/database"
 	"policy-governance/internal/policies"
-	"policy-governance/internal/repository"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-    database.InitDB()
-
-    repo := repository.NewPolicyRepository()
-    policyHandler := policies.NewPolicyHandler(repo) 
-
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-
-	r.Get("/policies/access-policy/{consumerID}/{providerID}", policyHandler.GetAccessPolicy)
-
-	port := ":3001"
-	server := &http.Server{
-		Addr:    port,
-		Handler: r,
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("Warning: No .env file found or unable to load: %v", err)
 	}
 
-	// Graceful shutdown
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	err = database.Init()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer database.Close()
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	http.HandleFunc("/verify-policy", policies.PolicyHandler)
+
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      nil,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
 
 	go func() {
-		log.Printf("Policy Governance Service running on port %s. 🛡️", port)
+		log.Printf("Policy Governance Service starting on port %s", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Could not listen on %s: %v\n", port, err)
+			log.Fatalf("Could not listen on port %s: %v", port, err)
 		}
 	}()
 
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
 	<-stop
+
 	log.Println("Shutting down the server...")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatalf("Server shutdown failed: %v", err)
 	}
-	log.Println("Server gracefully stopped")
+
+	log.Println("Server gracefully stopped.")
 }
