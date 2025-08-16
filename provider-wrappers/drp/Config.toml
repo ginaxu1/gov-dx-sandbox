@@ -1,6 +1,4 @@
-[drp_provider]
 port = 9091
-serviceURL = "http://localhost:8080"
 consumerKey = "your_consumer_key"
 consumerSecret = "your_consumer_secret"
 tokenURL = "http://localhost:8080/token"
