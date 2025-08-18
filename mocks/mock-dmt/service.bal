@@ -251,6 +251,33 @@ service / on new http:Listener(port) {
         }
     }
 
+    isolated resource function get vehicle/types() returns json| error {
+        stream<store:VehicleClass, persist:Error?> resultStream = sClient->/vehicleclasses();
+
+        // Collect all results
+        store:VehicleClass[] vehicleClasses = [];
+        persist:Error? err = ();
+
+        while true {
+            var next = resultStream.next();
+            if next is record {|store:VehicleClass value;|} {
+                vehicleClasses.push(next.value);
+            } else {
+                err = next;
+                break;
+            }
+        }
+
+        if err is persist:Error {
+            return err;
+        }
+
+        return {
+            data: vehicleClasses
+        };
+        
+    }
+
     isolated resource function post vehicle/types(store:VehicleClassInsert vehicleClass) returns json|error {
         string[]| error? result = sClient->/vehicleclasses.post([vehicleClass]);
 
