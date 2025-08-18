@@ -8,7 +8,7 @@ configurable int port = ?;
 
 // Read environment variables
 configurable string serviceURL = os:getEnv("CHOREO_MOCK_DMT_CONNECTION_SERVICEURL");
-configurable string choreoApiKey = os:getEnv("CHOREO_MOCK_DMT_CONNECTION_CHOREOAPIKEY");
+configurable string choreoApiKey = os:getEnv("CHOREO_MOCK_DMT_CONNECTION_APIKEY");
 
 // print the consumerKey and consumerSecret
 
