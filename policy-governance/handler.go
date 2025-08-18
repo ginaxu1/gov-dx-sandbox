@@ -40,9 +40,9 @@ func (s *PolicyGovernanceService) EvaluateAccessPolicy(req models.PolicyRequest)
 			SubgraphName:           field.SubgraphName,
 			TypeName:               field.TypeName,
 			FieldName:              field.FieldName,
-			ResolvedClassification: models.DENIED, // Default to DENIED
+			ResolvedClassification: models.DENIED,
 			ConsentRequired:        false,
-			ConsentType:            "",
+			ConsentType:            []string{},
 		}
 
 		// Fetch policy from the database using the Fetcher interface
@@ -63,21 +63,17 @@ func (s *PolicyGovernanceService) EvaluateAccessPolicy(req models.PolicyRequest)
 			case models.ALLOW_PROVIDER_CONSENT:
 				accessScope.ResolvedClassification = models.ALLOW_PROVIDER_CONSENT
 				accessScope.ConsentRequired = true
-				accessScope.ConsentType = "provider"
+				accessScope.ConsentType = []string{"provider"}
 				resp.OverallConsentRequired = true
 			case models.ALLOW_CITIZEN_CONSENT:
 				accessScope.ResolvedClassification = models.ALLOW_CITIZEN_CONSENT
 				accessScope.ConsentRequired = true
-				accessScope.ConsentType = "citizen"
+				accessScope.ConsentType = []string{"citizen"}
 				resp.OverallConsentRequired = true
 			case models.ALLOW_CONSENT:
 				accessScope.ResolvedClassification = models.ALLOW_CONSENT
 				accessScope.ConsentRequired = true
-				if _, ok := field.Context["citizenId"]; ok {
-					accessScope.ConsentType = "citizen"
-				} else {
-					accessScope.ConsentType = "provider"
-				}
+				accessScope.ConsentType = []string{"provider", "citizen"}
 				resp.OverallConsentRequired = true
 			case models.DENIED:
 				accessScope.ResolvedClassification = models.DENIED
@@ -104,7 +100,7 @@ func (f *DatabasePolicyFetcher) GetPolicyFromDB(subgraph, typ, field string) (mo
 
 	err := row.Scan(&policy.ID, &policy.SubgraphName, &policy.TypeName, &policy.FieldName, &policy.Classification)
 	if err == sql.ErrNoRows {
-		return models.PolicyRecord{Classification: models.DENIED}, nil // Default if not found
+		return models.PolicyRecord{Classification: models.DENIED}, nil
 	}
 	if err != nil {
 		return models.PolicyRecord{}, fmt.Errorf("failed to scan policy: %w", err)
