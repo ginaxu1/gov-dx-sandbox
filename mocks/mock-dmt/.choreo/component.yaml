@@ -39,25 +39,25 @@ configurations:
       valueFrom:
         connectionRef:
           name: Mock DMT DB Connection
-          key: port
+          key: Port
     - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_HOST
       valueFrom:
         connectionRef:
           name: Mock DMT DB Connection
-          key: host
+          key: HostName
     
     - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_USER
       valueFrom:
         connectionRef:
           name: Mock DMT DB Connection
-          key: user
+          key: Username
     - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_PASSWORD
       valueFrom:
         connectionRef:
           name: Mock DMT DB Connection
-          key: password
+          key: Password
     - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_DATABASE
       valueFrom:
         connectionRef:
           name: Mock DMT DB Connection
-          key: database
+          key: DatabaseName
