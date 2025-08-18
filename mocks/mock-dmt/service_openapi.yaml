@@ -177,9 +177,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorPayload'
-  /licenses/{id}:
+  /license/{id}:
     get:
-      operationId: getLicensesId
+      operationId: getLicenseId
       parameters:
       - name: id
         in: path
@@ -195,6 +195,185 @@ paths:
                 $ref: '#/components/schemas/DrivingLicense'
         "404":
           description: NotFound
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /license/nic/{ownerNic}:
+    get:
+      operationId: getLicenseNicOwnernic
+      parameters:
+      - name: ownerNic
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /vehicle:
+    get:
+      operationId: getVehicle
+      parameters:
+      - name: ownerNic
+        in: query
+        schema:
+          type: string
+          nullable: true
+      - name: page
+        in: query
+        schema:
+          type: integer
+          format: int64
+          default: 1
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          format: int64
+          default: 10
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+    post:
+      operationId: postVehicle
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleInfoInsert'
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /vehicle/{id}:
+    get:
+      operationId: getVehicleId
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleInfo'
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /vehicle/regNo/{registrationNumber}:
+    get:
+      operationId: getVehicleRegnoRegistrationnumber
+      parameters:
+      - name: registrationNumber
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /vehicle/types:
+    post:
+      operationId: postVehicleTypes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleClassInsert'
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
         "400":
           description: BadRequest
           content:
@@ -312,3 +491,51 @@ components:
       additionalProperties: false
     OwnerInfoInsert:
       $ref: '#/components/schemas/OwnerInfo'
+    VehicleClass:
+      required:
+      - className
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+        className:
+          type: string
+      additionalProperties: false
+    VehicleClassInsert:
+      $ref: '#/components/schemas/VehicleClass'
+    VehicleInfo:
+      required:
+      - conditionAndNotes
+      - engineNumber
+      - id
+      - make
+      - model
+      - ownerNic
+      - registrationNumber
+      - vehicleClass
+      - yearOfManufacture
+      type: object
+      properties:
+        id:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        yearOfManufacture:
+          type: integer
+          format: int64
+        ownerNic:
+          type: string
+        engineNumber:
+          type: string
+        conditionAndNotes:
+          type: string
+        registrationNumber:
+          type: string
+        vehicleClass:
+          $ref: '#/components/schemas/VehicleClass'
+      additionalProperties: false
+    VehicleInfoInsert:
+      $ref: '#/components/schemas/VehicleInfo'
