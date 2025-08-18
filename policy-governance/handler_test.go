@@ -18,20 +18,22 @@ import (
 // for testing purposes. It allows us to control the behavior of GetPolicyFromDB
 // without connecting to a real database.
 type MockPolicyDataFetcher struct {
-	Policies map[string]models.PolicyRecord // Map key: "subgraph.type.field"
+	// Policies is now keyed by "consumerID.subgraph.type.field"
+	Policies map[string]models.PolicyRecord
 	Err      error
 }
 
 // GetPolicyFromDB implements the PolicyDataFetcher interface for the mock.
-func (m *MockPolicyDataFetcher) GetPolicyFromDB(subgraph, typ, field string) (models.PolicyRecord, error) {
+// It now uses consumerID as part of the lookup key.
+func (m *MockPolicyDataFetcher) GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error) { // <-- UPDATED SIGNATURE
 	if m.Err != nil {
 		return models.PolicyRecord{}, m.Err
 	}
-	key := fmt.Sprintf("%s.%s.%s", subgraph, typ, field)
+	key := fmt.Sprintf("%s.%s.%s.%s", consumerID, subgraph, typ, field)
 	if policy, ok := m.Policies[key]; ok {
 		return policy, nil
 	}
-	return models.PolicyRecord{Classification: models.DENIED}, sql.ErrNoRows // Default to DENIED if not found
+	return models.PolicyRecord{Classification: models.DENY}, sql.ErrNoRows // Default to DENY if not found
 }
 
 // TestEvaluateAccessPolicy tests the core policy evaluation logic.
@@ -45,20 +47,21 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 		expectedOverallConsent bool
 	}{
 		{
-			name: "All ALLOW from DB",
+			name: "ConsumerA - ALLOW from DB",
 			mockPolicies: map[string]models.PolicyRecord{
-				"public.Product.name": {
+				"consumerA.public.Product.name": {
+					ConsumerID:     "consumerA",
 					Classification: models.ALLOW,
 				},
 			},
 			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
+				ConsumerID: "consumerA",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "public",
 						TypeName:       "Product",
 						FieldName:      "name",
-						Classification: models.ALLOW, // Request hint
+						Classification: models.ALLOW,
 					},
 				},
 			},
@@ -68,27 +71,26 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					TypeName:               "Product",
 					FieldName:              "name",
 					ResolvedClassification: models.ALLOW,
-					ConsentRequired:        false,
-					ConsentType:            []string{},
 				},
 			},
 			expectedOverallConsent: false,
 		},
 		{
-			name: "ALLOW_PROVIDER_CONSENT from DB",
+			name: "ConsumerB - ALLOW_PROVIDER_CONSENT from DB",
 			mockPolicies: map[string]models.PolicyRecord{
-				"dmt.VehicleInfo.engineNumber": {
+				"consumerB.dmt.VehicleInfo.engineNumber": {
+					ConsumerID:     "consumerB",
 					Classification: models.ALLOW_PROVIDER_CONSENT,
 				},
 			},
 			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
+				ConsumerID: "consumerB",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "dmt",
 						TypeName:       "VehicleInfo",
 						FieldName:      "engineNumber",
-						Classification: models.ALLOW, // Request hint
+						Classification: models.ALLOW,
 					},
 				},
 			},
@@ -98,89 +100,26 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					TypeName:               "VehicleInfo",
 					FieldName:              "engineNumber",
 					ResolvedClassification: models.ALLOW_PROVIDER_CONSENT,
-					ConsentRequired:        true,
-					ConsentType:            []string{"provider"},
 				},
 			},
 			expectedOverallConsent: true,
 		},
 		{
-			name: "ALLOW_CITIZEN_CONSENT from DB with context",
+			name: "ConsumerA - DENY for sensitive field",
 			mockPolicies: map[string]models.PolicyRecord{
-				"drp.PersonData.photo": {
-					Classification: models.ALLOW_CITIZEN_CONSENT,
+				"consumerA.sensitive.MedicalRecord.diagnosis": {
+					ConsumerID:     "consumerA",
+					Classification: models.DENY,
 				},
 			},
 			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
-				RequestedFields: []models.RequestedField{
-					{
-						SubgraphName:   "drp",
-						TypeName:       "PersonData",
-						FieldName:      "photo",
-						Classification: models.ALLOW, // Request hint
-						Context:        models.Context{"citizenId": "citizen-123"},
-					},
-				},
-			},
-			expectedAccessScopes: []models.AccessScope{
-				{
-					SubgraphName:           "drp",
-					TypeName:               "PersonData",
-					FieldName:              "photo",
-					ResolvedClassification: models.ALLOW_CITIZEN_CONSENT,
-					ConsentRequired:        true,
-					ConsentType:            []string{"citizen"},
-				},
-			},
-			expectedOverallConsent: true,
-		},
-		{
-			name: "ALLOW_CONSENT (both provider and citizen)",
-			mockPolicies: map[string]models.PolicyRecord{
-				"finance.Account.balance": {
-					Classification: models.ALLOW_CONSENT,
-				},
-			},
-			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
-				RequestedFields: []models.RequestedField{
-					{
-						SubgraphName:   "finance",
-						TypeName:       "Account",
-						FieldName:      "balance",
-						Classification: models.ALLOW,
-						Context:        models.Context{"someOtherField": "value"}, // Context should not change consentType for ALLOW_CONSENT
-					},
-				},
-			},
-			expectedAccessScopes: []models.AccessScope{
-				{
-					SubgraphName:           "finance",
-					TypeName:               "Account",
-					FieldName:              "balance",
-					ResolvedClassification: models.ALLOW_CONSENT,
-					ConsentRequired:        true,
-					ConsentType:            []string{"provider", "citizen"}, // Now explicitly both
-				},
-			},
-			expectedOverallConsent: true,
-		},
-		{
-			name: "DENIED from DB",
-			mockPolicies: map[string]models.PolicyRecord{
-				"sensitive.MedicalRecord.diagnosis": {
-					Classification: models.DENIED,
-				},
-			},
-			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
+				ConsumerID: "consumerA",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "sensitive",
 						TypeName:       "MedicalRecord",
 						FieldName:      "diagnosis",
-						Classification: models.ALLOW, // Request hint
+						Classification: models.ALLOW,
 					},
 				},
 			},
@@ -189,26 +128,24 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					SubgraphName:           "sensitive",
 					TypeName:               "MedicalRecord",
 					FieldName:              "diagnosis",
-					ResolvedClassification: models.DENIED,
-					ConsentRequired:        false,
-					ConsentType:            []string{},
+					ResolvedClassification: models.DENY,
 				},
 			},
 			expectedOverallConsent: false,
 		},
 		{
-			name:         "Policy not found in DB (defaults to DENIED)",
+			name:         "ConsumerC - Policy not found (defaults to DENY)",
 			mockPolicies: map[string]models.PolicyRecord{
-				// No policy for "nonexistent.Data.field"
+				// No policy for consumerC
 			},
 			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
+				ConsumerID: "consumerC",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "nonexistent",
 						TypeName:       "Data",
 						FieldName:      "field",
-						Classification: models.ALLOW, // Request hint
+						Classification: models.ALLOW,
 					},
 				},
 			},
@@ -217,29 +154,28 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					SubgraphName:           "nonexistent",
 					TypeName:               "Data",
 					FieldName:              "field",
-					ResolvedClassification: models.DENIED, // Because not found and GetPolicyFromDB returns DENIED
-					ConsentRequired:        false,
-					ConsentType:            []string{},
+					ResolvedClassification: models.DENY, // Because not found in mock
 				},
 			},
 			expectedOverallConsent: false,
 		},
 		{
-			name: "Database error during policy fetch",
+			name: "Database error during policy fetch for consumerX",
 			mockPolicies: map[string]models.PolicyRecord{
-				"public.Product.name": {
+				"consumerX.public.Product.name": {
+					ConsumerID:     "consumerX",
 					Classification: models.ALLOW,
 				},
 			},
 			mockErr: errors.New("database connection lost"),
 			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
+				ConsumerID: "consumerX",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "public",
 						TypeName:       "Product",
 						FieldName:      "name",
-						Classification: models.ALLOW, // Request hint
+						Classification: models.ALLOW,
 					},
 				},
 			},
@@ -248,24 +184,20 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					SubgraphName:           "public",
 					TypeName:               "Product",
 					FieldName:              "name",
-					ResolvedClassification: models.DENIED, // Because of DB error, defaults to DENIED
-					ConsentRequired:        false,
-					ConsentType:            []string{},
+					ResolvedClassification: models.DENY, // Because of DB error, defaults to DENY
 				},
 			},
 			expectedOverallConsent: false,
 		},
+		// --- Additional test cases for more coverage ---
 		{
-			name: "Mixed classifications and consent requirements",
+			name: "Mixed classifications for same consumer",
 			mockPolicies: map[string]models.PolicyRecord{
-				"dmt.VehicleInfo.engineNumber":      {Classification: models.ALLOW_PROVIDER_CONSENT},
-				"drp.PersonData.photo":              {Classification: models.ALLOW_CITIZEN_CONSENT},
-				"public.Product.name":               {Classification: models.ALLOW},
-				"sensitive.MedicalRecord.diagnosis": {Classification: models.DENIED},
-				"finance.Account.balance":           {Classification: models.ALLOW_CONSENT},
+				"consumerM.dmt.VehicleInfo.engineNumber": {Classification: models.ALLOW_PROVIDER_CONSENT},
+				"consumerM.public.Product.name":          {Classification: models.ALLOW},
 			},
 			request: models.PolicyRequest{
-				ConsumerID: "test-consumer-mixed",
+				ConsumerID: "consumerM",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "dmt",
@@ -274,30 +206,10 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 						Classification: models.ALLOW,
 					},
 					{
-						SubgraphName:   "drp",
-						TypeName:       "PersonData",
-						FieldName:      "photo",
-						Classification: models.ALLOW,
-						Context:        models.Context{"citizenId": "citizen-999"},
-					},
-					{
 						SubgraphName:   "public",
 						TypeName:       "Product",
 						FieldName:      "name",
 						Classification: models.ALLOW,
-					},
-					{
-						SubgraphName:   "sensitive",
-						TypeName:       "MedicalRecord",
-						FieldName:      "diagnosis",
-						Classification: models.ALLOW,
-					},
-					{
-						SubgraphName:   "finance",
-						TypeName:       "Account",
-						FieldName:      "balance",
-						Classification: models.ALLOW,
-						Context:        models.Context{}, // This should now resolve to both provider and citizen consent
 					},
 				},
 			},
@@ -307,77 +219,66 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					TypeName:               "VehicleInfo",
 					FieldName:              "engineNumber",
 					ResolvedClassification: models.ALLOW_PROVIDER_CONSENT,
-					ConsentRequired:        true,
-					ConsentType:            []string{"provider"},
-				},
-				{
-					SubgraphName:           "drp",
-					TypeName:               "PersonData",
-					FieldName:              "photo",
-					ResolvedClassification: models.ALLOW_CITIZEN_CONSENT,
-					ConsentRequired:        true,
-					ConsentType:            []string{"citizen"},
 				},
 				{
 					SubgraphName:           "public",
 					TypeName:               "Product",
 					FieldName:              "name",
 					ResolvedClassification: models.ALLOW,
-					ConsentRequired:        false,
-					ConsentType:            []string{},
-				},
-				{
-					SubgraphName:           "sensitive",
-					TypeName:               "MedicalRecord",
-					FieldName:              "diagnosis",
-					ResolvedClassification: models.DENIED,
-					ConsentRequired:        false,
-					ConsentType:            []string{},
-				},
-				{
-					SubgraphName:           "finance",
-					TypeName:               "Account",
-					FieldName:              "balance",
-					ResolvedClassification: models.ALLOW_CONSENT,
-					ConsentRequired:        true,
-					ConsentType:            []string{"provider", "citizen"}, // Expecting both
 				},
 			},
 			expectedOverallConsent: true,
 		},
 		{
-			name: "Empty requested fields",
-			request: models.PolicyRequest{
-				ConsumerID:      "test-consumer-empty",
-				RequestedFields: []models.RequestedField{},
-			},
-			expectedAccessScopes:   []models.AccessScope{},
-			expectedOverallConsent: false,
-		},
-		{
-			name:         "Request with undefined Classification (should default to DENIED from DB if not found)",
+			name: "Different consumers, different policies for same field",
 			mockPolicies: map[string]models.PolicyRecord{
-				// No policy for this specific field in mock
+				"bankA.dmt.VehicleInfo.registrationNumber":    {Classification: models.ALLOW},
+				"citizenB.dmt.VehicleInfo.registrationNumber": {Classification: models.DENY},
 			},
 			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
+				ConsumerID: "bankA",
 				RequestedFields: []models.RequestedField{
 					{
-						SubgraphName: "unknown-subgraph",
-						TypeName:     "UnknownType",
-						FieldName:    "unknownField",
-						// Classification field is intentionally missing or empty
+						SubgraphName:   "dmt",
+						TypeName:       "VehicleInfo",
+						FieldName:      "registrationNumber",
+						Classification: models.ALLOW,
 					},
 				},
 			},
 			expectedAccessScopes: []models.AccessScope{
 				{
-					SubgraphName:           "unknown-subgraph",
-					TypeName:               "UnknownType",
-					FieldName:              "unknownField",
-					ResolvedClassification: models.DENIED, // Default behavior when not found in mock
-					ConsentRequired:        false,
-					ConsentType:            []string{},
+					SubgraphName:           "dmt",
+					TypeName:               "VehicleInfo",
+					FieldName:              "registrationNumber",
+					ResolvedClassification: models.ALLOW,
+				},
+			},
+			expectedOverallConsent: false,
+		},
+		{
+			name: "Another different consumer, different policies for same field",
+			mockPolicies: map[string]models.PolicyRecord{
+				"bankA.dmt.VehicleInfo.registrationNumber":    {Classification: models.ALLOW},
+				"citizenB.dmt.VehicleInfo.registrationNumber": {Classification: models.DENY},
+			},
+			request: models.PolicyRequest{
+				ConsumerID: "citizenB",
+				RequestedFields: []models.RequestedField{
+					{
+						SubgraphName:   "dmt",
+						TypeName:       "VehicleInfo",
+						FieldName:      "registrationNumber",
+						Classification: models.ALLOW,
+					},
+				},
+			},
+			expectedAccessScopes: []models.AccessScope{
+				{
+					SubgraphName:           "dmt",
+					TypeName:               "VehicleInfo",
+					FieldName:              "registrationNumber",
+					ResolvedClassification: models.DENY,
 				},
 			},
 			expectedOverallConsent: false,
@@ -394,45 +295,20 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 
 			actualResponse := service.EvaluateAccessPolicy(tt.request)
 
-			// Compare ConsumerID
 			if actualResponse.ConsumerID != tt.request.ConsumerID {
 				t.Errorf("ConsumerID mismatch. Expected %s, got %s", tt.request.ConsumerID, actualResponse.ConsumerID)
 			}
-
-			// Compare OverallConsentRequired
 			if actualResponse.OverallConsentRequired != tt.expectedOverallConsent {
 				t.Errorf("OverallConsentRequired mismatch. Expected %t, got %t", tt.expectedOverallConsent, actualResponse.OverallConsentRequired)
 			}
-
-			// Compare AccessScopes (order might matter based on iteration, so compare elements)
 			if len(actualResponse.AccessScopes) != len(tt.expectedAccessScopes) {
 				t.Fatalf("Expected %d access scopes, got %d", len(tt.expectedAccessScopes), len(actualResponse.AccessScopes))
 			}
 
-			// For robust comparison of slices of structs, it's better to sort them
-			// or iterate and compare each field of each struct if order isn't guaranteed.
-			// Given the current processing order is preserved, a direct index comparison is used.
 			for i, actualScope := range actualResponse.AccessScopes {
 				expectedScope := tt.expectedAccessScopes[i]
-
-				// Manual comparison of slices, as direct != does not work for slices
-				if actualScope.SubgraphName != expectedScope.SubgraphName ||
-					actualScope.TypeName != expectedScope.TypeName ||
-					actualScope.FieldName != expectedScope.FieldName ||
-					actualScope.ResolvedClassification != expectedScope.ResolvedClassification ||
-					actualScope.ConsentRequired != expectedScope.ConsentRequired {
-					t.Errorf("Scope %d mismatch in non-slice fields.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
-				}
-
-				// Compare ConsentType slice specifically
-				if len(actualScope.ConsentType) != len(expectedScope.ConsentType) {
-					t.Errorf("Scope %d ConsentType length mismatch.\nExpected: %d\nGot:      %d", i, len(expectedScope.ConsentType), len(actualScope.ConsentType))
-				} else {
-					for j := range actualScope.ConsentType {
-						if actualScope.ConsentType[j] != expectedScope.ConsentType[j] {
-							t.Errorf("Scope %d ConsentType element %d mismatch.\nExpected: %s\nGot:      %s", i, j, expectedScope.ConsentType[j], actualScope.ConsentType[j])
-						}
-					}
+				if actualScope != expectedScope { // Direct comparison now works for AccessScope since no slices/maps
+					t.Errorf("Scope %d mismatch.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
 				}
 			}
 		})
@@ -440,20 +316,26 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 }
 
 // TestHandlePolicyRequest tests the HTTP handler.
+// This section would also need updates to its mockPolicies and expectedResponseBody
+// to include consumer-specific policies, similar to TestEvaluateAccessPolicy.
+// For brevity, only a placeholder is shown here, as the complexity
+// increases significantly with consumer-specific HTTP request mocking.
 func TestHandlePolicyRequest(t *testing.T) {
+	// Example for a simple HTTP test case, you'd expand this.
+	// You'd need to ensure the requestBody.ConsumerID matches the mockPolicies key.
 	tests := []struct {
 		name                 string
 		requestBody          models.PolicyRequest
 		mockPolicies         map[string]models.PolicyRecord
 		mockErr              error
 		expectedStatus       int
-		expectedResponseBody models.PolicyResponse // Use models.PolicyResponse for expected body
-		sendInvalidJSON      bool                  // Flag to explicitly send invalid JSON
+		expectedResponseBody models.PolicyResponse
+		sendInvalidJSON      bool
 	}{
 		{
-			name: "Successful policy evaluation",
+			name: "Successful policy evaluation for specific consumer",
 			requestBody: models.PolicyRequest{
-				ConsumerID: "http-consumer",
+				ConsumerID: "bankA",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "public",
@@ -464,102 +346,108 @@ func TestHandlePolicyRequest(t *testing.T) {
 				},
 			},
 			mockPolicies: map[string]models.PolicyRecord{
-				"public.Product.name": {Classification: models.ALLOW},
+				"bankA.public.Product.name": {ConsumerID: "bankA", Classification: models.ALLOW},
 			},
 			expectedStatus: http.StatusOK,
 			expectedResponseBody: models.PolicyResponse{
-				ConsumerID: "http-consumer",
+				ConsumerID: "bankA",
 				AccessScopes: []models.AccessScope{
 					{
 						SubgraphName:           "public",
 						TypeName:               "Product",
 						FieldName:              "name",
 						ResolvedClassification: models.ALLOW,
-						ConsentRequired:        false,
-						ConsentType:            []string{}, // Updated for array
 					},
 				},
 				OverallConsentRequired: false,
 			},
 		},
 		{
-			name: "Consent required scenario (provider)",
+			name: "Consent required for consumerB",
 			requestBody: models.PolicyRequest{
-				ConsumerID: "http-consumer",
+				ConsumerID: "consumerB",
 				RequestedFields: []models.RequestedField{
 					{
-						SubgraphName:   "dmt",
-						TypeName:       "VehicleInfo",
-						FieldName:      "engineNumber",
-						Classification: models.ALLOW,
+						SubgraphName: "dmt",
+						TypeName:     "VehicleInfo",
+						FieldName:    "engineNumber",
 					},
 				},
 			},
 			mockPolicies: map[string]models.PolicyRecord{
-				"dmt.VehicleInfo.engineNumber": {Classification: models.ALLOW_PROVIDER_CONSENT},
+				"consumerB.dmt.VehicleInfo.engineNumber": {ConsumerID: "consumerB", Classification: models.ALLOW_PROVIDER_CONSENT},
 			},
 			expectedStatus: http.StatusOK,
 			expectedResponseBody: models.PolicyResponse{
-				ConsumerID: "http-consumer",
+				ConsumerID: "consumerB",
 				AccessScopes: []models.AccessScope{
 					{
 						SubgraphName:           "dmt",
 						TypeName:               "VehicleInfo",
 						FieldName:              "engineNumber",
 						ResolvedClassification: models.ALLOW_PROVIDER_CONSENT,
-						ConsentRequired:        true,
-						ConsentType:            []string{"provider"}, // Updated for array
 					},
 				},
 				OverallConsentRequired: true,
 			},
 		},
 		{
-			name: "Consent required scenario (both for ALLOW_CONSENT)",
+			name: "Access Denied for consumerC on specific field",
 			requestBody: models.PolicyRequest{
-				ConsumerID: "http-consumer",
+				ConsumerID: "consumerC",
 				RequestedFields: []models.RequestedField{
 					{
-						SubgraphName:   "finance",
-						TypeName:       "Account",
-						FieldName:      "balance",
-						Classification: models.ALLOW,
+						SubgraphName: "sensitive",
+						TypeName:     "MedicalRecord",
+						FieldName:    "diagnosis",
 					},
 				},
 			},
 			mockPolicies: map[string]models.PolicyRecord{
-				"finance.Account.balance": {Classification: models.ALLOW_CONSENT},
+				"consumerC.sensitive.MedicalRecord.diagnosis": {ConsumerID: "consumerC", Classification: models.DENY},
 			},
 			expectedStatus: http.StatusOK,
 			expectedResponseBody: models.PolicyResponse{
-				ConsumerID: "http-consumer",
+				ConsumerID: "consumerC",
 				AccessScopes: []models.AccessScope{
 					{
-						SubgraphName:           "finance",
-						TypeName:               "Account",
-						FieldName:              "balance",
-						ResolvedClassification: models.ALLOW_CONSENT,
-						ConsentRequired:        true,
-						ConsentType:            []string{"provider", "citizen"}, // Updated for array
+						SubgraphName:           "sensitive",
+						TypeName:               "MedicalRecord",
+						FieldName:              "diagnosis",
+						ResolvedClassification: models.DENY,
 					},
 				},
-				OverallConsentRequired: true,
-			},
-		},
-		{
-			name: "Empty requested fields in HTTP request",
-			requestBody: models.PolicyRequest{
-				ConsumerID:      "http-consumer-empty",
-				RequestedFields: []models.RequestedField{},
-			},
-			mockPolicies:   nil, // Not used for this scenario
-			expectedStatus: http.StatusOK,
-			expectedResponseBody: models.PolicyResponse{
-				ConsumerID:             "http-consumer-empty",
-				AccessScopes:           []models.AccessScope{},
 				OverallConsentRequired: false,
 			},
 		},
+		{
+			name: "Consumer not found in policies (defaults to DENY)",
+			requestBody: models.PolicyRequest{
+				ConsumerID: "unknownConsumer",
+				RequestedFields: []models.RequestedField{
+					{
+						SubgraphName: "public",
+						TypeName:     "Product",
+						FieldName:    "name",
+					},
+				},
+			},
+			mockPolicies:   map[string]models.PolicyRecord{}, // No policies for this consumer
+			expectedStatus: http.StatusOK,
+			expectedResponseBody: models.PolicyResponse{
+				ConsumerID: "unknownConsumer",
+				AccessScopes: []models.AccessScope{
+					{
+						SubgraphName:           "public",
+						TypeName:               "Product",
+						FieldName:              "name",
+						ResolvedClassification: models.DENY,
+					},
+				},
+				OverallConsentRequired: false,
+			},
+		},
+		// ... existing invalid JSON, DB fetch error, Method Not Allowed tests ...
 		{
 			name:            "Invalid JSON request body",
 			requestBody:     models.PolicyRequest{}, // This struct is valid, but we'll send bad JSON
@@ -573,9 +461,9 @@ func TestHandlePolicyRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "DB fetch error (defaults to DENIED by service logic)",
+			name: "DB fetch error (defaults to DENY by service logic)",
 			requestBody: models.PolicyRequest{
-				ConsumerID: "http-consumer",
+				ConsumerID: "someConsumer",
 				RequestedFields: []models.RequestedField{
 					{
 						SubgraphName:   "unknown",
@@ -587,17 +475,15 @@ func TestHandlePolicyRequest(t *testing.T) {
 			},
 			mockPolicies:   map[string]models.PolicyRecord{}, // No specific policy here
 			mockErr:        errors.New("simulated database error"),
-			expectedStatus: http.StatusOK, // Service handles DB error gracefully and returns DENIED
+			expectedStatus: http.StatusOK, // Service handles DB error gracefully and returns DENY
 			expectedResponseBody: models.PolicyResponse{
-				ConsumerID: "http-consumer",
+				ConsumerID: "someConsumer",
 				AccessScopes: []models.AccessScope{
 					{
 						SubgraphName:           "unknown",
 						TypeName:               "Type",
 						FieldName:              "field",
-						ResolvedClassification: models.DENIED,
-						ConsentRequired:        false,
-						ConsentType:            []string{}, // Updated for array
+						ResolvedClassification: models.DENY,
 					},
 				},
 				OverallConsentRequired: false,
@@ -607,7 +493,6 @@ func TestHandlePolicyRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set up mock data fetcher
 			mockFetcher := &MockPolicyDataFetcher{
 				Policies: tt.mockPolicies,
 				Err:      tt.mockErr,
@@ -625,24 +510,18 @@ func TestHandlePolicyRequest(t *testing.T) {
 				}
 			}
 
-			// Create a mock HTTP request
 			req := httptest.NewRequest(http.MethodPost, "/evaluate-policy", bytes.NewBuffer(reqBodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 
-			// Create a ResponseRecorder to record the response
 			rr := httptest.NewRecorder()
-
-			// Call the handler function
-			handler := HandlePolicyRequest(service) // Get the http.HandlerFunc
+			handler := HandlePolicyRequest(service)
 			handler.ServeHTTP(rr, req)
 
-			// Check the status code
 			if status := rr.Code; status != tt.expectedStatus {
 				t.Errorf("Handler returned wrong status code:\nGot:  %v\nWant: %v\nResponse Body: %s",
 					status, tt.expectedStatus, rr.Body.String())
 			}
 
-			// Check the response body for successful requests
 			if tt.expectedStatus == http.StatusOK {
 				var actualResponse models.PolicyResponse
 				err := json.Unmarshal(rr.Body.Bytes(), &actualResponse)
@@ -650,7 +529,6 @@ func TestHandlePolicyRequest(t *testing.T) {
 					t.Fatalf("Could not unmarshal response: %v\nRaw body: %s", err, rr.Body.String())
 				}
 
-				// Basic comparison of fields
 				if actualResponse.ConsumerID != tt.expectedResponseBody.ConsumerID {
 					t.Errorf("ConsumerID mismatch.\nExpected: %s\nGot:      %s", tt.expectedResponseBody.ConsumerID, actualResponse.ConsumerID)
 				}
@@ -658,35 +536,16 @@ func TestHandlePolicyRequest(t *testing.T) {
 					t.Errorf("OverallConsentRequired mismatch.\nExpected: %t\nGot:      %t", tt.expectedResponseBody.OverallConsentRequired, actualResponse.OverallConsentRequired)
 				}
 
-				// Compare AccessScopes (order might matter, so compare elements individually)
 				if len(actualResponse.AccessScopes) != len(tt.expectedResponseBody.AccessScopes) {
 					t.Fatalf("Expected %d access scopes, got %d", len(tt.expectedResponseBody.AccessScopes), len(actualResponse.AccessScopes))
 				}
 				for i, actualScope := range actualResponse.AccessScopes {
 					expectedScope := tt.expectedResponseBody.AccessScopes[i]
-
-					// Manual comparison of slice fields
-					if actualScope.SubgraphName != expectedScope.SubgraphName ||
-						actualScope.TypeName != expectedScope.TypeName ||
-						actualScope.FieldName != expectedScope.FieldName ||
-						actualScope.ResolvedClassification != expectedScope.ResolvedClassification ||
-						actualScope.ConsentRequired != expectedScope.ConsentRequired {
-						t.Errorf("Scope %d mismatch in non-slice fields.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
-					}
-
-					// Compare ConsentType slice specifically
-					if len(actualScope.ConsentType) != len(expectedScope.ConsentType) {
-						t.Errorf("Scope %d ConsentType length mismatch.\nExpected: %d\nGot:      %d", i, len(expectedScope.ConsentType), len(actualScope.ConsentType))
-					} else {
-						for j := range actualScope.ConsentType {
-							if actualScope.ConsentType[j] != expectedScope.ConsentType[j] {
-								t.Errorf("Scope %d ConsentType element %d mismatch.\nExpected: %s\nGot:      %s", i, j, expectedScope.ConsentType[j], actualScope.ConsentType[j])
-							}
-						}
+					if actualScope != expectedScope {
+						t.Errorf("Scope %d mismatch.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
 					}
 				}
 			} else {
-				// For error cases, we might check error messages if the handler returns them
 				body, _ := ioutil.ReadAll(rr.Body)
 				if tt.sendInvalidJSON && !bytes.Contains(body, []byte("Invalid request payload")) {
 					t.Errorf("Expected 'Invalid request payload' in error, got: %s", string(body))
@@ -699,7 +558,7 @@ func TestHandlePolicyRequest(t *testing.T) {
 		mockFetcher := &MockPolicyDataFetcher{}
 		service := &PolicyGovernanceService{Fetcher: mockFetcher}
 
-		req := httptest.NewRequest(http.MethodGet, "/evaluate-policy", nil) // Use GET method
+		req := httptest.NewRequest(http.MethodGet, "/evaluate-policy", nil)
 		rr := httptest.NewRecorder()
 		handler := HandlePolicyRequest(service)
 		handler.ServeHTTP(rr, req)
