@@ -8,30 +8,34 @@ import ballerina/os;
 configurable int port = ?;
 
 // Read environment variables
-configurable string serviceURL = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_SERVICEURL");
-configurable string consumerKey = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERKEY");
-configurable string consumerSecret = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERSECRET");
-configurable string tokenURL = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_TOKENURL");
-configurable string choreoApiKey = os:getEnv("CHOREO_MOCK_DRP_CONNECTION_APIKEY");
+configurable string? serviceURL = ();
+configurable string? consumerKey = ();
+configurable string? consumerSecret = ();
+configurable string? tokenURL = ();
+configurable string? choreoApiKey = ();
 
-// print the consumerKey and consumerSecret
-
+// Use the configurable variable if it exists, otherwise fall back to the environment variable
+final string SERVICE_URL = serviceURL ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_SERVICEURL");
+final string CONSUMER_KEY = consumerKey ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERKEY");
+final string CONSUMER_SECRET = consumerSecret ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERSECRET");
+final string TOKEN_URL = tokenURL ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_TOKENURL");
+final string CHOREO_API_KEY = choreoApiKey ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_APIKEY");
 
 isolated service class DRPAPIClient {
     private final http:Client apiClient;
     function init() returns http:ClientError? {
-        log:printInfo("DRPAPIClient: Initializing", consumerKey = consumerKey, consumerSecret = consumerSecret, apiKey = choreoApiKey);
-        self.apiClient = check new (serviceURL,
+        log:printInfo("DRPAPIClient: Initializing", consumerKey = CONSUMER_KEY, consumerSecret = CONSUMER_SECRET, apiKey = CHOREO_API_KEY);
+        self.apiClient = check new (SERVICE_URL,
         auth = {
-            tokenUrl: tokenURL,
-            clientId: consumerKey,
-            clientSecret: consumerSecret
+            tokenUrl: TOKEN_URL,
+            clientId: CONSUMER_KEY,
+            clientSecret: CONSUMER_SECRET
         });
     }
     isolated function getPersonByNic(string nic) returns PersonData|error {
         log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
         string path = string `/person/${nic}`;
-        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+        return self.apiClient->get(path, {"Choreo-API-Key": CHOREO_API_KEY});
     }
 }
 
