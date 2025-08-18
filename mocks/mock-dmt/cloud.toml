@@ -1,0 +1,4 @@
+[container.image]
+repository="gov-dx-sandbox"
+name="mock-dmt"
+tag="v0.1.3"
