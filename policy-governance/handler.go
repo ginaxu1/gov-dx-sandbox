@@ -14,7 +14,7 @@ import (
 // PolicyDataFetcher defines the interface for fetching policy data.
 // The GetPolicyFromDB method now accepts a consumerID.
 type PolicyDataFetcher interface {
-	GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error) // <-- UPDATED SIGNATURE
+	GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error)
 }
 
 // PolicyGovernanceService handles policy verification.
@@ -67,7 +67,7 @@ type DatabasePolicyFetcher struct {
 
 // GetPolicyFromDB implements the PolicyDataFetcher interface for database lookup.
 // The query now includes consumer_id in the WHERE clause and scans it.
-func (f *DatabasePolicyFetcher) GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error) { // <-- UPDATED SIGNATURE
+func (f *DatabasePolicyFetcher) GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error) {
 	var policy models.PolicyRecord
 	// Updated query to include consumer_id
 	query := `SELECT id, consumer_id, subgraph_name, type_name, field_name, classification
@@ -77,7 +77,7 @@ func (f *DatabasePolicyFetcher) GetPolicyFromDB(consumerID, subgraph, typ, field
 	row := f.DB.QueryRow(query, consumerID, subgraph, typ, field)
 
 	// Updated scan to include policy.ConsumerID
-	err := row.Scan(&policy.ID, &policy.ConsumerID, &policy.SubgraphName, &policy.TypeName, &policy.FieldName, &policy.Classification) // <-- UPDATED SCAN
+	err := row.Scan(&policy.ID, &policy.ConsumerID, &policy.SubgraphName, &policy.TypeName, &policy.FieldName, &policy.Classification)
 	if err == sql.ErrNoRows {
 		return models.PolicyRecord{Classification: models.DENY}, nil
 	}
