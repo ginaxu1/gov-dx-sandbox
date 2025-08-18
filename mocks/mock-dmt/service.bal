@@ -3,11 +3,13 @@ import mock_dmt.store;
 import ballerina/http;
 import ballerina/persist;
 
+configurable int port = ?;
+
 final store:Client sClient = check new ();
 
 # A service representing a network-accessible API
 # bound to port `9093`.
-service / on new http:Listener(9093) {
+service / on new http:Listener(port) {
 
     resource function get license/owner(int page = 1, int pageSize = 10) returns json|error {
         stream<store:OwnerInfo, persist:Error?> resultStream = sClient->/ownerinfos();
