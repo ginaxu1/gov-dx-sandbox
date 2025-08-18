@@ -59,7 +59,12 @@ isolated service class DMTAPIClient {
     isolated function getVehicleClasses() returns VehicleClass[]|error {
         log:printInfo("DMTAPIClient: Fetching vehicle classes");
         string path = string `/vehicle/types`;
-        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+        VehicleClassResponse|error response = self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+
+        if response is VehicleClassResponse {
+            return response.data;
+        }
+        return error("Failed to fetch vehicle classes");
     }
 }
 

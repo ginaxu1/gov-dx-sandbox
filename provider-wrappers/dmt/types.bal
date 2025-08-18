@@ -69,3 +69,8 @@ public type DriverLicense record {|
     string? photoUrl;
     string ownerNic;
 |};
+
+
+public type VehicleClassResponse record {|
+    VehicleClass[] data;
+|};
