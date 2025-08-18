@@ -19,6 +19,10 @@ endpoints:
     networkVisibilities:
       - Organization # Can also be 'Project' for more restricted internal visibility
 # +optional Defines runtime configurations
+dependencies:
+    connectionReferences:
+    - name: mock-dmt-connection
+      resourceRef: service:/mock-provider-data/mock-dmt/v1/803f0/ORGANIZATION
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
@@ -29,4 +33,4 @@ configurations:
       valueFrom:
         # +required Choreo connection value source
         configForm:
-          type: int
+          type: number
