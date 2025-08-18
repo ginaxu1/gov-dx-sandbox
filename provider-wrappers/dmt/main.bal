@@ -2,9 +2,75 @@ import ballerina/graphql;
 import ballerina/http;
 import ballerina/graphql.subgraph;
 import ballerina/log;
+import ballerina/os;
 
 configurable int port = ?;
 
+// Read environment variables
+configurable string serviceURL = os:getEnv("CHOREO_MOCK_DMT_CONNECTION_SERVICEURL");
+configurable string choreoApiKey = os:getEnv("CHOREO_MOCK_DMT_CONNECTION_CHOREOAPIKEY");
+
+// print the consumerKey and consumerSecret
+
+
+isolated service class DMTAPIClient {
+    private final http:Client apiClient;
+    function init() returns http:ClientError? {
+        // print the service url
+        log:printInfo("DMTAPIClient: Initializing", serviceURL = serviceURL, apiKey = choreoApiKey);
+        self.apiClient = check new (serviceURL);
+    }
+
+    function getLicenseById(string licenseId) returns DriverLicense|error {
+        log:printInfo("DMTAPIClient: Fetching license from external API", licenseId = licenseId);
+        string path = string `/license/${licenseId}`;
+        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+    }
+
+    isolated function getVehicles(string? ownerNic) returns VehicleInfo[]|error {
+        log:printInfo("DMTAPIClient: Fetching vehicle info by owner", ownerNic = ownerNic);
+        string path = string `/vehicles`;
+
+        if ownerNic is string {
+            path += string `?ownerNic=${ownerNic}`;
+        }
+
+        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+    }
+
+    isolated function getVehicleById(string vehicleId) returns VehicleInfo|error {
+        log:printInfo("DMTAPIClient: Fetching vehicle info by ID", vehicleId = vehicleId);
+        string path = string `/vehicles/${vehicleId}`;
+        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+    }
+
+    isolated function getVehicleByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
+        log:printInfo("DMTAPIClient: Fetching vehicle info by registration number", registrationNumber = registrationNumber);
+        string path = string `/vehicle/regNo/${registrationNumber}`;
+        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+    }
+
+    isolated function getDriverLicensesByOwnerNic(string ownerNic) returns DriverLicense|error {
+        log:printInfo("DMTAPIClient: Fetching driver licenses by owner NIC", ownerNic = ownerNic);
+        string path = string `/license/nic/${ownerNic}`;
+        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+    }
+
+    isolated function getVehicleClasses() returns VehicleClass[]|error {
+        log:printInfo("DMTAPIClient: Fetching vehicle classes");
+        string path = string `/vehicle/types`;
+        return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
+    }
+}
+
+// This function initializes the DMTAPIClient and is used in the main GraphQL service.
+public function initializeDMTClient() returns DMTAPIClient|error {
+    return new ();
+}
+
+// Shared instance of the DMTAPIClient to be used across the service.
+// This is initialized once and used for all requests to avoid creating multiple clients.
+final DMTAPIClient sharedDMTClient = check initializeDMTClient();
 # 10.5.1.1 The @subgraph:Subgraph Annotation https://ballerina.io/spec/graphql/
 @subgraph:Subgraph
 isolated service / on new graphql:Listener(port, httpVersion = http:HTTP_1_1, host = "0.0.0.0") {
@@ -14,42 +80,16 @@ isolated service / on new graphql:Listener(port, httpVersion = http:HTTP_1_1, ho
     }
 
     isolated resource function get vehicle/ vehicleInfoById(string vehicleId) returns VehicleInfo|error {
-        lock {
-            foreach var vehicle in vehicleData {
-                if vehicle.id == vehicleId {
-                    return vehicle.clone();
-                }
-            }
-        }
-        return error("Vehicle not found");
+        return sharedDMTClient.getVehicleById(vehicleId);
     }
 
     isolated resource function get vehicle/ vehicleInfoByRegistrationNumber(string registrationNumber) returns VehicleInfo|error {
-        lock {
-            foreach var vehicle in vehicleData {
-                if vehicle.registrationNumber == registrationNumber {
-                    return vehicle.clone();
-                }
-            }
-        }
-        return error("Vehicle not found with the given registration number");
+        return sharedDMTClient.getVehicleByRegistrationNumber(registrationNumber);
     }
 
     // New resolver to fetch all vehicles.
     isolated resource function get vehicle/ getVehicleInfos(string? ownerNic) returns VehicleInfo[]|error {
-        lock {
-            if ownerNic is string {
-                VehicleInfo[] filteredVehicles = [];
-                foreach var vehicle in vehicleData {
-                    if vehicle.ownerNic == ownerNic {
-                        filteredVehicles.push(vehicle.clone());
-                    }
-                }
-                return filteredVehicles.clone();
-            }
-            VehicleInfo[] allVehicles = vehicleData.toArray().clone();
-            return allVehicles.clone();
-        }
+        return sharedDMTClient.getVehicles(ownerNic);
     }
 
 
@@ -65,22 +105,12 @@ isolated service / on new graphql:Listener(port, httpVersion = http:HTTP_1_1, ho
         return error("Driver license not found");
     }
 
-    isolated resource function get vehicle/ driverLicensesByOwnerId(string ownerNic) returns DriverLicense[]|error {
-        lock {
-            DriverLicense[] selectedLicenses = [];
-            foreach var license in licenseData {
-                if license.ownerNic == ownerNic {
-                    selectedLicenses.push(license.clone());
-                }
-            }
-            return selectedLicenses.clone();
-        }
+    isolated resource function get vehicle/ driverLicensesByOwnerId(string ownerNic) returns DriverLicense|error {
+        return sharedDMTClient.getDriverLicensesByOwnerNic(ownerNic);
     }
 
     isolated resource function get vehicle/ vehicleClasses() returns VehicleClass[]|error {
-        lock {
-            return vehicleClassData.toArray().clone();
-        }
+        return sharedDMTClient.getVehicleClasses();
     }
 
     isolated resource function get vehicle/ vehicleClassById(string classId) returns VehicleClass|error {
