@@ -40,7 +40,7 @@ type AccessScope struct {
 	// ConsentRequired indicates if consent is needed for this specific field.
 	ConsentRequired bool `json:"consentRequired"`
 	// ConsentType specifies the type of consent if required (e.g., "provider" or "citizen").
-	ConsentType string `json:"consentType,omitempty"`
+	ConsentType []string `json:"consentType,omitempty"`
 }
 
 // PolicyResponse is the format of the response sent back to the GraphQL Router.
