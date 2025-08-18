@@ -69,7 +69,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "name",
 					ResolvedClassification: models.ALLOW,
 					ConsentRequired:        false,
-					ConsentType:            "",
+					ConsentType:            []string{},
 				},
 			},
 			expectedOverallConsent: false,
@@ -99,7 +99,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "engineNumber",
 					ResolvedClassification: models.ALLOW_PROVIDER_CONSENT,
 					ConsentRequired:        true,
-					ConsentType:            "provider",
+					ConsentType:            []string{"provider"},
 				},
 			},
 			expectedOverallConsent: true,
@@ -130,13 +130,13 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "photo",
 					ResolvedClassification: models.ALLOW_CITIZEN_CONSENT,
 					ConsentRequired:        true,
-					ConsentType:            "citizen",
+					ConsentType:            []string{"citizen"},
 				},
 			},
 			expectedOverallConsent: true,
 		},
 		{
-			name: "ALLOW_CONSENT with citizen context",
+			name: "ALLOW_CONSENT (both provider and citizen)",
 			mockPolicies: map[string]models.PolicyRecord{
 				"finance.Account.balance": {
 					Classification: models.ALLOW_CONSENT,
@@ -150,7 +150,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 						TypeName:       "Account",
 						FieldName:      "balance",
 						Classification: models.ALLOW,
-						Context:        models.Context{"citizenId": "some-id"},
+						Context:        models.Context{"someOtherField": "value"}, // Context should not change consentType for ALLOW_CONSENT
 					},
 				},
 			},
@@ -161,38 +161,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "balance",
 					ResolvedClassification: models.ALLOW_CONSENT,
 					ConsentRequired:        true,
-					ConsentType:            "citizen", // Determined by context
-				},
-			},
-			expectedOverallConsent: true,
-		},
-		{
-			name: "ALLOW_CONSENT without citizen context (defaults to provider)",
-			mockPolicies: map[string]models.PolicyRecord{
-				"finance.Account.balance": {
-					Classification: models.ALLOW_CONSENT,
-				},
-			},
-			request: models.PolicyRequest{
-				ConsumerID: "test-consumer",
-				RequestedFields: []models.RequestedField{
-					{
-						SubgraphName:   "finance",
-						TypeName:       "Account",
-						FieldName:      "balance",
-						Classification: models.ALLOW,
-						Context:        models.Context{},
-					},
-				},
-			},
-			expectedAccessScopes: []models.AccessScope{
-				{
-					SubgraphName:           "finance",
-					TypeName:               "Account",
-					FieldName:              "balance",
-					ResolvedClassification: models.ALLOW_CONSENT,
-					ConsentRequired:        true,
-					ConsentType:            "provider", // Default if no citizenId in context
+					ConsentType:            []string{"provider", "citizen"}, // Now explicitly both
 				},
 			},
 			expectedOverallConsent: true,
@@ -222,7 +191,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "diagnosis",
 					ResolvedClassification: models.DENIED,
 					ConsentRequired:        false,
-					ConsentType:            "",
+					ConsentType:            []string{},
 				},
 			},
 			expectedOverallConsent: false,
@@ -250,7 +219,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "field",
 					ResolvedClassification: models.DENIED, // Because not found and GetPolicyFromDB returns DENIED
 					ConsentRequired:        false,
-					ConsentType:            "",
+					ConsentType:            []string{},
 				},
 			},
 			expectedOverallConsent: false,
@@ -281,7 +250,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "name",
 					ResolvedClassification: models.DENIED, // Because of DB error, defaults to DENIED
 					ConsentRequired:        false,
-					ConsentType:            "",
+					ConsentType:            []string{},
 				},
 			},
 			expectedOverallConsent: false,
@@ -328,7 +297,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 						TypeName:       "Account",
 						FieldName:      "balance",
 						Classification: models.ALLOW,
-						Context:        models.Context{}, // This should default to provider consent
+						Context:        models.Context{}, // This should now resolve to both provider and citizen consent
 					},
 				},
 			},
@@ -339,7 +308,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "engineNumber",
 					ResolvedClassification: models.ALLOW_PROVIDER_CONSENT,
 					ConsentRequired:        true,
-					ConsentType:            "provider",
+					ConsentType:            []string{"provider"},
 				},
 				{
 					SubgraphName:           "drp",
@@ -347,7 +316,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "photo",
 					ResolvedClassification: models.ALLOW_CITIZEN_CONSENT,
 					ConsentRequired:        true,
-					ConsentType:            "citizen",
+					ConsentType:            []string{"citizen"},
 				},
 				{
 					SubgraphName:           "public",
@@ -355,7 +324,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "name",
 					ResolvedClassification: models.ALLOW,
 					ConsentRequired:        false,
-					ConsentType:            "",
+					ConsentType:            []string{},
 				},
 				{
 					SubgraphName:           "sensitive",
@@ -363,7 +332,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "diagnosis",
 					ResolvedClassification: models.DENIED,
 					ConsentRequired:        false,
-					ConsentType:            "",
+					ConsentType:            []string{},
 				},
 				{
 					SubgraphName:           "finance",
@@ -371,7 +340,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "balance",
 					ResolvedClassification: models.ALLOW_CONSENT,
 					ConsentRequired:        true,
-					ConsentType:            "provider",
+					ConsentType:            []string{"provider", "citizen"}, // Expecting both
 				},
 			},
 			expectedOverallConsent: true,
@@ -408,7 +377,7 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 					FieldName:              "unknownField",
 					ResolvedClassification: models.DENIED, // Default behavior when not found in mock
 					ConsentRequired:        false,
-					ConsentType:            "",
+					ConsentType:            []string{},
 				},
 			},
 			expectedOverallConsent: false,
@@ -445,8 +414,25 @@ func TestEvaluateAccessPolicy(t *testing.T) {
 			// Given the current processing order is preserved, a direct index comparison is used.
 			for i, actualScope := range actualResponse.AccessScopes {
 				expectedScope := tt.expectedAccessScopes[i]
-				if actualScope != expectedScope {
-					t.Errorf("Scope %d mismatch.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
+
+				// Manual comparison of slices, as direct != does not work for slices
+				if actualScope.SubgraphName != expectedScope.SubgraphName ||
+					actualScope.TypeName != expectedScope.TypeName ||
+					actualScope.FieldName != expectedScope.FieldName ||
+					actualScope.ResolvedClassification != expectedScope.ResolvedClassification ||
+					actualScope.ConsentRequired != expectedScope.ConsentRequired {
+					t.Errorf("Scope %d mismatch in non-slice fields.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
+				}
+
+				// Compare ConsentType slice specifically
+				if len(actualScope.ConsentType) != len(expectedScope.ConsentType) {
+					t.Errorf("Scope %d ConsentType length mismatch.\nExpected: %d\nGot:      %d", i, len(expectedScope.ConsentType), len(actualScope.ConsentType))
+				} else {
+					for j := range actualScope.ConsentType {
+						if actualScope.ConsentType[j] != expectedScope.ConsentType[j] {
+							t.Errorf("Scope %d ConsentType element %d mismatch.\nExpected: %s\nGot:      %s", i, j, expectedScope.ConsentType[j], actualScope.ConsentType[j])
+						}
+					}
 				}
 			}
 		})
@@ -490,13 +476,14 @@ func TestHandlePolicyRequest(t *testing.T) {
 						FieldName:              "name",
 						ResolvedClassification: models.ALLOW,
 						ConsentRequired:        false,
+						ConsentType:            []string{}, // Updated for array
 					},
 				},
 				OverallConsentRequired: false,
 			},
 		},
 		{
-			name: "Consent required scenario",
+			name: "Consent required scenario (provider)",
 			requestBody: models.PolicyRequest{
 				ConsumerID: "http-consumer",
 				RequestedFields: []models.RequestedField{
@@ -521,7 +508,39 @@ func TestHandlePolicyRequest(t *testing.T) {
 						FieldName:              "engineNumber",
 						ResolvedClassification: models.ALLOW_PROVIDER_CONSENT,
 						ConsentRequired:        true,
-						ConsentType:            "provider",
+						ConsentType:            []string{"provider"}, // Updated for array
+					},
+				},
+				OverallConsentRequired: true,
+			},
+		},
+		{
+			name: "Consent required scenario (both for ALLOW_CONSENT)",
+			requestBody: models.PolicyRequest{
+				ConsumerID: "http-consumer",
+				RequestedFields: []models.RequestedField{
+					{
+						SubgraphName:   "finance",
+						TypeName:       "Account",
+						FieldName:      "balance",
+						Classification: models.ALLOW,
+					},
+				},
+			},
+			mockPolicies: map[string]models.PolicyRecord{
+				"finance.Account.balance": {Classification: models.ALLOW_CONSENT},
+			},
+			expectedStatus: http.StatusOK,
+			expectedResponseBody: models.PolicyResponse{
+				ConsumerID: "http-consumer",
+				AccessScopes: []models.AccessScope{
+					{
+						SubgraphName:           "finance",
+						TypeName:               "Account",
+						FieldName:              "balance",
+						ResolvedClassification: models.ALLOW_CONSENT,
+						ConsentRequired:        true,
+						ConsentType:            []string{"provider", "citizen"}, // Updated for array
 					},
 				},
 				OverallConsentRequired: true,
@@ -578,6 +597,7 @@ func TestHandlePolicyRequest(t *testing.T) {
 						FieldName:              "field",
 						ResolvedClassification: models.DENIED,
 						ConsentRequired:        false,
+						ConsentType:            []string{}, // Updated for array
 					},
 				},
 				OverallConsentRequired: false,
@@ -644,8 +664,25 @@ func TestHandlePolicyRequest(t *testing.T) {
 				}
 				for i, actualScope := range actualResponse.AccessScopes {
 					expectedScope := tt.expectedResponseBody.AccessScopes[i]
-					if actualScope != expectedScope {
-						t.Errorf("Scope %d mismatch.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
+
+					// Manual comparison of slice fields
+					if actualScope.SubgraphName != expectedScope.SubgraphName ||
+						actualScope.TypeName != expectedScope.TypeName ||
+						actualScope.FieldName != expectedScope.FieldName ||
+						actualScope.ResolvedClassification != expectedScope.ResolvedClassification ||
+						actualScope.ConsentRequired != expectedScope.ConsentRequired {
+						t.Errorf("Scope %d mismatch in non-slice fields.\nExpected: %+v\nGot:      %+v", i, expectedScope, actualScope)
+					}
+
+					// Compare ConsentType slice specifically
+					if len(actualScope.ConsentType) != len(expectedScope.ConsentType) {
+						t.Errorf("Scope %d ConsentType length mismatch.\nExpected: %d\nGot:      %d", i, len(expectedScope.ConsentType), len(actualScope.ConsentType))
+					} else {
+						for j := range actualScope.ConsentType {
+							if actualScope.ConsentType[j] != expectedScope.ConsentType[j] {
+								t.Errorf("Scope %d ConsentType element %d mismatch.\nExpected: %s\nGot:      %s", i, j, expectedScope.ConsentType[j], actualScope.ConsentType[j])
+							}
+						}
 					}
 				}
 			} else {
