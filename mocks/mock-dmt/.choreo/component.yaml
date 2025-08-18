@@ -1,0 +1,63 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  # GraphQL Endpoint for DMT Subgraph
+  - name: dmt-graphql-subgraph
+    displayName: DMT GraphQL Subgraph
+    service:
+      # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
+      # Ballerina GraphQL services usually listen on '/' by default.
+      basePath: /
+      port: 9090 
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: GraphQL 
+    # Network visibility: Organization is generally recommended for backend services
+    # that are consumed internally by your supergraph.
+    networkVisibilities:
+      - Organization
+      - Project # Can also be 'Project' for more restricted internal visibility
+dependencies:
+    connectionReferences:
+    - name: Mock DMT DB Connection
+      resourceRef: database:dot-mock-db/mock-dmt-db
+# +optional Defines runtime configurations
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    # +required Name of the environment variable
+    - name: BAL_CONFIG_VAR_PORT
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required Choreo connection value source
+        configForm:
+          type: number
+    - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_PORT
+      valueFrom:
+        connectionRef:
+          name: Mock DMT DB Connection
+          key: port
+    - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_HOST
+      valueFrom:
+        connectionRef:
+          name: Mock DMT DB Connection
+          key: host
+    
+    - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_USER
+      valueFrom:
+        connectionRef:
+          name: Mock DMT DB Connection
+          key: user
+    - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_PASSWORD
+      valueFrom:
+        connectionRef:
+          name: Mock DMT DB Connection
+          key: password
+    - name: BAL_CONFIG_VAR_MOCK_DMT_STORE_DATABASE
+      valueFrom:
+        connectionRef:
+          name: Mock DMT DB Connection
+          key: database
