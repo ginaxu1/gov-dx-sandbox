@@ -51,27 +51,34 @@ To run this example with PostgreSQL:
     * Create the `policies` table and insert sample data as specified in the previous response.
     ```sql
     CREATE TABLE policies (
-        id SERIAL PRIMARY KEY,
-        subgraph_name VARCHAR(255) NOT NULL,
-        type_name VARCHAR(255) NOT NULL,
-        field_name VARCHAR(255) NOT NULL,
-        classification VARCHAR(50) NOT NULL,
-        UNIQUE (subgraph_name, type_name, field_name)
-    );
+		id SERIAL PRIMARY KEY,
+		consumer_id VARCHAR(255) NOT NULL,
+		subgraph_name VARCHAR(255) NOT NULL,
+		type_name VARCHAR(255) NOT NULL,
+		field_name VARCHAR(255) NOT NULL,
+		classification VARCHAR(50) NOT NULL,
+		UNIQUE (consumer_id, subgraph_name, type_name, field_name)
+	);
 
-    INSERT INTO policies (subgraph_name, type_name, field_name, classification) VALUES
-    ('dmt', 'VehicleInfo', 'engineNumber', 'ALLOW_PROVIDER_CONSENT'),
-    ('drp', 'PersonData', 'photo', 'ALLOW_CITIZEN_CONSENT'),
-    ('dmt', 'VehicleInfo', 'id', 'ALLOW'),
-    ('dmt', 'VehicleInfo', 'make', 'ALLOW'),
-    ('dmt', 'VehicleInfo', 'model', 'ALLOW'),
-    ('dmt', 'VehicleInfo', 'yearOfManufacture', 'ALLOW'),
-    ('dmt', 'VehicleInfo', 'ownerNic', 'ALLOW_PROVIDER_CONSENT'),
-    ('dmt', 'VehicleInfo', 'conditionAndNotes', 'ALLOW_PROVIDER_CONSENT'),
-    ('dmt', 'VehicleInfo', 'registrationNumber', 'ALLOW'),
-    ('dmt', 'VehicleInfo', 'vehicleClass', 'ALLOW'),
-    ('dmt', 'DriverLicense', 'id', 'ALLOW'),
-    ('dmt', 'DriverLicense', 'licenseNumber', 'ALLOW_PROVIDER_CONSENT');
+    INSERT INTO policies (consumer_id, subgraph_name, type_name, field_name, classification) VALUES
+		('citizen', 'dmt', 'VehicleInfo', 'engineNumber', 'ALLOW_PROVIDER_CONSENT'),
+		('bank', 'dmt', 'VehicleInfo', 'engineNumber', 'ALLOW_CONSENT'),
+		('bank', 'drp', 'PersonData', 'photo', 'ALLOW_CITIZEN_CONSENT'),
+		('citizen', 'dmt', 'VehicleInfo', 'id', 'ALLOW'),
+		('citizen', 'dmt', 'VehicleInfo', 'make', 'ALLOW'),
+		('citizen', 'dmt', 'VehicleInfo', 'model', 'ALLOW'),
+		('citizen', 'dmt', 'VehicleInfo', 'yearOfManufacture', 'ALLOW'),
+		('citizen', 'dmt', 'VehicleInfo', 'ownerNic', 'ALLOW_PROVIDER_CONSENT'),
+		('citizen', 'dmt', 'VehicleInfo', 'conditionAndNotes', 'ALLOW_PROVIDER_CONSENT'),
+		('citizen', 'dmt', 'VehicleInfo', 'registrationNumber', 'ALLOW'),
+		('citizen', 'dmt', 'VehicleInfo', 'vehicleClass', 'ALLOW'),
+		('citizen', 'dmt', 'DriverLicense', 'id', 'ALLOW'),
+		('citizen', 'dmt', 'DriverLicense', 'licenseNumber', 'ALLOW_PROVIDER_CONSENT'),
+		-- Example of bank-specific policies
+		('bank', 'dmt', 'VehicleInfo', 'id', 'ALLOW'),
+		('bank', 'dmt', 'VehicleInfo', 'make', 'ALLOW'),
+		('bank', 'dmt', 'VehicleInfo', 'model', 'ALLOW')
+	ON CONFLICT (consumer_id, subgraph_name, type_name, field_name) DO UPDATE SET classification = EXCLUDED.classification;
     ```
 
 2.  Install Go PostgreSQL Driver
@@ -87,7 +94,7 @@ To run this example with PostgreSQL:
     ```bash
     curl -X POST \
      -H "Content-Type: application/json" \
-     -d '{ "consumerId": "consumer-123", "requestedFields": [ { "subgraphName": "dmt", "typeName": "VehicleInfo", "fieldName": "engineNumber", "classification": "ALLOW", "context": {} }, { "subgraphName": "drp", "typeName": "PersonData", "fieldName": "photo", "classification": "ALLOW", "context": { "citizenId": "citizen-uuid-from-token" } } ] }' \
+     -d '{ "consumerId": "citizen", "requestedFields": [ { "subgraphName": "dmt", "typeName": "VehicleInfo", "fieldName": "id", "classification": "ALLOW", "context": {} }, { "subgraphName": "drp", "typeName": "PersonData", "fieldName": "photo", "classification": "DENY", "context": {} } ] }' \
      http://localhost:8081/evaluate-policy
     ```
     The output should reflect the classifications retrieved from the PostgreSQL database.
