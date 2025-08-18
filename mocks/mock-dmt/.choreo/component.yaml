@@ -4,8 +4,8 @@ schemaVersion: 1.2
 # +optional Incoming connection details for the component
 endpoints:
   # GraphQL Endpoint for DMT Subgraph
-  - name: dmt-graphql-subgraph
-    displayName: DMT GraphQL Subgraph
+  - name: dmt-mock-backend
+    displayName: DMT Mock Backend
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
@@ -13,7 +13,7 @@ endpoints:
       port: 9090 
     # +required Type of traffic that the endpoint is accepting.
     # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
-    type: GraphQL 
+    type: REST 
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
