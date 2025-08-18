@@ -1,0 +1,314 @@
+openapi: 3.0.1
+info:
+  title: Service Openapi Yaml
+  version: 0.1.0
+servers:
+- url: "{server}:{port}/"
+  variables:
+    server:
+      default: http://localhost
+    port:
+      default: "9090"
+paths:
+  /license/owner:
+    get:
+      operationId: getLicenseOwner
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          format: int64
+          default: 1
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          format: int64
+          default: 10
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+    post:
+      operationId: postLicenseOwner
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OwnerInfoInsert'
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /license/issuer:
+    get:
+      operationId: getLicenseIssuer
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+    post:
+      operationId: postLicenseIssuer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssuerInfoInsert'
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /license:
+    get:
+      operationId: getLicense
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          format: int64
+          default: 1
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          format: int64
+          default: 10
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+    post:
+      operationId: postLicense
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DrivingLicenseInsert'
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: InternalServerError
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+  /licenses/{id}:
+    get:
+      operationId: getLicensesId
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrivingLicense'
+        "404":
+          description: NotFound
+        "400":
+          description: BadRequest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorPayload'
+components:
+  schemas:
+    BloodGroup:
+      type: string
+      enum:
+      - O_NEGATIVE
+      - O_POSITIVE
+      - AB_NEGATIVE
+      - AB_POSITIVE
+      - B_NEGATIVE
+      - B_POSITIVE
+      - A_NEGATIVE
+      - A_POSITIVE
+    DrivingLicense:
+      required:
+      - backImageUrl
+      - expiryDate
+      - frontImageUrl
+      - id
+      - issueDate
+      - issuerinfoId
+      - licenseNumber
+      - ownerinfoOwnerNic
+      type: object
+      properties:
+        id:
+          type: string
+        licenseNumber:
+          type: string
+        issueDate:
+          type: string
+        expiryDate:
+          type: string
+        frontImageUrl:
+          type: string
+        backImageUrl:
+          type: string
+        ownerinfoOwnerNic:
+          type: string
+        issuerinfoId:
+          type: string
+      additionalProperties: false
+    DrivingLicenseInsert:
+      $ref: '#/components/schemas/DrivingLicense'
+    ErrorPayload:
+      required:
+      - message
+      - method
+      - path
+      - reason
+      - status
+      - timestamp
+      type: object
+      properties:
+        timestamp:
+          type: string
+        status:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        method:
+          type: string
+    IssuerInfo:
+      required:
+      - id
+      - issuingAuthority
+      - name
+      - signatureUrl
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        issuingAuthority:
+          type: string
+        signatureUrl:
+          type: string
+      additionalProperties: false
+    IssuerInfoInsert:
+      $ref: '#/components/schemas/IssuerInfo'
+    OwnerInfo:
+      required:
+      - address
+      - birthDate
+      - bloodGroup
+      - name
+      - ownerNic
+      - signatureUrl
+      type: object
+      properties:
+        ownerNic:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        birthDate:
+          type: string
+        signatureUrl:
+          type: string
+        bloodGroup:
+          $ref: '#/components/schemas/BloodGroup'
+      additionalProperties: false
+    OwnerInfoInsert:
+      $ref: '#/components/schemas/OwnerInfo'
