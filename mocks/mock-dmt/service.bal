@@ -2,6 +2,7 @@ import mock_dmt.store;
 
 import ballerina/http;
 import ballerina/persist;
+import ballerina/sql;
 
 configurable int port = ?;
 
@@ -155,7 +156,7 @@ service / on new http:Listener(port) {
         };
     }
 
-    isolated resource function get licenses/[string id]() returns DrivingLicense|http:NotFound {
+    isolated resource function get license/[string id]() returns DrivingLicense|http:NotFound {
         lock {
             if (!drivingLicenses.hasKey(id)) {
                 return http:NOT_FOUND;
@@ -163,5 +164,112 @@ service / on new http:Listener(port) {
             DrivingLicense license = drivingLicenses.get(id);
             return license.clone();
         }
+    }
+
+    isolated resource function get license/nic/[string ownerNic]() returns json|error {
+        sql:ParameterizedQuery query = `"ownerInfo"."ownerNic" = ${ownerNic}`;
+        stream<DrivingLicense, persist:Error?> license = sClient->/drivinglicenses(whereClause = query);
+
+        var next = license.next();
+        if next is record {|DrivingLicense value;|} {
+            return next.value.clone();
+        }
+
+        if (next is persist:Error) {
+            return next;
+        }
+
+        return error("Driving license not found");
+    }
+
+    isolated resource function get vehicle(string? ownerNic, int page = 1, int pageSize = 10) returns json|error {
+        sql:ParameterizedQuery query = ``;
+
+        if (ownerNic is string) {
+            query = `"VehicleInfo"."ownerNic" = ${ownerNic}`;
+        }
+
+        int skipCount = (page - 1) * pageSize;
+
+        // sql:ParameterizedQuery skipAndLimit = `${pageSize} OFFSET ${skipCount}`;
+
+        stream<store:VehicleInfoWithRelations, persist:Error?> resultStream = sClient->/vehicleinfos(whereClause = query);
+
+        // Calculate how many items to skip
+
+        // Manually paginate the stream
+        store:VehicleInfoWithRelations[] paginatedVehicles = [];
+        int count = 0;
+        persist:Error? err = ();
+
+        while true {
+            var next = resultStream.next();
+            if next is record {|store:VehicleInfoWithRelations value;|} {
+                if count >= skipCount && paginatedVehicles.length() < pageSize {
+                    paginatedVehicles.push(next.value);
+                }
+                count += 1;
+                if paginatedVehicles.length() == pageSize {
+                    break;
+                }
+            } else {
+                err = next;
+                break;
+            }
+        }
+
+        if err is persist:Error {
+            return err;
+        }
+
+        return {
+            data: paginatedVehicles,
+            pagination: {
+                page: page,
+                pageSize: pageSize,
+                total: count
+            }
+        };
+    }
+
+    isolated resource function get vehicle/[string id]() returns VehicleInfo|error {
+        return sClient->/vehicleinfos/[id]();
+    }
+
+    isolated resource function get vehicle/regNo/[string registrationNumber]() returns json|error {
+        sql:ParameterizedQuery query = `"VehicleInfo"."registrationNumber" = ${registrationNumber}`;
+        
+        stream<store:VehicleInfoWithRelations, persist:Error?> resultStream = sClient->/vehicleinfos(whereClause = query);
+
+        var next = resultStream.next();
+        if next is record {|store:VehicleInfoWithRelations value;|} {
+            return next.value.clone();
+        } else if next is persist:Error {
+            return next;
+        } else {
+            return error("Vehicle with registration number not found");
+        }
+    }
+
+    isolated resource function post vehicle/types(store:VehicleClassInsert vehicleClass) returns json|error {
+        string[]| error? result = sClient->/vehicleclasses.post([vehicleClass]);
+
+        if result is string[] {
+            return {
+                id: result[0]
+            };
+        }
+        return error("Failed to create vehicle class");
+    }
+
+    isolated resource function post vehicle(store:VehicleInfoInsert vehicle) returns json|error {
+        string[]| error? result = sClient->/vehicleinfos.post([vehicle]);
+
+        if result is string[] {
+            return {
+                id: result[0]
+            };
+        }
+        return error("Failed to create vehicle info");
     }
 }
