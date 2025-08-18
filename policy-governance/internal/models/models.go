@@ -8,8 +8,8 @@ const (
 	ALLOW                  Classification = "ALLOW"
 	ALLOW_PROVIDER_CONSENT Classification = "ALLOW_PROVIDER_CONSENT"
 	ALLOW_CITIZEN_CONSENT  Classification = "ALLOW_CITIZEN_CONSENT"
-	ALLOW_CONSENT          Classification = "ALLOW_CONSENT" // Generic consent, could be either provider or citizen
-	DENIED                 Classification = "DENIED"
+	ALLOW_CONSENT          Classification = "ALLOW_CONSENT" // Both provider and citizen
+	DENY                   Classification = "DENY"
 )
 
 // Context can hold additional information for policy evaluation.
@@ -20,7 +20,7 @@ type RequestedField struct {
 	SubgraphName   string         `json:"subgraphName"`
 	TypeName       string         `json:"typeName"`
 	FieldName      string         `json:"fieldName"`
-	Classification Classification `json:"classification"` // This will be the policy decision (initial hint)
+	Classification Classification `json:"classification"` // This will be the policy decision
 	Context        Context        `json:"context"`
 }
 
@@ -31,24 +31,21 @@ type PolicyRequest struct {
 }
 
 // AccessScope represents the determined access scope for a field.
+// It now only contains the resolved classification.
 type AccessScope struct {
 	SubgraphName string `json:"subgraphName"`
 	TypeName     string `json:"typeName"`
 	FieldName    string `json:"fieldName"`
 	// ResolvedClassification is the classification determined by the Policy Governance service.
 	ResolvedClassification Classification `json:"resolvedClassification"`
-	// ConsentRequired indicates if consent is needed for this specific field.
-	ConsentRequired bool `json:"consentRequired"`
-	// ConsentType specifies the type of consent if required (e.g., "provider" or "citizen").
-	ConsentType []string `json:"consentType,omitempty"`
+	// ConsentRequired and ConsentType are removed as per the new requirement.
 }
 
 // PolicyResponse is the format of the response sent back to the GraphQL Router.
 type PolicyResponse struct {
-	ConsumerID   string        `json:"consumerId"`
-	AccessScopes []AccessScope `json:"accessScopes"`
-	// OverallConsentRequired indicates if any of the requested fields require consent.
-	OverallConsentRequired bool `json:"overallConsentRequired"`
+	ConsumerID             string        `json:"consumerId"`
+	AccessScopes           []AccessScope `json:"accessScopes"`
+	OverallConsentRequired bool          `json:"overallConsentRequired"` // indicates if any of the requested fields require consent
 }
 
 // PolicyRecord represents a simplified policy stored in the database.
@@ -56,9 +53,9 @@ type PolicyResponse struct {
 // dynamic rules, roles, conditions, etc.
 type PolicyRecord struct {
 	ID             int            `json:"id"`
+	ConsumerID     string         `json:"consumerId"`
 	SubgraphName   string         `json:"subgraph_name"`
 	TypeName       string         `json:"type_name"`
 	FieldName      string         `json:"field_name"`
 	Classification Classification `json:"classification"`
-	// Add other fields here for more complex policy rules, e.g., consumer_roles, conditions_json
 }

@@ -12,20 +12,15 @@ import (
 )
 
 // PolicyDataFetcher defines the interface for fetching policy data.
-// This abstraction allows for easy mocking in tests.
+// The GetPolicyFromDB method now accepts a consumerID.
 type PolicyDataFetcher interface {
-	GetPolicyFromDB(subgraph, typ, field string) (models.PolicyRecord, error)
+	GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error) // <-- UPDATED SIGNATURE
 }
 
 // PolicyGovernanceService handles policy verification.
-// It now embeds the PolicyDataFetcher interface.
 type PolicyGovernanceService struct {
-	Fetcher PolicyDataFetcher // Use the interface for fetching data
+	Fetcher PolicyDataFetcher
 }
-
-// GetPolicyFromDB is now part of the PolicyDataFetcher interface.
-// The actual implementation (using *sql.DB) will be in a concrete type that implements this.
-// For example, a `DatabasePolicyFetcher` struct.
 
 // EvaluateAccessPolicy determines the access policy for the requested fields.
 func (s *PolicyGovernanceService) EvaluateAccessPolicy(req models.PolicyRequest) models.PolicyResponse {
@@ -40,45 +35,23 @@ func (s *PolicyGovernanceService) EvaluateAccessPolicy(req models.PolicyRequest)
 			SubgraphName:           field.SubgraphName,
 			TypeName:               field.TypeName,
 			FieldName:              field.FieldName,
-			ResolvedClassification: models.DENIED,
-			ConsentRequired:        false,
-			ConsentType:            []string{},
+			ResolvedClassification: models.DENY,
 		}
 
-		// Fetch policy from the database using the Fetcher interface
-		policyFromDB, err := s.Fetcher.GetPolicyFromDB(field.SubgraphName, field.TypeName, field.FieldName)
+		policyFromDB, err := s.Fetcher.GetPolicyFromDB(req.ConsumerID, field.SubgraphName, field.TypeName, field.FieldName)
 		if err != nil {
-			log.Printf("Error fetching policy for %s.%s.%s: %v. Defaulting to DENIED.", field.SubgraphName, field.TypeName, field.FieldName, err)
-			// Keep default DENIED
+			log.Printf("Error fetching policy for ConsumerID %s, Field %s.%s.%s: %v. Defaulting to DENY.", req.ConsumerID, field.SubgraphName, field.TypeName, field.FieldName, err)
 		} else {
-			// Use the classification from the database, or fall back to requested if no specific policy
 			actualClassification := policyFromDB.Classification
-			if actualClassification == "" { // If DB didn't have a specific policy, use the requested one
+			if actualClassification == "" {
 				actualClassification = field.Classification
 			}
 
+			accessScope.ResolvedClassification = actualClassification
+
 			switch actualClassification {
-			case models.ALLOW:
-				accessScope.ResolvedClassification = models.ALLOW
-			case models.ALLOW_PROVIDER_CONSENT:
-				accessScope.ResolvedClassification = models.ALLOW_PROVIDER_CONSENT
-				accessScope.ConsentRequired = true
-				accessScope.ConsentType = []string{"provider"}
+			case models.ALLOW_PROVIDER_CONSENT, models.ALLOW_CITIZEN_CONSENT, models.ALLOW_CONSENT:
 				resp.OverallConsentRequired = true
-			case models.ALLOW_CITIZEN_CONSENT:
-				accessScope.ResolvedClassification = models.ALLOW_CITIZEN_CONSENT
-				accessScope.ConsentRequired = true
-				accessScope.ConsentType = []string{"citizen"}
-				resp.OverallConsentRequired = true
-			case models.ALLOW_CONSENT:
-				accessScope.ResolvedClassification = models.ALLOW_CONSENT
-				accessScope.ConsentRequired = true
-				accessScope.ConsentType = []string{"provider", "citizen"}
-				resp.OverallConsentRequired = true
-			case models.DENIED:
-				accessScope.ResolvedClassification = models.DENIED
-			default:
-				accessScope.ResolvedClassification = models.DENIED
 			}
 		}
 		resp.AccessScopes = append(resp.AccessScopes, accessScope)
@@ -93,14 +66,20 @@ type DatabasePolicyFetcher struct {
 }
 
 // GetPolicyFromDB implements the PolicyDataFetcher interface for database lookup.
-func (f *DatabasePolicyFetcher) GetPolicyFromDB(subgraph, typ, field string) (models.PolicyRecord, error) {
+// The query now includes consumer_id in the WHERE clause and scans it.
+func (f *DatabasePolicyFetcher) GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error) { // <-- UPDATED SIGNATURE
 	var policy models.PolicyRecord
-	query := `SELECT id, subgraph_name, type_name, field_name, classification FROM policies WHERE subgraph_name = $1 AND type_name = $2 AND field_name = $3 LIMIT 1`
-	row := f.DB.QueryRow(query, subgraph, typ, field)
+	// Updated query to include consumer_id
+	query := `SELECT id, consumer_id, subgraph_name, type_name, field_name, classification
+              FROM policies
+              WHERE consumer_id = $1 AND subgraph_name = $2 AND type_name = $3 AND field_name = $4
+              LIMIT 1`
+	row := f.DB.QueryRow(query, consumerID, subgraph, typ, field)
 
-	err := row.Scan(&policy.ID, &policy.SubgraphName, &policy.TypeName, &policy.FieldName, &policy.Classification)
+	// Updated scan to include policy.ConsumerID
+	err := row.Scan(&policy.ID, &policy.ConsumerID, &policy.SubgraphName, &policy.TypeName, &policy.FieldName, &policy.Classification) // <-- UPDATED SCAN
 	if err == sql.ErrNoRows {
-		return models.PolicyRecord{Classification: models.DENIED}, nil
+		return models.PolicyRecord{Classification: models.DENY}, nil
 	}
 	if err != nil {
 		return models.PolicyRecord{}, fmt.Errorf("failed to scan policy: %w", err)
