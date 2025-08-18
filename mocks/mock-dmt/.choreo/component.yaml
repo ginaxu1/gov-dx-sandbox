@@ -19,6 +19,7 @@ endpoints:
     networkVisibilities:
       - Organization
       - Project # Can also be 'Project' for more restricted internal visibility
+    schemaFilePath: ./service_openapi.yaml
 dependencies:
     connectionReferences:
     - name: Mock DMT DB Connection
