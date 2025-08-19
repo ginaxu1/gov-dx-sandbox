@@ -45,7 +45,7 @@ func main() {
 To run this example with PostgreSQL:
 
 1.  Ensure PostgreSQL is Running and Configured
-    * You need a PostgreSQL server running.
+    * Need a PostgreSQL server running.
     * Create a database (e.g., `policy_db`).
     * Create a user (e.g., `user` with password `password`) and grant privileges.
     * Create the `policies` table and insert sample data as specified in the previous response.

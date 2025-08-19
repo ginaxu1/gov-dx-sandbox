@@ -1,79 +1,59 @@
-# router.yaml
-# Place this file in your project's root or `supergraph/` directory
-# Example: your-graphql-project/router.yaml or your-graphql-project/supergraph/router.yaml
-
+# This config tells Apollo Router how to behave, including
+# how to integrate with the external Go policy governance service 
 environments:
-  dev: # You can define different environments like 'prod', 'staging', etc.
-    # The path to your supergraph schema file
-    supergraph: ./supergraph/supergraph.yaml
+  dev: # Defines a development environment for the Router, can be prod, staging, etc.
+    supergraph: ./supergraph.yaml 
 
     # --- External Authorization Configuration ---
-    # This section tells the Router to call your Go policy service
-    # for authorization decisions before executing the GraphQL operation.
+    # This section configures the Router to make an HTTP call to the Go policy service
+    # for authorization decisions before executing the GraphQL operation
     authorization:
-      # A unique name for your authorization service
       - name: policy-governance-service
-        # Define the external HTTP service
+        # Define the external HTTP service details
         external:
-          # The URL of your Go policy governance service endpoint
-          # This should match where your main.go registers HandlePolicyRequest
+          # The URL of the Go policy governance service endpoint
+          # This MUST match where the main.go registers HandlePolicyRequest
           url: "http://localhost:8081/evaluate-policy"
-          # HTTP method for the request to the external service
           method: POST
-          # HTTP headers to send to your external service
           headers:
             - name: Content-Type
               value: application/json
-            # You might want to forward headers like consumerId, Authorization, etc.
-            # For example, to forward the 'x-consumer-id' header from the client:
+            # Forward the 'x-consumer-id' header from the client to the Go service
             - name: x-consumer-id
-              value: "{context.x-consumer-id}" # This dynamically injects the header value
+              value: "{context.x-consumer-id}"
+            # Uncomment and configure if we need to forward Authorization tokens
             # - name: Authorization
-            #   value: "{context.Authorization}" # If you need to forward auth tokens
+            #   value: "{context.Authorization}"
 
-          # How to send the GraphQL request body to your external policy service.
-          # Router can send the full JSON request body, headers, etc.
-          # Here, we're building a payload similar to what your Go service expects (PolicyRequest).
+          # CRITICAL: Tells the Router to send the full incoming GraphQL request body
+          # to the external policy service. Policy Governance Go service will parse this.
           request:
-            # You can send the full incoming GraphQL request body for parsing by your Go service.
-            # Your Go service will need to parse this JSON to extract requested fields.
             send_graphql_request_body: true
-            # Alternatively, you could explicitly build the `requestedFields` array here
-            # using Router's request templates, but this requires more complex configuration
-            # and potentially `@tag` directives in your schema. Sending the full body
-            # is simpler if your Go service can parse it.
-            # Example if you wanted to manually construct a payload in Router:
-            # send_json:
-            #   consumerId: "{context.x-consumer-id}"
-            #   requestedFields: [
-            #     # This part is highly complex in Router config and usually requires
-            #     # custom directives like @tag on fields in your schema.
-            #     # It's easier if your Go service parses the full GraphQL request body.
-            #   ]
 
-
-          # --- How to interpret the response from your Go policy service ---
-          # This tells the Router what to do based on the JSON response from your service.
-          # The `policyResponse` will be the JSON returned by your Go service.
+          # --- How to interpret the response from the Go policy service ---
+          # This section tells the Router what to do based on the JSON response from the service
           response:
-            # Check if overallConsentRequired is true. If so, you could potentially block or log.
-            # For now, as per your request, we are NOT blocking the entire request for consent.
-            # For future:
-            # if "{{ .response.bodyJson.overallConsentRequired }}" == "true":
-            #   deny_request:
-            #     message: "Consent is required for some fields. Please obtain consent."
-
-            # Iterate over each accessScope in the response
-            # and deny the request if any field's resolvedClassification is "DENY".
-            # This implements the "if any field is denied, halt the request" behavior.
             for_each: accessScopes
-            with: scope
+            with: scope # 'scope' is a variable representing the current item in the loop
             do:
+              # If any field's resolvedClassification is "DENY", the Router will
+              # immediately deny the entire GraphQL request.
+              # This acts as the primary gatekeeper for explicitly denied fields.
               if "{{ .scope.resolvedClassification }}" == "DENY":
                 deny_request:
                   # Customize the error message that the client receives
-                  message: "Access denied to field '{{ .scope.subgraphName }}.{{ .scope.typeName }}.{{ .scope.fieldName }}'."
+                  message: "Access denied to field '{{ .scope.subgraphName }}.{{ .scope.typeName }}.{{ .scope.fieldName }}' by policy."
                   # Add extensions for client-side error handling
                   extensions:
-                    code: "ACCESS_DENIED"
+                    code: "ACCESS_DENIED_BY_POLICY"
                     deniedField: "{{ .scope.subgraphName }}.{{ .scope.typeName }}.{{ .scope.fieldName }}"
+
+              # If any field's resolvedClassification requires consent, the Router
+              # will NOT block the request at this stage. The request will proceed.
+              # Consent handling is deferred for future implementation in subgraphs or a Consent Engine.
+              if "{{ .scope.resolvedClassification }}" == "ALLOW_PROVIDER_CONSENT" or "{{ .scope.resolvedClassification }}" == "ALLOW_CITIZEN_CONSENT" or "{{ .scope.resolvedClassification }}" == "ALLOW_CONSENT":
+                # Log a message, but do not deny the request here.
+                # This information will be available in the context for subgraphs.
+                log: "info"
+                message: "Policy Governance: Field '{{ .scope.subgraphName }}.{{ .scope.typeName }}.{{ .scope.fieldName }}' requires consent ({{ .scope.resolvedClassification }}). Request proceeding."
+

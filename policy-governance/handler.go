@@ -7,16 +7,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings" // Import for string manipulation (e.g., StartsWith)
+	"strings"
 
-	"policy-governance/internal/models" // Import the models package
+	"policy-governance/internal/models"
 
-	"github.com/graphql-go/graphql/language/ast"    // GraphQL AST types
-	"github.com/graphql-go/graphql/language/parser" // GraphQL parser
+	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/parser"
 )
 
 // GraphQLRequestBody mirrors the JSON structure sent by Apollo Router
-// when `send_graphql_request_body: true` is set.
+// when `send_graphql_request_body: true` is set
 type GraphQLRequestBody struct {
 	Query         string                 `json:"query"`
 	Variables     map[string]interface{} `json:"variables"`
@@ -26,7 +26,7 @@ type GraphQLRequestBody struct {
 // typeToSubgraphMap maps GraphQL type names to their owning subgraph names.
 // This is critical for Apollo Router's external authorization service
 // to correctly identify the subgraph context for policy evaluation.
-// This map MUST be kept in sync with your actual subgraph schemas and definitions.
+// This map MUST be kept in sync with our actual subgraph schemas and definitions.
 var typeToSubgraphMap = map[string]string{
 	// DRP Subgraph Types (from drp/types.bal)
 	"PersonData":              "drp",
@@ -39,14 +39,12 @@ var typeToSubgraphMap = map[string]string{
 	"CardStatus":              "drp",
 	"CivilStatus":             "drp",
 	"CitizenshipType":         "drp",
-	"person":                  "drp", // Assuming 'person' (lowercase) is a type name for PersonData
 
 	// DMT Subgraph Types (from dmt/types.bal)
 	"VehicleClass":  "dmt",
 	"VehicleInfo":   "dmt",
 	"DriverLicense": "dmt",
-	"Vehicle":       "dmt", // Assuming 'Vehicle' (capitalized) might be a return type for Query.vehicle
-	"vehicle":       "dmt", // Assuming 'vehicle' (lowercase) might be a return type
+	"Vehicle":       "dmt",
 }
 
 // PolicyDataFetcher defines the interface for fetching policy data.
@@ -94,12 +92,12 @@ func (s *PolicyGovernanceService) EvaluateAccessPolicy(req models.PolicyRequest)
 	return resp
 }
 
-// DatabasePolicyFetcher is a concrete implementation of PolicyDataFetcher using a SQL database.
+// DatabasePolicyFetcher is a concrete implementation of PolicyDataFetcher using a SQL database
 type DatabasePolicyFetcher struct {
 	DB *sql.DB
 }
 
-// GetPolicyFromDB implements the PolicyDataFetcher interface for database lookup.
+// GetPolicyFromDB implements the PolicyDataFetcher interface for database lookup
 func (f *DatabasePolicyFetcher) GetPolicyFromDB(consumerID, subgraph, typ, field string) (models.PolicyRecord, error) {
 	var policy models.PolicyRecord
 	query := `SELECT id, consumer_id, subgraph_name, type_name, field_name, classification
@@ -110,7 +108,7 @@ func (f *DatabasePolicyFetcher) GetPolicyFromDB(consumerID, subgraph, typ, field
 
 	err := row.Scan(&policy.ID, &policy.ConsumerID, &policy.SubgraphName, &policy.TypeName, &policy.FieldName, &policy.Classification)
 	if err == sql.ErrNoRows {
-		// If no specific policy found, explicitly return DENY (or your desired default)
+		// If no specific policy found, explicitly return DENY
 		// This ensures policies that aren't defined are denied by default.
 		return models.PolicyRecord{Classification: models.DENY}, nil
 	}
@@ -178,7 +176,7 @@ func parseGraphQLQuery(queryString string, schema *ast.Document) ([]models.Reque
 				if node.SelectionSet != nil {
 					// Determine the type name for the next level of recursion (the type of the current field's value)
 					nextTypeName := ""
-					// This mapping is based on the expected return types of fields in your schema.
+					// This mapping is based on the expected return types of fields in our schema.
 					// This is still a heuristic without a full GraphQL schema object for type resolution.
 					switch fieldName {
 					case "person": // If Query.person returns a type named 'person'
@@ -242,7 +240,7 @@ func parseGraphQLQuery(queryString string, schema *ast.Document) ([]models.Reque
 				// For this example, we assume `parseGraphQLQuery` could receive or access them.
 				// For simplicity in this direct traversal, we'll log a warning.
 				log.Printf("Warning: FragmentSpread '%s' encountered. Full fragment resolution for policy is complex and not fully implemented in this AST traversal.", node.Name.Value)
-				// To properly resolve, you'd need to find the fragment definition in the main AST document
+				// To properly resolve, need to find the fragment definition in the main AST document
 				// and recursively call collectFields on its SelectionSet with its TypeCondition.
 			default:
 				log.Printf("Warning: Unknown selection type: %T", sel)
@@ -266,8 +264,8 @@ func parseGraphQLQuery(queryString string, schema *ast.Document) ([]models.Reque
 	return requestedFields, nil
 }
 
-// HandlePolicyRequest is the HTTP handler for policy requests.
-// It accepts a pointer to PolicyGovernanceService to use the shared DB connection.
+// HandlePolicyRequest is the HTTP handler for policy requests
+// It accepts a pointer to PolicyGovernanceService to use the shared DB connection
 func HandlePolicyRequest(service *PolicyGovernanceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -289,7 +287,7 @@ func HandlePolicyRequest(service *PolicyGovernanceService) http.HandlerFunc {
 		}
 
 		// Parse the GraphQL query string to get requested fields
-		requestedFields, err := parseGraphQLQuery(graphqlReqBody.Query, nil) // schema is not needed here
+		requestedFields, err := parseGraphQLQuery(graphqlReqBody.Query, nil)
 		if err != nil {
 			log.Printf("Error parsing GraphQL query: %v", err)
 			http.Error(w, fmt.Sprintf("Error parsing GraphQL query: %v", err), http.StatusInternalServerError)
