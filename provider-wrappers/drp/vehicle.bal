@@ -24,12 +24,11 @@ isolated function resolveVehicleData(subgraph:Representation representation) ret
         owner: null
     };
 
-    lock {
-        PersonData? ownerData = check sharedDRPClient.getPersonByNic(ownerNic);
-        if ownerData is PersonData {
-            vehicle.owner = ownerData;
-            // Add other fields as necessary
-        }
-        return vehicle.clone();
+    PersonData|error ownerData = sharedDRPClient.getPersonByNic(ownerNic);
+
+    if ownerData is PersonData {
+        vehicle.owner = ownerData;
     }
+
+    return vehicle;
 }
