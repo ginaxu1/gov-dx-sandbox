@@ -28,4 +28,4 @@ configurations:
       valueFrom:
         # +required Choreo connection value source
         configForm:
-          type: int
+          type: number
