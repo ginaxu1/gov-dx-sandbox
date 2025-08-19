@@ -9,28 +9,17 @@ configurable int port = ?;
 
 // Read environment variables
 configurable string? serviceURL = ();
-configurable string? consumerKey = ();
-configurable string? consumerSecret = ();
-configurable string? tokenURL = ();
 configurable string? choreoApiKey = ();
 
 // Use the configurable variable if it exists, otherwise fall back to the environment variable
 final string SERVICE_URL = serviceURL ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_SERVICEURL");
-final string CONSUMER_KEY = consumerKey ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERKEY");
-final string CONSUMER_SECRET = consumerSecret ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_CONSUMERSECRET");
-final string TOKEN_URL = tokenURL ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_TOKENURL");
 final string CHOREO_API_KEY = choreoApiKey ?: os:getEnv("CHOREO_MOCK_DRP_CONNECTION_APIKEY");
 
 isolated service class DRPAPIClient {
     private final http:Client apiClient;
     function init() returns http:ClientError? {
-        log:printInfo("DRPAPIClient: Initializing", consumerKey = CONSUMER_KEY, consumerSecret = CONSUMER_SECRET, apiKey = CHOREO_API_KEY);
-        self.apiClient = check new (SERVICE_URL,
-        auth = {
-            tokenUrl: TOKEN_URL,
-            clientId: CONSUMER_KEY,
-            clientSecret: CONSUMER_SECRET
-        });
+        log:printInfo("DRPAPIClient: Initializing", apiKey = CHOREO_API_KEY);
+        self.apiClient = check new (SERVICE_URL);
     }
     isolated function getPersonByNic(string nic) returns PersonData|error {
         log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
