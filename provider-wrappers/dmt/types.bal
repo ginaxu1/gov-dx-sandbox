@@ -59,8 +59,11 @@ public type VehicleInfo record {|
     string conditionAndNotes;
     string registrationNumber;
     VehicleClass vehicleClass;
+    string vehicleclassId?;
 |};
-
+@subgraph:Entity {
+    'key: "id ownerNic"
+}
 public type DriverLicense record {|
     readonly string id;
     string licenseNumber;
@@ -73,4 +76,15 @@ public type DriverLicense record {|
 
 public type VehicleClassResponse record {|
     VehicleClass[] data;
+|};
+
+public type PaginationInfo record {|
+    int page;
+    int pageSize;
+    int total;
+|};
+
+public type VehicleInfoResponse record {|
+    VehicleInfo[] data;
+    PaginationInfo pagination;
 |};
