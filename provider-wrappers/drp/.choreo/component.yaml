@@ -21,7 +21,7 @@ endpoints:
 # +optional Defines runtime configurations
 dependencies:
     connectionReferences:
-    - name: mock-drp-connection-5
+    - name: mock-drp-connection
       resourceRef: service:/mock-provider-data/mock-drp/v1/803f0/PUBLIC
 configurations:
   # +optional List of environment variables to be injected into the component.
