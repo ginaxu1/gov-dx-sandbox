@@ -17,8 +17,7 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Organization
-      - Project # Can also be 'Project' for more restricted internal visibility
+      - Public
     schemaFilePath: ./service_openapi.yaml
 dependencies:
     connectionReferences:
