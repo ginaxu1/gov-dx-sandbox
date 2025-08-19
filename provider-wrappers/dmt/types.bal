@@ -1,4 +1,5 @@
 import ballerina/graphql.subgraph;
+import ballerina/log;
 
 public type VehicleClass record {|
     readonly string id;
@@ -21,24 +22,26 @@ isolated function resolvePersonData(subgraph:Representation representation) retu
     PersonData filteredVehicles = {nic: check representation["nic"].ensureType(), vehicles: [], license: null};
 
 
-    VehicleInfoResponse|error ownedVehiclesResponse = sharedDMTClient.getVehicles(ownerNic, 0, 100);
+    VehicleInfoResponse|error ownedVehiclesResponse = sharedDMTClient.getVehicles(ownerNic, null, 0, 100);
 
     if ownedVehiclesResponse is error {
         return filteredVehicles;
     }
 
-    filteredVehicles.vehicles = ownedVehiclesResponse.data.clone();
+    filteredVehicles.vehicles = ownedVehiclesResponse.data;
 
-    DriverLicense? foundLicense = null;
-    lock {
-        foreach var license in licenseData {
-            if license.ownerNic == ownerNic {
-                foundLicense = license.clone();
-            }
-        }
+    DriverLicense|error ownedLicenseResponse = sharedDMTClient.getDriverLicensesByOwnerNic(ownerNic);
+
+
+    if ownedLicenseResponse is error {
+        log:printError("Failed to fetch driver license for ownerNic: ", ownerNic = ownedLicenseResponse.message());
+        return filteredVehicles;
     }
-    filteredVehicles.license = foundLicense;
-    return filteredVehicles.clone();
+    log:printInfo("Resolving driver license data for ownerNic: ", ownedLicenseResponse=ownedLicenseResponse);
+
+    filteredVehicles.license = ownedLicenseResponse;
+    
+    return filteredVehicles;
 }
 
 @subgraph:Entity {
@@ -56,6 +59,30 @@ public type VehicleInfo record {|
     VehicleClass vehicleClass;
     string vehicleclassId?;
 |};
+
+public type OwnerInfo record {|
+    readonly string ownerNic;
+    string name;
+    string address;
+    string birthDate;
+    string signatureUrl;
+    string bloodGroup;
+|};
+
+public type IssuerInfo record {|
+    readonly string id;
+    string name;
+    string issuingAuthority;
+    string signatureUrl;
+|};
+
+public type Permission record {|
+    readonly string id;
+    string vehicleType;
+    string issueDate;
+    string expiryDate;
+|};
+
 @subgraph:Entity {
     'key: "id ownerNic"
 }
@@ -64,8 +91,11 @@ public type DriverLicense record {|
     string licenseNumber;
     string issueDate;
     string expiryDate;
-    string? photoUrl;
-    string ownerNic;
+    string frontImageUrl?;
+    string backImageUrl?;
+    Permission[] permissions;
+    OwnerInfo ownerInfo;
+    IssuerInfo issuerInfo;
 |};
 
 
