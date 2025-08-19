@@ -27,13 +27,22 @@ isolated service class DMTAPIClient {
         return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
     }
 
-    isolated function getVehicles(string? ownerNic) returns VehicleInfo[]|error {
+    isolated function getVehicles(string? ownerNic, int skip = 0, int 'limit = 10) returns VehicleInfoResponse|error {
         log:printInfo("DMTAPIClient: Fetching vehicle info by owner", ownerNic = ownerNic);
-        string path = string `/vehicles`;
+        string path = string `/vehicle`;
 
         if ownerNic is string {
-            path += string `?ownerNic=${ownerNic}`;
+            string arg = string `?ownerNic=${ownerNic}`;
+            path += arg;
         }
+
+        int page = skip / 'limit;
+        int pageSize = 'limit;
+
+        path += string `?page=${page}&pageSize=${pageSize}`;
+
+        // print ownerNic
+        log:printInfo("DMTAPIClient: Fetching vehicle info by owner", path = path);
 
         return self.apiClient->get(path, {"Choreo-API-Key": choreoApiKey});
     }
@@ -94,7 +103,7 @@ isolated service / on new graphql:Listener(port, httpVersion = http:HTTP_1_1, ho
     }
 
     // New resolver to fetch all vehicles.
-    isolated resource function get vehicle/getVehicleInfos(string? ownerNic) returns VehicleInfo[]|error {
+    isolated resource function get vehicle/getVehicleInfos(string? ownerNic) returns VehicleInfoResponse|error {
         return sharedDMTClient.getVehicles(ownerNic);
     }
 
