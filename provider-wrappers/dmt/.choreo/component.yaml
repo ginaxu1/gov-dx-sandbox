@@ -22,7 +22,7 @@ endpoints:
 dependencies:
     connectionReferences:
     - name: mock-dmt-connection
-      resourceRef: service:/mock-provider-data/mock-dmt/v1/803f0/ORGANIZATION
+      resourceRef: service:/mock-provider-data/mock-dmt/v1/803f0/PUBLIC
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
