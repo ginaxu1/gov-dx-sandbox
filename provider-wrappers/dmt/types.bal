@@ -20,22 +20,17 @@ isolated function resolvePersonData(subgraph:Representation representation) retu
 
     PersonData filteredVehicles = {nic: check representation["nic"].ensureType(), vehicles: [], license: null};
 
-    VehicleInfo[] ownedVehicles;
-    lock {
-        VehicleInfo[] tempVehicles = [];
-        foreach var vehicle in vehicleData {
-            if vehicle.ownerNic == ownerNic {
-                tempVehicles.push(vehicle.clone());
-            }
-        }
-        ownedVehicles = tempVehicles.clone();
+
+    VehicleInfoResponse|error ownedVehiclesResponse = sharedDMTClient.getVehicles(ownerNic, 0, 100);
+
+    if ownedVehiclesResponse is error {
+        return filteredVehicles;
     }
 
-    filteredVehicles.vehicles = ownedVehicles;
+    filteredVehicles.vehicles = ownedVehiclesResponse.data.clone();
 
     DriverLicense? foundLicense = null;
     lock {
-
         foreach var license in licenseData {
             if license.ownerNic == ownerNic {
                 foundLicense = license.clone();
