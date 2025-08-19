@@ -1,0 +1,8 @@
+# supergraph/supergraph-config.yaml
+subgraphs:
+  drp:
+    routing_url: "http://localhost:9091/"
+    schema: "http://localhost:9091/"
+  dmt:
+    routing_url: "http://localhost:9090/"
+    schema: "http://localhost:9090/"
