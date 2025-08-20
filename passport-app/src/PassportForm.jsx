@@ -27,6 +27,7 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
 
   useEffect(() => {
     if (nic) {
+        console.log(">>>NIC value being sent:", nic); // Add this line
       getPersonData({ variables: { nic } });
     }
   }, [nic, getPersonData]);
