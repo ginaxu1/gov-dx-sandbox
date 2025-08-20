@@ -3,35 +3,47 @@ schemaVersion: 1.2
 
 # +optional Incoming connection details for the component
 endpoints:
-  # GraphQL Endpoint for DRP Subgraph
-  - name: drp-adapter-service
-    displayName: DRP Provider Wrapper
+  - name: rgd-mock-provider-graphql-subgraph
+    displayName: RGD Mock Provider GraphQL API
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
-      basePath: /
-      port: 9090
+      basePath: /graphql
+      port: 8080
     # +required Type of traffic that the endpoint is accepting.
     # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
     type: GraphQL
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Organization # Can also be 'Project' for more restricted internal visibility
+      - Public
+  - name: rgd-mock-provider-rest-api
+    displayName: RGD Mock Provider REST API
+    service:
+      # Base path for the REST endpoint. Typically '/', but could be /api if explicitly designed.
+      basePath: /
+      port: 8080
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: REST
+    # Network visibility: Organization is generally recommended for backend services
+    # that are consumed internally by your supergraph.
+    schemaFilePath: ./openapi.json
+    networkVisibilities:
+      - Public
 # +optional Defines runtime configurations
 dependencies:
     connectionReferences:
-    - name: drp-adapter-connection
-      resourceRef: service:/drp-provider/mock-drp-backend/v1/803f0/PUBLIC
+    - name: MOCK RGD DB CONNECTION
+      resourceRef: database:dot-mock-db/mock-rgd-db
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
     # +required Name of the environment variable
-    - name: BAL_CONFIG_VAR_PORT
+    - name: PORT
       # +required value source
       # Allowed value sources: connectionRef, configForm
       valueFrom:
         # +required Choreo connection value source
         configForm:
           type: number
-          
