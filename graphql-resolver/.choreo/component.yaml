@@ -38,5 +38,3 @@ dependencies:
   connectionReferences:
     - name: drp-connection
       resourceRef: service:/drp-provider/drp-adapter-service/v1/aaa8e/ORGANIZATION
-    - name: dmt-connection
-      resourceRef: service:/gov-dx-sandbox/dmt/v1/e87b5/ORGANIZATION
