@@ -1,6 +1,6 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
-import { ApolloGateway, IntrospectAndCompose } from '@apollo/gateway';
+import { ApolloGateway, IntrospectAndCompose, RemoteGraphQLDataSource } from '@apollo/gateway';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
