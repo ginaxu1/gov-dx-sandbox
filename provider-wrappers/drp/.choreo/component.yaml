@@ -19,10 +19,10 @@ endpoints:
     networkVisibilities:
       - Organization # Can also be 'Project' for more restricted internal visibility
 # +optional Defines runtime configurations
-# dependencies:
-#     connectionReferences:
-#     - name: drp-adapter-connection
-#       resourceRef: service:/mock-provider-data/mock-drp/v1/803f0/PUBLIC
+dependencies:
+    connectionReferences:
+    - name: drp-adapter-connection
+      resourceRef: service:/drp-provider/mock-drp-backend/v1/803f0/PUBLIC
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
