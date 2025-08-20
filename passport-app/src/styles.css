@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Body and global styles */
+body {
+  font-family: 'Inter', sans-serif;
+  @apply bg-gray-900 text-white p-4;
+}
+
+/* Login Page Styles */
+.login-container {
+  @apply flex items-center justify-center min-h-screen;
+}
+
+.login-card {
+  @apply bg-gray-800 p-8 rounded-lg shadow-xl text-center;
+}
+
+.login-heading {
+  @apply text-4xl font-bold mb-4;
+}
+
+.login-text {
+  @apply text-lg mb-6;
+}
+
+.login-button {
+  @apply px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition duration-300;
+}
+
+/* Main App Styles */
+.app-container {
+  @apply flex flex-col items-center justify-center min-h-screen;
+}
+
+.main-content-wrapper {
+  @apply max-w-4xl w-full text-center;
+}
+
+.app-header {
+  @apply bg-gray-800 rounded-md shadow-md mb-8 p-6 flex items-center justify-between;
+}
+
+.app-title {
+  @apply text-4xl font-bold;
+}
+
+.logout-button {
+  @apply px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition duration-300;
+}
+
+.welcome-section {
+  @apply p-4;
+}
+
+.welcome-heading {
+  @apply text-3xl font-semibold mb-2;
+}
+
+.welcome-text {
+  @apply text-xl text-gray-400 mb-8;
+}
+
+.apply-button {
+  @apply px-8 py-4 bg-green-600 text-white text-xl font-bold rounded-lg shadow-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-500 focus:ring-opacity-75 transition duration-300 transform hover:scale-105;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  @apply fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50;
+}
+
+.modal-content {
+  @apply bg-gray-800 rounded-lg shadow-2xl p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto;
+}
+
+.modal-header {
+  @apply flex justify-between items-center mb-6;
+}
+
+.modal-title {
+  @apply text-2xl font-bold text-blue-400;
+}
+
+.modal-close-button {
+  @apply text-gray-400 hover:text-white text-3xl font-bold;
+}
+
+/* Form Styles */
+.form-container {
+  @apply space-y-4;
+}
+
+.modal-status {
+  @apply text-center text-lg;
+}
+
+.modal-status.loading {
+  @apply text-blue-300;
+}
+
+.modal-status.error {
+  @apply text-red-500;
+}
+
+.form-intro-text {
+  @apply text-gray-300;
+}
+
+.form-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+
+.form-field {
+  @apply flex flex-col;
+}
+
+.form-label {
+  @apply text-gray-400 mb-1;
+}
+
+.form-value {
+  @apply bg-gray-700 text-white p-2 rounded-md;
+}
+
+.photo-section {
+  @apply flex flex-col items-center justify-center py-4;
+}
+
+.applicant-photo {
+  @apply w-32 h-32 object-cover rounded-full border-4 border-blue-500 shadow-lg;
+}
+
+.no-photo-placeholder {
+  @apply w-32 h-32 flex items-center justify-center bg-gray-700 rounded-full border-4 border-blue-500 text-gray-400 text-center;
+}
+
+.form-divider {
+  @apply border-gray-600 my-6;
+}
+
+.manual-fields-heading {
+  @apply text-xl font-semibold mb-4 text-center text-purple-400;
+}
+
+.form-input {
+  @apply bg-gray-700 text-white p-2 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+.form-submit-section {
+  @apply flex justify-center mt-8;
+}
+
+.submit-button {
+  @apply px-8 py-3 bg-blue-600 text-white text-lg font-bold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-75 transition duration-300 transform hover:scale-105;
+}
+
+.no-data-info {
+  @apply text-center text-lg text-gray-400 mb-4;
+}
