@@ -17,6 +17,7 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     networkVisibilities:
       - Public
+    schemaFilePath: ./main_openapi.yaml
 # +optional Defines runtime configurations
 configurations:
   # +optional List of environment variables to be injected into the component.
