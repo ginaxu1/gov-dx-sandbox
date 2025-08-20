@@ -6,9 +6,9 @@ import './styles.css';
 
 // Apollo Client setup
 const httpLink = createHttpLink({
-  uri: import.meta.env.GRAPHQL_ENDPOINT,
+  uri: "https://41200aa1-4106-4e6c-babf-311dce37c04a-dev.e1-us-east-azure.choreoapis.dev/gov-dx-sandbox/graphql-resolver-or/v1.0/",
   headers: {
-    "Test-Key": TEST_KEY 
+    "Test-Key": "" // TODO: add key here
   },
 });
 
