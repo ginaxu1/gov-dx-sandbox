@@ -1,11 +1,10 @@
 import React, { useEffect } from 'react';
-import { gql, useLazyQuery } from '@apollo/client';
+import { gql, useLazyQuery, useQuery } from '@apollo/client';
 
 // GraphQL query
 const GET_PERSON_DATA = gql`
   query MyQuery($nic: String!) {
-    person {
-      getPersonByNic(nic: $nic) {
+    person(nic: $nic) {
         fullName
         nic
         dateOfBirth
@@ -16,21 +15,21 @@ const GET_PERSON_DATA = gql`
           motherName
         }
       }
-    }
   }
 `;
 
 function PassportApplicationForm({ onClose, nic, userInfo }) {
-  const [getPersonData, { loading, error, data }] = useLazyQuery(GET_PERSON_DATA, {
+  const { loading, error, data } = useQuery(GET_PERSON_DATA, {
+    variables: { nic },
     fetchPolicy: 'network-only',
   });
 
+  // print when the data arrives
   useEffect(() => {
-    if (nic) {
-        console.log(">>>NIC value being sent:", nic); // Add this line
-      getPersonData({ variables: { nic } });
+    if (data) {
+      console.log(">>>Fetched person data:", data);
     }
-  }, [nic, getPersonData]);
+  }, [data]);
 
   return (
     <div className="modal-overlay">
@@ -46,42 +45,42 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
           <p className="modal-status loading">Loading your data from the Exchange...</p>
         ) : error ? (
           <p className="modal-status error">Error fetching data: {error.message}</p>
-        ) : data?.person?.getPersonByNic ? (
+        ) : data?.person ? (
           <div className="form-container">
             <p className="form-intro-text">Most fields below have been pre-filled from your data via the OpenDIF Exchange.</p>
             <div className="form-grid">
               {/* Pre-filled Fields */}
               <div className="form-field">
                 <label className="form-label">Full Name:</label>
-                <span className="form-value">{data.person.getPersonByNic.fullName}</span>
+                <span className="form-value">{data.person.fullName}</span>
               </div>
               <div className="form-field">
                 <label className="form-label">NIC:</label>
-                <span className="form-value">{data.person.getPersonByNic.nic}</span>
+                <span className="form-value">{data.person.nic}</span>
               </div>
               <div className="form-field">
                 <label className="form-label">Date of Birth:</label>
-                <span className="form-value">{data.person.getPersonByNic.dateOfBirth}</span>
+                <span className="form-value">{data.person.dateOfBirth}</span>
               </div>
               <div className="form-field">
                 <label className="form-label">Permanent Address:</label>
-                <span className="form-value">{data.person.getPersonByNic.permanentAddress}</span>
+                <span className="form-value">{data.person.permanentAddress}</span>
               </div>
               <div className="form-field">
                 <label className="form-label">Father's Name:</label>
-                <span className="form-value">{data.person.getPersonByNic.parentInfo?.fatherName}</span>
+                <span className="form-value">{data.person.parentInfo?.fatherName}</span>
               </div>
               <div className="form-field">
                 <label className="form-label">Mother's Name:</label>
-                <span className="form-value">{data.person.getPersonByNic.parentInfo?.motherName}</span>
+                <span className="form-value">{data.person.parentInfo?.motherName}</span>
               </div>
             </div>
 
             <div className="photo-section">
               <label className="form-label">Photo:</label>
-              {data.person.getPersonByNic.photo ? (
+              {data.person.photo ? (
                 <img
-                  src={`data:image/jpeg;base64,${data.person.getPersonByNic.photo}`}
+                  src={`data:image/jpeg;base64,${data.person.photo}`}
                   alt="Applicant Photo"
                   className="applicant-photo"
                   onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://placehold.co/128x128/334155/E2E8F0?text=No+Photo'; }}

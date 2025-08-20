@@ -4,11 +4,14 @@ import { AuthProvider, useAuthContext } from '@asgardeo/auth-react';
 import PassportForm from './PassportForm';
 import './styles.css';
 
+const ndx_url = import.meta.env.VITE_NDX_URL
+const ndx_api_key = import.meta.env.VITE_NDX_API_KEY
+
 // Apollo Client setup
 const httpLink = createHttpLink({
-  uri: "https://41200aa1-4106-4e6c-babf-311dce37c04a-dev.e1-us-east-azure.choreoapis.dev/gov-dx-sandbox/graphql-resolver-or/v1.0/",
+  uri: ndx_url,
   headers: {
-    "Test-Key": "" // TODO: add key here
+    "Test-Key": ndx_api_key
   },
 });
 
