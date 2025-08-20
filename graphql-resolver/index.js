@@ -12,20 +12,41 @@ const gateway = new ApolloGateway({
   supergraphSdl: new IntrospectAndCompose({
     subgraphs: [
       // This is your "Registry of Persons" service providing user name
-      { name: 'drp', url: process.env.CHOREO_DRP_CONNECTION_SERVICEURL || 'http://localhost:9090/', headers: { "Choreo-API-Key": process.env.CHOREO_DRP_CONNECTION_APIKEY } },
+      { name: 'drp', url: process.env.CHOREO_DRP_CONNECTION_SERVICEURL || 'http://localhost:9090/' },
 
       // This is your "Department of Motor Traffic" service providing license info
-      { name: 'dmt', url: process.env.CHOREO_DMT_CONNECTION_SERVICEURL || 'http://localhost:9091/', headers: { "Choreo-API-Key": process.env.CHOREO_DMT_CONNECTION_APIKEY } },
+      { name: 'dmt', url: process.env.CHOREO_DMT_CONNECTION_SERVICEURL || 'http://localhost:9091/' },
     ],
     // Optional: Set a poll interval to refresh the schema every 10 seconds
     // pollIntervalInMs: 10000, 
   }),
-});
+  // Here’s where you attach headers dynamically
+  buildService({ name, url }) {
+    return new RemoteGraphQLDataSource({
+      url,
+      willSendRequest({ request }) {
+        if (name === 'drp') {
+          request.http?.headers.set(
+            'Choreo-API-Key',
+            process.env.CHOREO_DRP_CONNECTION_CHOREOAPIKEY ?? ''
+          );
+        }
+        if (name === 'dmt') {
+          request.http?.headers.set(
+            'Choreo-API-Key',
+            process.env.CHOREO_DMT_CONNECTION_CHOREOAPIKEY ?? ''
+          );
+        }
+      },
+    });
+  },
+}
+);
 
 // Create the server that will expose the single, unified graph
 const server = new ApolloServer({
   gateway,
-  introspection: true
+  introspection: true,
 });
 
 // Start the server
