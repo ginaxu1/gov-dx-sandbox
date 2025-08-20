@@ -4,7 +4,7 @@ schemaVersion: 1.2
 # +optional Incoming connection details for the component
 endpoints:
   # GraphQL Endpoint for DRP Subgraph
-  - name: provider-wrapper-drp
+  - name: drp-adapter-service
     displayName: DRP Provider Wrapper
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
@@ -19,10 +19,10 @@ endpoints:
     networkVisibilities:
       - Organization # Can also be 'Project' for more restricted internal visibility
 # +optional Defines runtime configurations
-dependencies:
-    connectionReferences:
-    - name: drp-adapter-connection
-      resourceRef: service:/mock-provider-data/mock-drp/v1/803f0/PUBLIC
+# dependencies:
+#     connectionReferences:
+#     - name: drp-adapter-connection
+#       resourceRef: service:/mock-provider-data/mock-drp/v1/803f0/PUBLIC
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
