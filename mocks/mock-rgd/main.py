@@ -14,18 +14,12 @@ from datetime import date
 
 load_dotenv()
 
-
-
 # Strawberry GraphQL type
 @strawberry.type
 class PersonInfo:
     nic: str = strawberry.field(description="National Identity Card number")
     address: str = strawberry.field(description="Person's address")
     profession: str = strawberry.field(description="Person's profession")
-
-
-
-
 
 
 from strawberry.types import Info
@@ -130,11 +124,14 @@ async def root():
     }
 
 
+# read port from environment variable
+import os
+port = int(os.getenv("PORT", 9090))
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=4005,
+        port=port,
         reload=True,
         log_level="info"
     )
