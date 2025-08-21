@@ -8,7 +8,7 @@ endpoints:
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
-      basePath: /graphql
+      basePath: /
       port: 8080
     # +required Type of traffic that the endpoint is accepting.
     # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
