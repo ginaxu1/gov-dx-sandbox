@@ -8,13 +8,14 @@ import './styles.css';
 const config = {
   signInRedirectURL: window.location.origin,
   signOutRedirectURL: window.location.origin,
-  clientID: import.meta.env.VITE_ASGARDEO_CLIENT_ID,
-  baseUrl: import.meta.env.VITE_ASGARDEO_BASE_URL,
-  scope: [import.meta.env.VITE_ASGARDEO_SCOPE],
+  clientID: "gbzkiYFzfNRCYIK3EqEln3ntXM8a",
+  baseUrl: "https://api.asgardeo.io/t/lankasoftwarefoundation",
+  scope: ["openid", "profile"]
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <script src="/public/config.js"></script>
     <AuthProvider config={config}>
       <App />
     </AuthProvider>
