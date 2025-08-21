@@ -38,3 +38,6 @@ venv.bak/
 *.swo
 
 *.log
+
+
+**/openapi.json

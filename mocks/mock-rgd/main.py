@@ -1,3 +1,4 @@
+import json
 import strawberry
 from typing import Optional
 import uvicorn
@@ -11,6 +12,7 @@ from models import SQLAlchemyPersonInfo
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import date
+from contextlib import asynccontextmanager
 
 load_dotenv()
 
@@ -52,13 +54,24 @@ def get_context_dependency(db: Session = Depends(get_db)):
 
 schema = strawberry.federation.Schema(query=Query)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    openapi_schema = app.openapi()
+    with open("openapi.json", "w") as f:
+        json.dump(openapi_schema, f, sort_keys=False)
+    print("✅ OpenAPI schema written to openapi.json")
+    # Setup code
+    yield
+    # Teardown code
+
 # Create FastAPI app
 app = FastAPI(
     title="Mock RGD GraphQL API",
     description="Mock Registrar General's Department GraphQL subgraph providing person address and profession data",
     version="1.0.0",
     openapi_url="/openapi.json",
-    docs_url="/docs"
+    docs_url="/docs",
+    lifespan=lifespan
 )
 
 # Create all tables in the database
