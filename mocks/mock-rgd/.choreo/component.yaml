@@ -3,13 +3,26 @@ schemaVersion: 1.2
 
 # +optional Incoming connection details for the component
 endpoints:
-  # GraphQL Endpoint for RGD Subgraph
   - name: rgd-mock-provider
     displayName: RGD Mock Provider
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    service:
+      port: 9090
+      basePath: /
+    type: REST
+    # Network visibility: Organization is generally recommended for backend services
+    # that are consumed internally by your supergraph.
+    networkVisibilities:
+      - Public
+    schemaFilePath: ./openapi.json
+  # GraphQL Endpoint for RGD Subgraph
+  - name: rgd-mock-provider-graphql-subgraph
+    displayName: RGD Mock Provider GraphQL API
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
-      basePath: /
+      basePath: /graphql
       port: 9090
     # +required Type of traffic that the endpoint is accepting.
     # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
@@ -17,7 +30,7 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Public
+      - Organization
 # +optional Defines runtime configurations
 dependencies:
     connectionReferences:
