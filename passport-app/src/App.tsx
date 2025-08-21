@@ -1,6 +1,7 @@
+// App.tsx
 import React, { useState, useEffect } from 'react';
-import { ApolloClient, InMemoryCache, createHttpLink, ApolloProvider, gql, useLazyQuery } from '@apollo/client';
-import { AuthProvider, useAuthContext } from '@asgardeo/auth-react';
+import { ApolloClient, InMemoryCache, createHttpLink, ApolloProvider } from '@apollo/client';
+import { useAuthContext } from '@asgardeo/auth-react';
 import PassportForm from './PassportForm';
 import './styles.css';
 
@@ -19,6 +20,7 @@ const client = new ApolloClient({
   link: httpLink,
   cache: new InMemoryCache(),
 });
+
 function AppContent() {
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
   const [userInfo, setUserInfo] = useState(null);
@@ -72,28 +74,19 @@ function AppContent() {
       {showPassportForm && (
         <PassportForm
           onClose={() => setShowPassportForm(false)}
-          nic="199512345678" // Pass NIC as a prop
+          nic="199512345678"
           userInfo={userInfo}
         />
       )}
     </div>
   );
 }
+
 // Root component with providers
 export default function App() {
-  const config = {
-    signInRedirectURL: "http://localhost:5173",
-    signOutRedirectURL: window.location.origin,
-    clientID: import.meta.env.VITE_ASGARDEO_CLIENT_ID,
-    baseUrl: import.meta.env.VITE_ASGARDEO_BASE_URL,
-    scope: [import.meta.env.VITE_ASGARDEO_SCOPE],
-  };
-
   return (
-    <AuthProvider config={config}>
-      <ApolloProvider client={client}>
-        <AppContent />
-      </ApolloProvider>
-    </AuthProvider>
+    <ApolloProvider client={client}>
+      <AppContent />
+    </ApolloProvider>
   );
 }
