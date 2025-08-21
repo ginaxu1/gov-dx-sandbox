@@ -17,6 +17,20 @@ endpoints:
     # that are consumed internally by your supergraph.
     networkVisibilities:
       - Public
+  - name: rgd-mock-provider-rest-api
+    displayName: RGD Mock Provider REST API
+    service:
+      # Base path for the REST endpoint. Typically '/', but could be /api if explicitly designed.
+      basePath: /
+      port: 8080
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: REST
+    # Network visibility: Organization is generally recommended for backend services
+    # that are consumed internally by your supergraph.
+    schemaFilePath: ./openapi.json
+    networkVisibilities:
+      - Public
 # +optional Defines runtime configurations
 dependencies:
     connectionReferences:
