@@ -19,6 +19,10 @@ endpoints:
     networkVisibilities:
       - Public
 # +optional Defines runtime configurations
+dependencies:
+    connectionReferences:
+    - name: MOCK RGD DB CONNECTION
+      resourceRef: database:dot-mock-db/mock-rgd-db
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
