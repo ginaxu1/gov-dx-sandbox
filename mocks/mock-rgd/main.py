@@ -139,12 +139,12 @@ async def root():
 
 # read port from environment variable
 import os
-port = int(os.getenv("PORT", 9090))
+port = int(os.getenv("PORT", 8080))
 
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        port=port,
+        port=8080,
         reload=True,
         log_level="info"
     )
