@@ -16,7 +16,7 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Organization
+      - Public
 # +optional Defines runtime configurations
 dependencies:
     connectionReferences:
