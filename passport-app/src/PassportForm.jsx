@@ -51,33 +51,33 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
             <div className="form-grid">
               {/* Pre-filled Fields */}
               <div className="form-field">
-                <label className="form-label">Full Name:</label>
+                <label className="form-label">Full Name: </label>
                 <span className="form-value">{data.person.fullName}</span>
               </div>
               <div className="form-field">
-                <label className="form-label">NIC:</label>
+                <label className="form-label">NIC: </label>
                 <span className="form-value">{data.person.nic}</span>
               </div>
               <div className="form-field">
-                <label className="form-label">Date of Birth:</label>
+                <label className="form-label">Date of Birth: </label>
                 <span className="form-value">{data.person.dateOfBirth}</span>
               </div>
               <div className="form-field">
-                <label className="form-label">Permanent Address:</label>
+                <label className="form-label">Permanent Address: </label>
                 <span className="form-value">{data.person.permanentAddress}</span>
               </div>
               <div className="form-field">
-                <label className="form-label">Father's Name:</label>
+                <label className="form-label">Father's Name: </label>
                 <span className="form-value">{data.person.parentInfo?.fatherName}</span>
               </div>
               <div className="form-field">
-                <label className="form-label">Mother's Name:</label>
+                <label className="form-label">Mother's Name: </label>
                 <span className="form-value">{data.person.parentInfo?.motherName}</span>
               </div>
             </div>
 
             <div className="photo-section">
-              <label className="form-label">Photo:</label>
+              <label className="form-label">Photo: </label>
               {data.person.photo ? (
                 <img
                   src={`data:image/jpeg;base64,${data.person.photo}`}
@@ -95,7 +95,7 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
             <h4 className="manual-fields-heading">Please manually fill in these fields:</h4>
             <div className="form-grid">
               <div className="form-field">
-                <label htmlFor="email" className="form-label">Email Address:</label>
+                <label htmlFor="email" className="form-label">Email Address: </label>
                 <input
                   type="email"
                   id="email"
@@ -104,7 +104,7 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
                 />
               </div>
               <div className="form-field">
-                <label htmlFor="emergency-contact" className="form-label">Emergency Contact:</label>
+                <label htmlFor="emergency-contact" className="form-label">Emergency Contact: </label>
                 <input
                   type="tel"
                   id="emergency-contact"
