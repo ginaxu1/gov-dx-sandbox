@@ -19,7 +19,6 @@ const client = new ApolloClient({
   link: httpLink,
   cache: new InMemoryCache(),
 });
-
 function AppContent() {
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
   const [userInfo, setUserInfo] = useState(null);
@@ -51,8 +50,7 @@ function AppContent() {
 
   return (
     <div className="app-container">
-      {/* Add w-full to make it take up the full width, allowing inner content to be centered */}
-      <div className="main-content-wrapper w-full"> 
+      <div className="main-content-wrapper">
         <header className="app-header">
           <h1 className="app-title">Apply for Passport</h1>
           <button onClick={() => signOut()} className="logout-button">
@@ -63,7 +61,7 @@ function AppContent() {
         <div className="welcome-section">
           <h2 className="welcome-heading">Welcome, {userInfo?.given_name || 'User'}!</h2>
           <p className="welcome-text">
-            Click the button below to start your passport application. Your personal data will be retrieved automatically from the Exchange.
+            Click the button below to start your passport application. Your personal data will be retrieved automatically.
           </p>
           <button onClick={() => setShowPassportForm(true)} className="apply-button">
             Apply for Passport
@@ -72,8 +70,8 @@ function AppContent() {
       </div>
 
       {showPassportForm && (
-        <PassportForm 
-          onClose={() => setShowPassportForm(false)} 
+        <PassportForm
+          onClose={() => setShowPassportForm(false)}
           nic="199512345678" // Pass NIC as a prop
           userInfo={userInfo}
         />
@@ -81,7 +79,6 @@ function AppContent() {
     </div>
   );
 }
-
 // Root component with providers
 export default function App() {
   const config = {
