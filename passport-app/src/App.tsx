@@ -5,15 +5,24 @@ import { useAuthContext } from '@asgardeo/auth-react';
 import PassportForm from './PassportForm';
 import './styles.css';
 
-const ndx_url = import.meta.env.VITE_NDX_URL
-const ndx_api_key = import.meta.env.VITE_NDX_API_KEY
+// Extend Window interface to include configs
+declare global {
+  interface Window {
+    configs?: {
+      apiUrl?: string;
+    };
+  }
+}
+
+window.configs = {
+    apiUrl: '/choreo-apis/gov-dx-sandbox/graphql-resolver/v1'
+};
+const apiUrl = window?.configs?.apiUrl ? window.configs.apiUrl : "/";
+
 
 // Apollo Client setup
 const httpLink = createHttpLink({
-  uri: ndx_url,
-  headers: {
-    "Test-Key": ndx_api_key
-  },
+  uri: apiUrl
 });
 
 const client = new ApolloClient({
@@ -43,7 +52,7 @@ function AppContent() {
           <h1 className="login-heading">Passport Application Portal</h1>
           <p className="login-text">Please log in to apply for a passport.</p>
           <button onClick={() => signIn()} className="login-button">
-            Log in with Asgardeo
+            Log in
           </button>
         </div>
       </div>
