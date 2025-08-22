@@ -27,7 +27,7 @@ class Mother:
     race: str
     age_at_birth: int
 
-@federation_type(keys=["nic"])
+@federation_type(keys=["nic"], extend=True)
 class PersonData:
     id: int
     brNo: str
