@@ -73,8 +73,8 @@ export default function App() {
     return (
       <div className="login-container">
         <div className="login-card">
-          <h1 className="login-heading">Passport Application Portal</h1>
-          <p className="login-text">Please log in to apply for a passport.</p>
+          <h1 className="login-heading">Online Passport Application System</h1>
+          <p className="login-text">Please log in to apply for a passport</p>
           <button onClick={() => signIn()} className="login-button">
             Log in
           </button>
@@ -99,9 +99,9 @@ export default function App() {
               Welcome {userInfo?.given_name || "User"}!
             </h2>
             <p className="welcome-text">
-              Click the button below to start your passport application.
+              Click the button below to start your passport application
               <br></br>
-              Your personal data will be retrieved automatically.
+              Your personal data will be retrieved automatically
             </p>
             <button
               onClick={() => setShowPassportForm(true)}
