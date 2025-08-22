@@ -1,25 +1,32 @@
 // main.tsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { AuthProvider } from '@asgardeo/auth-react';
-import App from './App.tsx';
-import './styles.css';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { AuthProvider } from "@asgardeo/auth-react";
+import App from "./App.tsx";
+import "./styles.css";
+
+// Get the base URL from the environment variable if it exists, otherwise use the local origin
+const appBaseUrl = import.meta.env.VITE_APP_URL
+  ? import.meta.env.VITE_APP_URL
+  : window.location.origin;
 
 const config = {
-  signInRedirectURL: "https://7a6923cc-c4a5-44eb-bdd7-90d84414cb83.e1-us-east-azure.choreoapps.dev/",
-  signOutRedirectURL: "https://7a6923cc-c4a5-44eb-bdd7-90d84414cb83.e1-us-east-azure.choreoapps.dev/",
-  clientID: "gbzkiYFzfNRCYIK3EqEln3ntXM8a",
-  baseUrl: "https://api.asgardeo.io/t/lankasoftwarefoundation",
-  scope: ["openid", "profile"],
-  authorizeEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/authorize",
-  tokenEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/token",
-  jwksUri: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks",
-};  
+  signInRedirectURL: appBaseUrl,
+  signOutRedirectURL: appBaseUrl,
+  clientID: import.meta.env.VITE_ASGARDEO_CLIENT_ID,
+  baseUrl: import.meta.env.VITE_ASGARDEO_BASE_URL,
+  scope: import.meta.env.VITE_ASGARDEO_SCOPE?.split(" "),
+  endpoints: {
+    authorizeEndpoint: `${import.meta.env.VITE_ASGARDEO_BASE_URL}/oauth2/authorize`,
+    tokenEndpoint: `${import.meta.env.VITE_ASGARDEO_BASE_URL}/oauth2/token`,
+    jwksUri: `${import.meta.env.VITE_ASGARDEO_BASE_URL}/oauth2/jwks`,
+  },
+};
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AuthProvider config={config}>
       <App />
     </AuthProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
