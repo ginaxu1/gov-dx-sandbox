@@ -8,20 +8,16 @@ from dotenv import load_dotenv
 
 # SQLAlchemy imports for table creation
 from database import engine, get_db
+from mock_data import PersonData, mock_data
 from models import SQLAlchemyPersonInfo
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import date
 from contextlib import asynccontextmanager
 
-load_dotenv()
+from mock_data import PersonData
 
-# Strawberry GraphQL type
-@strawberry.type
-class PersonInfo:
-    nic: str = strawberry.field(description="National Identity Card number")
-    address: str = strawberry.field(description="Person's address")
-    profession: str = strawberry.field(description="Person's profession")
+load_dotenv()
 
 
 from strawberry.types import Info
@@ -29,23 +25,17 @@ from strawberry.types import Info
 @strawberry.type
 class Query:
     @strawberry.field(description="Get person information by NIC")
-    def person(self, info: Info[None, None], nic: strawberry.ID) -> Optional[PersonInfo]:
-        db: Session = info.context["db"]
-        person = db.query(SQLAlchemyPersonInfo).filter_by(nic=nic).first()
-        if person:
-            return PersonInfo(
-                nic=person.nic,
-                address=person.address,
-                profession=person.profession
-            )
+    def person(self, info: Info[None, None], nic: strawberry.ID) -> Optional[PersonData]:
+        # get the person from the mock_data.py
+        for person in mock_data["birth"]:
+            if person.nic == nic:
+                return person
         return None
 
     @strawberry.field(description="Get all available person records")
-    def all_persons(self, info: Info[None, None]) -> list[PersonInfo]:
-        db: Session = info.context["db"]
-        people = db.query(SQLAlchemyPersonInfo).all()
-        return [PersonInfo(nic=p.nic, address=p.address, profession=p.profession) for p in people]
-
+    def all_persons(self, info: Info[None, None]) -> list[PersonData]:
+        # read from mock_data
+        return mock_data["birth"]
 
 
 # Strawberry context for DB session
