@@ -1,9 +1,10 @@
 import ballerina/graphql.subgraph;
+import ballerina/graphql;
 // This file centralizes all the data structures for the DRP service.
 
 // This is the main entity for the subgraph.
 public type PersonInfo record {|
-    readonly string nic;
+    @graphql:ID string nic;
     string fullName;
     string otherNames;
     string permanentAddress;
