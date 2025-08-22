@@ -38,7 +38,7 @@ class PersonData:
     sex: str
     other_names: str
     email: str
-    nic: str
+    nic: strawberry.ID
     profession: str
     are_parents_married: bool
     is_grandfather_born_in_sri_lanka: bool
@@ -61,7 +61,7 @@ mock_data = {
             sex="Male",
             other_names="Arav",
             email="aarav.perera@example.com",
-            nic="200512345V",
+            nic=strawberry.ID("200512345V"),
             profession="N/A",
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
@@ -101,7 +101,7 @@ mock_data = {
             sex="Female",
             other_names="Nishi",
             email="nisha.fernando@example.com",
-            nic="210120678V",
+            nic=strawberry.ID("210120678V"),
             profession="N/A",
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=False,
@@ -141,7 +141,7 @@ mock_data = {
             sex="Male",
             other_names="",
             email="rohan.jayasuriya@example.com",
-            nic="190809234V",
+            nic=strawberry.ID("190809234V"),
             profession="N/A",
             are_parents_married=False,
             is_grandfather_born_in_sri_lanka=True,
@@ -172,42 +172,42 @@ mock_data = {
         ),
         PersonData(
             id=4,
-            brNo="8150",
-            district="Puttalam",
-            division="Chilaw",
-            birth_date=date(2000, 7, 18),
-            birth_place="Chilaw General Hospital",
-            name="Mohamed Mushraf",
-            sex="Male",
-            other_names="Mushi",
-            email="mushrafmim@gmail.com",
-            nic="200020000500",
+            brNo="BR2025004",
+            district="Galle",
+            division="Galle South",
+            birth_date=date(2020, 1, 15),
+            birth_place="Galle General Hospital",
+            name="Ayesha Mohamed",
+            sex="Female",
+            other_names="",
+            email="ayesha.mohamed@example.com",
+            nic=strawberry.ID("200101234V"),
             profession="N/A",
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
-                name="Seyyadhu Hussain Mohamed Ismail",
-                nic="196230701022",
-                birth_date=date(1962, 11, 2),
-                birth_place="Chilaw",
+                name="Mohamed Ali",
+                nic="680123456V",
+                birth_date=date(1985, 5, 10),
+                birth_place="Galle",
                 race="Sri Lankan Moor"
             ),
             mother=Mother(
-                name="Nasrin Thajudeen",
+                name="Fatima Ali",
                 nic="750987654V",
-                birth_date=date(1965, 4, 4),
-                birth_place="Sawarana",
+                birth_date=date(1988, 8, 20),
+                birth_place="Galle",
                 race="Sri Lankan Moor",
-                age_at_birth=35
+                age_at_birth=32
             ),
-            date_of_registration=date(2000, 9, 1),
-            registrar_signature="https://example.com/signatures/196230701022",
+            date_of_registration=date(2020, 1, 20),
+            registrar_signature="https://example.com/signatures/680123456V",
             informant=Informant(
-                signature="https://example.com/signatures/196230701022",
-                full_name="S. H. M. Ismail",
-                residence="Wayalthottam, Sawarana, Chilaw.",
+                signature="https://example.com/signatures/680123456V",
+                full_name="Mohamed Ali",
+                residence="45 Main St, Galle",
                 relationship_to_baby="Father",
-                nic="196230701022"
+                nic="680123456V"
             )
         )
     ]
