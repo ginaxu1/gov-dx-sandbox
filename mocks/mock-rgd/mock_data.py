@@ -38,7 +38,7 @@ class PersonData:
     sex: str
     other_names: str
     email: str
-    nic: strawberry.ID
+    nic: str
     profession: str
     are_parents_married: bool
     is_grandfather_born_in_sri_lanka: bool
@@ -61,7 +61,7 @@ mock_data = {
             sex="Male",
             other_names="Arav",
             email="aarav.perera@example.com",
-            nic=strawberry.ID("200512345V"),
+            nic="200512345V",
             profession="N/A",
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
@@ -101,7 +101,7 @@ mock_data = {
             sex="Female",
             other_names="Nishi",
             email="nisha.fernando@example.com",
-            nic=strawberry.ID("210120678V"),
+            nic="210120678V",
             profession="N/A",
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=False,
@@ -141,7 +141,7 @@ mock_data = {
             sex="Male",
             other_names="",
             email="rohan.jayasuriya@example.com",
-            nic=strawberry.ID("190809234V"),
+            nic="190809234V",
             profession="N/A",
             are_parents_married=False,
             is_grandfather_born_in_sri_lanka=True,
@@ -181,7 +181,7 @@ mock_data = {
             sex="Female",
             other_names="",
             email="ayesha.mohamed@example.com",
-            nic=strawberry.ID("200101234V"),
+            nic="200101234V",
             profession="N/A",
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
