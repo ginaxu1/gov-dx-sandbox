@@ -16,6 +16,7 @@ const gateway = new ApolloGateway({
 
       // This is your "Department of Motor Traffic" service providing license info
       { name: 'dmt', url: process.env.CHOREO_DMT_CONNECTION_SERVICEURL || 'http://localhost:9091/' },
+      { name: 'rgd', url: process.env.CHOREO_RGD_CONNECTION_SERVICEURL || 'http://localhost:9092/' },
     ],
     // Optional: Set a poll interval to refresh the schema every 10 seconds
     // pollIntervalInMs: 10000, 
@@ -35,6 +36,12 @@ const gateway = new ApolloGateway({
           request.http?.headers.set(
             'Choreo-API-Key',
             process.env.CHOREO_DMT_CONNECTION_CHOREOAPIKEY ?? ''
+          );
+        }
+        if (name === 'rgd') {
+          request.http?.headers.set(
+            'Choreo-API-Key',
+            process.env.CHOREO_RGD_CONNECTION_CHOREOAPIKEY ?? ''
           );
         }
       },

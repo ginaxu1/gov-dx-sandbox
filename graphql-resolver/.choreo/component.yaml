@@ -40,3 +40,5 @@ dependencies:
       resourceRef: service:/drp-provider/drp-adapter-service/v1/aaa8e/ORGANIZATION
     - name: dmt-connection
       resourceRef: service:/gov-dx-sandbox/dmt/v1/aaa8e/ORGANIZATION
+    - name: rgd-connection
+      resourceRef: service:/rgd-provider/mock-rgd-api/v1/fe32e/PUBLIC
