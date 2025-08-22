@@ -25,7 +25,7 @@ from strawberry.types import Info
 @strawberry.type
 class Query:
     @strawberry.field(description="Get person information by NIC")
-    def person(self, info: Info[None, None], nic: str) -> Optional[PersonData]:
+    def person(self, info: Info[None, None], nic: strawberry.ID) -> Optional[PersonData]:
         # get the person from the mock_data.py
         for person in mock_data["birth"]:
             if person.nic == nic:
