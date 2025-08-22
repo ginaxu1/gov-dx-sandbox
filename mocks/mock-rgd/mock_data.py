@@ -1,5 +1,6 @@
 from datetime import date
 import strawberry
+from strawberry.federation import type as federation_type
 
 @strawberry.type
 class Informant:
@@ -26,7 +27,7 @@ class Mother:
     race: str
     age_at_birth: int
 
-@strawberry.type
+@federation_type(keys=["nic"])
 class PersonData:
     id: int
     brNo: str
@@ -36,10 +37,7 @@ class PersonData:
     birth_place: str
     name: str
     sex: str
-    other_names: str
-    email: str
-    nic: str
-    profession: str
+    nic: strawberry.ID
     are_parents_married: bool
     is_grandfather_born_in_sri_lanka: bool
     father: Father
@@ -59,10 +57,7 @@ mock_data = {
             birth_place="Colombo General Hospital",
             name="Aarav Perera",
             sex="Male",
-            other_names="Arav",
-            email="aarav.perera@example.com",
-            nic="200512345V",
-            profession="N/A",
+            nic=strawberry.ID("200512345V"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
@@ -99,10 +94,7 @@ mock_data = {
             birth_place="Galle General Hospital",
             name="Nisha Fernando",
             sex="Female",
-            other_names="Nishi",
-            email="nisha.fernando@example.com",
-            nic="210120678V",
-            profession="N/A",
+            nic=strawberry.ID("210120678V"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=False,
             father=Father(
@@ -139,10 +131,7 @@ mock_data = {
             birth_place="Kandy Teaching Hospital",
             name="Rohan Jayasuriya",
             sex="Male",
-            other_names="",
-            email="rohan.jayasuriya@example.com",
-            nic="190809234V",
-            profession="N/A",
+            nic=strawberry.ID("190809234V"),
             are_parents_married=False,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
@@ -179,10 +168,7 @@ mock_data = {
             birth_place="Galle General Hospital",
             name="Ayesha Mohamed",
             sex="Female",
-            other_names="",
-            email="ayesha.mohamed@example.com",
-            nic="200101234V",
-            profession="N/A",
+            nic=strawberry.ID("200101234V"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
