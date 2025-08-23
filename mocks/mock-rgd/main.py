@@ -1,3 +1,4 @@
+import json
 import strawberry
 from typing import Optional
 import uvicorn
@@ -7,56 +8,42 @@ from dotenv import load_dotenv
 
 # SQLAlchemy imports for table creation
 from database import engine, get_db
+from mock_data import Father, Informant, Mother, PersonData, mock_data
 from models import SQLAlchemyPersonInfo
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import date
+from contextlib import asynccontextmanager
+
+from mock_data import PersonData
 
 load_dotenv()
 
 
-
-# Strawberry GraphQL type
-@strawberry.type
-class PersonInfo:
-    nic: str = strawberry.field(description="National Identity Card number")
-    address: str = strawberry.field(description="Person's address")
-    profession: str = strawberry.field(description="Person's profession")
-
-
-
-
-
-
 from strawberry.types import Info
 
-@strawberry.type
+@strawberry.federation.type
 class Query:
     @strawberry.field(description="Get person information by NIC")
-    def person(self, info: Info[None, None], nic: strawberry.ID) -> Optional[PersonInfo]:
-        db: Session = info.context["db"]
-        person = db.query(SQLAlchemyPersonInfo).filter_by(nic=nic).first()
-        if person:
-            return PersonInfo(
-                nic=person.nic,
-                address=person.address,
-                profession=person.profession
-            )
-        return None
-
-    @strawberry.field(description="Get all available person records")
-    def all_persons(self, info: Info[None, None]) -> list[PersonInfo]:
-        db: Session = info.context["db"]
-        people = db.query(SQLAlchemyPersonInfo).all()
-        return [PersonInfo(nic=p.nic, address=p.address, profession=p.profession) for p in people]
-
+    def health_check(self) -> str:
+        return "Healthy"
 
 
 # Strawberry context for DB session
 def get_context_dependency(db: Session = Depends(get_db)):
     return {"db": db}
 
-schema = strawberry.federation.Schema(query=Query)
+schema = strawberry.federation.Schema(query=Query, types=[PersonData, Informant, Father, Mother], enable_federation_2=True)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    openapi_schema = app.openapi()
+    with open("openapi.json", "w") as f:
+        json.dump(openapi_schema, f, sort_keys=False)
+    print("✅ OpenAPI schema written to openapi.json")
+    # Setup code
+    yield
+    # Teardown code
 
 # Create FastAPI app
 app = FastAPI(
@@ -64,7 +51,8 @@ app = FastAPI(
     description="Mock Registrar General's Department GraphQL subgraph providing person address and profession data",
     version="1.0.0",
     openapi_url="/openapi.json",
-    docs_url="/docs"
+    docs_url="/docs",
+    lifespan=lifespan
 )
 
 # Create all tables in the database
@@ -130,11 +118,15 @@ async def root():
     }
 
 
+# read port from environment variable
+import os
+port = int(os.getenv("PORT", 8080))
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=4005,
+        port=8080,
         reload=True,
         log_level="info"
     )

@@ -23,7 +23,7 @@ public function mockInitializeDRPClient() returns DRPAPIClient|error {
 // Helper function to return the mock data record. This uses the 'PersonData' type from 'main.bal'.
 function getMockPersonData() returns PersonData {
     return {
-        nic: "199512345678", fullName: "Nuwan Fernando", otherNames: "", permanentAddress: "105 Bauddhaloka Mawatha, Colombo 00400", profession: "Software Engineer", contactNumber: "+94771234567", email: "nuwan@opensource.lk", photo: "https://example.com/photo.jpg"
+        nic: "199512345678", fullName: "Nuwan Fernando", otherNames: "", permanentAddress: "105 Bauddhaloka Mawatha, Colombo 00400", profession: "Software Engineer", photo: "https://example.com/photo.jpg"
     };
 }
 
