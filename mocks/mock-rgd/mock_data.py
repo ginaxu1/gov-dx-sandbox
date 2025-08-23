@@ -1,6 +1,8 @@
+from dataclasses import dataclass
 from datetime import date
 import strawberry
-from strawberry.federation import type as federation_type
+from typing import Optional
+from strawberry.federation.schema_directives import External
 
 @strawberry.type
 class Informant:
@@ -27,8 +29,8 @@ class Mother:
     race: str
     age_at_birth: int
 
-@federation_type(keys=["nic"], extend=True)
-class PersonData:
+@dataclass
+class PersonInfo:
     id: int
     brNo: str
     district: str
@@ -37,7 +39,7 @@ class PersonData:
     birth_place: str
     name: str
     sex: str
-    nic: strawberry.ID
+    nic: str
     are_parents_married: bool
     is_grandfather_born_in_sri_lanka: bool
     father: Father
@@ -45,6 +47,37 @@ class PersonData:
     date_of_registration: date
     registrar_signature: str
     informant: Informant
+
+@strawberry.federation.type(keys=["nic"])
+class PersonData:
+    nic: strawberry.ID
+    id: int
+    brNo: str
+    district: str
+    division: str
+    birth_date: date
+    birth_place: str
+    name: str
+    sex: str
+    are_parents_married: bool
+    is_grandfather_born_in_sri_lanka: bool
+    father: Father
+    mother: Mother
+    date_of_registration: date
+    registrar_signature: str
+    informant: Informant
+
+        # Reference resolver (called by federation gateway)
+    @classmethod
+    def resolve_reference(cls, nic: strawberry.ID) -> Optional["PersonData"]:
+        # Federation passes { nic: "..." } here
+
+        for person in mock_data["birth"]:
+            if person.nic == nic:
+                return person
+
+        return None
+
 
 mock_data = {
     "birth": [
@@ -57,7 +90,7 @@ mock_data = {
             birth_place="Colombo General Hospital",
             name="Aarav Perera",
             sex="Male",
-            nic=strawberry.ID("200512345V"),
+            nic=strawberry.ID("199512345678"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
@@ -198,3 +231,5 @@ mock_data = {
         )
     ]
 }
+
+# translate data type from PersonData to PersonData
