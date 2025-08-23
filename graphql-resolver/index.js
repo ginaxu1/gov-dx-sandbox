@@ -18,7 +18,7 @@ const gateway = new ApolloGateway({
       { name: 'rgd', url: process.env.CHOREO_RGD_CONNECTION_SERVICEURL || 'http://localhost:9092/' },
     ],
     // Optional: Set a poll interval to refresh the schema every 10 seconds
-    // pollIntervalInMs: 10000, 
+    pollIntervalInMs: 10000, 
   }),
   // Here’s where you attach headers dynamically
   buildService({ name, url }) {
