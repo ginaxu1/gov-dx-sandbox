@@ -46,7 +46,7 @@ final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 @subgraph:Subgraph
 isolated service / on new graphql:Listener(port) {
     // Fetches the full person data for a given NIC.
-    resource function get person(string nic) returns PersonData? {
+    resource function get person(@graphql:ID string nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic);
         if personData is error {
             log:printWarn("DRP Service: Person not found or error fetching person", nic = nic, err = personData.toString());
