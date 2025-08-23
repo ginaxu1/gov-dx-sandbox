@@ -24,7 +24,12 @@ isolated service class DRPAPIClient {
     isolated function getPersonByNic(string nic) returns PersonData|error {
         log:printInfo("DRPAPIClient: Fetching person from external API", nic = nic);
         string path = string `/person/${nic}`;
-        return self.apiClient->get(path, {"Choreo-API-Key": CHOREO_API_KEY});
+        PersonData| error response = self.apiClient->get(path, {"Choreo-API-Key": CHOREO_API_KEY});
+        if response is error {
+            log:printError("DRPAPIClient: Error fetching person", nic = nic, err = response.toString());
+            return response;
+        }
+        return response;
     }
 }
 
@@ -47,6 +52,8 @@ isolated service / on new graphql:Listener(port) {
             log:printWarn("DRP Service: Person not found or error fetching person", nic = nic, err = personData.toString());
             return ();
         }
+        // log personData
+        log:printInfo("DRP Service: Fetched person data", nic = nic, personData = personData.toString());
         return personData;
     }
 }

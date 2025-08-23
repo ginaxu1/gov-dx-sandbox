@@ -3,7 +3,7 @@ import ballerina/log;
 
 // --- Enum Definitions ---
 // These enums match the schema used in the main GraphQL service.
-public enum Gender {
+public enum SEX {
     MALE,
     FEMALE
 }
@@ -59,26 +59,17 @@ type ParentInfo record {|
 public type PersonInfo record {|
     readonly string nic;
     string fullName;
-    string surname;
     string otherNames;
-    Gender gender;
+    SEX sex;
     string dateOfBirth;
-    string placeOfBirth;
     string permanentAddress;
     string profession;
-    CivilStatus civilStatus;
-    string contactNumber;
-    string email;
     string photo;
 |};
 
 // The full data structure that this mock API will return.
 type PersonData record {|
     *PersonInfo;
-    CardInfo cardInfo;
-    LostCardReplacementInfo? lostCardReplacementInfo;
-    CitizenshipInfo citizenshipInfo;
-    ParentInfo parentInfo;
 |};
 
 // --- Mock Data Store ---
@@ -87,35 +78,12 @@ isolated final table<PersonData> key(nic) mockPersonDataTable = table [
     {
         nic: "199512345678",
         fullName: "Nuwan Fernando",
-        surname: "Fernando",
         otherNames: "Nuwan",
-        gender: MALE,
+        sex: MALE,
         dateOfBirth: "1995-12-01",
-        placeOfBirth: "Colombo",
         permanentAddress: "105 Bauddhaloka Mawatha, Colombo 00400",
         profession: "Software Engineer",
-        civilStatus: MARRIED,
-        contactNumber: "+94771234567",
-        email: "nuwan@opensource.lk",
-        photo: "https://example.com/photo.jpg",
-        cardInfo: {
-            cardNumber: "199512345678",
-            issueDate: "2018-01-02",
-            expiryDate: "2028-01-01",
-            cardStatus: ACTIVE
-        },
-        lostCardReplacementInfo: (), // This user has not reported a lost card
-        citizenshipInfo: {
-            citizenshipType: DESCENT,
-            certificateNumber: "A12345",
-            issueDate: "1995-12-02"
-        },
-        parentInfo: {
-            fatherName: "Father Fernando",
-            motherName: "Ruby de Silva",
-            fatherNic: "196618234567",
-            motherNic: "196817654321"
-        }
+        photo: "https://example.com/photo.jpg"
     }
 ];
 

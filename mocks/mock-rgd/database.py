@@ -5,11 +5,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
 
-DB_USER = os.getenv('CHOREO_MOCK_DMT_DB_CONNECTION_USERNAME', 'your_username')
-DB_PASSWORD = os.getenv('CHOREO_MOCK_DMT_DB_CONNECTION_PASSWORD', 'your_password')
-DB_HOST = os.getenv('CHOREO_MOCK_DMT_DB_CONNECTION_HOSTNAME', 'localhost')
-DB_PORT = os.getenv('CHOREO_MOCK_DMT_DB_CONNECTION_PORT', '5432')
-DB_NAME = os.getenv('CHOREO_MOCK_DMT_DB_CONNECTION_DATABASENAME', 'your_database')
+DB_USER = os.getenv('CHOREO_MOCK_RGD_DB_CONNECTION_USERNAME', 'your_username')
+DB_PASSWORD = os.getenv('CHOREO_MOCK_RGD_DB_CONNECTION_PASSWORD', 'your_password')
+DB_HOST = os.getenv('CHOREO_MOCK_RGD_DB_CONNECTION_HOSTNAME', 'localhost')
+DB_PORT = os.getenv('CHOREO_MOCK_RGD_DB_CONNECTION_PORT', '5432')
+DB_NAME = os.getenv('CHOREO_MOCK_RGD_DB_CONNECTION_DATABASENAME', 'your_database')
 
 DATABASE_URL = f'postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
 
