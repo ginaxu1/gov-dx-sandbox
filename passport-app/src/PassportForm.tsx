@@ -2,17 +2,12 @@ import React, { useEffect, useState } from "react";
 import { gql, useLazyQuery, useQuery } from "@apollo/client";
 
 const GET_PERSON_DATA = gql`
-  query MyQuery($nic: String!) {
+  query MyQuery($nic: ID!) {
     person(nic: $nic) {
       fullName
       nic
-      dateOfBirth
       permanentAddress
       photo
-      parentInfo {
-        fatherName
-        motherName
-      }
     }
   }
 `;
@@ -81,6 +76,31 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
           </p>
         ) : isDataAvailable ? (
           <div className="form-container">
+
+            <div className="photo-section">
+              <label className="form-label">Photo: </label>
+              {photoSource ? (
+                <img
+                  src={photoSource}
+                  alt="Applicant Photo"
+                  className="applicant-photo"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src =
+                      "https://placehold.co/128x128/334155/E2E8F0?text=No+Photo";
+                  }}
+                />
+              ) : (
+                <div className="no-photo-placeholder">No Photo</div>
+              )}
+              <p className="upload-status">{uploadStatus}</p>
+              <input
+                type="file"
+                id="photo-upload"
+                onChange={handlePhotoUpload}
+                accept="image/jpeg, image/png"
+              />
+            </div>
             <p className="form-intro-text">
               Some fields below have been pre-filled with your data from the
               OpenDIF Exchange
@@ -118,31 +138,6 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
                 </span>
               </div>
             </div>
-
-            <div className="photo-section">
-              <label className="form-label">Photo: </label>
-              {photoSource ? (
-                <img
-                  src={photoSource}
-                  alt="Applicant Photo"
-                  className="applicant-photo"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src =
-                      "https://placehold.co/128x128/334155/E2E8F0?text=No+Photo";
-                  }}
-                />
-              ) : (
-                <div className="no-photo-placeholder">No Photo</div>
-              )}
-              <p className="upload-status">{uploadStatus}</p>
-              <input
-                type="file"
-                id="photo-upload"
-                onChange={handlePhotoUpload}
-                accept="image/jpeg, image/png"
-              />
-            </div>
             <h4 className="manual-fields-heading">
               Please manually fill in these fields:
             </h4>
@@ -171,7 +166,7 @@ function PassportApplicationForm({ onClose, nic, userInfo }) {
             </div>
             <div className="form-submit-section">
               <button className="submit-button">
-                Pay and Submit Application
+                Submit Application and Pay with GovPay
               </button>
             </div>
           </div>

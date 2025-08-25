@@ -76,7 +76,7 @@ export default function App() {
           <h1 className="login-heading">Online Passport Application System</h1>
           <p className="login-text">Please log in to apply for a passport</p>
           <button onClick={() => signIn()} className="login-button">
-            Log in
+            Log in with SLUDI
           </button>
         </div>
       </div>
