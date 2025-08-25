@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { gql, useLazyQuery, useQuery } from "@apollo/client";
 
 const GET_PERSON_DATA = gql`
-  query MyQuery($nic: ID!) {
+  query Test($nic: ID!) {
     person(nic: $nic) {
       fullName
       nic

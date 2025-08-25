@@ -59,29 +59,29 @@ export default function App() {
     cache: new InMemoryCache(),
   });
 
-  useEffect(() => {
-    if (state.isAuthenticated) {
-      getBasicUserInfo()
-        .then((info) => {
-          setUserInfo(info);
-        })
-        .catch((err) => console.error("Error fetching basic user info:", err));
-    }
-  }, [state.isAuthenticated, getBasicUserInfo]);
+  // useEffect(() => {
+  //   if (state.isAuthenticated) {
+  //     getBasicUserInfo()
+  //       .then((info) => {
+  //         setUserInfo(info);
+  //       })
+  //       .catch((err) => console.error("Error fetching basic user info:", err));
+  //   }
+  // }, [state.isAuthenticated, getBasicUserInfo]);
 
-  if (!state.isAuthenticated) {
-    return (
-      <div className="login-container">
-        <div className="login-card">
-          <h1 className="login-heading">Online Passport Application System</h1>
-          <p className="login-text">Please log in to apply for a passport</p>
-          <button onClick={() => signIn()} className="login-button">
-            Log in with SLUDI
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // if (!state.isAuthenticated) {
+  //   return (
+  //     <div className="login-container">
+  //       <div className="login-card">
+  //         <h1 className="login-heading">Online Passport Application System</h1>
+  //         <p className="login-text">Please log in to apply for a passport</p>
+  //         <button onClick={() => signIn()} className="login-button">
+  //           Log in with SLUDI
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <ApolloProvider client={client}>
