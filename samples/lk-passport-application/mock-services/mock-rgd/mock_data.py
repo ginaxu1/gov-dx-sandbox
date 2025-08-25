@@ -51,8 +51,7 @@ class PersonInfo:
 @strawberry.federation.type(keys=["nic"])
 class PersonData:
     nic: strawberry.ID
-    id: int
-    brNo: str
+    birth_registration_no: str
     district: str
     division: str
     birth_date: date

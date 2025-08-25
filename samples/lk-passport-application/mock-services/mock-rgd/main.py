@@ -28,6 +28,11 @@ class Query:
     def health_check(self) -> str:
         return "Healthy"
 
+    @strawberry.field(description="Get person information by NIC")
+    def get_person_info(self, nic: strawberry.ID, info: Info) -> Optional[PersonData]:
+        db = info.context["db"]
+        return db.query(SQLAlchemyPersonInfo).filter_by(nic=nic).first()
+
 
 # Strawberry context for DB session
 def get_context_dependency(db: Session = Depends(get_db)):
