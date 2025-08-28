@@ -1,0 +1,10 @@
+{
+  "passport-app": {
+    "approved_fields": [
+      "person.fullName",
+      "person.nic",
+      "person.photo"
+    ]
+  }
+}
+
