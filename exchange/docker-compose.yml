@@ -5,24 +5,31 @@ services:
     ports:
       - "8181:8181"
     volumes:
-      - ./policies:/policies
-      - ./data:/data
+      - ./policy-decision-point/policies:/policies
+      - ./policy-decision-point/data:/data
     command:
       - run
       - --server
-      - --addr=0.0.0.0:8181 
+      - --addr=0.0.0.0:8181
       - --log-level=debug
       - --set=decision_logs.console=true
       - /policies
   pdp_app:
     build:
-      context: .
+      context: ./policy-decision-point
       dockerfile: Dockerfile
     container_name: pdp_app
     ports:
       - "8080:8080"
     depends_on:
       opa_server:
-        condition: service_started 
+        condition: service_started
     environment:
       - OPA_URL=http://opa_server:8181/v1/data/opendif/authz/decision
+  cme_app:
+    build:
+      context: ./consent-engine
+      dockerfile: Dockerfile
+    container_name: cme_app
+    ports:
+      - "8081:8081"
