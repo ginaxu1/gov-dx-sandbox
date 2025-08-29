@@ -1,0 +1,5 @@
+package federator
+
+func Federator() {
+
+}
