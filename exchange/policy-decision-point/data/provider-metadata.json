@@ -1,0 +1,17 @@
+{
+  "fields": {
+    "person.fullName": { "consent_required": false, "owner": "drp" },
+    "person.nic": { "consent_required": false, "owner": "drp" },
+    "person.photo": { "consent_required": false, "owner": "drp" },
+    "person.permanentAddress": {
+      "consent_required": true,
+      "owner": "drp",
+      "expiry_time": "30d"
+    },
+    "person.birthDate": {
+      "consent_required": true,
+      "owner": "rgd",
+      "expiry_time": "30d"
+    }
+  }
+}
