@@ -15,6 +15,10 @@ type Response struct {
 func RunServer() {
 	// /health route
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 		resp := Response{Message: "OpenDIF Server is Healthy!"}
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(resp)
