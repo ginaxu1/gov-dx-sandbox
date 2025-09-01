@@ -2,8 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +55,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		log.Printf("ERROR: Failed to encode JSON response: %v", err)
+		slog.Error("failed to encode JSON response", "error", err)
 	}
 }
 
@@ -79,7 +80,7 @@ func createConsent(w http.ResponseWriter, r *http.Request) {
 	}
 	consentRecords[record.ID] = record
 
-	log.Printf("Created new consent record: %s for owner %s", record.ID, record.DataOwner)
+	slog.Info("Created new consent record", "id", record.ID, "owner", record.DataOwner)
 	respondWithJSON(w, http.StatusCreated, record)
 }
 
@@ -105,13 +106,17 @@ func getConsentStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+	}))
+	slog.SetDefault(logger)
 
 	// A single handler for the /consent/ resource, which routes by HTTP method
 	http.HandleFunc("/consent/", consentHandler)
 
-	log.Printf("CME server starting on port %s", serverPort)
+	slog.Info("CME server starting", "port", serverPort)
 	if err := http.ListenAndServe(serverPort, nil); err != nil {
-		log.Fatalf("FATAL: Could not start CME server: %v", err)
+		slog.Error("could not start CME server", "error", err)
+		os.Exit(1)
 	}
 }

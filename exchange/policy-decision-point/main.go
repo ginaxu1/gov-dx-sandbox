@@ -2,25 +2,35 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"gov-dx-sandbox/exchange/internal/httputil"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"runtime/debug"
-
-	"github.com/open-policy-agent/opa/sdk"
+	"time"
 )
 
+// Constants for configuration
 const (
-	serverPort = ":8080"
-	policyFile = "main.rego" // Path to the local policy file
+	serverPort        = ":8080"
+	httpClientTimeout = 10 * time.Second
 )
 
-// opaInstance holds the prepared OPA engine, initialized once at startup
-var opaInstance *sdk.OPA
+var opaURL = "http://localhost:8181/v1/data/opendif/authz/decision"
 
+// OPAInput uses json.RawMessage to pass the input through without needing to know its structure
+type OPAInput struct {
+	Input json.RawMessage `json:"input"`
+}
+
+// OPAOutput uses interface{} as we only care about forwarding the result, not its contents
+type OPAOutput struct {
+	Result interface{} `json:"result"`
+}
+
+// panicRecoveryMiddleware is an HTTP middleware that recovers from panics
+// It logs the error and stack trace, then returns a 500 Internal Server Error
 func panicRecoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -33,33 +43,87 @@ func panicRecoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// policyDecisionHandler now uses the in-process OPA engine
+// policyDecisionHandler forwards a request to OPA for a decision
 func policyDecisionHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Info("Request received", "method", r.Method, "path", r.URL.Path)
 
-	// Unmarshal the request body directly into a generic map for OPA input
-	var input map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		slog.Error("Failed to decode request body", "error", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Make the decision by calling the OPA SDK directly
-	// This replaces all the previous http client and retry logic
-	decision, err := opaInstance.Decision(r.Context(), sdk.DecisionOptions{
-		Path:  "/opendif/authz/decision", // The path to the rule to evaluate
-		Input: input,
-	})
-
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		slog.Error("Failed to get OPA decision", "error", err)
-		http.Error(w, "Failed to evaluate policy", http.StatusInternalServerError)
+		slog.Error("Failed to read request body", "error", err)
+		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+		return
+	}
+	defer r.Body.Close()
+
+	// Use json.RawMessage directly, avoiding an unnecessary unmarshal/marshal cycle
+	opaInputBytes, err := json.Marshal(OPAInput{Input: body})
+	if err != nil {
+		slog.Error("Failed to marshal OPA input", "error", err)
+		http.Error(w, "Failed to create OPA input", http.StatusInternalServerError)
 		return
 	}
 
-	// Send the result back to the client
-	httputil.RespondWithJSON(w, http.StatusOK, decision.Result)
+	var opaResponse *http.Response
+	maxRetries := 5
+	retryDelay := 1 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		req, err := http.NewRequest("POST", opaURL, bytes.NewBuffer(opaInputBytes))
+		if err != nil {
+			slog.Error("Failed to create OPA request", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		// Use the httpClientTimeout constant
+		client := &http.Client{Timeout: httpClientTimeout}
+		opaResponse, err = client.Do(req)
+		if err == nil && opaResponse.StatusCode == http.StatusOK {
+			break // Success
+		}
+
+		if i < maxRetries-1 {
+			status := "no response"
+			if opaResponse != nil {
+				status = opaResponse.Status
+			}
+			slog.Warn("OPA request failed, retrying...",
+				"attempt", i+1,
+				"max_attempts", maxRetries,
+				"status", status,
+				"error", err,
+				"retry_delay", retryDelay)
+			time.Sleep(retryDelay)
+			retryDelay *= 2
+		}
+	}
+
+	if opaResponse == nil || opaResponse.StatusCode != http.StatusOK {
+		slog.Error("Failed to get successful response from OPA after retries", "retries", maxRetries, "error", err)
+		http.Error(w, "Policy decision point is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer opaResponse.Body.Close()
+
+	responseBody, err := io.ReadAll(opaResponse.Body)
+	if err != nil {
+		slog.Error("Failed to read OPA response body", "error", err)
+		http.Error(w, "Failed to read OPA response", http.StatusInternalServerError)
+		return
+	}
+
+	var opaOutput OPAOutput
+	if err := json.Unmarshal(responseBody, &opaOutput); err != nil {
+		slog.Error("Failed to unmarshal OPA output", "error", err, "raw_response", string(responseBody))
+		http.Error(w, "Failed to parse OPA response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(opaOutput.Result); err != nil {
+		slog.Error("Failed to encode response for client", "error", err)
+	}
 	slog.Info("Decision sent", "method", r.Method, "path", r.URL.Path)
 }
 
@@ -67,33 +131,16 @@ func main() {
 	// Setup structured logging with slog
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
-	ctx := context.Background()
 
-	// Read the policy file from disk
-	policyBytes, err := os.ReadFile(policyFile)
-	if err != nil {
-		slog.Error("Failed to read policy file", "path", policyFile, "error", err)
-		os.Exit(1)
+	if envURL := os.Getenv("OPA_URL"); envURL != "" {
+		opaURL = envURL
 	}
+	slog.Info("Using OPA URL", "url", opaURL)
 
-	// Create a new OPA instance with the policy
-	// This loads, parses, and compiles the policy, preparing it for queries
-	opaInstance, err = sdk.New(ctx, sdk.Options{
-		ID:     "policy-decision-point-sdk",
-		Config: bytes.NewReader(policyBytes),
-	})
-	if err != nil {
-		slog.Error("Failed to initialize OPA SDK", "error", err)
-		os.Exit(1)
-	}
-	// The defer will ensure the OPA instance is cleaned up on shutdown
-	defer opaInstance.Stop(ctx)
-
-	slog.Info("OPA engine initialized successfully with local policy", "policy_file", policyFile)
-
+	// Wrap the handler with the panic recovery middleware
 	http.Handle("/decide", panicRecoveryMiddleware(http.HandlerFunc(policyDecisionHandler)))
 
-	slog.Info("PDP server starting", "port", serverPort)
+	slog.Info("PCE server starting", "port", serverPort)
 	if err := http.ListenAndServe(serverPort, nil); err != nil {
 		slog.Error("Could not start server", "error", err)
 		os.Exit(1)
