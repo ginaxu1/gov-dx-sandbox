@@ -3,15 +3,19 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
+
+	"github.com/ginaxu1/gov-dx-sandbox/logger"
 )
 
 type Response struct {
 	Message string `json:"message"`
 }
 
+const DefaultPort = ":8000"
+
+// RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer() {
 	// /health route
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -30,10 +34,12 @@ func RunServer() {
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = ":8080"
+		port = DefaultPort
 	}
-	fmt.Printf("OpenDIF server is running on http://localhost%s\n", port)
+
+	logger.Log.Info(fmt.Sprintf("Listening on port %s", port))
+
 	if err := http.ListenAndServe(port, nil); err != nil {
-		log.Fatal(err)
+		logger.Log.Error("Failed to start server: ", err.Error())
 	}
 }
