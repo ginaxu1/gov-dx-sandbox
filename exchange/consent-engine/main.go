@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const serverPort = ":8081"
+
 // ConsentRequest stores the details and status of a consent request
 type ConsentRequest struct {
 	ID           string    `json:"id"`
@@ -84,9 +86,8 @@ func main() {
 	http.HandleFunc("/initiate-consent", initiateConsentHandler)
 	http.HandleFunc("/consent-status/", consentStatusHandler)
 
-	port := ":8081"
-	log.Printf("CME server starting on port %s", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
+	log.Printf("CME server starting on port %s", serverPort)
+	if err := http.ListenAndServe(serverPort, nil); err != nil {
 		log.Fatalf("FATAL: Could not start CME server: %v", err)
 	}
 }

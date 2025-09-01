@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const serverPort = ":8080"
+
 var opaURL = "http://localhost:8181/v1/data/opendif/authz/decision"
 
 // OPAInput represents the structure of the request body sent to OPA
@@ -118,9 +120,8 @@ func main() {
 	log.Printf("Using OPA URL: %s", opaURL)
 	http.HandleFunc("/decide", policyDecisionHandler)
 
-	port := ":8080"
-	log.Printf("PCE server starting on port %s", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
+	log.Printf("PCE server starting on port %s", serverPort)
+	if err := http.ListenAndServe(serverPort, nil); err != nil {
 		log.Fatalf("FATAL: Could not start server: %v", err)
 	}
 }
