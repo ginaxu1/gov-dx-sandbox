@@ -3,73 +3,62 @@ package federator
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"sync"
 	"time"
-)
 
-// Provider struct that represents a provider information.
-type Provider struct {
-	ServiceUrl string `json:"serviceUrl,omitempty"`
-	ServiceKey string `json:"serviceKey,omitempty"`
-	ApiKey     string `json:"apiKey,omitempty"`
-}
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/provider"
+)
 
 // Federator struct that includes all the context needed for federation.
 type Federator struct {
-	Providers map[string]*Provider
+	Providers map[string]*provider.Provider
 	Client    *http.Client
 }
 
-type FederationServiceRequest struct {
-	ServiceKey   string
-	GraphqlQuery GraphQLRequest
+type federationServiceRequest struct {
+	ServiceKey     string
+	GraphQLRequest graphql.Request
 }
 
-type FederationRequest struct {
+type federationRequest struct {
 	// Define fields as needed
-	FederationServiceRequest []*FederationServiceRequest
+	FederationServiceRequest []*federationServiceRequest
 }
 
-type GraphQLRequest struct {
-	Query         string                 `json:"query"`
-	Variables     map[string]interface{} `json:"variables,omitempty"`
-	OperationName string                 `json:"operationName,omitempty"`
-}
-
-type FederatorOptions struct {
-	Providers []*Provider `json:"providers,omitempty"`
-}
-
-type ProviderResponse struct {
+type providerResponse struct {
 	ServiceKey string
-	Response   GraphQLResponse `json:"response"`
+	Response   graphql.Response `json:"response"`
 }
 
-type GraphQLResponse struct {
-	Data   map[string]interface{} `json:"data,omitempty"`
-	Errors []interface{}          `json:"errors,omitempty"`
-}
-
-type FederationResponse struct {
+type federationResponse struct {
 	ServiceKey string             `json:"serviceKey"`
-	Responses  []ProviderResponse `json:"responses"`
+	Responses  []providerResponse `json:"responses"`
 }
 
-func Initialize(options *FederatorOptions) *Federator {
+// Initialize sets up the Federator with providers and an HTTP client.
+func Initialize() *Federator {
+	options := configs.AppConfig.Options
+
 	federator := &Federator{}
-	federator.Providers = make(map[string]*Provider)
+	federator.Providers = make(map[string]*provider.Provider)
 	// Initialize with options if provided
 
-	if options.Providers != nil {
-		for _, provider := range options.Providers {
+	if options != nil {
+		for _, p := range options.Providers {
 			// print service url
-			fmt.Printf("Adding provider: %s\n", provider.ServiceUrl)
-			federator.Providers[provider.ServiceKey] = provider
+			logger.Log.Info("Adding Provider from the Config File", "Provider Key", p.ServiceKey, "Provider Url", p.ServiceUrl)
+			federator.Providers[p.ServiceKey] = p
 		}
+	} else {
+		logger.Log.Info("No Providers found in the Config File")
 	}
+
+	// Initialize HTTP client with timeout and connection pooling
 	federator.Client = &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
@@ -81,82 +70,79 @@ func Initialize(options *FederatorOptions) *Federator {
 	return federator
 }
 
-func (f *Federator) AddProvider(url string) {
-	provider := &Provider{ServiceUrl: url}
-	f.Providers[url] = provider
-}
-
-func (f *Federator) HandleQuery(request GraphQLRequest) GraphQLResponse {
+// FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
+// sends them to the respective providers, and merges the responses.
+func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 	splitRequests := splitQuery(request.Query)
-	federationRequest := &FederationRequest{
+	federationRequest := &federationRequest{
 		FederationServiceRequest: splitRequests,
 	}
-	responses := f.Federate(federationRequest)
+	responses := f.performFederation(federationRequest)
 
-	return f.MergeResponses(responses.Responses)
+	return f.mergeResponses(responses.Responses)
 }
 
-func (f *Federator) Federate(r *FederationRequest) *FederationResponse {
-	federationResponse := &FederationResponse{
-		Responses: make([]ProviderResponse, 0, len(r.FederationServiceRequest)),
+func (f *Federator) performFederation(r *federationRequest) *federationResponse {
+	federationResponse := &federationResponse{
+		Responses: make([]providerResponse, 0, len(r.FederationServiceRequest)),
 	}
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex // to safely append to federationResponse.Responses
 
 	for _, request := range r.FederationServiceRequest {
-		provider, exists := f.Providers[request.ServiceKey]
+		p, exists := f.Providers[request.ServiceKey]
 		if !exists {
-			fmt.Printf("Provider not found: %s\n", request.ServiceKey)
+			logger.Log.Info("Provider not found", "Provider Key", request.ServiceKey, "Provider Url", p.ServiceUrl)
 			continue
 		}
 
 		wg.Add(1)
-		go func(req *FederationServiceRequest, prov *Provider) {
+		go func(req *federationServiceRequest, prov *provider.Provider) {
 			defer wg.Done()
 
-			reqBody, err := json.Marshal(req.GraphqlQuery)
+			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
-				fmt.Printf("Failed to marshal request for %s: %v\n", req.ServiceKey, err)
+				logger.Log.Info("Failed to marshal request", "Provider Key", req.ServiceKey, "Error", err)
 				return
 			}
 
 			response, err := f.Client.Post(prov.ServiceUrl, "application/json", bytes.NewBuffer(reqBody))
 			if err != nil {
-				fmt.Printf("Request failed for %s: %v\n", req.ServiceKey, err)
+				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
 				return
 			}
 			defer response.Body.Close()
 
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
-				fmt.Printf("Failed to read response for %s: %v\n", req.ServiceKey, err)
+				logger.Log.Error("Failed to read response body", "Provider Key", req.ServiceKey, "Error", err)
 				return
 			}
 
-			var bodyJson GraphQLResponse
+			var bodyJson graphql.Response
 			err = json.Unmarshal(body, &bodyJson)
 			if err != nil {
-				fmt.Printf("Failed to unmarshal response for %s: %v\n", req.ServiceKey, err)
+				logger.Log.Error("Failed to unmarshal response", "Provider Key", req.ServiceKey, "Error", err)
 				return
 			}
 
 			// Thread-safe append
 			mu.Lock()
-			federationResponse.Responses = append(federationResponse.Responses, ProviderResponse{
+			federationResponse.Responses = append(federationResponse.Responses, providerResponse{
 				ServiceKey: req.ServiceKey,
 				Response:   bodyJson,
 			})
 			mu.Unlock()
-		}(request, provider)
+		}(request, p)
 	}
 
 	wg.Wait()
 	return federationResponse
 }
 
-func (f *Federator) MergeResponses(responses []ProviderResponse) GraphQLResponse {
-	merged := GraphQLResponse{
+func (f *Federator) mergeResponses(responses []providerResponse) graphql.Response {
+	merged := graphql.Response{
 		Data:   make(map[string]interface{}),
 		Errors: make([]interface{}, 0),
 	}
