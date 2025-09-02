@@ -5,9 +5,10 @@ import (
 	"os"
 )
 
+// Log is the global logger instance.
 var Log *slog.Logger
 
-// Init Initialize the logger with desired settings.
+// Init Initializes the logger with the desired settings.
 func Init() {
 	// Example: JSON logs with Info level
 	handler := slog.NewTextHandler(os.Stderr, nil)
