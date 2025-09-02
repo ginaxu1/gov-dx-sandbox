@@ -6,11 +6,13 @@ import (
 	"log"
 	"os"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/server"
 	"github.com/ginaxu1/gov-dx-sandbox/federator"
-	"github.com/ginaxu1/gov-dx-sandbox/server"
 )
 
 func main() {
+	logger.Init()
 
 	file, err := os.ReadFile("./config.json")
 
