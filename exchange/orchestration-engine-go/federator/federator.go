@@ -73,7 +73,23 @@ func Initialize() *Federator {
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
-	splitRequests := splitQuery(request.Query)
+	splitRequests, err := splitQuery(request.Query)
+	if err != nil {
+		logger.Log.Error("Failed to split query", "Error", err)
+		return graphql.Response{
+			Data:   nil,
+			Errors: []interface{}{"Failed to split query: " + err.Error()},
+		}
+	}
+
+	if len(splitRequests) == 0 {
+		logger.Log.Info("No valid service queries found in the request")
+		return graphql.Response{
+			Data:   nil,
+			Errors: []interface{}{"No valid service queries found in the request"},
+		}
+	}
+
 	federationRequest := &federationRequest{
 		FederationServiceRequest: splitRequests,
 	}
