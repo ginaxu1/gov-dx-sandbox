@@ -1,41 +1,16 @@
 package federator
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/kinds"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/printer"
 	"github.com/graphql-go/graphql/language/source"
 )
-
-// this file is responsible for splitting the incoming request into multiple requests based on the serviceKeys
-
-// Arriving GraphQL Request:
-// {
-//   "query": "query MyQuery { drp { person(nic: \"199512345678\") { nic photo } } dmt { vehicle { getVehicleInfos { data { model } } } } }",
-//   "variables": null
-// }
-
-// Split into multiple requests:
-// [
-//   {
-//     "serviceKey": "drp",
-//     "graphqlQuery": {
-//       "query": "query MyQuery { person(nic: \"199512345678\") { nic photo } }",
-//       "variables": null
-//     }
-//   },
-//   {
-//     "serviceKey": "dmt",
-//     "graphqlQuery": {
-//       "query": "query MyQuery { vehicle { getVehicleInfos { data { model } } } }",
-//       "variables": null
-//     }
-//   }
-// ]
 
 func printCompact(doc *ast.Document) string {
 	out := printer.Print(doc).(string)
@@ -46,7 +21,7 @@ func printCompact(doc *ast.Document) string {
 	return strings.TrimSpace(out)
 }
 
-func splitQuery(rawQuery string) []*FederationServiceRequest {
+func splitQuery(rawQuery string) []*federationServiceRequest {
 
 	// Parse query
 	src := source.NewSource(&source.Source{
@@ -59,35 +34,36 @@ func splitQuery(rawQuery string) []*FederationServiceRequest {
 		panic(err)
 	}
 
-	var results []*FederationServiceRequest
+	var results []*federationServiceRequest
 
 	// Traverse top-level definitions
 	for _, def := range doc.Definitions {
 		if opDef, ok := def.(*ast.OperationDefinition); ok {
 			for _, sel := range opDef.SelectionSet.Selections {
 				if field, ok := sel.(*ast.Field); ok {
-					// Build a mini query with only this field
-					newOp := &ast.OperationDefinition{
+					// Extracting only the provider level queries
+					// Check whether the field name matches any registered service
+					departmentLevelQuery := &ast.OperationDefinition{
 						Operation: ast.OperationTypeQuery,
-						Kind:      "OperationDefinition",
+						Kind:      kinds.OperationDefinition,
 						Name:      opDef.Name,
 						SelectionSet: &ast.SelectionSet{
 							Selections: field.SelectionSet.Selections,
-							Kind:       "SelectionSet",
+							Kind:       kinds.SelectionSet,
 						},
 					}
 
+					// Converting the query to a full-featured GraphQL document
 					miniDoc := &ast.Document{
-						Kind:        "Document",
+						Kind:        kinds.Document,
 						Loc:         field.Loc,
-						Definitions: []ast.Node{newOp},
+						Definitions: []ast.Node{departmentLevelQuery},
 					}
 
-					fmt.Println("----- Subquery -----")
-					fmt.Println(printCompact(doc))
-					results = append(results, &FederationServiceRequest{
+					// Creating a federation service request for each department
+					results = append(results, &federationServiceRequest{
 						ServiceKey: field.Name.Value,
-						GraphqlQuery: GraphQLRequest{
+						GraphQLRequest: graphql.Request{
 							Query: printCompact(miniDoc),
 						},
 					})

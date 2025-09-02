@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/ginaxu1/gov-dx-sandbox/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 )
 
 type Response struct {
@@ -38,16 +39,17 @@ func RunServer(f *federator.Federator) {
 		}
 
 		// Parse request body
-		var req federator.GraphQLRequest
+		var req graphql.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		response := f.HandleQuery(req)
+		response := f.FederateQuery(req)
 
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(response)
 		if err != nil {
+			logger.Log.Error("Failed to write response: %v\n", err)
 			return
 		}
 	})
@@ -67,9 +69,11 @@ func RunServer(f *federator.Federator) {
 		port = ":" + port
 	}
 
-	logger.Log.Info("Listening on port", "port", port)
+	logger.Log.Info("Server is Listening", "port", port)
 
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(port, nil); err != nil {
 		logger.Log.Error("Failed to start server: ", err.Error())
+	} else {
+		logger.Log.Info("Server stopped")
 	}
 }

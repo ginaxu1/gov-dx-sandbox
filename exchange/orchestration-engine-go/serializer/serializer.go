@@ -1,74 +1,7 @@
 package serializer
 
-import (
-	"fmt"
+import "fmt"
 
-	"github.com/graphql-go/graphql/language/ast"
-	"github.com/graphql-go/graphql/language/parser"
-	"github.com/graphql-go/graphql/language/source"
-)
-
-// receives a GraphQLQuery in the following format and serializes it to JSON
-// {
-//   "query": "query MyQuery { drp { person(nic: \"199512345678\") { nic photo } } dmt { vehicle { getVehicleInfos { data { model } } } } }",
-//   "variables": null
-// }
-
-// returns the serialized JSON string in the following format
-// [
-//   {
-//     "serviceKey": "drp",
-//     "graphqlQuery": {
-//       "query": "query MyQuery { person(nic: \"199512345678\") { nic photo } }",
-//       "variables": null
-//     }
-//   },
-//   {
-//     "serviceKey": "dmt",
-//     "graphqlQuery": {
-//       "query": "query MyQuery { vehicle { getVehicleInfos { data { model } } } }",
-//       "variables": null
-//     }
-//   }
-// ]
-
-func serializeGraphQLQuery(rawQuery string) (string, error) {
-	// Parse the query into an AST
-	src := source.NewSource(&source.Source{
-		Body: []byte(rawQuery),
-		Name: "GraphQL request",
-	})
-
-	doc, err := parser.Parse(parser.ParseParams{Source: src})
-	if err != nil {
-		return "", err
-	}
-
-	// Traverse top-level definitions
-	for _, def := range doc.Definitions {
-		if opDef, ok := def.(*ast.OperationDefinition); ok {
-			for _, sel := range opDef.SelectionSet.Selections {
-				if field, ok := sel.(*ast.Field); ok {
-					// Build a mini query with only this field
-					newOp := &ast.OperationDefinition{
-						Operation: "query",
-						SelectionSet: &ast.SelectionSet{
-							Selections: []ast.Selection{field},
-						},
-					}
-
-					miniDoc := &ast.Document{
-						Definitions: []ast.Node{newOp},
-					}
-
-					_ = miniDoc
-
-					fmt.Println("----- Subquery -----")
-					fmt.Println(field.Name.Value)
-				}
-			}
-		}
-	}
-
-	return "Hello", nil
+func Serializer() {
+	fmt.Println("This is the serializer")
 }

@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/ginaxu1/gov-dx-sandbox/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
 )
 
 // Cfg defines the configuration structure for the application.
 type Cfg struct {
-	federator.FederatorOptions
+	*federator.Options
 }
 
 const ConfigFilePath = "./config.json"
