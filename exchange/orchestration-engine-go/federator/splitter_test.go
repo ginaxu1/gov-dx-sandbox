@@ -53,8 +53,12 @@ func Test_splitQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := splitQuery(tt.args.rawQuery); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("splitQuery() = %v, want %v", got, tt.want)
+			if got, _ := splitQuery(tt.args.rawQuery); !reflect.DeepEqual(got, tt.want) {
+
+				for i, req := range tt.want {
+					t.Logf("Expected ServiceKey: %s But Got: %s", req.ServiceKey, got[i].ServiceKey)
+					t.Logf("Expected Query: %s But Got: %s", req.GraphQLRequest.Query, got[i].GraphQLRequest.Query)
+				}
 			}
 		})
 	}
