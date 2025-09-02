@@ -1,0 +1,27 @@
+# exchange/docker-compose.yml
+
+services:
+  pdp_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: pdp-final 
+      args:
+        SERVICE_PATH: policy-decision-point
+    container_name: pdp_app
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+  cme_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: cme-final 
+      args:
+        SERVICE_PATH: consent-engine
+    container_name: cme_app
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
