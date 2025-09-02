@@ -44,9 +44,3 @@ Before committing changes, run the linting check:
 ```bash
 npm run lint
 ```
-
-Fix any linting issues:
-
-```bash
-npm run lint:fix
-```
