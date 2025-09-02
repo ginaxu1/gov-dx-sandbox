@@ -93,7 +93,7 @@ func (f *Federator) performFederation(r *federationRequest) *federationResponse 
 	for _, request := range r.FederationServiceRequest {
 		p, exists := f.Providers[request.ServiceKey]
 		if !exists {
-			logger.Log.Info("Provider not found", "Provider Key", request.ServiceKey, "Provider Url", p.ServiceUrl)
+			logger.Log.Info("Provider not found", "Provider Key", request.ServiceKey)
 			continue
 		}
 
