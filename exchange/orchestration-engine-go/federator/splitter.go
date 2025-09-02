@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/kinds"
@@ -21,7 +22,7 @@ func printCompact(doc *ast.Document) string {
 	return strings.TrimSpace(out)
 }
 
-func splitQuery(rawQuery string) []*federationServiceRequest {
+func splitQuery(rawQuery string) ([]*federationServiceRequest, error) {
 
 	// Parse query
 	src := source.NewSource(&source.Source{
@@ -31,7 +32,8 @@ func splitQuery(rawQuery string) []*federationServiceRequest {
 
 	doc, err := parser.Parse(parser.ParseParams{Source: src})
 	if err != nil {
-		panic(err)
+		logger.Log.Error("Failed to parse query", "Error", err)
+		return nil, err
 	}
 
 	var results []*federationServiceRequest
