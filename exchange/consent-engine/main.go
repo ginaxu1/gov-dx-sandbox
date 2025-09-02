@@ -2,107 +2,74 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/exchange/utils"
 )
 
-const serverPort = ":8081"
+const defaultPort = "8081"
 
-// ConsentRecord stores the details and state of a consent request
-type ConsentRecord struct {
-	ID           string    `json:"id"`
-	Status       string    `json:"status"` // "pending", "approved", "denied"
-	CreatedAt    time.Time `json:"created_at"`
-	DataConsumer string    `json:"data_consumer"`
-	DataOwner    string    `json:"data_owner"`
-	Fields       []string  `json:"fields"`
+// apiServer holds dependencies for the HTTP handlers, like the consent engine
+type apiServer struct {
+	engine ConsentEngine
 }
-
-// CreateConsentRequest defines the structure for the incoming request body to create a consent record
-type CreateConsentRequest struct {
-	DataConsumer string   `json:"data_consumer"`
-	DataOwner    string   `json:"data_owner"`
-	Fields       []string `json:"fields"`
-}
-
-// In-memory store for consent records.
-var (
-	consentRecords = make(map[string]*ConsentRecord)
-	lock           = sync.RWMutex{}
-)
 
 // consentHandler manages creating and retrieving consent records
-// It routes requests based on the HTTP method to the appropriate logic
-func consentHandler(w http.ResponseWriter, r *http.Request) {
+func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		createConsent(w, r)
+		s.createConsent(w, r)
 	case http.MethodGet:
-		getConsentStatus(w, r)
+		s.getConsentStatus(w, r)
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		slog.Warn("Method not allowed", "method", r.Method, "path", r.URL.Path)
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
 	}
 }
 
-// respondWithJSON is a utility function to write a JSON response
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		slog.Error("failed to encode JSON response", "error", err)
-	}
-}
+// createConsent handles the HTTP request for creating a new consent record
+func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 
-// createConsent handles the creation of a new consent record
-func createConsent(w http.ResponseWriter, r *http.Request) {
 	var req CreateConsentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		slog.Warn("Invalid request body for create consent", "error", err, "path", r.URL.Path)
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid request body"})
 		return
 	}
 
-	lock.Lock()
-	defer lock.Unlock()
-
-	record := &ConsentRecord{
-		ID:           uuid.New().String(),
-		Status:       "pending",
-		CreatedAt:    time.Now(),
-		DataConsumer: req.DataConsumer,
-		DataOwner:    req.DataOwner,
-		Fields:       req.Fields,
+	record, err := s.engine.CreateConsent(req)
+	if err != nil {
+		slog.Error("Failed to create consent record", "error", err)
+		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to create consent record"})
+		return
 	}
-	consentRecords[record.ID] = record
 
 	slog.Info("Created new consent record", "id", record.ID, "owner", record.DataOwner)
-	respondWithJSON(w, http.StatusCreated, record)
+	utils.RespondWithJSON(w, http.StatusCreated, record)
 }
 
-// getConsentStatus handles retrieving the status of a specific consent record
-func getConsentStatus(w http.ResponseWriter, r *http.Request) {
-	// Expecting a URL like /consent/{id}
+// getConsentStatus handles the HTTP request for retrieving a consent record
+func (s *apiServer) getConsentStatus(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/consent/")
 	if id == "" {
-		http.Error(w, "Consent ID is required", http.StatusBadRequest)
+		slog.Warn("Consent ID is missing in request path", "path", r.URL.Path)
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
 		return
 	}
 
-	lock.RLock()
-	defer lock.RUnlock()
-
-	record, ok := consentRecords[id]
-	if !ok {
-		http.NotFound(w, r)
+	record, err := s.engine.GetConsentStatus(id)
+	if err != nil {
+		slog.Warn("Consent record not found", "id", id, "path", r.URL.Path)
+		utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, record)
+	utils.RespondWithJSON(w, http.StatusOK, record)
 }
 
 func main() {
@@ -111,11 +78,22 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	// A single handler for the /consent/ resource, which routes by HTTP method
-	http.HandleFunc("/consent/", consentHandler)
+	engine := NewConsentEngine()
+	server := &apiServer{engine: engine}
 
-	slog.Info("CME server starting", "port", serverPort)
-	if err := http.ListenAndServe(serverPort, nil); err != nil {
+	// Apply panic recovery middleware to the main handler
+	http.Handle("/consent/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
+
+	// Get port from environment variable, falling back to the default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultPort
+	}
+
+	listenAddr := fmt.Sprintf(":%s", port)
+
+	slog.Info("CME server starting", "address", listenAddr)
+	if err := http.ListenAndServe(listenAddr, nil); err != nil {
 		slog.Error("could not start CME server", "error", err)
 		os.Exit(1)
 	}

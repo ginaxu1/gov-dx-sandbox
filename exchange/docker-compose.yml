@@ -1,3 +1,4 @@
+# /exchange/docker-compose.yml
 services:
   opa_server:
     image: openpolicyagent/opa:latest
@@ -16,8 +17,10 @@ services:
       - /policies
   pdp_app:
     build:
-      context: ./policy-decision-point
+      context: .
       dockerfile: Dockerfile
+      args:
+        SERVICE_PATH: policy-decision-point
     container_name: pdp_app
     ports:
       - "8080:8080"
@@ -26,10 +29,15 @@ services:
         condition: service_started
     environment:
       - OPA_URL=http://opa_server:8181/v1/data/opendif/authz/decision
+      - PORT=8080
   cme_app:
     build:
-      context: ./consent-engine
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile 
+      args:
+        SERVICE_PATH: consent-engine
     container_name: cme_app
     ports:
       - "8081:8081"
+    environment:
+      - PORT=8081
