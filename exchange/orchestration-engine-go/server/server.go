@@ -2,11 +2,10 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 
+	"github.com/ginaxu1/gov-dx-sandbox/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/federator"
 )
 
@@ -14,6 +13,9 @@ type Response struct {
 	Message string `json:"message"`
 }
 
+const DefaultPort = "8000"
+
+// RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
 	// /health route
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -53,10 +55,21 @@ func RunServer(f *federator.Federator) {
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = ":8080"
+		port = DefaultPort
 	}
-	fmt.Printf("OpenDIF server is running on http://localhost%s\n", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
-		log.Fatal(err)
+
+	// Convert port to string with colon prefix
+	// e.g., "8000" -> ":8000"
+	// This is needed for http.ListenAndServe
+	// which expects the port in the format ":port"
+	// If the port already has a colon, we don't add another one
+	if port[0] != ':' {
+		port = ":" + port
+	}
+
+	logger.Log.Info("Listening on port", "port", port)
+
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		logger.Log.Error("Failed to start server: ", err.Error())
 	}
 }
