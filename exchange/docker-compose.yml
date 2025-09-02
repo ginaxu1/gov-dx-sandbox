@@ -1,39 +1,23 @@
-# /exchange/docker-compose.yml
+# exchange/docker-compose.yml
+
 services:
-  opa_server:
-    image: openpolicyagent/opa:latest
-    container_name: opa_server
-    ports:
-      - "8181:8181"
-    volumes:
-      - ./policy-decision-point/policies:/policies
-      - ./policy-decision-point/data:/data
-    command:
-      - run
-      - --server
-      - --addr=0.0.0.0:8181
-      - --log-level=debug
-      - --set=decision_logs.console=true
-      - /policies
   pdp_app:
     build:
       context: .
       dockerfile: Dockerfile
+      target: pdp-final 
       args:
         SERVICE_PATH: policy-decision-point
     container_name: pdp_app
     ports:
       - "8080:8080"
-    depends_on:
-      opa_server:
-        condition: service_started
     environment:
-      - OPA_URL=http://opa_server:8181/v1/data/opendif/authz/decision
       - PORT=8080
   cme_app:
     build:
       context: .
-      dockerfile: Dockerfile 
+      dockerfile: Dockerfile
+      target: cme-final 
       args:
         SERVICE_PATH: consent-engine
     container_name: cme_app

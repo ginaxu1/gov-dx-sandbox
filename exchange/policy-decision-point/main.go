@@ -1,116 +1,58 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gov-dx-sandbox/exchange/utils"
+	"github.com/open-policy-agent/opa/rego"
 )
 
 // Constants for configuration
 const (
-	defaultPort       = "8080"
-	httpClientTimeout = 10 * time.Second
-	maxHTTPRetries    = 5
+	defaultPort = "8080"
 )
 
-var opaURL string
+var preparedQuery rego.PreparedEvalQuery
 
-// OPAInput uses json.RawMessage to pass the input through without needing to know its structure
-type OPAInput struct {
-	Input json.RawMessage `json:"input"`
-}
-
-// OPAOutput uses interface{} as we only care about forwarding the result, not its contents
-type OPAOutput struct {
-	Result interface{} `json:"result"`
-}
-
-// policyDecisionHandler forwards a request to OPA for a decision
+// policyDecisionHandler evaluates an input against the loaded policies
 func policyDecisionHandler(w http.ResponseWriter, r *http.Request) {
-	// Enforce that only POST is allowed
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
 		return
 	}
 
-	slog.Info("Request received", "method", r.Method, "path", r.URL.Path)
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		slog.Error("Failed to read request body", "error", err)
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to read request body"})
+	var input interface{}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		slog.Error("Failed to decode request body", "error", err)
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON input"})
 		return
 	}
 	defer r.Body.Close()
 
-	opaInputBytes, err := json.Marshal(OPAInput{Input: body})
+	// Evaluate the prepared query with the input from the request
+	results, err := preparedQuery.Eval(context.Background(), rego.EvalInput(input))
 	if err != nil {
-		slog.Error("Failed to marshal OPA input", "error", err)
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to create OPA input"})
+		slog.Error("Failed to evaluate policy", "error", err)
+		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to evaluate policy"})
 		return
 	}
 
-	var opaResponse *http.Response
-	retryDelay := 1 * time.Second
-
-	for i := 0; i < maxHTTPRetries; i++ {
-		req, err := http.NewRequest("POST", opaURL, bytes.NewBuffer(opaInputBytes))
-		if err != nil {
-			slog.Error("Failed to create OPA request", "error", err)
-			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Internal server error"})
-			return
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		client := &http.Client{Timeout: httpClientTimeout}
-		opaResponse, err = client.Do(req)
-		if err == nil && opaResponse.StatusCode == http.StatusOK {
-			break // Success
-		}
-
-		if i < maxHTTPRetries-1 {
-			status := "no response"
-			if opaResponse != nil {
-				status = opaResponse.Status
-			}
-			slog.Warn("OPA request failed, retrying...",
-				"attempt", i+1, "max_attempts", maxHTTPRetries, "status", status,
-				"error", err, "retry_delay", retryDelay)
-			time.Sleep(retryDelay)
-			retryDelay *= 2
-		}
-	}
-
-	if opaResponse == nil || opaResponse.StatusCode != http.StatusOK {
-		slog.Error("Failed to get successful response from OPA after retries", "retries", maxHTTPRetries, "error", err)
-		utils.RespondWithJSON(w, http.StatusServiceUnavailable, utils.ErrorResponse{Error: "Policy decision point is unavailable"})
-		return
-	}
-	defer opaResponse.Body.Close()
-
-	responseBody, err := io.ReadAll(opaResponse.Body)
-	if err != nil {
-		slog.Error("Failed to read OPA response body", "error", err)
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to read OPA response"})
+	if len(results) == 0 {
+		// This can happen if the policy doesn't produce any result for the query
+		// You might want to return a default deny or a specific error
+		slog.Warn("Policy returned no results")
+		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{}) // Return empty object
 		return
 	}
 
-	var opaOutput OPAOutput
-	if err := json.Unmarshal(responseBody, &opaOutput); err != nil {
-		slog.Error("Failed to unmarshal OPA output", "error", err, "raw_response", string(responseBody))
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to parse OPA response"})
-		return
-	}
-
-	utils.RespondWithJSON(w, http.StatusOK, opaOutput.Result)
+	// Send the first result's expressions back to the client.
+	utils.RespondWithJSON(w, http.StatusOK, results[0].Expressions[0].Value)
 	slog.Info("Decision sent", "method", r.Method, "path", r.URL.Path)
 }
 
@@ -118,13 +60,27 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	// Fail fast if the OPA_URL is not set
-	opaURL = os.Getenv("OPA_URL")
-	if opaURL == "" {
-		slog.Error("CRITICAL: OPA_URL environment variable must be set.")
-		os.Exit(1) // Exit with a non-zero code to indicate failure
+	ctx := context.Background()
+
+	// This query tells OPA which rule to evaluate from your policy.=
+	// We are querying for the result of the 'decision' rule within the 'opendif.authz' package
+	query := "data.opendif.authz.decision"
+
+	// Create a new Rego object that can be evaluated
+	r := rego.New(
+		rego.Query(query),
+		rego.Load([]string{"./policies", "./data"}, nil), // Load all .rego and .json files from policies/ and data/
+	)
+
+	// Prepare the query for evaluation
+	pq, err := r.PrepareForEval(ctx)
+	if err != nil {
+		slog.Error("Failed to prepare OPA query", "error", err)
+		os.Exit(1)
 	}
-	slog.Info("Using OPA URL", "url", opaURL)
+	preparedQuery = pq
+
+	slog.Info("OPA policies and data loaded successfully")
 
 	http.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(policyDecisionHandler)))
 
