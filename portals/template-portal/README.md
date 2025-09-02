@@ -23,7 +23,7 @@ npm install
 
 2. Set up environment variables
 ```bash
-cp .env.example .env
+cp .env.template .env
 ```
 - set up the port and base_path
 
