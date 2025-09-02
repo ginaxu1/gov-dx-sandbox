@@ -1,0 +1,6 @@
+{
+  "providers": [
+    { "serviceKey": "drp", "serviceUrl": "http://localhost:9091/"},
+    { "serviceKey": "dmt", "serviceUrl": "http://localhost:9090/"}
+  ]
+}
