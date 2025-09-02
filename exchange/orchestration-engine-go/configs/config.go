@@ -1,0 +1,39 @@
+package configs
+
+import (
+	"encoding/json"
+	"os"
+
+	"github.com/ginaxu1/gov-dx-sandbox/federator"
+)
+
+// Cfg defines the configuration structure for the application.
+type Cfg struct {
+	federator.FederatorOptions
+}
+
+const ConfigFilePath = "./config.json"
+
+// AppConfig is a global variable to hold the application configuration.
+var AppConfig *Cfg
+
+// LoadConfig reads the configuration from the config.json file and unmarshal it into the AppConfig variable.
+func LoadConfig() {
+	if AppConfig != nil {
+		return
+	}
+
+	AppConfig = &Cfg{}
+
+	file, err := os.ReadFile(ConfigFilePath)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.Unmarshal(file, AppConfig)
+
+	if err != nil {
+		panic(err)
+	}
+}

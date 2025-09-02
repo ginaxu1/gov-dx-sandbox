@@ -1,20 +1,25 @@
-package serializer
+package federator
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
+	"github.com/graphql-go/graphql/language/printer"
 	"github.com/graphql-go/graphql/language/source"
 )
 
-// receives a GraphQLQuery in the following format and serializes it to JSON
+// this file is responsible for splitting the incoming request into multiple requests based on the serviceKeys
+
+// Arriving GraphQL Request:
 // {
 //   "query": "query MyQuery { drp { person(nic: \"199512345678\") { nic photo } } dmt { vehicle { getVehicleInfos { data { model } } } } }",
 //   "variables": null
 // }
 
-// returns the serialized JSON string in the following format
+// Split into multiple requests:
 // [
 //   {
 //     "serviceKey": "drp",
@@ -32,8 +37,18 @@ import (
 //   }
 // ]
 
-func serializeGraphQLQuery(rawQuery string) (string, error) {
-	// Parse the query into an AST
+func printCompact(doc *ast.Document) string {
+	out := printer.Print(doc).(string)
+	// Remove all newlines and compress spaces
+	out = strings.ReplaceAll(out, "\n", " ")
+	re := regexp.MustCompile(`\s+`)
+	out = re.ReplaceAllString(out, " ")
+	return strings.TrimSpace(out)
+}
+
+func splitQuery(rawQuery string) []*FederationServiceRequest {
+
+	// Parse query
 	src := source.NewSource(&source.Source{
 		Body: []byte(rawQuery),
 		Name: "GraphQL request",
@@ -41,8 +56,10 @@ func serializeGraphQLQuery(rawQuery string) (string, error) {
 
 	doc, err := parser.Parse(parser.ParseParams{Source: src})
 	if err != nil {
-		return "", err
+		panic(err)
 	}
+
+	var results []*FederationServiceRequest
 
 	// Traverse top-level definitions
 	for _, def := range doc.Definitions {
@@ -51,24 +68,33 @@ func serializeGraphQLQuery(rawQuery string) (string, error) {
 				if field, ok := sel.(*ast.Field); ok {
 					// Build a mini query with only this field
 					newOp := &ast.OperationDefinition{
-						Operation: "query",
+						Operation: ast.OperationTypeQuery,
+						Kind:      "OperationDefinition",
+						Name:      opDef.Name,
 						SelectionSet: &ast.SelectionSet{
-							Selections: []ast.Selection{field},
+							Selections: field.SelectionSet.Selections,
+							Kind:       "SelectionSet",
 						},
 					}
 
 					miniDoc := &ast.Document{
+						Kind:        "Document",
+						Loc:         field.Loc,
 						Definitions: []ast.Node{newOp},
 					}
 
-					_ = miniDoc
-
 					fmt.Println("----- Subquery -----")
-					fmt.Println(field.Name.Value)
+					fmt.Println(printCompact(doc))
+					results = append(results, &FederationServiceRequest{
+						ServiceKey: field.Name.Value,
+						GraphqlQuery: GraphQLRequest{
+							Query: printCompact(miniDoc),
+						},
+					})
 				}
 			}
 		}
 	}
 
-	return "Hello", nil
+	return results
 }

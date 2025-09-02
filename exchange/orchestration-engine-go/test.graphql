@@ -1,0 +1,37 @@
+query GetUser($nic: String!) {
+    drp {
+        person(nic: $nic) {
+            id
+            name
+        }
+    }
+    dmt {
+        vehicle {
+            getVehicleInfos(ownerNic: $nic) {
+                data {
+                    model
+                }
+            }
+        }
+    }
+}
+
+query MyQuery {
+    drp {
+        person(nic: "199512345678") {
+            nic
+            photo
+        }
+    }
+    dmt {
+        vehicle
+        {
+            getVehicleInfos
+            {
+                data {
+                    model
+                }
+            }
+        }
+    }
+}
