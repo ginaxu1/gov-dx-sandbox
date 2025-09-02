@@ -45,7 +45,7 @@ func splitQuery(rawQuery string) ([]*federationServiceRequest, error) {
 				if field, ok := sel.(*ast.Field); ok {
 					// Extracting only the provider level queries
 					// Check whether the field name matches any registered service
-					departmentLevelQuery := &ast.OperationDefinition{
+					providerLevelQuery := &ast.OperationDefinition{
 						Operation: ast.OperationTypeQuery,
 						Kind:      kinds.OperationDefinition,
 						Name:      opDef.Name,
@@ -56,17 +56,17 @@ func splitQuery(rawQuery string) ([]*federationServiceRequest, error) {
 					}
 
 					// Converting the query to a full-featured GraphQL document
-					miniDoc := &ast.Document{
+					providerDoc := &ast.Document{
 						Kind:        kinds.Document,
 						Loc:         field.Loc,
-						Definitions: []ast.Node{departmentLevelQuery},
+						Definitions: []ast.Node{providerLevelQuery},
 					}
 
 					// Creating a federation service request for each department
 					results = append(results, &federationServiceRequest{
 						ServiceKey: field.Name.Value,
 						GraphQLRequest: graphql.Request{
-							Query: printCompact(miniDoc),
+							Query: printCompact(providerDoc),
 						},
 					})
 				}
@@ -74,5 +74,5 @@ func splitQuery(rawQuery string) ([]*federationServiceRequest, error) {
 		}
 	}
 
-	return results
+	return results, nil
 }
