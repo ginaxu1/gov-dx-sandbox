@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       port: (() => {
         const parsedPort = parseInt(env.VITE_PORT, 10);
         return Number.isNaN(parsedPort) ? 5173 : parsedPort;
-	    })()
+      })()
     },
     base: env.VITE_BASE_PATH || '/'
   }
