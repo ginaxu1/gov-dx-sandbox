@@ -14,7 +14,7 @@ type Response struct {
 	Message string `json:"message"`
 }
 
-const DefaultPort = "8000"
+const DefaultPort = "4000"
 
 // RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
