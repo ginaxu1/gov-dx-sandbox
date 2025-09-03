@@ -9,8 +9,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     server: {
       port: (() => {
-	        const parsedPort = parseInt(env.VITE_PORT, 10);
-	        return Number.isNaN(parsedPort) ? 5173 : parsedPort;
+        const parsedPort = parseInt(env.VITE_PORT, 10);
+        return Number.isNaN(parsedPort) ? 5173 : parsedPort;
 	    })()
     },
     base: env.VITE_BASE_PATH || '/'
