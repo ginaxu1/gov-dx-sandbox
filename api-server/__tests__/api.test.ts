@@ -1,6 +1,6 @@
 import request from 'supertest';
-// Import the app and all in-memory database arrays
-import app, { applicationsDB, providerProfilesDB, providerSchemasDB } from '../src/index';
+import app from '../src/index';
+import { applicationsDB, providerProfilesDB, providerSchemasDB } from '../src/database';
 
 // Helper to reset the in-memory databases before each test
 const resetDatabases = () => {
@@ -17,7 +17,7 @@ describe('API Endpoints', () => {
         resetDatabases();
     });
 
-    // Tests for Consumer Application Endpoints 
+    // --- Tests for Consumer Application Endpoints ---
     describe('Consumer Applications [/applications]', () => {
         const validApplicationPayload = {
             appId: "passport-app-123",
@@ -68,7 +68,7 @@ describe('API Endpoints', () => {
         });
     });
 
-    // Tests for Provider Profile Endpoints 
+    // --- Tests for Provider Profile Endpoints ---
     describe('Provider Profiles [/providers]', () => {
         const validProviderPayload = {
             providerName: "Department of Registration of Persons",
@@ -104,7 +104,7 @@ describe('API Endpoints', () => {
     });
 
 
-    // Tests for Provider Schema Endpoints
+    // --- Tests for Provider Schema Endpoints ---
     describe('Provider Schemas [/provider-schemas]', () => {
         let testProviderId: string;
 
