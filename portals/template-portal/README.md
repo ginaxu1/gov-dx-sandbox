@@ -20,7 +20,7 @@ cp -R ./template-portal ./new-portal-name
 
 3. Go into the `./new-portal-name` directory
 ```bash
-cd /new-portal-name
+cd ./new-portal-name
 ```
 
 4. Install dependencies
