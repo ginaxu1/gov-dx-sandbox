@@ -17,10 +17,50 @@ const (
 	defaultPort = "8080"
 )
 
-var preparedQuery rego.PreparedEvalQuery
+// PolicyEvaluator holds the prepared OPA query, ready for evaluation
+type PolicyEvaluator struct {
+	preparedQuery rego.PreparedEvalQuery
+}
 
-// policyDecisionHandler evaluates an input against the loaded policies
-func policyDecisionHandler(w http.ResponseWriter, r *http.Request) {
+// NewPolicyEvaluator creates and initializes a new evaluator by loading policies from disk
+func NewPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
+	slog.Info("Loading OPA policies and data...")
+
+	query := "data.opendif.authz.decision"
+
+	r := rego.New(
+		rego.Query(query),
+		rego.Load([]string{"./policies", "./data"}, nil), // Load all .rego and .json files
+	)
+
+	pq, err := r.PrepareForEval(ctx)
+	if err != nil {
+		// Wrapping the error provides more context
+		return nil, fmt.Errorf("failed to prepare OPA query: %w", err)
+	}
+
+	slog.Info("OPA policies and data loaded successfully")
+	return &PolicyEvaluator{preparedQuery: pq}, nil
+}
+
+// Authorize evaluates the given input against the loaded policy
+func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (interface{}, error) {
+	results, err := p.preparedQuery.Eval(ctx, rego.EvalInput(input))
+	if err != nil {
+		return nil, fmt.Errorf("policy evaluation failed: %w", err)
+	}
+
+	if len(results) == 0 {
+		slog.Warn("Policy returned no results for the input")
+		// Return a predictable empty object for an undefined result
+		return map[string]interface{}{}, nil
+	}
+
+	return results[0].Expressions[0].Value, nil
+}
+
+// policyDecisionHandler is an HTTP handler that uses the Authorize method to make decisions
+func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
@@ -33,27 +73,17 @@ func policyDecisionHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON input"})
 		return
 	}
-	defer r.Body.Close()
 
-	// Evaluate the prepared query with the input from the request
-	results, err := preparedQuery.Eval(context.Background(), rego.EvalInput(input))
+	// Delegate the core logic to the Authorize method
+	decision, err := p.Authorize(r.Context(), input)
 	if err != nil {
-		slog.Error("Failed to evaluate policy", "error", err)
+		slog.Error("Policy authorization failed", "error", err)
 		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to evaluate policy"})
 		return
 	}
 
-	if len(results) == 0 {
-		// This can happen if the policy doesn't produce any result for the query
-		// You might want to return a default deny or a specific error
-		slog.Warn("Policy returned no results")
-		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{}) // Return empty object
-		return
-	}
-
-	// Send the first result's expressions back to the client.
-	utils.RespondWithJSON(w, http.StatusOK, results[0].Expressions[0].Value)
-	slog.Info("Decision sent", "method", r.Method, "path", r.URL.Path)
+	utils.RespondWithJSON(w, http.StatusOK, decision)
+	slog.Info("Decision sent", "method", r.Method, "path", r.URL.Path, "decision", decision)
 }
 
 func main() {
@@ -62,27 +92,15 @@ func main() {
 
 	ctx := context.Background()
 
-	// This query tells OPA which rule to evaluate from your policy.=
-	// We are querying for the result of the 'decision' rule within the 'opendif.authz' package
-	query := "data.opendif.authz.decision"
-
-	// Create a new Rego object that can be evaluated
-	r := rego.New(
-		rego.Query(query),
-		rego.Load([]string{"./policies", "./data"}, nil), // Load all .rego and .json files from policies/ and data/
-	)
-
-	// Prepare the query for evaluation
-	pq, err := r.PrepareForEval(ctx)
+	// Create an instance of our evaluator
+	evaluator, err := NewPolicyEvaluator(ctx)
 	if err != nil {
-		slog.Error("Failed to prepare OPA query", "error", err)
+		slog.Error("Could not initialize policy evaluator", "error", err)
 		os.Exit(1)
 	}
-	preparedQuery = pq
 
-	slog.Info("OPA policies and data loaded successfully")
-
-	http.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(policyDecisionHandler)))
+	// Register the handler method from our evaluator instance
+	http.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
 
 	port := os.Getenv("PORT")
 	if port == "" {
