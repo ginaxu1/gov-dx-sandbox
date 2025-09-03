@@ -16,7 +16,7 @@ cp -R ./template ./new-portal-name
 cd /new-portal-name
 ```
 
-4. Install dependencies
+3. Install dependencies
 ```bash
 npm install
 ```
