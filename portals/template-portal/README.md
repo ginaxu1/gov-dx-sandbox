@@ -11,7 +11,12 @@ This following guide explains how to set up and run a new portal with this templ
 cp -R ./template ./new-portal-name
 ```
 
-3. Install dependencies
+2. Go into the `new-portal-name` directory
+```bash
+cd /new-portal-name
+```
+
+4. Install dependencies
 ```bash
 npm install
 ```
