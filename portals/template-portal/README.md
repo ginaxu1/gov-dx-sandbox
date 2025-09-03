@@ -8,12 +8,7 @@ This following guide explains how to set up and run a new portal with this templ
 
 1. Copy the template directory
 ```bash
-cp -R /template /new-portal-name
-```
-
-2. Go to the new directory
-```bash
-cd /new-portal-name
+cp -R ./template ./new-portal-name
 ```
 
 3. Install dependencies
