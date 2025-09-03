@@ -16,12 +16,12 @@ cp -R /template /new-portal-name
 cd /new-portal-name
 ```
 
-2. Install dependencies
+3. Install dependencies
 ```bash
 npm install
 ```
 
-2. Set up environment variables
+4. Set up environment variables
 ```bash
 cp .env.template .env
 ```
