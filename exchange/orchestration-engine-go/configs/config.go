@@ -37,3 +37,16 @@ func LoadConfig() {
 		panic(err)
 	}
 }
+
+func IsProviderExists(providerKey string) bool {
+	if AppConfig == nil || AppConfig.Options == nil {
+		return false
+	}
+
+	for _, p := range AppConfig.Options.Providers {
+		if p.ServiceKey == providerKey {
+			return true
+		}
+	}
+	return false
+}

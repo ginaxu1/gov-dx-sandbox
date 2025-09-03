@@ -1,9 +1,11 @@
 package federator
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
@@ -45,6 +47,13 @@ func splitQuery(rawQuery string) ([]*federationServiceRequest, error) {
 				if field, ok := sel.(*ast.Field); ok {
 					// Extracting only the provider level queries
 					// Check whether the field name matches any registered service
+					providerKey := field.Name.Value
+
+					if !configs.IsProviderExists(providerKey) {
+						logger.Log.Error("No provider found for the field", "Provider Key", providerKey)
+						return nil, fmt.Errorf("no provider found for the field %s", providerKey)
+					}
+
 					providerLevelQuery := &ast.OperationDefinition{
 						Operation: ast.OperationTypeQuery,
 						Kind:      kinds.OperationDefinition,
