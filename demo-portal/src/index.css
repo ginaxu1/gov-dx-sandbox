@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Custom styles based on the provided HTML for demonstration purposes */
+.role-view {
+  transition: opacity 0.3s ease-in-out;
+}
+
+.role-view.hidden {
+  display: none;
+  opacity: 0;
+}
