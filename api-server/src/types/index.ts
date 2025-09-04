@@ -17,6 +17,9 @@ export interface Application {
 // Represents the type of a data provider
 export type ProviderType = 'government' | 'board' | 'business';
 
+// Represents the approval status of a provider's profile
+export type ProviderProfileStatus = 'pending' | 'approved' | 'rejected';
+
 /**
  * Represents the core profile of a Data Provider organization
  */
@@ -27,6 +30,7 @@ export interface ProviderProfile {
     phoneNumber: string;
     providerType: ProviderType;
     createdAt: string;
+    status: ProviderProfileStatus;
 }
 
 // Represents the status of a data provider's schema submission

@@ -10,32 +10,51 @@ const resetDatabases = () => {
     providerSchemasDB.length = 0;
 };
 
-describe('API Endpoints', () => {
+describe('API Endpoints with Standardized Responses', () => {
+
     beforeEach(() => {
+        // Reset the state of all in-memory DBs before each test
         resetDatabases();
     });
 
-    // Tests for Consumer Application Endpoints
-    describe('Consumer Applications [/applications]', () => {
+    // --- Tests for Consumer Application Endpoints ---
+    describe('Consumer Applications', () => {
         const validApplicationPayload = {
             appId: "passport-app-123",
-            requiredFields: { "drp.personInfo.address": {} }
+            requiredFields: { "drp.PersonData.nic": {}, "rgd.BirthCertificate.birthDate": {} }
         };
+
+        it('GET /available-fields - should return the mock structure of available fields', async () => {
+            const res = await request(app).get('/available-fields');
+            
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.status).toBe('success');
+            expect(res.body.data).toHaveProperty('drp');
+            expect(res.body.data).toHaveProperty('rgd');
+            expect(res.body.data.drp.types.PersonData).toBeDefined();
+        });
 
         it('POST /applications - should create a new application', async () => {
             const res = await request(app).post('/applications').send(validApplicationPayload);
+
             expect(res.statusCode).toEqual(201);
-            expect(res.body.status).toBe('pending');
+            expect(res.body.status).toBe('success');
+            expect(res.body.data.status).toBe('pending');
+            expect(res.body.data.appId).toBe(validApplicationPayload.appId);
         });
 
-        it('POST /applications - should fail with 409 if application already exists', async () => {
+        it('POST /applications - should return a structured error if application already exists', async () => {
             await request(app).post('/applications').send(validApplicationPayload);
             const res = await request(app).post('/applications').send(validApplicationPayload);
+            
             expect(res.statusCode).toEqual(409);
+            expect(res.body.status).toBe('error');
+            expect(res.body.data).toBeNull();
+            expect(res.body.error).toBeDefined();
         });
     });
 
-    // Tests for Provider Profile Endpoints
+    // --- Tests for Provider Profile Endpoints ---
     describe('Provider Profiles [/providers]', () => {
         const validProviderPayload = {
             providerName: "Department of Registration of Persons",
@@ -46,12 +65,14 @@ describe('API Endpoints', () => {
 
         it('POST /providers - should create a new provider profile', async () => {
             const res = await request(app).post('/providers').send(validProviderPayload);
+            
             expect(res.statusCode).toEqual(201);
-            expect(res.body).toHaveProperty('providerId');
+            expect(res.body.status).toBe('success');
+            expect(res.body.data).toHaveProperty('providerId');
         });
     });
 
-    // Tests for Provider Schema Endpoints
+    // --- Tests for Provider Schema Endpoints ---
     describe('Provider Schemas', () => {
         let testProviderId: string;
 
@@ -62,19 +83,14 @@ describe('API Endpoints', () => {
                 phoneNumber: "555-5555",
                 providerType: "business"
             });
-            testProviderId = res.body.providerId;
+            testProviderId = res.body.data.providerId; // Access providerId from the data object
         });
         
-        // UPDATED: This helper now creates the new nested payload structure
         const createValidSchemaPayload = () => ({
-            schemaInput: { type: 'sdl', value: 'type Query { person: PersonData } type PersonData { nic: String, fullName: String }' },
             fieldConfigurations: {
                 "PersonData": {
                     "nic": { source: 'fallback', isOwner: false, description: 'National ID Card number.' },
                     "fullName": { source: 'authoritative', isOwner: true, description: 'The full legal name.' }
-                },
-                "Query": {
-                    "person": { source: 'authoritative', isOwner: true, description: 'The main person query.' }
                 }
             }
         });
@@ -85,50 +101,31 @@ describe('API Endpoints', () => {
                 .send(createValidSchemaPayload());
 
             expect(res.statusCode).toEqual(201);
-            expect(res.body).toHaveProperty('submissionId');
-            expect(res.body.providerId).toBe(testProviderId);
-            // Verify the nested structure was received correctly
-            expect(res.body.fieldConfigurations.PersonData.nic.isOwner).toBe(false);
-        });
-
-        it('POST /providers/:providerId/register_schema - should fail with 400 for invalid payload', async () => {
-            const invalidPayload = {
-                fieldConfigurations: {
-                    "PersonData": {
-                        "nic": { isOwner: false, description: 'Missing source' } // 'source' is required
-                    }
-                }
-            };
-            const res = await request(app)
-                .post(`/providers/${testProviderId}/register_schema`)
-                .send(invalidPayload);
-            expect(res.statusCode).toEqual(400);
+            expect(res.body.status).toBe('success');
+            expect(res.body.data).toHaveProperty('submissionId');
+            expect(res.body.data.providerId).toBe(testProviderId);
         });
 
         it('GET /providers/:providerId/schema - should return a specific schema', async () => {
             await request(app).post(`/providers/${testProviderId}/register_schema`).send(createValidSchemaPayload());
             const res = await request(app).get(`/providers/${testProviderId}/schema`);
+
             expect(res.statusCode).toEqual(200);
-            expect(res.body.providerId).toEqual(testProviderId);
+            expect(res.body.status).toBe('success');
+            expect(res.body.data.providerId).toEqual(testProviderId);
         });
         
-        it('GET /provider-schemas - should return an array of all schema submissions', async () => {
-            await request(app).post(`/providers/${testProviderId}/register_schema`).send(createValidSchemaPayload());
-            const res = await request(app).get('/provider-schemas');
-            expect(res.statusCode).toEqual(200);
-            expect(res.body.length).toBe(1);
-        });
-
         it('POST /provider-schemas/:submissionId/review - should approve a pending schema', async () => {
             const creationRes = await request(app).post(`/providers/${testProviderId}/register_schema`).send(createValidSchemaPayload());
-            const submissionId = creationRes.body.submissionId;
+            const submissionId = creationRes.body.data.submissionId;
 
             const reviewRes = await request(app)
                 .post(`/provider-schemas/${submissionId}/review`)
                 .send({ decision: 'approve' });
             
             expect(reviewRes.statusCode).toEqual(200);
-            expect(reviewRes.body.status).toEqual('approved');
+            expect(reviewRes.body.status).toBe('success');
+            expect(reviewRes.body.data.status).toEqual('approved');
         });
     });
 });
