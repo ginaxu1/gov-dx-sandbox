@@ -1,19 +1,28 @@
-import { Router } from "express";
+import express from 'express';
 import {
-  createProviderProfile,
-  createProviderSchema,
-  getAllProviderSchemas,
-  getProviderSchema,
-  reviewProviderSchema,
-} from "../controllers/providerController";
+    createProviderProfile,
+    registerSchema,
+    getSchemaForProvider,
+    getAllSchemas,
+    reviewSchema
+} from '../controllers/providerController';
 
-const router = Router();
+const router = express.Router();
 
-// Routes for the Data Provider Portal & Admin Portal (Provider actions)
-router.post("/providers", createProviderProfile);
-router.post("/provider-schemas", createProviderSchema);
-router.get("/provider-schemas", getAllProviderSchemas);
-router.get("/provider-schemas/:providerId", getProviderSchema);
-router.post("/provider-schemas/:submissionId/review", reviewProviderSchema);
+// [PROVIDER] Register a new Data Provider profile
+router.post('/providers', createProviderProfile);
+
+// [PROVIDER] Register a new, detailed data schema for an existing provider
+router.post('/providers/:providerId/register_schema', registerSchema);
+
+// [PROVIDER & ADMIN] Get a specific provider's schema submission
+router.get('/providers/:providerId/schema', getSchemaForProvider);
+
+// [ADMIN] Get all provider schema submissions
+router.get('/provider-schemas', getAllSchemas);
+
+// [ADMIN] Approve or request changes for a provider's schema
+router.post('/provider-schemas/:submissionId/review', reviewSchema);
+
 
 export default router;
