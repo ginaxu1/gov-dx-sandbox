@@ -17,20 +17,34 @@ export interface Application {
 // Represents the type of a data provider
 export type ProviderType = 'government' | 'board' | 'business';
 
-// Represents the approval status of a provider's profile
-export type ProviderProfileStatus = 'pending' | 'approved' | 'rejected';
+// Represents the approval status of a provider's registration
+export type ProviderSubmissionStatus = 'pending' | 'approved' | 'rejected';
 
 /**
- * Represents the core profile of a Data Provider organization
+ * @summary Represents a temporary submission from a potential new provider
+ * @description This record is created upon initial registration and awaits admin approval
  */
-export interface ProviderProfile {
-    providerId: string;
+export interface ProviderSubmission {
+    submissionId: string;
     providerName: string;
     contactEmail: string;
     phoneNumber: string;
     providerType: ProviderType;
+    status: ProviderSubmissionStatus;
     createdAt: string;
-    status: ProviderProfileStatus;
+}
+
+/**
+ * @summary Represents the official, approved profile of a Data Provider
+ * @description This record is only created after an admin approves a ProviderSubmission
+ */
+export interface ProviderProfile {
+    providerId: string; // Permanent ID generated on approval
+    providerName: string;
+    contactEmail: string;
+    phoneNumber: string;
+    providerType: ProviderType;
+    approvedAt: string;
 }
 
 // Represents the status of a data provider's schema submission
