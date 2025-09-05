@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import consumerRoutes from "./routes/consumerRoutes";
 import providerRoutes from "./routes/providerRoutes";
 
@@ -8,6 +9,9 @@ const PORT = 3000;
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+
+// Enable CORS for all origins
+app.use(cors());
 
 // API Routes
 app.use(consumerRoutes);

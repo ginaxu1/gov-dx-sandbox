@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import ProviderSubmissionForm from './components/ProviderSubmissionForm';
+import ConsumerRegistrationForm from './components/ConsumerRegistrationForm';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -17,6 +19,8 @@ interface ConsumerState {
 function App() {
   const [role, setRole] = useState<'provider' | 'consumer' | 'admin'>('provider');
   const [log, setLog] = useState<string[]>([]);
+  const [showProviderForm, setShowProviderForm] = useState(false);
+  const [submissionIdInput, setSubmissionIdInput] = useState<string>(''); // New state for input field
   const [providerState, setProviderState] = useState<ProviderState>({
     submissionId: null,
     providerId: null,
@@ -36,45 +40,23 @@ function App() {
     ]);
   };
 
-  const handleRegisterProvider = async () => {
-    logApiCall('Calling POST /provider-submissions...', 'Pending', {});
-    try {
-      const response = await fetch(`${API_BASE_URL}/provider-submissions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerName: `Provider ${Math.floor(Math.random() * 1000)}`,
-          contactEmail: 'test@provider.com',
-          phoneNumber: '123-456-7890',
-          providerType: 'business',
-        }),
-      });
-      const result = await response.json();
-      logApiCall('POST /provider-submissions', response.status, result);
-
-      if (response.ok) {
-        setProviderState((prev) => ({
-          ...prev,
-          submissionId: result.data.submissionId,
-          isRegistered: true,
-        }));
-      }
-    } catch (error: any) {
-      logApiCall('POST /provider-submissions', 'Error', { message: error.message });
-    }
+  const handleProviderSubmitSuccess = (submissionId: string) => {
+    setProviderState(prev => ({ ...prev, submissionId }));
+    setShowProviderForm(false);
   };
-
+  
   const handleApproveProvider = async () => {
-    if (!providerState.submissionId) return;
-    logApiCall(`Calling POST /provider-submissions/${providerState.submissionId}/review...`, 'Pending', {});
+    const idToApprove = submissionIdInput || providerState.submissionId;
+    if (!idToApprove) return;
+    logApiCall(`Calling POST /provider-submissions/${idToApprove}/review...`, 'Pending', {});
     try {
-      const response = await fetch(`${API_BASE_URL}/provider-submissions/${providerState.submissionId}/review`, {
+      const response = await fetch(`${API_BASE_URL}/provider-submissions/${idToApprove}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision: 'approve' }),
       });
       const result = await response.json();
-      logApiCall(`POST /provider-submissions/${providerState.submissionId}/review`, response.status, result);
+      logApiCall(`POST /provider-submissions/${idToApprove}/review`, response.status, result);
 
       if (response.ok) {
         setProviderState((prev) => ({
@@ -125,7 +107,7 @@ function App() {
       const result = await response.json();
       logApiCall(`POST /provider-schemas/${providerState.providerId}/review`, response.status, result);
     } catch (error: any) {
-      logApiCall('POST /provider-schemas/review', 'Error', { message: error.message });
+    logApiCall('POST /provider-schemas/review', 'Error', { message: error.message });
     }
   };
 
@@ -174,21 +156,19 @@ function App() {
           <div className="space-y-4">
             <h2 className="text-2xl font-semibold">Data Provider</h2>
             <p className="text-gray-600">Register as a new provider and submit your schema for approval.</p>
-            <div className="space-y-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
-              <h3 className="text-xl font-medium">1. Register as a Provider</h3>
-              <button
-                onClick={handleRegisterProvider}
-                disabled={providerState.isRegistered}
-                className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors ${
-                  providerState.isRegistered ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                Register Provider
-              </button>
-              <div className="text-sm text-gray-500 mt-2">
-                {providerState.isRegistered ? `Submission ID: ${providerState.submissionId}. Go to Admin view to approve.` : ''}
+            {!showProviderForm ? (
+              <div className="space-y-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 className="text-xl font-medium">1. Register as a Provider</h3>
+                <button
+                  onClick={() => setShowProviderForm(true)}
+                  className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors bg-blue-600 hover:bg-blue-700`}
+                >
+                  Register Provider
+                </button>
               </div>
-            </div>
+            ) : (
+              <ProviderSubmissionForm logApiCall={logApiCall} onSuccess={handleProviderSubmitSuccess} />
+            )}
             <div className="space-y-4 p-6 bg-green-50 rounded-lg border border-green-200">
               <h3 className="text-xl font-medium">2. Submit Schema (Requires Admin Approval First)</h3>
               <button
@@ -211,21 +191,7 @@ function App() {
           <div className="space-y-4">
             <h2 className="text-2xl font-semibold">Data Consumer</h2>
             <p className="text-gray-600">Submit an application to access data from an approved provider.</p>
-            <div className="space-y-4 p-6 bg-indigo-50 rounded-lg border border-indigo-200">
-              <h3 className="text-xl font-medium">1. Submit Data Application</h3>
-              <button
-                onClick={handleSubmitApp}
-                disabled={consumerState.isSubmitted}
-                className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors ${
-                  consumerState.isSubmitted ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-                }`}
-              >
-                Submit Application
-              </button>
-              <div className="text-sm text-gray-500 mt-2">
-                {consumerState.isSubmitted ? `Application ID: ${consumerState.appId}. Go to Admin view to approve.` : ''}
-              </div>
-            </div>
+            <ConsumerRegistrationForm logApiCall={logApiCall} />
           </div>
         );
       case 'admin':
@@ -235,11 +201,22 @@ function App() {
             <p className="text-gray-600">Approve provider registrations, schemas, and consumer applications.</p>
             <div className="space-y-4 p-6 bg-red-50 rounded-lg border border-red-200">
               <h3 className="text-xl font-medium">1. Review Provider Submissions</h3>
+              <div className="space-y-2">
+                <label htmlFor="submissionId" className="block text-sm font-medium text-gray-700">Submission ID:</label>
+                <input
+                  id="submissionId"
+                  type="text"
+                  value={submissionIdInput}
+                  onChange={(e) => setSubmissionIdInput(e.target.value)}
+                  placeholder="Enter Submission ID"
+                  className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
               <button
                 onClick={handleApproveProvider}
-                disabled={!providerState.submissionId || providerState.providerId !== null}
+                disabled={!submissionIdInput || providerState.providerId !== null}
                 className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors ${
-                  !providerState.submissionId || providerState.providerId !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                  !submissionIdInput || providerState.providerId !== null ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
                 Approve Last Provider
