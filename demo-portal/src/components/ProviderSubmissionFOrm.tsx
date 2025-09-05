@@ -1,33 +1,12 @@
 import { useState, FormEvent } from 'react';
 import { submitProviderSubmission } from '../services/api.service';
-import { ProviderType } from '../../api-server/types';
+import { ProviderType } from '../../../api-server/src/types';
+import { LoadingSpinner, ErrorMessage } from '../utils/form-helpers';
 
 interface ProviderSubmissionFormProps {
     logApiCall: (message: string, status: number | string, response: object) => void;
     onSuccess: (submissionId: string) => void;
 }
-
-const LoadingSpinner = ({ text }: { text: string }) => (
-    <div className="flex flex-col items-center justify-center p-8 text-center">
-        <svg className="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="text-gray-500">{text}</p>
-    </div>
-);
-
-const ErrorMessage = ({ message, onRetry }: { message: string, onRetry?: () => void }) => (
-    <div className="text-center p-6 bg-red-100 text-red-800 rounded-lg">
-        <h3 className="text-xl font-semibold">An Error Occurred</h3>
-        <p>{message}</p>
-        {onRetry && (
-            <button onClick={onRetry} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
-                Try Again
-            </button>
-        )}
-    </div>
-);
 
 const SuccessMessage = ({ submissionId }: { submissionId: string }) => (
     <div className="text-center p-6 bg-green-100 text-green-800 rounded-lg">
@@ -44,10 +23,12 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
     const [providerType, setProviderType] = useState<ProviderType>('business');
     const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
+    const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
         setError(null);
+        setNotification(null);
         setStatus('submitting');
         
         const payload = { providerName, contactEmail, phoneNumber, providerType };
@@ -57,7 +38,8 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
             const result = await submitProviderSubmission(payload);
             setStatus('success');
             logApiCall('POST /provider-submissions', 202, result);
-            onSuccess(result.submissionId); // Call the onSuccess prop with the submissionId
+            setNotification({ message: 'Registration submitted successfully!', type: 'success' });
+            onSuccess(result.submissionId);
             setProviderName('');
             setContactEmail('');
             setPhoneNumber('');
@@ -66,6 +48,7 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
             setError(err.message);
             setStatus('error');
             logApiCall('POST /provider-submissions', 'Error', { message: err.message });
+            setNotification({ message: 'An error occurred during submission. Please check the log.', type: 'error' });
         }
     };
 
@@ -81,6 +64,11 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
         <div className="space-y-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
             <h3 className="text-xl font-medium">1. Register as a Provider</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
+                {notification && (
+                    <div className={`p-4 rounded-md ${notification.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {notification.message}
+                    </div>
+                )}
                 <div>
                     <label htmlFor="providerName" className="block text-sm font-medium text-gray-700">Provider Name</label>
                     <input
@@ -88,6 +76,7 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
                         id="providerName"
                         value={providerName}
                         onChange={(e) => setProviderName(e.target.value)}
+                        placeholder="e.g., Department of Registration"
                         required
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                     />
@@ -99,6 +88,7 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
                         id="contactEmail"
                         value={contactEmail}
                         onChange={(e) => setContactEmail(e.target.value)}
+                        placeholder="e.g., contact@example.com"
                         required
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                     />
@@ -110,6 +100,7 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
                         id="phoneNumber"
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
+                        placeholder="e.g., 555-123-4567"
                         required
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                     />

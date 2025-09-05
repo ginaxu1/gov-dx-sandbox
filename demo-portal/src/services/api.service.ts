@@ -4,8 +4,8 @@ const API_BASE_URL = 'http://localhost:3000';
 
 /**
  * Submits a new provider registration request
- * @param data The provider submission data
- * @returns The new submission's ID.
+ * @param data the provider submission data
+ * @returns the new submission's ID
  */
 export async function submitProviderSubmission(data: Omit<ProviderSubmission, 'submissionId' | 'status' | 'createdAt'>): Promise<{ submissionId: string }> {
     const response = await fetch(`${API_BASE_URL}/provider-submissions`, {
@@ -26,7 +26,7 @@ export async function submitProviderSubmission(data: Omit<ProviderSubmission, 's
 }
 
 /**
- * Fetches the list of available data fields from all approved providers.
+ * Fetches the list of available data fields from all approved providers
  */
 export async function fetchAvailableFields() {
     const response = await fetch(`${API_BASE_URL}/available-fields`);
@@ -40,7 +40,7 @@ export async function fetchAvailableFields() {
 
 /**
  * Submits a new consumer application
- * @param data The application data.
+ * @param data the application data
  */
 export async function submitApplication(data: { appId: string, requiredFields: object }) {
     const response = await fetch(`${API_BASE_URL}/applications`, {
@@ -54,6 +54,28 @@ export async function submitApplication(data: { appId: string, requiredFields: o
     if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to submit application.');
+    }
+
+    return response.json();
+}
+
+/**
+ * Submits a new provider schema
+ * @param providerId
+ * @param payload the fieldConfigurations object 
+ */
+export async function submitProviderSchema(providerId: string, payload: any) {
+    const response = await fetch(`${API_BASE_URL}/providers/${providerId}/schemas`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to submit schema');
     }
 
     return response.json();
