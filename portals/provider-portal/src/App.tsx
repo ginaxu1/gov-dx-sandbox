@@ -1,9 +1,17 @@
-import { useState} from "react";
+// App.tsx
+import React, { useState } from "react";
+import { Navbar } from "./components/Navbar";
+import { Dashboard } from './pages/Dashboard';
+import { Schemas } from './pages/Schemas';
+import { Consumers } from './pages/Consumers';
 import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
+import { Router, type Route } from "./Router";
+
 
 function App() {
   const [providerId, setProviderId] = useState<string>("prov_bd7fa213a556e7105677313c");
   const [providerName, setProviderName] = useState<string>("Department Registrar of Persons");
+  
   const handleProviderIdChange = (id: string) => {
     setProviderId(id);
   };
@@ -12,12 +20,24 @@ function App() {
     setProviderName(name);
   };
 
+  const SchemaRegistrationRoute: React.FC = () => (
+    <SchemaRegistrationPage providerId={providerId} providerName={providerName} />
+  );
+
+  // Fixed route order - more specific routes first
+  const routes: Route[] = [
+    { path: "/schemas/new", component: SchemaRegistrationRoute, exact: true },
+    { path: "/schemas", component: Schemas, exact: true },
+    { path: "/consumers", component: Consumers, exact: true },
+    { path: "/", component: Dashboard, exact: true },
+  ];
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen py-2 w-full">
-      <h1 className="text-5xl font-bold">Welcome to the Provider Portal</h1>
-      <SchemaRegistrationPage providerId={providerId} providerName={providerName} />
+    <div className="App">
+      <Navbar />
+      <Router routes={routes} />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

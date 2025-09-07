@@ -127,7 +127,8 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
                 {type.fields.map((field) => {
                   const config = configurations[type.name]?.[field.name] || {
                     source: '' as any,
-                    isowner: '' as any,
+                    isOwner: false,
+                    isUnique: false,
                     description: ''
                   };
 

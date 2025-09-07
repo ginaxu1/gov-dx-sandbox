@@ -41,7 +41,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         type.fields?.forEach(field => {
           initialConfigs[type.name][field.name] = {
             source: '' as any,
-            isOwner: '' as any,
+            isOwner: false,
+            isUnique: false,
             description: field.description || ''
           };
         });
@@ -78,8 +79,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
     try {
       const registration: SchemaRegistration = {
         // provider_id: providerId,
-        // schema,
-        fieldConfigurations: configurations
+        fieldConfigurations: configurations,
+        schema,
       };
       console.log('Registering schema:', registration);
       await SchemaService.registerSchema(providerId,registration);

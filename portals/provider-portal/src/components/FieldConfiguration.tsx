@@ -24,6 +24,10 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
     onChange(typeName, field.name, { ...configuration, isOwner });
   };
 
+  const handleIsUniqueChange = (isUnique: true | false) => {
+    onChange(typeName, field.name, { ...configuration, isUnique });
+  };
+
   const handleDescriptionChange = (description: string) => {
     onChange(typeName, field.name, { ...configuration, description });
   };
@@ -91,6 +95,20 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
                   name={`isOwner-${typeName}-${field.name}`}
                   checked={configuration.isOwner === true}
                   onChange={(e) => handleIsOwnerChange(e.target.checked)}
+                  className="ml-1 text-blue-600 focus:ring-blue-500"
+              />
+            </label>
+          </div>
+
+          {/* Is Unique Configuration */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <span>Is Unique</span>
+              <input
+                  type="checkbox"
+                  name={`isUnique-${typeName}-${field.name}`}
+                  checked={configuration.isUnique === true}
+                  onChange={(e) => handleIsUniqueChange(e.target.checked)}
                   className="ml-1 text-blue-600 focus:ring-blue-500"
               />
             </label>
