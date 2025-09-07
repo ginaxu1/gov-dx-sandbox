@@ -49,6 +49,7 @@ export interface IntrospectionResult {
 }
 
 export interface FieldConfiguration {
+  isUnique: boolean;
   source: 'authorative' | 'fallback' | 'other';
   isOwner: true | false;
   description: string;
@@ -56,6 +57,6 @@ export interface FieldConfiguration {
 
 export interface SchemaRegistration {
 //   provider_id: string;
-//   schema: IntrospectionResult;
   fieldConfigurations: Record<string, Record<string, FieldConfiguration>>;
+  schema: IntrospectionResult;
 }
