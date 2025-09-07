@@ -2,8 +2,6 @@ import { useState } from 'react';
 import ProviderView from './views/ProviderView';
 import ConsumerView from './views/ConsumerView';
 import AdminView from './views/AdminView';
-import ProviderSubmissionForm from './components/ProviderSubmissionForm';
-import ConsumerRegistrationForm from './components/ConsumerRegistrationForm';
 
 const API_BASE_URL = 'http://localhost:3000';
 
@@ -66,9 +64,12 @@ function App() {
           ...prev,
           providerId: result.data.providerId,
         }));
+      } else {
+        throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error: any) {
       logApiCall('POST /provider-submissions/review', 'Error', { message: error.message });
+      throw error; // Re-throw to let the notification wrapper handle it
     }
   };
 
@@ -109,30 +110,35 @@ function App() {
       });
       const result = await response.json();
       logApiCall(`POST /provider-schemas/${providerState.providerId}/review`, response.status, result);
+      
+      if (!response.ok) {
+        throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
     } catch (error: any) {
-    logApiCall('POST /provider-schemas/review', 'Error', { message: error.message });
+      logApiCall('POST /provider-schemas/review', 'Error', { message: error.message });
+      throw error; // Re-throw to let the notification wrapper handle it
     }
   };
 
-  const handleSubmitApp = async () => {
-    logApiCall('Calling POST /applications...', 'Pending', {});
+  const handleSubmitApp = async (payload: { appId: string, requiredFields: object }) => {
+    logApiCall('Calling POST /applications...', 'Pending', payload);
     try {
       const response = await fetch(`${API_BASE_URL}/applications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appId: `app_${Math.floor(Math.random() * 1000)}`,
-          requiredFields: { 'drp.PersonData.nic': {} },
-        }),
+        body: JSON.stringify(payload),
       });
       const result = await response.json();
       logApiCall('POST /applications', response.status, result);
 
       if (response.ok) {
         setConsumerState({ appId: result.data.appId, isSubmitted: true });
+      } else {
+        throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error: any) {
       logApiCall('POST /applications', 'Error', { message: error.message });
+      throw error; // Re-throw to let the form handle it
     }
   };
 
@@ -147,8 +153,13 @@ function App() {
       });
       const result = await response.json();
       logApiCall(`POST /applications/${consumerState.appId}/review`, response.status, result);
+      
+      if (!response.ok) {
+        throw new Error(result.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
     } catch (error: any) {
       logApiCall('POST /applications/review', 'Error', { message: error.message });
+      throw error; // Re-throw to let the notification wrapper handle it
     }
   };
 
@@ -193,9 +204,9 @@ function App() {
   return (
     <div className="w-full max-w-4xl bg-white rounded-lg shadow-xl p-8 space-y-8">
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200">
-        <h1 className="text-3xl font-bold text-gray-800">API Server Demo</h1>
+        <h1 className="text-3xl font-bold text-gray-800">OpenDIF Portal</h1>
         <div className="flex items-center space-x-2">
-          <label htmlFor="role-selector" className="text-sm font-medium text-gray-600">Current Role:</label>
+          <label htmlFor="role-selector" className="text-sm font-medium text-gray-600">Role:</label>
           <select
             id="role-selector"
             value={role}

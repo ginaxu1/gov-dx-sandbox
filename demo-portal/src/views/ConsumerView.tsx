@@ -1,4 +1,3 @@
-import React from 'react';
 import ConsumerRegistrationForm from '../components/ConsumerRegistrationForm';
 
 interface ConsumerViewProps {
@@ -7,7 +6,7 @@ interface ConsumerViewProps {
         isSubmitted: boolean;
         appId: string | null;
     };
-    handleSubmitApp: () => Promise<void>;
+    handleSubmitApp: (payload: { appId: string, requiredFields: object }) => Promise<void>;
 }
 
 export default function ConsumerView({
@@ -18,8 +17,8 @@ export default function ConsumerView({
     return (
         <div className="space-y-4">
             <h2 className="text-2xl font-semibold">Data Consumer</h2>
-            <p className="text-gray-600">Submit an application to access data from an approved provider.</p>
-            <ConsumerRegistrationForm logApiCall={logApiCall} />
+            <p className="text-gray-600">Submit an application to access data</p>
+            <ConsumerRegistrationForm logApiCall={logApiCall} consumerState={consumerState} handleSubmitApp={handleSubmitApp}/>
         </div>
     );
 }

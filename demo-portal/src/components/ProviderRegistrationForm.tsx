@@ -1,22 +1,22 @@
 import { useState, FormEvent } from 'react';
 import { submitProviderSubmission } from '../services/api.service';
 import { ProviderType } from '../../../api-server/src/types';
-import { LoadingSpinner, ErrorMessage } from '../utils/form-helpers';
+import { LoadingSpinner } from '../utils/form-helpers';
 
-interface ProviderSubmissionFormProps {
+interface ProviderRegistrationFormProps {
     logApiCall: (message: string, status: number | string, response: object) => void;
     onSuccess: (submissionId: string) => void;
 }
 
 const SuccessMessage = ({ submissionId }: { submissionId: string }) => (
     <div className="text-center p-6 bg-green-100 text-green-800 rounded-lg">
-        <h3 className="text-xl font-semibold">Registration Submitted!</h3>
-        <p>Your submission ID is: <code className="font-mono bg-gray-200 px-1 py-0.5 rounded text-sm">{submissionId}</code></p>
-        <p className="mt-2">Go to the **Admin** view to approve it.</p>
+        <h3 className="text-xl font-semibold">Application Submitted!</h3>
+        <p>Please wait for the Admin to approv</p>
+        <p className="mt-2 text-sm">Submission ID: {submissionId}</p>
     </div>
 );
 
-export default function ProviderSubmissionForm({ logApiCall, onSuccess }: ProviderSubmissionFormProps) {
+export default function ProviderRegistrationForm({ logApiCall, onSuccess }: ProviderRegistrationFormProps) {
     const [providerName, setProviderName] = useState('');
     const [contactEmail, setContactEmail] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -24,6 +24,14 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
     const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
     const [error, setError] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [submissionId, setSubmissionId] = useState<string>('');
+
+    const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        // Only allow digits
+        const digitsOnly = value.replace(/\D/g, '');
+        setPhoneNumber(digitsOnly);
+    };
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -37,8 +45,9 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
         try {
             const result = await submitProviderSubmission(payload);
             setStatus('success');
+            setSubmissionId(result.submissionId);
             logApiCall('POST /provider-submissions', 202, result);
-            setNotification({ message: 'Registration submitted successfully!', type: 'success' });
+            setNotification({ message: 'Registration submitted', type: 'success' });
             onSuccess(result.submissionId);
             setProviderName('');
             setContactEmail('');
@@ -48,7 +57,7 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
             setError(err.message);
             setStatus('error');
             logApiCall('POST /provider-submissions', 'Error', { message: err.message });
-            setNotification({ message: 'An error occurred during submission. Please check the log.', type: 'error' });
+            setNotification({ message: err.message, type: 'error' });
         }
     };
 
@@ -57,12 +66,18 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
     }
 
     if (status === 'success') {
-        return <SuccessMessage submissionId={providerName} />;
+        return <SuccessMessage submissionId={submissionId} />;
     }
+
+    const buttonClasses = `w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors ${
+        status !== 'idle'
+            ? 'bg-gray-400 cursor-not-allowed'
+            : 'bg-blue-600 hover:bg-blue-700'
+    }`;
 
     return (
         <div className="space-y-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="text-xl font-medium">1. Register as a Provider</h3>
+            <h3 className="text-xl font-medium">Register as a Provider</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
                 {notification && (
                     <div className={`p-4 rounded-md ${notification.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -76,7 +91,7 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
                         id="providerName"
                         value={providerName}
                         onChange={(e) => setProviderName(e.target.value)}
-                        placeholder="e.g., Department of Registration"
+                        placeholder="Department of Registration"
                         required
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                     />
@@ -88,9 +103,10 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
                         id="contactEmail"
                         value={contactEmail}
                         onChange={(e) => setContactEmail(e.target.value)}
-                        placeholder="e.g., contact@example.com"
+                        placeholder="contact@email.com"
                         required
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blu
+                        e-500 focus:ring-blue-500 sm:text-sm p-2"
                     />
                 </div>
                 <div>
@@ -99,8 +115,8 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
                         type="tel"
                         id="phoneNumber"
                         value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        placeholder="e.g., 555-123-4567"
+                        onChange={handlePhoneNumberChange}
+                        placeholder="77101010"
                         required
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                     />
@@ -119,15 +135,12 @@ export default function ProviderSubmissionForm({ logApiCall, onSuccess }: Provid
                         <option value="board">Board</option>
                     </select>
                 </div>
-                {status === 'error' && <ErrorMessage message={error!} />}
                 <button
                     type="submit"
-                    disabled={status === 'submitting'}
-                    className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors ${
-                        status === 'submitting' ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
+                    disabled={status !== 'idle'}
+                    className={buttonClasses}
                 >
-                    {status === 'submitting' ? 'Submitting...' : 'Submit Registration'}
+                    {status !== 'idle' ? 'Submitting...' : 'Submit Registration'}
                 </button>
             </form>
         </div>

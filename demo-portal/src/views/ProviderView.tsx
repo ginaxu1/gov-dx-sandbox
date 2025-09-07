@@ -1,5 +1,6 @@
-import React from 'react';
-import ProviderSubmissionForm from '../components/ProviderSubmissionForm';
+import { useState } from 'react';
+import ProviderSubmissionForm from '../components/ProviderRegistrationForm';
+import ProviderSchemaJsonForm from '../components/ProviderSchemaJsonForm';
 
 interface ProviderViewProps {
     showProviderForm: boolean;
@@ -22,41 +23,70 @@ export default function ProviderView({
     providerState,
     handleSubmitSchema,
 }: ProviderViewProps) {
+    const [showSchemaForm, setShowSchemaForm] = useState(false);
+    
+    const handleSchemaSubmitSuccess = () => {
+        handleSubmitSchema();
+        setShowSchemaForm(false);
+    }
+    
+    const handleSubmitSchemaButtonClick = () => {
+        if (!providerState.isSchemaSubmitted) {
+            setShowSchemaForm(true);
+        }
+    };
+    
     return (
         <div className="space-y-4">
             <h2 className="text-2xl font-semibold">Data Provider</h2>
-            <p className="text-gray-600">Register as a new provider and submit your schema for approval.</p>
+            <p className="text-gray-600">Register as a provider and submit your schema for approval</p>
             {!showProviderForm ? (
                 <div className="space-y-4 p-6 bg-blue-50 rounded-lg border border-blue-200">
-                    <h3 className="text-xl font-medium">1. Register as a Provider</h3>
+                    <h3 className="text-xl font-medium">Register as a Provider</h3>
+                    {providerState.submissionId && (
+                        <div className="text-center p-6 bg-green-100 text-green-800 rounded-lg">
+                            <h3 className="text-xl font-semibold">Application Submitted!</h3>
+                            <p>Please wait for the Admin to approve</p>
+                            <p className="mt-2 text-sm">Submission ID: {providerState.submissionId}</p>
+                        </div>
+                    )}
                     <button
                         onClick={() => setShowProviderForm(true)}
                         className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors bg-blue-600 hover:bg-blue-700`}
                     >
                         Register Provider
                     </button>
-                    <div className="text-sm text-gray-500 mt-2">
-                        {providerState.submissionId ? `Submission ID: ${providerState.submissionId}. Now go to Admin view to approve.` : ''}
-                    </div>
                 </div>
             ) : (
                 <ProviderSubmissionForm logApiCall={logApiCall} onSuccess={handleProviderSubmitSuccess} />
             )}
-            <div className="space-y-4 p-6 bg-green-50 rounded-lg border border-green-200">
-                <h3 className="text-xl font-medium">2. Submit Schema (Requires Admin Approval First)</h3>
-                <button
-                    onClick={handleSubmitSchema}
-                    disabled={!providerState.providerId || providerState.isSchemaSubmitted}
-                    className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors ${
-                        !providerState.providerId || providerState.isSchemaSubmitted ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
-                    }`}
-                >
-                    Submit Schema
-                </button>
-                <div className="text-sm text-gray-500 mt-2">
-                    {providerState.isSchemaSubmitted ? 'Schema submitted for approval. Go to Admin view to approve.' : ''}
+            {!showSchemaForm ? (
+                <div className="space-y-4 p-6 bg-green-50 rounded-lg border border-green-200">
+                    <h3 className="text-xl font-medium">Submit Schema (Requires Admin Approval)</h3>
+                    <button
+                        onClick={handleSubmitSchemaButtonClick}
+                        className={`w-full px-4 py-2 text-white font-semibold rounded-md shadow-md transition-colors ${
+                            'bg-green-600 hover:bg-green-700'
+                        }`}
+                    >
+                        Submit Schema
+                    </button>
+                    <div className="text-sm text-gray-500 mt-2">
+                        {!providerState.providerId 
+                            ? 'Please register as a provider and get admin approval first' 
+                            : providerState.isSchemaSubmitted 
+                                ? 'Submission received! Please wait for the Admin to approve' 
+                                : ''
+                        }
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <ProviderSchemaJsonForm 
+                    providerId={providerState.providerId}
+                    logApiCall={logApiCall}
+                    onSuccess={handleSchemaSubmitSuccess}
+                />
+            )}
         </div>
     );
 }

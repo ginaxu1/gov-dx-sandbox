@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { FieldConfiguration } from '../../../api-server/src/types';
 import { submitProviderSchema } from '../services/api.service';
-import { LoadingSpinner, ErrorMessage } from '../utils/form-helpers';
+import { LoadingSpinner } from '../utils/form-helpers';
 
 interface ProviderSchemaFormProps {
   providerId: string;
@@ -12,8 +12,8 @@ interface ProviderSchemaFormProps {
 const SchemaSubmittedMessage = () => (
     <div className="text-center p-6 bg-green-100 text-green-800 rounded-lg">
         <h3 className="text-xl font-semibold">Schema Submitted!</h3>
-        <p>Your schema has been submitted for review.</p>
-        <p className="mt-2">Go to the **Admin** view to approve it.</p>
+        <p>Your schema has been submitted for review</p>
+        <p className="mt-2">Go to the **Admin** view to approve it</p>
     </div>
 );
 
@@ -89,7 +89,7 @@ export default function ProviderSchemaForm({ providerId, logApiCall, onSuccess }
 
   return (
     <div className="space-y-4 p-6 bg-green-50 rounded-lg border border-green-200">
-      <h3 className="text-xl font-medium">2. Submit Schema</h3>
+      <h3 className="text-xl font-medium">Submit Schema</h3>
       <p className="text-gray-600">Provider ID: <code className="font-mono bg-gray-200 px-1 py-0.5 rounded text-sm">{providerId}</code></p>
       <form onSubmit={handleSubmit} className="space-y-4">
         {Object.entries(schemaFields).map(([typeKey, typeFields]) => (
@@ -136,8 +136,6 @@ export default function ProviderSchemaForm({ providerId, logApiCall, onSuccess }
             ))}
           </div>
         ))}
-
-        {status === 'error' && <ErrorMessage message={error!} />}
 
         <button
           type="submit"

@@ -1,31 +1,29 @@
 import { useState, FormEvent, useEffect } from 'react';
-import { submitApplication, fetchAvailableFields } from '../services/api.service';
+import { fetchAvailableFields } from '../services/api.service';
 import { LoadingSpinner, ErrorMessage } from '../utils/form-helpers';
 
 interface ConsumerRegistrationFormProps {
     logApiCall: (message: string, status: number | string, response: object) => void;
+    consumerState: {
+        isSubmitted: boolean;
+        appId: string | null;
+    };
+    handleSubmitApp: (payload: { appId: string, requiredFields: object }) => Promise<void>;
 }
-
-// Type Definitions for fetched data
-type FieldData = {
-    displayName: string;
-    types: Record<string, { fields: string[] }>;
-};
-type AvailableFieldsResponse = Record<string, FieldData>;
-
 
 const SuccessMessage = ({ appId }: { appId: string }) => (
     <div className="text-center p-6 bg-green-100 text-green-800 rounded-lg">
         <h3 className="text-xl font-semibold">Application Submitted!</h3>
-        <p>Your application for "{appId}" has been sent for review.</p>
+        <p>Your application has been sent for review</p>
+        <p className="mt-2 text-sm">App ID: {appId}</p>
     </div>
 );
 
 // Main Form Component
 
-export default function ConsumerRegistrationForm({ logApiCall }: ConsumerRegistrationFormProps) {
+export default function ConsumerRegistrationForm({ logApiCall, consumerState, handleSubmitApp }: ConsumerRegistrationFormProps) {
     const [appId, setAppId] = useState('');
-    const [availableFields, setAvailableFields] = useState<AvailableFieldsResponse | null>(null);
+    const [availableFields, setAvailableFields] = useState<any | null>(null);
     const [selectedFields, setSelectedFields] = useState<Record<string, boolean>>({});
     const [status, setStatus] = useState<'loading' | 'idle' | 'submitting' | 'success' | 'error'>('loading');
     const [error, setError] = useState<string | null>(null);
@@ -80,20 +78,17 @@ export default function ConsumerRegistrationForm({ logApiCall }: ConsumerRegistr
         }
 
         const payload = { appId, requiredFields };
-        logApiCall('Calling POST /applications...', 'Pending', payload);
 
         try {
-            await submitApplication(payload);
+            await handleSubmitApp(payload);
             setStatus('success');
-            setNotification({ message: 'Application submitted successfully!', type: 'success' });
+            setNotification({ message: 'Application submitted', type: 'success' });
             setAppId('');
             setSelectedFields({});
-            logApiCall('POST /applications', 201, { appId, requiredFields, status: 'pending' });
         } catch (err: any) {
             setError(err.message);
             setStatus('error');
-            logApiCall('POST /applications', 'Error', { message: err.message });
-            setNotification({ message: 'An error occurred during submission. Please check the log.', type: 'error' });
+            setNotification({ message: err.message, type: 'error' });
         }
     };
 
@@ -108,7 +103,7 @@ export default function ConsumerRegistrationForm({ logApiCall }: ConsumerRegistr
     }
 
     if (status === 'success') {
-        return <SuccessMessage appId={appId} />;
+        return <SuccessMessage appId={consumerState.appId || ''} />;
     }
 
     return (
@@ -127,7 +122,7 @@ export default function ConsumerRegistrationForm({ logApiCall }: ConsumerRegistr
                         type="text"
                         value={appId}
                         onChange={(e) => setAppId(e.target.value)}
-                        placeholder="e.g., passport-renewal-app"
+                        placeholder="passport-renewal-app"
                         required
                         className="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -136,15 +131,15 @@ export default function ConsumerRegistrationForm({ logApiCall }: ConsumerRegistr
                 <div className="space-y-4">
                     <label className="block text-sm font-medium text-gray-700">Select Required Fields</label>
                     <div className="p-4 border border-gray-300 rounded-md max-h-80 overflow-y-auto space-y-4 bg-gray-50">
-                        {availableFields && Object.entries(availableFields).map(([providerId, providerData]) => (
+                        {availableFields && Object.entries(availableFields).map(([providerId, providerData]: [string, any]) => (
                             <div key={providerId}>
                                 <h4 className="font-semibold text-blue-600">{providerData.displayName}</h4>
                                 <div className="pl-4 mt-2 space-y-2 border-l-2 border-gray-200">
-                                    {Object.entries(providerData.types).map(([typeName, typeData]) => (
+                                    {Object.entries(providerData.types).map(([typeName, typeData]: [string, any]) => (
                                         <div key={typeName}>
                                             <p className="text-sm font-medium text-gray-500">{typeName}</p>
                                             <div className="pl-4 mt-1 space-y-1">
-                                                {typeData.fields.map(fieldName => {
+                                                {typeData.fields.map((fieldName: string) => {
                                                     const fullFieldName = `${providerId}.${typeName}.${fieldName}`;
                                                     return (
                                                         <label key={fullFieldName} className="flex items-center space-x-2 font-normal text-gray-800">

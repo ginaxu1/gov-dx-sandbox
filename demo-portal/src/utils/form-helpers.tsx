@@ -25,7 +25,7 @@ export const ErrorMessage = ({ message, onRetry }: { message: string; onRetry?: 
 export const SuccessMessage = () => (
     <div className="text-center p-6 bg-green-100 text-green-800 rounded-lg">
         <h3 className="text-xl font-semibold">Schema Submitted!</h3>
-        <p>Your schema has been submitted for review.</p>
-        <p className="mt-2">Go to the **Admin** view to approve it.</p>
+        <p>Your schema has been submitted for review</p>
+        <p className="mt-2">Go to the **Admin** view to approve it</p>
     </div>
 );
