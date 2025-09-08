@@ -40,6 +40,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         initialConfigs[type.name] = {};
         type.fields?.forEach(field => {
           initialConfigs[type.name][field.name] = {
+            dataType: field.type.name || (field.type.ofType ? field.type.ofType.name : 'Unknown'),
             source: '' as any,
             isOwner: false,
             isUnique: false,

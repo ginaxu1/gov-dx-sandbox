@@ -49,6 +49,7 @@ export interface IntrospectionResult {
 }
 
 export interface FieldConfiguration {
+  dataType: string;
   isUnique: boolean;
   source: 'authorative' | 'fallback' | 'other';
   isOwner: true | false;
