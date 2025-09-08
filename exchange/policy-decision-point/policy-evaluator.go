@@ -22,7 +22,6 @@ type PolicyEvaluator struct {
 type AuthorizationRequest struct {
 	Consumer  ConsumerInfo `json:"consumer"`
 	Request   RequestInfo  `json:"request"`
-	Context   ContextInfo  `json:"context"`
 	Timestamp time.Time    `json:"timestamp"`
 }
 
@@ -42,13 +41,6 @@ type RequestInfo struct {
 	DataOwner  string   `json:"data_owner,omitempty"`
 }
 
-// ContextInfo contains environmental and session context
-type ContextInfo struct {
-	IPAddress  string            `json:"ip_address,omitempty"`
-	UserAgent  string            `json:"user_agent,omitempty"`
-	SessionID  string            `json:"session_id,omitempty"`
-	Attributes map[string]string `json:"attributes,omitempty"`
-}
 
 // AuthorizationDecision represents the output of policy evaluation
 type AuthorizationDecision struct {

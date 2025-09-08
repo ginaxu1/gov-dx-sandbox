@@ -41,10 +41,6 @@ Implements Attribute-Based Access Control (ABAC) using Open Policy Agent (OPA) t
     "data_fields": ["person.fullName", "person.nic", "person.photo"],
     "data_owner": "drp"
   },
-  "context": {
-    "ip_address": "192.168.1.100",
-    "user_agent": "PassportApp/1.0"
-  },
   "timestamp": "2024-01-15T10:30:00Z"
 }
 ```
