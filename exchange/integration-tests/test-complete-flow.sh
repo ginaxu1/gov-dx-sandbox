@@ -49,10 +49,6 @@ PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
       "resource": "person_data",
       "action": "read",
       "data_fields": ["person.fullName", "person.permanentAddress", "person.birthDate"]
-    },
-    "context": {
-      "ip_address": "192.168.1.100",
-      "user_agent": "PassportApp/1.0"
     }
   }')
 
@@ -153,10 +149,6 @@ PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8080/decide \
       "resource": "person_data",
       "action": "read",
       "data_fields": ["person.fullName", "person.permanentAddress", "person.birthDate"]
-    },
-    "context": {
-      "ip_address": "192.168.1.100",
-      "user_agent": "PassportApp/1.0"
     }
   }')
 

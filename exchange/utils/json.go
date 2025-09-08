@@ -74,19 +74,11 @@ type ServerConfig struct {
 // DefaultServerConfig returns a default server configuration
 func DefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
-		Port:         getEnvOrDefault("PORT", "8080"),
+		Port:         GetEnvOrDefault("PORT", "8080"),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-}
-
-// getEnvOrDefault returns the environment variable value or a default
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // StartServerWithGracefulShutdown starts an HTTP server with graceful shutdown
@@ -139,13 +131,6 @@ func HealthHandler(serviceName string) http.HandlerFunc {
 	}
 }
 
-// MethodNotAllowedHandler creates a standard method not allowed handler
-func MethodNotAllowedHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		RespondWithJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
-	}
-}
-
 // GetEnvOrDefault returns the environment variable value or a default
 func GetEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -186,21 +171,9 @@ func ParseExpiryTime(expiryStr string) (time.Duration, error) {
 	return time.Duration(multiplier) * duration, nil
 }
 
-// StatusTransitionValidator defines a generic status transition validator
-type StatusTransitionValidator[T comparable] struct {
-	validTransitions map[T][]T
-}
-
-// NewStatusTransitionValidator creates a new status transition validator
-func NewStatusTransitionValidator[T comparable](transitions map[T][]T) *StatusTransitionValidator[T] {
-	return &StatusTransitionValidator[T]{
-		validTransitions: transitions,
-	}
-}
-
-// IsValidTransition checks if a status transition is valid
-func (stv *StatusTransitionValidator[T]) IsValidTransition(current, new T) bool {
-	allowed, exists := stv.validTransitions[current]
+// IsValidStatusTransition checks if a status transition is valid
+func IsValidStatusTransition(validTransitions map[string][]string, current, new string) bool {
+	allowed, exists := validTransitions[current]
 	if !exists {
 		return false
 	}
