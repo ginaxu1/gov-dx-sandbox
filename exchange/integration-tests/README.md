@@ -138,7 +138,6 @@ The tests use the following test data:
 - `person.photo`: No consent required
 - `person.permanentAddress`: Consent required (30d expiry)
 - `person.birthDate`: Consent required (30d expiry)
-- `person.ssn`: Consent required (30d expiry)
 
 ## Contributing
 

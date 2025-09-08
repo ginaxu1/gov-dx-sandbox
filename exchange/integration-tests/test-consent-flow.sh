@@ -133,7 +133,7 @@ PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
     "request": {
       "resource": "person_data",
       "action": "read",
-      "data_fields": ["person.fullName", "person.ssn"]
+      "data_fields": ["person.fullName", "person.birthDate"]
     },
     "context": {
       "ip_address": "192.168.1.100",

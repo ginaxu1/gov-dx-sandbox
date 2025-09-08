@@ -12,11 +12,6 @@
       "consent_required": true,
       "owner": "rgd",
       "expiry_time": "30d"
-    },
-    "person.ssn": {
-      "consent_required": true,
-      "owner": "drp",
-      "expiry_time": "30d"
     }
   }
 }

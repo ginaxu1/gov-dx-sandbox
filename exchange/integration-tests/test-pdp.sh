@@ -87,7 +87,7 @@ echo "---"
 
 # Test 4: Unauthorized field access
 echo "Test 4: Unauthorized field access"
-echo "Requesting unauthorized field: person.ssn"
+echo "Requesting unauthorized field: person.birthDate"
 echo "Expected: allow=false, deny_reason=Consumer not authorized for requested fields"
 echo ""
 
@@ -101,7 +101,7 @@ curl -X POST http://localhost:8080/decide \
     "request": {
       "resource": "person_data",
       "action": "read",
-      "data_fields": ["person.fullName", "person.ssn"]
+      "data_fields": ["person.fullName", "person.birthDate"]
     },
     "context": {
       "ip_address": "192.168.1.100"
