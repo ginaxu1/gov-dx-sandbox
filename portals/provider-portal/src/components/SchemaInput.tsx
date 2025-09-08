@@ -176,9 +176,6 @@ type User {
               required
               disabled={loading}
             />
-            <p className="mt-2 text-sm text-yellow-600">
-              Note: SDL parsing is not fully implemented in this demo
-            </p>
           </div>
         )}
 

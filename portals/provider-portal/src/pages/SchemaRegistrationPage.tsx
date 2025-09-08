@@ -17,7 +17,6 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   const [step, setStep] = useState<'input' | 'configure'>('input');
   const [schema, setSchema] = useState<IntrospectionResult | null>(null);
   const [configurations, setConfigurations] = useState<Record<string, Record<string, FieldConfiguration>>>({});
-  // const [providerId, setProviderId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -78,10 +77,17 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
     setSuccess('');
 
     try {
+      // Generate SDL with directives
+      const sdl = await SchemaService.generateSDLWithDirectives(schema, configurations);
+      // console.log({"Type of sdl": typeof sdl}); // String
+      console.log("Generated SDL with directives:");
+      console.log(sdl);
+
       const registration: SchemaRegistration = {
         // provider_id: providerId,
         fieldConfigurations: configurations,
         schema,
+        sdl
       };
       console.log('Registering schema:', registration);
       await SchemaService.registerSchema(providerId,registration);
