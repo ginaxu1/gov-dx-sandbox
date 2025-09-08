@@ -318,6 +318,7 @@ func main() {
 	server := &apiServer{engine: engine}
 
 	// Apply panic recovery middleware to all handlers
+	http.Handle("/consent", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	http.Handle("/consent/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	http.Handle("/consent-portal/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentPortalHandler)))
 	http.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))

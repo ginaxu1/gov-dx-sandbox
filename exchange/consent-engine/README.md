@@ -2,18 +2,15 @@
 
 ## Overview
 
-The Consent Engine manages the data owner consent workflow as described in the consent flow diagram. It is initiated by the Orchestration Engine only after the Policy Decision Point (PDP) has authorized a request that requires explicit permission from the data owner. The engine ensures that data is not accessed until the owner has formally granted consent.
+Manages data owner consent workflow. Creates consent records, provides consent portals, and tracks consent status for data access requests requiring explicit permission.
 
 ## Architecture
 
-The Consent Engine implements the consent flow where:
-
-1. **PDP** determines that consent is required for certain data fields
-2. **Consent Engine** creates a consent record and provides consent portal URL
-3. **User** is redirected to consent portal to provide consent
-4. **Data Owner** interacts with consent portal to approve/deny consent
-5. **Consent Engine** manages consent status and expiry
-6. **Orchestration Engine** can proceed with data access once consent is granted
+1. **Orchestration Engine** requests consent record creation
+2. **Consent Engine** creates consent record and provides portal URL
+3. **Data Owner** interacts with consent portal to approve/deny consent
+4. **Consent Engine** manages consent status and expiry
+5. **Orchestration Engine** checks consent status before data access
 
 ## Consent Flow States
 
@@ -34,7 +31,7 @@ The Consent Engine implements the consent flow where:
 
 #### Create Consent Request
 ```http
-POST /consent/
+POST /consent
 Content-Type: application/json
 
 {
@@ -136,7 +133,7 @@ POST /admin/expiry-check
 
 ```bash
 # Step 1: Create consent request
-curl -X POST http://localhost:8081/consent/ \
+curl -X POST http://localhost:8081/consent \
   -H "Content-Type: application/json" \
   -d '{
     "data_consumer": "passport-app",
@@ -168,7 +165,7 @@ curl http://localhost:8081/consent/consent_123
 
 ```bash
 # Create offline consent
-curl -X POST http://localhost:8081/consent/ \
+curl -X POST http://localhost:8081/consent \
   -H "Content-Type: application/json" \
   -d '{
     "data_consumer": "passport-app",
@@ -227,7 +224,7 @@ curl -X POST http://localhost:8080/decide \
 
 2. **Create Consent Record** (Orchestration Engine creates consent):
 ```bash
-curl -X POST http://localhost:8081/consent/ \
+curl -X POST http://localhost:8081/consent \
   -H "Content-Type: application/json" \
   -d '{
     "data_consumer": "passport-app",
@@ -301,6 +298,23 @@ expired → pending (allow renewal)
 revoked → (no transitions allowed)
 ```
 
+## Recent Updates and Fixes
+
+### API Routing Improvements
+- **Fixed consent endpoint routing**: Both `/consent` and `/consent/` endpoints now work correctly
+- **Improved error handling**: Better handling of malformed requests and missing parameters
+- **Enhanced response consistency**: Standardized JSON responses across all endpoints
+
+### Test Organization
+- **Centralized test scripts**: All test scripts moved to `/tests` directory for better organization
+- **Comprehensive test coverage**: Added complete consent flow integration tests
+- **Automated test runner**: `run-all-tests.sh` executes all test suites in sequence
+
+### Container Deployment
+- **Updated Docker containers**: Rebuilt containers with latest routing fixes
+- **Improved build process**: Better separation of build and runtime stages
+- **Enhanced security**: Non-root user execution in containers
+
 ## Error Handling
 
 The Consent Engine provides comprehensive error handling:
@@ -312,69 +326,28 @@ The Consent Engine provides comprehensive error handling:
 
 ## Testing
 
-### Start the Consent Engine
+### Quick Test
 ```bash
-# Build and start the consent engine
-docker-compose build ce_app && docker-compose up -d ce_app
-
-# Check if service is running
-curl http://localhost:8081/health
+cd ../tests && ./test-complete-consent-flow.sh
 ```
 
-### Test Consent Creation
+### Manual API Test
 ```bash
-curl -X POST http://localhost:8081/consent/ \
+# Create consent
+curl -X POST http://localhost:8081/consent \
   -H "Content-Type: application/json" \
   -d '{
     "data_consumer": "passport-app",
-    "data_owner": "user123",
+    "data_owner": "user123", 
     "fields": ["person.permanentAddress"],
-    "type": "realtime",
-    "session_id": "sess_12345",
-    "redirect_url": "https://passport-app.gov.lk/callback",
-    "expiry_time": "30d",
-    "metadata": {
-      "request_source": "official_portal"
-    }
+    "type": "realtime"
   }'
-```
 
-**Expected Response:**
-```json
-{
-  "consent_id": "consent_abc123",
-  "status": "pending",
-  "consent_portal_url": "http://localhost:8081/consent-portal/?consent_id=consent_abc123",
-  "expires_at": "2024-02-07T10:30:00Z"
-}
-```
-
-### Test Consent Portal Interaction
-```bash
-curl -X POST http://localhost:8081/consent-portal/ \
+# Update consent status
+curl -X PUT http://localhost:8081/consent/{consent_id} \
   -H "Content-Type: application/json" \
   -d '{
-    "consent_id": "consent_abc123",
-    "action": "approve",
-    "data_owner": "user123",
-    "session_id": "sess_12345",
-    "reason": "user_approved_via_portal"
+    "status": "approved",
+    "updated_by": "user123"
   }'
-```
-
-### Test Consent Status Check
-```bash
-curl http://localhost:8081/consent/consent_abc123
-```
-
-### Test Administrative Operations
-```bash
-# Check consent expiry
-curl -X POST http://localhost:8081/admin/expiry-check
-
-# Get consents by data owner
-curl http://localhost:8081/data-owner/user123
-
-# Get consents by consumer
-curl http://localhost:8081/consumer/passport-app
 ```

@@ -2,20 +2,16 @@
 
 ## Overview
 
-The Policy Decision Point implements an Attribute-Based Access Control (ABAC) model that evaluates incoming requests against defined policies and metadata to determine access rights. It integrates with the consent flow to ensure data is only accessed with proper authorization and consent.
+Implements Attribute-Based Access Control (ABAC) using Open Policy Agent (OPA) to evaluate data access requests and determine consent requirements.
 
 ## Architecture
 
-The PDP follows the consent flow diagram where:
+1. **Orchestration Engine** sends data request to **PDP**
+2. **PDP** evaluates request against ABAC policies
+3. **PDP** returns authorization decision and consent requirements
+4. **Orchestration Engine** coordinates with **Consent Engine** if needed
 
-1. **DataCustodian** (API Gateway/Orchestration Engine) receives a data request
-2. **PDP** evaluates the request against ABAC policies
-3. If consent is required, the **Consent Engine** is triggered
-4. Only after consent is obtained, data access is granted
-
-## Simplified ABAC Model Components
-
-The PDP implements a simplified ABAC model focused on the core consent flow requirements:
+## ABAC Model
 
 ### Subject (Consumer) Attributes
 - Consumer ID and approved data fields
@@ -29,12 +25,6 @@ The PDP implements a simplified ABAC model focused on the core consent flow requ
 ### Action Attributes
 - Supported actions (currently: "read")
 - Action-specific authorization policies
-
-**Omitted Components:**
-- ~~Environment Attributes~~ (IP, user agent, session validation)
-- ~~Purpose Attributes~~ (complex purpose-based access control)
-
-This simplified model focuses on the essential authorization checks needed for the consent flow while maintaining security and performance.
 
 ## Request Format
 
@@ -160,80 +150,36 @@ Defines field-level consent requirements and ownership:
 
 ## Testing
 
-### Basic Authorization Test (No Consent Required)
+### Quick Test
 ```bash
+cd ../tests && ./test-pdp.sh
+```
+
+### Manual API Test
+```bash
+# Test no consent required
 curl -X POST http://localhost:8080/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer": {
-      "id": "passport-app",
-      "name": "Passport Application Service",
-      "type": "government_service"
-    },
+    "consumer": {"id": "passport-app"},
     "request": {
       "resource": "person_data",
       "action": "read",
-      "data_fields": ["person.fullName", "person.nic", "person.photo"],
-      "data_owner": "drp"
-    },
-    "context": {
-      "ip_address": "192.168.1.100",
-      "user_agent": "PassportApp/1.0"
+      "data_fields": ["person.fullName", "person.nic"]
     }
   }'
-```
 
-**Expected Response:**
-```json
-{
-  "allow": true,
-  "consent_required": false,
-  "consent_required_fields": [],
-  "conditions": {
-    "consumer_verified": true,
-    "resource_authorized": true,
-    "action_authorized": true
-  }
-}
-```
-
-### Consent Required Test
-```bash
+# Test consent required
 curl -X POST http://localhost:8080/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer": {
-      "id": "passport-app",
-      "name": "Passport Application Service",
-      "type": "government_service"
-    },
+    "consumer": {"id": "passport-app"},
     "request": {
-      "resource": "person_data",
+      "resource": "person_data", 
       "action": "read",
-      "data_fields": ["person.fullName", "person.nic", "person.photo", "person.permanentAddress"],
-      "data_owner": "drp"
-    },
-    "context": {
-      "ip_address": "192.168.1.100",
-      "user_agent": "PassportApp/1.0"
+      "data_fields": ["person.permanentAddress"]
     }
   }'
-```
-
-**Expected Response:**
-```json
-{
-  "allow": true,
-  "consent_required": true,
-  "consent_required_fields": ["person.permanentAddress"],
-  "data_owner": "drp",
-  "expiry_time": "30d",
-  "conditions": {
-    "consumer_verified": true,
-    "resource_authorized": true,
-    "action_authorized": true
-  }
-}
 ```
 
 
@@ -256,6 +202,23 @@ The PDP uses an explicit data loading mechanism to ensure JSON configuration fil
 2. Data is parsed and validated
 3. Data is embedded as Rego module variables
 4. OPA policy engine can access data during evaluation
+
+## Recent Updates and Fixes
+
+### Policy Logic Improvements
+- **Fixed non-consent-required field handling**: PDP now correctly allows access to fields that don't require consent
+- **Improved consent field analysis**: Better handling of mixed consent/non-consent field requests
+- **Enhanced error handling**: More robust handling of edge cases in policy evaluation
+
+### Test Organization
+- **Centralized test scripts**: All test scripts moved to `/tests` directory for better organization
+- **Comprehensive test coverage**: Added complete consent flow integration tests
+- **Automated test runner**: `run-all-tests.sh` executes all test suites in sequence
+
+### Container Deployment
+- **Updated Docker containers**: Rebuilt containers with latest policy fixes
+- **Improved build process**: Better separation of build and runtime stages
+- **Enhanced security**: Non-root user execution in containers
 
 ## Security Considerations
 
