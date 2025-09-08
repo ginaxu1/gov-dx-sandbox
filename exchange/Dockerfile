@@ -11,8 +11,8 @@ RUN go mod tidy
 COPY . .
 RUN CGO_ENABLED=0 go build -o /app/service_binary ./$SERVICE_PATH
 
-# Final Stage for Consent Engine (cme_app)
-FROM alpine:latest AS cme-final
+# Final Stage for Consent Engine (ce_app)
+FROM alpine:latest AS ce-final
 
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

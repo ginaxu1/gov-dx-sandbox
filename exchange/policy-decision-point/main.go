@@ -30,6 +30,7 @@ func main() {
 
 	// Register the handler method from our evaluator instance
 	http.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
+	http.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.debugHandler)))
 
 	port := os.Getenv("PORT")
 	if port == "" {
