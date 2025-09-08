@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,37 +9,33 @@ import (
 	"github.com/gov-dx-sandbox/exchange/utils"
 )
 
-// Constants for configuration
-const (
-	defaultPort = "8080"
-)
-
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Create an instance of our evaluator
+	// Initialize policy evaluator
 	evaluator, err := NewPolicyEvaluator(ctx)
 	if err != nil {
-		slog.Error("Could not initialize policy evaluator", "error", err)
+		slog.Error("Failed to initialize policy evaluator", "error", err)
 		os.Exit(1)
 	}
 
-	// Register the handler method from our evaluator instance
-	http.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
-	http.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.debugHandler)))
+	// Setup routes
+	mux := http.NewServeMux()
+	mux.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
+	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.debugHandler)))
+	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("policy-decision-point")))
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
-	}
-	listenAddr := fmt.Sprintf(":%s", port)
+	// Setup server with default configuration
+	config := utils.DefaultServerConfig()
+	config.Port = utils.GetEnvOrDefault("PORT", "8080")
+	server := utils.CreateServer(config, mux)
 
-	slog.Info("PCE server starting", "address", listenAddr)
-	if err := http.ListenAndServe(listenAddr, nil); err != nil {
-		slog.Error("Could not start server", "error", err)
+	// Start server with graceful shutdown
+	if err := utils.StartServerWithGracefulShutdown(server, "policy-decision-point"); err != nil {
 		os.Exit(1)
 	}
 }
