@@ -60,4 +60,5 @@ export interface SchemaRegistration {
 //   provider_id: string;
   fieldConfigurations: Record<string, Record<string, FieldConfiguration>>;
   schema: IntrospectionResult;
+  sdl: string;
 }

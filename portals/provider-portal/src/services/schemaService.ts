@@ -1,90 +1,10 @@
 // services/schemaService.ts
-import type { IntrospectionResult, SchemaRegistration } from '../types/graphql';
+import { getIntrospectionQuery, buildClientSchema, buildSchema, printSchema, parse, print, visit, Kind, graphql } from "graphql";
+import type { ObjectTypeDefinitionNode, ObjectTypeExtensionNode } from "graphql";
+import type { IntrospectionResult, SchemaRegistration, FieldConfiguration} from '../types/graphql';
 
 export class SchemaService {
-  private static readonly INTROSPECTION_QUERY = `
-    query IntrospectionQuery {
-      __schema {
-        queryType { name }
-        mutationType { name }
-        subscriptionType { name }
-        types {
-          ...FullType
-        }
-      }
-    }
-
-    fragment FullType on __Type {
-      kind
-      name
-      description
-      fields(includeDeprecated: true) {
-        name
-        description
-        args {
-          ...InputValue
-        }
-        type {
-          ...TypeRef
-        }
-      }
-      inputFields {
-        ...InputValue
-      }
-      interfaces {
-        ...TypeRef
-      }
-      enumValues(includeDeprecated: true) {
-        name
-        description
-        isDeprecated
-        deprecationReason
-      }
-      possibleTypes {
-        ...TypeRef
-      }
-    }
-
-    fragment InputValue on __InputValue {
-      name
-      description
-      type { ...TypeRef }
-      defaultValue
-    }
-
-    fragment TypeRef on __Type {
-      kind
-      name
-      ofType {
-        kind
-        name
-        ofType {
-          kind
-          name
-          ofType {
-            kind
-            name
-            ofType {
-              kind
-              name
-              ofType {
-                kind
-                name
-                ofType {
-                  kind
-                  name
-                  ofType {
-                    kind
-                    name
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  `;
+  private static readonly INTROSPECTION_QUERY = getIntrospectionQuery();
 
   static async fetchSchemaFromEndpoint(endpoint: string): Promise<IntrospectionResult> {
     try {
@@ -103,6 +23,17 @@ export class SchemaService {
       }
 
       const result = await response.json();
+      console.log('Introspection result:', result);
+
+      // const client_schema = buildClientSchema(result.data);
+      // console.log('\n\n\nClient schema:', client_schema);
+
+      // const print_client_schema = printSchema(client_schema);
+      // console.log('\n\n\nPrint client schema:', print_client_schema);  // Prints SDL
+
+    //   const build_schema = buildSchema(result.data as unknown as string);
+    //   console.log('\n\n\nBuild schema:', build_schema);
+
       
       if (result.errors) {
         throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`);
@@ -143,15 +74,17 @@ export class SchemaService {
       }
 
       // Dynamically import to avoid adding graphql to initial bundle if not needed
-      const { buildSchema, getIntrospectionQuery, graphql } = await import('graphql');
+      // const { buildSchema, getIntrospectionQuery, graphql } = await import('graphql');
 
       const schema = buildSchema(sdl);
-      const introspectionQuery = getIntrospectionQuery();
+      // const introspectionQuery = getIntrospectionQuery();
 
       const result = await graphql({
         schema,
-        source: introspectionQuery,
+        source: this.INTROSPECTION_QUERY
       });
+			// console.log({"Type of result": typeof result}); // Object
+			// console.log(result);
 
       if (result.errors?.length) {
         throw new Error(`SDL introspection errors: ${result.errors.map(e => e.message).join(', ')}`);
@@ -161,7 +94,7 @@ export class SchemaService {
         throw new Error('Invalid introspection result from SDL');
       }
 
-      return result as unknown as IntrospectionResult;
+      return result as any as IntrospectionResult;
     } catch (error) {
       throw new Error(`Failed to parse SDL: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -186,4 +119,89 @@ export class SchemaService {
       throw new Error(`Failed to register schema: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  static async generateSDLWithDirectives(
+		result: IntrospectionResult,
+		configurations: Record<string, Record<string, FieldConfiguration>>
+	): Promise<string> {
+
+		// 1. Build GraphQL schema
+		const gqlSchema = buildClientSchema(result.data as any);
+
+		// 2. Print schema → SDL
+		const baseSDL = printSchema(gqlSchema);
+
+		// 3. Add directive definitions
+		const sdlWithDirectives = `
+			directive @source(value: String!) on FIELD_DEFINITION
+			directive @isOwner(value: Boolean!) on FIELD_DEFINITION
+			directive @description(value: String!) on FIELD_DEFINITION
+
+			${baseSDL}
+		`;
+
+		const ast = parse(sdlWithDirectives);
+    // 4. Visit AST, attach directives based on configurations
+    const modifiedAST = visit(ast, {
+      FieldDefinition(node, _key, _parent, _path, ancestors) {
+        const parentNode = ancestors[ancestors.length - 1] as ObjectTypeDefinitionNode | ObjectTypeExtensionNode | undefined;
+        if (
+          !parentNode ||
+          (parentNode.kind !== Kind.OBJECT_TYPE_DEFINITION && parentNode.kind !== Kind.OBJECT_TYPE_EXTENSION)
+        ) {
+          return;
+        }
+
+        const typeName = parentNode.name.value;
+        const fieldName = node.name.value;
+        const config = configurations[typeName]?.[fieldName];
+        if (!config) return;
+
+        const directives = [...(node.directives ?? [])];
+
+        // if (config.source) {
+          directives.push({
+            kind: Kind.DIRECTIVE,
+            name: { kind: Kind.NAME, value: "source" },
+            arguments: [
+              {
+                kind: Kind.ARGUMENT,
+                name: { kind: Kind.NAME, value: "value" },
+                value: { kind: Kind.STRING, value: config.source },
+              },
+            ],
+          });
+        // }
+
+        directives.push({
+          kind: Kind.DIRECTIVE,
+          name: { kind: Kind.NAME, value: "isOwner" },
+          arguments: [
+            {
+              kind: Kind.ARGUMENT,
+              name: { kind: Kind.NAME, value: "value" },
+              value: { kind: Kind.BOOLEAN, value: config.isOwner },
+            },
+          ],
+        });
+
+        directives.push({
+          kind: Kind.DIRECTIVE,
+          name: { kind: Kind.NAME, value: "description" },
+          arguments: [
+            {
+              kind: Kind.ARGUMENT,
+              name: { kind: Kind.NAME, value: "value" },
+              value: { kind: Kind.STRING, value: config.description },
+            },
+          ],
+        });
+
+        return { ...node, directives };
+      },
+    });
+		// 5. Print AST back to SDL
+		return print(modifiedAST);
+	}
+
 }
