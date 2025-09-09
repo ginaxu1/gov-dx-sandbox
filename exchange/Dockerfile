@@ -31,8 +31,8 @@ FROM alpine:3.17
 # Install runtime dependencies
 RUN apk --no-cache add ca-certificates tzdata wget
 
-# Create non-root user
-RUN adduser -D -s /bin/sh appuser
+# Create non-root user with specific UID for WSO2 Choreo compliance
+RUN adduser -D -s /bin/sh -u 10001 appuser
 
 # Set working directory
 WORKDIR /app
@@ -54,8 +54,8 @@ RUN if [ "$SERVICE_PATH" = "policy-decision-point" ]; then \
 # Change ownership to appuser
 RUN chown -R appuser:appuser /app
 
-# Switch to non-root user
-USER appuser
+# Switch to non-root user with specific UID
+USER 10001
 
 # Expose port (will be overridden by service-specific ports)
 EXPOSE 8080

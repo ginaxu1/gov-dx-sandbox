@@ -1,19 +1,19 @@
-# WSO2 Choreo Component Configuration for Policy Decision Point
+# WSO2 Choreo Component Configuration for Consent Engine
 # +required The configuration file schema version
 schemaVersion: 1.2
 
 # +optional Incoming connection details for the component
 endpoints:
   # +required Unique name for the endpoint.
-  - name: policy-decision-point-api
+  - name: consent-engine-api
     # +optional Display name for the endpoint.
-    displayName: Policy Decision Point API
+    displayName: Consent Management Engine API
     # +required Service section has the user service endpoint details
     service:
       # +optional Context (base path) of the API that gets exposed via the endpoint.
       basePath: /
       # +required Numeric port value that gets exposed via the endpoint
-      port: 8082
+      port: 8081
     # +required Type of traffic that the endpoint is accepting.
     type: REST
     # +optional Network level visibilities of the endpoint.
@@ -79,36 +79,47 @@ configurations:
           required: false
           # +optional default value is string if not specified
           type: string
-    - name: OPA_POLICIES_PATH
+    - name: JWT_SECRET
       # +required value source
       valueFrom:
         # +required config form value source
         configForm:
           # +optional display name inside the config form
-          displayName: OPA Policies Path
+          displayName: JWT Secret
+          # +optional default value is true if not specified
+          required: true
+          # +optional default value is string if not specified
+          type: secret
+    - name: API_KEY
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: API Key
           # +optional default value is true if not specified
           required: false
           # +optional default value is string if not specified
-          type: string
-    - name: OPA_DATA_PATH
+          type: secret
+    - name: ENABLE_CORS
       # +required value source
       valueFrom:
         # +required config form value source
         configForm:
           # +optional display name inside the config form
-          displayName: OPA Data Path
-          # +optional default value is true if not specified
-          required: false
-          # +optional default value is string if not specified
-          type: string
-    - name: ENABLE_DEBUG
-      # +required value source
-      valueFrom:
-        # +required config form value source
-        configForm:
-          # +optional display name inside the config form
-          displayName: Enable Debug Mode
+          displayName: Enable CORS
           # +optional default value is true if not specified
           required: false
           # +optional default value is string if not specified
           type: boolean
+    - name: RATE_LIMIT_PER_MINUTE
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Rate Limit (per minute)
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: number
