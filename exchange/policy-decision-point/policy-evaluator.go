@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gov-dx-sandbox/exchange/utils"
 	"github.com/open-policy-agent/opa/rego"
@@ -16,15 +18,76 @@ type PolicyEvaluator struct {
 	preparedQuery rego.PreparedEvalQuery
 }
 
+// AuthorizationRequest represents the input structure for policy evaluation
+type AuthorizationRequest struct {
+	Consumer  ConsumerInfo `json:"consumer"`
+	Request   RequestInfo  `json:"request"`
+	Timestamp time.Time    `json:"timestamp"`
+}
+
+// ConsumerInfo contains information about the requesting consumer
+type ConsumerInfo struct {
+	ID         string            `json:"id"`
+	Name       string            `json:"name,omitempty"`
+	Type       string            `json:"type,omitempty"`
+	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+// RequestInfo contains details about the data access request
+type RequestInfo struct {
+	Resource   string   `json:"resource"`
+	Action     string   `json:"action"`
+	DataFields []string `json:"data_fields"`
+	DataOwner  string   `json:"data_owner,omitempty"`
+}
+
+
+// AuthorizationDecision represents the output of policy evaluation
+type AuthorizationDecision struct {
+	Allow                 bool                   `json:"allow"`
+	DenyReason            string                 `json:"deny_reason,omitempty"`
+	ConsentRequired       bool                   `json:"consent_required"`
+	ConsentRequiredFields []string               `json:"consent_required_fields,omitempty"`
+	DataOwner             string                 `json:"data_owner,omitempty"`
+	ExpiryTime            string                 `json:"expiry_time,omitempty"`
+	Conditions            map[string]interface{} `json:"conditions,omitempty"`
+}
+
 // NewPolicyEvaluator creates and initializes a new evaluator by loading policies from disk.
 func NewPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 	slog.Info("Loading OPA policies and data...")
 
 	query := "data.opendif.authz.decision"
 
+	// Load data files explicitly
+	consumerGrantsData, err := loadJSONFile("./data/consumer-grants.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load consumer grants: %w", err)
+	}
+	slog.Info("Consumer grants data loaded", "data", consumerGrantsData)
+
+	providerMetadataData, err := loadJSONFile("./data/provider-metadata.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+	}
+	slog.Info("Provider metadata data loaded", "data", providerMetadataData)
+
+	// Convert data to JSON strings for embedding in policy
+	consumerGrantsJSON, _ := json.Marshal(consumerGrantsData)
+	providerMetadataJSON, _ := json.Marshal(providerMetadataData)
+
+	// Create a module with the data embedded as JSON values
+	dataModule := fmt.Sprintf(`
+		package opendif.authz
+
+		consumer_grants = %s
+		provider_metadata = %s
+		`, string(consumerGrantsJSON), string(providerMetadataJSON))
+
 	r := rego.New(
 		rego.Query(query),
-		rego.Load([]string{"./policies", "./data"}, nil), // Load all .rego and .json files
+		rego.Load([]string{"./policies"}, nil), // Load policy files
+		rego.Module("data.rego", dataModule),   // Add data as module
 	)
 
 	pq, err := r.PrepareForEval(ctx)
@@ -37,19 +100,157 @@ func NewPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 	return &PolicyEvaluator{preparedQuery: pq}, nil
 }
 
-// Authorize evaluates the given input against the loaded policy
-// It returns the decision result, typically a JSON-like value (e.g. map[string]interface{}, bool)
-// For an undefined decision, it returns an empty map. An error is returned if the evaluation fails
-func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (interface{}, error) {
-	results, err := p.preparedQuery.Eval(ctx, rego.EvalInput(input))
+// loadJSONFile loads and parses a JSON file
+func loadJSONFile(filepath string) (interface{}, error) {
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %s: %w", filepath, err)
+	}
+
+	var result interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON from %s: %w", filepath, err)
+	}
+
+	return result, nil
+}
+
+// Authorize evaluates the given input against the loaded policy using ABAC model
+// It returns a structured AuthorizationDecision with detailed access control information
+func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (*AuthorizationDecision, error) {
+	// Validate input structure
+	authReq, err := p.validateInput(input)
+	if err != nil {
+		return &AuthorizationDecision{
+			Allow:      false,
+			DenyReason: fmt.Sprintf("Invalid input: %v", err),
+		}, nil
+	}
+
+	// Add timestamp if not provided
+	if authReq.Timestamp.IsZero() {
+		authReq.Timestamp = time.Now()
+	}
+
+	results, err := p.preparedQuery.Eval(ctx, rego.EvalInput(authReq))
 	if err != nil {
 		return nil, fmt.Errorf("policy evaluation failed: %w", err)
 	}
 
 	if len(results) == 0 {
 		slog.Warn("Policy returned no results for the input")
-		// Return a predictable empty object for an undefined result
-		return map[string]interface{}{}, nil
+		return &AuthorizationDecision{
+			Allow:      false,
+			DenyReason: "No policy rules matched the request",
+		}, nil
+	}
+
+	// Convert OPA result to structured decision
+	decision, err := p.convertToDecision(results[0].Expressions[0].Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert policy result: %w", err)
+	}
+
+	slog.Info("Policy evaluation completed",
+		"consumer", authReq.Consumer.ID,
+		"resource", authReq.Request.Resource,
+		"allow", decision.Allow,
+		"consent_required", decision.ConsentRequired)
+
+	return decision, nil
+}
+
+// validateInput validates and converts the input to AuthorizationRequest
+func (p *PolicyEvaluator) validateInput(input interface{}) (*AuthorizationRequest, error) {
+	// Convert to JSON and back to ensure proper structure
+	jsonData, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal input: %w", err)
+	}
+
+	var authReq AuthorizationRequest
+	if err := json.Unmarshal(jsonData, &authReq); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+
+	// Validate required fields
+	if authReq.Consumer.ID == "" {
+		return nil, fmt.Errorf("consumer ID is required")
+	}
+	if authReq.Request.Resource == "" {
+		return nil, fmt.Errorf("request resource is required")
+	}
+	if authReq.Request.Action == "" {
+		return nil, fmt.Errorf("request action is required")
+	}
+	if len(authReq.Request.DataFields) == 0 {
+		return nil, fmt.Errorf("data fields are required")
+	}
+
+	return &authReq, nil
+}
+
+// convertToDecision converts OPA result to AuthorizationDecision
+func (p *PolicyEvaluator) convertToDecision(result interface{}) (*AuthorizationDecision, error) {
+	// Convert to JSON and back to ensure proper structure
+	jsonData, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal result: %w", err)
+	}
+
+	var decision AuthorizationDecision
+	if err := json.Unmarshal(jsonData, &decision); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal result: %w", err)
+	}
+
+	return &decision, nil
+}
+
+// DebugData checks if data is loaded correctly
+func (p *PolicyEvaluator) DebugData(ctx context.Context) (interface{}, error) {
+	query := "data.opendif.authz.debug_data"
+
+	// Load data files explicitly
+	consumerGrantsData, err := loadJSONFile("./data/consumer-grants.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load consumer grants: %w", err)
+	}
+
+	providerMetadataData, err := loadJSONFile("./data/provider-metadata.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+	}
+
+	// Convert data to JSON strings for embedding in policy
+	debugConsumerGrantsJSON, _ := json.Marshal(consumerGrantsData)
+	debugProviderMetadataJSON, _ := json.Marshal(providerMetadataData)
+
+	// Create a module with the data embedded as JSON values
+	debugDataModule := fmt.Sprintf(`
+package opendif.authz
+
+consumer_grants = %s
+provider_metadata = %s
+`, string(debugConsumerGrantsJSON), string(debugProviderMetadataJSON))
+
+	r := rego.New(
+		rego.Query(query),
+		rego.Load([]string{"./policies"}, nil),
+		rego.Module("debug_data.rego", debugDataModule),
+	)
+
+	pq, err := r.PrepareForEval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare debug query: %w", err)
+	}
+
+	results, err := pq.Eval(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("debug query evaluation failed: %w", err)
+	}
+
+	if len(results) == 0 {
+		return map[string]interface{}{"error": "no debug results"}, nil
 	}
 
 	return results[0].Expressions[0].Value, nil
@@ -79,6 +280,36 @@ func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	utils.RespondWithJSON(w, http.StatusOK, decision)
-	slog.Info("Decision sent", "method", r.Method, "path", r.URL.Path, "decision", decision)
+	// Return appropriate HTTP status based on decision
+	status := http.StatusOK
+	if !decision.Allow {
+		status = http.StatusForbidden
+	}
+
+	utils.RespondWithJSON(w, status, decision)
+	slog.Info("Decision sent",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"allow", decision.Allow,
+		"consent_required", decision.ConsentRequired,
+		"status", status)
+}
+
+// debugHandler is an HTTP handler for debugging data loading
+func (p *PolicyEvaluator) debugHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+
+	debugResult, err := p.DebugData(r.Context())
+	if err != nil {
+		slog.Error("Debug data check failed", "error", err)
+		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to check debug data"})
+		return
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, debugResult)
+	slog.Info("Debug data check completed", "result", debugResult)
 }

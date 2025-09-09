@@ -13,14 +13,14 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
-  cme_app:
+  ce_app:
     build:
       context: .
       dockerfile: Dockerfile
-      target: cme-final 
+      target: ce-final 
       args:
         SERVICE_PATH: consent-engine
-    container_name: cme_app
+    container_name: ce_app
     ports:
       - "8081:8081"
     environment:
