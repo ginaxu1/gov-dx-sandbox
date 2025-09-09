@@ -2,6 +2,25 @@
 # +required The configuration file schema version
 schemaVersion: 1.2
 
+# +optional Build configuration
+build:
+  # +required Build type
+  type: docker
+  # +optional Docker build context (relative to repository root)
+  context: exchange/consent-engine
+  # +optional Dockerfile path (relative to build context)
+  dockerfile: Dockerfile
+  # +required Build arguments
+  args:
+    - name: SERVICE_PATH
+      value: consent-engine
+    - name: BUILD_VERSION
+      value: latest
+    - name: BUILD_TIME
+      value: ""
+    - name: GIT_COMMIT
+      value: ""
+
 # +optional Incoming connection details for the component
 endpoints:
   # +required Unique name for the endpoint.
