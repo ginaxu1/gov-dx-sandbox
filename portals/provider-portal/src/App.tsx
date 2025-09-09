@@ -1,5 +1,5 @@
 // App.tsx
-import React, { useState } from "react";
+// import { useState } from "react";
 import { Navbar } from "./components/Navbar";
 import { Dashboard } from './pages/Dashboard';
 import { Schemas } from './pages/Schemas';
@@ -9,16 +9,19 @@ import { Router, type Route } from "./Router";
 
 
 function App() {
-  const [providerId, setProviderId] = useState<string>("prov_bd7fa213a556e7105677313c");
-  const [providerName, setProviderName] = useState<string>("Department Registrar of Persons");
+  // const [providerId, setProviderId] = useState<string>("prov_bd7fa213a556e7105677313c");
+  // const [providerName, setProviderName] = useState<string>("Department Registrar of Persons");
   
-  const handleProviderIdChange = (id: string) => {
-    setProviderId(id);
-  };
+  // const handleProviderIdChange = (id: string) => {
+  //   setProviderId(id);
+  // };
 
-  const handleProviderNameChange = (name: string) => {
-    setProviderName(name);
-  };
+  // const handleProviderNameChange = (name: string) => {
+  //   setProviderName(name);
+  // };
+
+  const providerId = "prov_bd7fa213a556e7105677313c";
+  const providerName = "Department Registrar of Persons";
 
   const SchemaRegistrationRoute: React.FC = () => (
     <SchemaRegistrationPage providerId={providerId} providerName={providerName} />

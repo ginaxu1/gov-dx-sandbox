@@ -1,5 +1,3 @@
-import React from 'react';
-
 export const Schemas: React.FC = () => {
     const handleCreateNewSchema = () => {
         // Use the global navigate function instead of window.location.href
