@@ -1,6 +1,6 @@
 // pages/RegistrationPage.tsx
-import React, { useState } from 'react';
-import type { IntrospectionResult, FieldConfiguration, SchemaRegistration } from '../types/graphql';
+import { useState } from 'react';
+import type { IntrospectionResult, FieldConfiguration, SchemaRegistration, GraphQLType } from '../types/graphql';
 import { SchemaInput } from '../components/SchemaInput';
 import { SchemaExplorer } from '../components/SchemaExplorer';
 import { SchemaService } from '../services/schemaService';
@@ -20,15 +20,40 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [userDefinedTypes, setUserDefinedTypes] = useState<GraphQLType[]>([]);
+
+
+  const getUserDefinedTypes = (schema: IntrospectionResult) => {
+    return schema.data.__schema.types.filter(type =>
+      !type.name.startsWith('__') && // Remove introspection types
+      type.kind === 'OBJECT' &&
+      type.fields &&
+      type.fields.length > 0
+    );
+  };
+
+  const getTypeString = (type: any): string => {
+    if (type.kind === 'NON_NULL') {
+      return `${getTypeString(type.ofType)}!`;
+    }
+    if (type.kind === 'LIST') {
+      return `[${getTypeString(type.ofType)}]`;
+    }
+    return type.name || type.kind;
+  };
 
   const handleSchemaLoaded = (loadedSchema: IntrospectionResult) => {
     setSchema(loadedSchema);
     setStep('configure');
     setError('');
-    
+    console.log("Loaded Schema:", loadedSchema);  
     // Initialize configurations for all fields
     const initialConfigs: Record<string, Record<string, FieldConfiguration>> = {};
-    
+
+    const userDefinedTypes_ = getUserDefinedTypes(loadedSchema);
+    setUserDefinedTypes(userDefinedTypes_);
+    console.log("User Defined Types:", userDefinedTypes_);
+    console.log("userDefinedTypes:", userDefinedTypes);
     loadedSchema.data.__schema.types
       .filter(type => 
         !type.name.startsWith('__') && 
@@ -37,15 +62,30 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
       )
       .forEach(type => {
         initialConfigs[type.name] = {};
-        type.fields?.forEach(field => {
-          initialConfigs[type.name][field.name] = {
-            dataType: field.type.name || (field.type.ofType ? field.type.ofType.name : 'Unknown'),
-            source: '' as any,
-            isOwner: false,
-            isUnique: false,
-            description: field.description || ''
-          };
-        });
+        if (type.name === "Query"){
+          type.fields?.forEach(field => {
+            initialConfigs[type.name][field.name] = {
+              source: "" as any,
+              isOwner: null as any,
+              description: field.description || '',
+              isQueryType: true,
+              isUserDefinedTypeField: false
+            };
+          });
+        }
+        else {
+          type.fields?.forEach(field => {
+            const isUserDefinedTypeField_ = userDefinedTypes_.map(t => t.name).includes(getTypeString(field.type));
+            console.log(`Field: ${getTypeString(field.type)}, UserDefined: ${isUserDefinedTypeField_}`);
+            initialConfigs[type.name][field.name] = {
+              source: '' as any,
+              isOwner: isUserDefinedTypeField_ ? (null as any): false,
+              description: field.description || '',
+              isQueryType: false,
+              isUserDefinedTypeField: isUserDefinedTypeField_
+            };   
+          });
+        }        
       });
     
     setConfigurations(initialConfigs);
@@ -79,14 +119,10 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
     try {
       // Generate SDL with directives
       const sdl = await SchemaService.generateSDLWithDirectives(schema, configurations);
-      // console.log({"Type of sdl": typeof sdl}); // String
       console.log("Generated SDL with directives:");
       console.log(sdl);
 
       const registration: SchemaRegistration = {
-        // provider_id: providerId,
-        fieldConfigurations: configurations,
-        schema,
         sdl
       };
       console.log('Registering schema:', registration);
@@ -300,8 +336,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
 
             {/* Schema Explorer */}
             <SchemaExplorer
-              schema={schema}
               configurations={configurations}
+              userDefinedTypes={userDefinedTypes}
               onConfigurationChange={handleConfigurationChange}
               onSubmit={handleSubmitRegistration}
               loading={loading}

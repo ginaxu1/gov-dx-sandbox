@@ -1,24 +1,24 @@
 // components/SchemaExplorer.tsx
-import React, { useState } from 'react';
-import type { IntrospectionResult, FieldConfiguration as FieldConfig } from '../types/graphql';
+import { useState } from 'react';
+import type { FieldConfiguration as FieldConfig, GraphQLType } from '../types/graphql';
 import { FieldConfiguration } from './FieldConfiguration';
 
 interface SchemaExplorerProps {
-  schema: IntrospectionResult;
   configurations: Record<string, Record<string, FieldConfig>>;
+  userDefinedTypes: GraphQLType[];
   onConfigurationChange: (typeName: string, fieldName: string, config: FieldConfig) => void;
   onSubmit: () => void;
   loading: boolean;
 }
 
 export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
-  schema,
   configurations,
+  userDefinedTypes,
   onConfigurationChange,
   onSubmit,
   loading
 }) => {
-  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set(['Query']));
+  const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set(userDefinedTypes.map(type => type.name)));
 
   const toggleTypeExpansion = (typeName: string) => {
     const newExpanded = new Set(expandedTypes);
@@ -30,25 +30,23 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
     setExpandedTypes(newExpanded);
   };
 
-  const getUserDefinedTypes = () => {
-    return schema.data.__schema.types.filter(type => 
-      !type.name.startsWith('__') && // Remove introspection types
-      type.kind === 'OBJECT' &&
-      type.fields &&
-      type.fields.length > 0
-    );
-  };
-
   const isFormValid = () => {
-    const userTypes = getUserDefinedTypes();
-    
-    for (const type of userTypes) {
+    for (const type of userDefinedTypes) {
       if (!type.fields) continue;
       
       for (const field of type.fields) {
         const config = configurations[type.name]?.[field.name];
-        if (!config || !config.source || config.isOwner === null) {
+        if (!config) {
           return false;
+        }
+        if (config.isQueryType || config.isUserDefinedTypeField) {
+          if (!config.description) {
+            return false;
+          }
+        } else {
+          if (!config.source || config.isOwner === null) {
+            return false;
+          }
         }
       }
     }
@@ -56,26 +54,31 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
   };
 
   const getFieldCount = () => {
-    return getUserDefinedTypes().reduce((total, type) => 
+    return userDefinedTypes.reduce((total, type) => 
       total + (type.fields?.length || 0), 0
     );
   };
 
   const getConfiguredCount = () => {
     let configured = 0;
-    getUserDefinedTypes().forEach(type => {
+    userDefinedTypes.forEach(type => {
       if (!type.fields) return;
       type.fields.forEach(field => {
         const config = configurations[type.name]?.[field.name];
-        if (config?.source) {
-          configured++;
+        if (config?.isQueryType || config?.isUserDefinedTypeField) {
+          if (config?.description) {
+            configured++;
+          }
+        } else {
+            if (config?.source && config?.isOwner !== null) {
+              configured++;
+          }
         }
       });
     });
     return configured;
   };
 
-  const userTypes = getUserDefinedTypes();
   const totalFields = getFieldCount();
   const configuredFields = getConfiguredCount();
 
@@ -96,7 +99,7 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
       </div>
 
       <div className="space-y-4 max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-4">
-        {userTypes.map((type) => (
+        {userDefinedTypes.map((type) => (
           <div key={type.name} className="border-b border-gray-100 pb-4 last:border-b-0">
             <button
               type="button"
@@ -125,13 +128,7 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
             {expandedTypes.has(type.name) && type.fields && (
               <div className="mt-4 space-y-3 pl-4">
                 {type.fields.map((field) => {
-                  const config = configurations[type.name]?.[field.name] || {
-                    source: '' as any,
-                    isOwner: false,
-                    isUnique: false,
-                    description: ''
-                  };
-
+                  const config = configurations[type.name]?.[field.name] 
                   return (
                     <FieldConfiguration
                       key={field.name}

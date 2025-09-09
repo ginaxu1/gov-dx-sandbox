@@ -1,5 +1,4 @@
 // components/FieldConfiguration.tsx
-import React from 'react';
 import type { GraphQLField } from '../types/graphql';
 import type { FieldConfiguration as FieldConfig } from '../types/graphql';
 
@@ -22,10 +21,6 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
 
   const handleIsOwnerChange = (isOwner: true | false) => {
     onChange(typeName, field.name, { ...configuration, isOwner });
-  };
-
-  const handleIsUniqueChange = (isUnique: true | false) => {
-    onChange(typeName, field.name, { ...configuration, isUnique });
   };
 
   const handleDescriptionChange = (description: string) => {
@@ -64,6 +59,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
 
         <div className="flex-1 space-y-3">
           {/* Source Configuration */}
+          {(!configuration.isQueryType && !configuration.isUserDefinedTypeField) && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Source <span className="text-red-500">*</span>
@@ -85,13 +81,15 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
               ))}
             </div>
           </div>
+          )}
 
           {/* Is Owner Configuration */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              <span>Is Owner</span>
-              <input
-                  type="checkbox"
+          {(!configuration.isQueryType && !configuration.isUserDefinedTypeField) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <span>Is Owner</span>
+                <input
+                    type="checkbox"
                   name={`isOwner-${typeName}-${field.name}`}
                   checked={configuration.isOwner === true}
                   onChange={(e) => handleIsOwnerChange(e.target.checked)}
@@ -99,20 +97,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
               />
             </label>
           </div>
-
-          {/* Is Unique Configuration */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              <span>Is Unique</span>
-              <input
-                  type="checkbox"
-                  name={`isUnique-${typeName}-${field.name}`}
-                  checked={configuration.isUnique === true}
-                  onChange={(e) => handleIsUniqueChange(e.target.checked)}
-                  className="ml-1 text-blue-600 focus:ring-blue-500"
-              />
-            </label>
-          </div>
+        )}
 
           {/* Description */}
           <div>
@@ -120,7 +105,15 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
               htmlFor={`desc-${typeName}-${field.name}`}
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Field Description
+              {
+                (configuration.isUserDefinedTypeField && !configuration.isQueryType) && (
+                  <span className='text-blue-500'>
+                    This is an user-defined type field. You need to specify the source and isOwner for all the fields inside this user-defined type.<br />
+                  </span>
+                )
+              }
+              Description
+              {(configuration.isQueryType || configuration.isUserDefinedTypeField) && <span className="text-red-500 ml-1">*</span>}
             </label>
             <textarea
               id={`desc-${typeName}-${field.name}`}
@@ -129,8 +122,9 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
               placeholder="Describe this field's purpose and data source..."
               rows={2}
               className="w-full text-sm px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              required={configuration.isQueryType || configuration.isUserDefinedTypeField}
             />
-          </div>
+            </div>
         </div>
       </div>
     </div>

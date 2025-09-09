@@ -23,17 +23,6 @@ export class SchemaService {
       }
 
       const result = await response.json();
-      console.log('Introspection result:', result);
-
-      // const client_schema = buildClientSchema(result.data);
-      // console.log('\n\n\nClient schema:', client_schema);
-
-      // const print_client_schema = printSchema(client_schema);
-      // console.log('\n\n\nPrint client schema:', print_client_schema);  // Prints SDL
-
-    //   const build_schema = buildSchema(result.data as unknown as string);
-    //   console.log('\n\n\nBuild schema:', build_schema);
-
       
       if (result.errors) {
         throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`);
@@ -73,18 +62,12 @@ export class SchemaService {
         throw new Error('Empty SDL string');
       }
 
-      // Dynamically import to avoid adding graphql to initial bundle if not needed
-      // const { buildSchema, getIntrospectionQuery, graphql } = await import('graphql');
-
       const schema = buildSchema(sdl);
-      // const introspectionQuery = getIntrospectionQuery();
-
+      
       const result = await graphql({
         schema,
         source: this.INTROSPECTION_QUERY
       });
-			// console.log({"Type of result": typeof result}); // Object
-			// console.log(result);
 
       if (result.errors?.length) {
         throw new Error(`SDL introspection errors: ${result.errors.map(e => e.message).join(', ')}`);
@@ -93,7 +76,6 @@ export class SchemaService {
       if (!result.data || !(result as any).data.__schema?.types) {
         throw new Error('Invalid introspection result from SDL');
       }
-
       return result as any as IntrospectionResult;
     } catch (error) {
       throw new Error(`Failed to parse SDL: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -159,7 +141,7 @@ export class SchemaService {
 
         const directives = [...(node.directives ?? [])];
 
-        // if (config.source) {
+        if (config.source) {
           directives.push({
             kind: Kind.DIRECTIVE,
             name: { kind: Kind.NAME, value: "source" },
@@ -171,31 +153,35 @@ export class SchemaService {
               },
             ],
           });
-        // }
+        }
 
-        directives.push({
-          kind: Kind.DIRECTIVE,
-          name: { kind: Kind.NAME, value: "isOwner" },
-          arguments: [
-            {
+        if (config.isOwner !== null) {
+          directives.push({
+            kind: Kind.DIRECTIVE,
+            name: { kind: Kind.NAME, value: "isOwner" },
+            arguments: [
+              {
               kind: Kind.ARGUMENT,
               name: { kind: Kind.NAME, value: "value" },
               value: { kind: Kind.BOOLEAN, value: config.isOwner },
-            },
-          ],
-        });
+              },
+            ],
+          });
+        }
 
-        directives.push({
-          kind: Kind.DIRECTIVE,
-          name: { kind: Kind.NAME, value: "description" },
-          arguments: [
-            {
+        if (config.description) {
+          directives.push({
+            kind: Kind.DIRECTIVE,
+            name: { kind: Kind.NAME, value: "description" },
+            arguments: [
+              {
               kind: Kind.ARGUMENT,
               name: { kind: Kind.NAME, value: "value" },
               value: { kind: Kind.STRING, value: config.description },
-            },
-          ],
-        });
+              },
+            ],
+          });
+        }
 
         return { ...node, directives };
       },

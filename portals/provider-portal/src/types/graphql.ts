@@ -49,16 +49,13 @@ export interface IntrospectionResult {
 }
 
 export interface FieldConfiguration {
-  dataType: string;
-  isUnique: boolean;
   source: 'authorative' | 'fallback' | 'other';
-  isOwner: true | false;
+  isOwner: boolean;
   description: string;
+  isQueryType: boolean; // Is Field Defined Inside a Query Type
+  isUserDefinedTypeField: boolean; // Is Field is a User Defined Type 
 }
 
 export interface SchemaRegistration {
-//   provider_id: string;
-  fieldConfigurations: Record<string, Record<string, FieldConfiguration>>;
-  schema: IntrospectionResult;
   sdl: string;
 }
