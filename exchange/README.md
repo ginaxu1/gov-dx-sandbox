@@ -35,15 +35,16 @@ docker compose down
 make start              # Local (default)
 make start-prod         # Production
 
-# Direct Docker Compose
-make local              # docker compose --env-file .env.local up --build
-make prod               # docker compose --env-file .env.production up --build
-
 # Management
 make stop              # Stop all services
+make status            # Check service status
 make logs              # View logs
 make test              # Run API tests
 make clean             # Clean up containers
+
+# Direct Docker Compose
+make local              # docker compose --env-file .env.local up --build
+make prod               # docker compose --env-file .env.production up --build
 ```
 
 ## API Endpoints
@@ -95,12 +96,10 @@ exchange/
 ├── docker-compose.yml        # Multi-environment orchestration
 ├── .env.local               # Local environment config
 ├── .env.production          # Production environment config
-├── scripts/                 # Development scripts
-│   ├── start-local.sh
-│   ├── start-production.sh
-│   ├── stop.sh
-│   ├── logs.sh
-│   └── test.sh
+├── scripts/                 # Essential development scripts
+│   ├── common.sh            # Common configuration
+│   ├── manage.sh            # Consolidated management script
+│   └── test.sh              # API testing
 └── Makefile                 # Convenience commands
 ```
 
@@ -122,6 +121,28 @@ ENVIRONMENT=production
 BUILD_VERSION=latest
 LOG_LEVEL=warn
 LOG_FORMAT=json
+```
+
+## Scripts
+
+The `scripts/` directory contains 3 essential management scripts:
+- **`common.sh`** - Common configuration and functions
+- **`manage.sh`** - Consolidated management script for all operations
+- **`test.sh`** - API testing with help functionality
+
+### Usage
+```bash
+# Service management
+./scripts/manage.sh start-local    # Start local environment
+./scripts/manage.sh start-prod     # Start production environment
+./scripts/manage.sh stop           # Stop all services
+./scripts/manage.sh status         # Check service status and health
+./scripts/manage.sh logs [service] # View logs (all or specific service)
+./scripts/manage.sh help           # Show available commands
+
+# Testing
+./scripts/test.sh                  # Run API tests
+./scripts/test.sh help             # Show test help
 ```
 
 ## Testing
@@ -177,7 +198,7 @@ docker compose --env-file .env.production up --build
 2. Use `docker compose --env-file .env.production up --build` for production testing
 3. Always stop services before switching environments: `docker compose down`
 4. Use `make clean` to remove old containers when switching
-5. Check logs with `make logs` after switching
+5. Check status with `make status` after switching
 
 ### Direct Docker Compose Usage
 ```bash

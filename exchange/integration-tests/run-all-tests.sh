@@ -9,15 +9,6 @@ echo "=== Exchange Services Test Suite ==="
 echo "Running comprehensive tests for PDP and Consent Engine"
 echo ""
 
-# Cleanup function
-cleanup() {
-    echo ""
-    echo "Cleaning up test environment..."
-    # Add any cleanup logic here if needed
-}
-
-# Set trap for cleanup on exit
-trap cleanup EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -105,29 +96,15 @@ fi
 
 echo ""
 
-# Test 4: Complete Consent Flow Tests
-echo -e "${BLUE}=== Test 4: Complete Consent Flow Tests ===${NC}"
-echo "Running complete consent flow integration tests..."
-echo ""
-
-if ./test-complete-consent-flow.sh; then
-    echo -e "${GREEN}✅ Complete Consent Flow Tests PASSED${NC}"
-else
-    echo -e "${RED}❌ Complete Consent Flow Tests FAILED${NC}"
-    exit 1
-fi
-
-echo ""
 
 # Summary
 echo -e "${BLUE}=== Test Summary ===${NC}"
 echo -e "${GREEN}All test suites completed successfully!${NC}"
 echo ""
 echo "Test Coverage:"
-echo "✅ Policy Decision Point (PDP) - Policy logic and authorization"
-echo "✅ Consent Flow - Basic consent flow integration"
-echo "✅ Complete Flow - End-to-end flow simulation"
-echo "✅ Complete Consent Flow - Full consent flow with Consent Engine"
+echo "1. Policy Decision Point (PDP) - Policy logic and authorization"
+echo "2. Consent Flow - Complete consent flow integration with Consent Engine"
+echo "3. Complete Flow - End-to-end flow simulation"
 echo ""
 echo "Services Tested:"
 echo "✅ Policy Decision Point (Port 8082)"

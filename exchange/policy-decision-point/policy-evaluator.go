@@ -9,7 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/utils"
+	"github.com/gov-dx-sandbox/exchange/shared/constants"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/open-policy-agent/opa/rego"
 )
 
@@ -17,6 +18,11 @@ import (
 type PolicyEvaluator struct {
 	preparedQuery rego.PreparedEvalQuery
 }
+
+// Use shared constants instead of local ones
+
+// Helper functions
+// Use shared utility functions instead of custom ones
 
 // AuthorizationRequest represents the input structure for policy evaluation
 type AuthorizationRequest struct {
@@ -174,16 +180,16 @@ func (p *PolicyEvaluator) validateInput(input interface{}) (*AuthorizationReques
 
 	// Validate required fields
 	if authReq.Consumer.ID == "" {
-		return nil, fmt.Errorf("consumer ID is required")
+		return nil, fmt.Errorf(constants.ErrConsumerIDRequired)
 	}
 	if authReq.Request.Resource == "" {
-		return nil, fmt.Errorf("request resource is required")
+		return nil, fmt.Errorf(constants.ErrResourceRequired)
 	}
 	if authReq.Request.Action == "" {
-		return nil, fmt.Errorf("request action is required")
+		return nil, fmt.Errorf(constants.ErrActionRequired)
 	}
 	if len(authReq.Request.DataFields) == 0 {
-		return nil, fmt.Errorf("data fields are required")
+		return nil, fmt.Errorf(constants.ErrDataFieldsRequired)
 	}
 
 	return &authReq, nil
@@ -257,25 +263,21 @@ provider_metadata = %s
 
 // policyDecisionHandler is an HTTP handler that uses the Authorize method to make decisions.
 func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+	if !utils.ValidateMethod(w, r, http.MethodPost) {
 		return
 	}
 	defer r.Body.Close()
 
 	var input interface{}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		slog.Error("Failed to decode request body", "error", err)
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON input"})
+		utils.HandleError(w, err, http.StatusBadRequest, "decode request body")
 		return
 	}
 
 	// Delegate the core logic to the Authorize method
 	decision, err := p.Authorize(r.Context(), input)
 	if err != nil {
-		slog.Error("Policy authorization failed", "error", err)
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to evaluate policy"})
+		utils.HandleError(w, err, http.StatusInternalServerError, constants.OpPolicyEvaluation)
 		return
 	}
 
@@ -285,30 +287,28 @@ func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.R
 		status = http.StatusForbidden
 	}
 
-	utils.RespondWithJSON(w, status, decision)
-	slog.Info("Decision sent",
-		"method", r.Method,
-		"path", r.URL.Path,
-		"allow", decision.Allow,
-		"consent_required", decision.ConsentRequired,
-		"status", status)
+	utils.HandleSuccess(w, decision, status, constants.OpDecisionSent, map[string]interface{}{
+		"method":           r.Method,
+		"path":             r.URL.Path,
+		"allow":            decision.Allow,
+		"consent_required": decision.ConsentRequired,
+		"status":           status,
+	})
 }
 
 // debugHandler is an HTTP handler for debugging data loading
 func (p *PolicyEvaluator) debugHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+	if !utils.ValidateMethod(w, r, http.MethodGet) {
 		return
 	}
 
 	debugResult, err := p.DebugData(r.Context())
 	if err != nil {
-		slog.Error("Debug data check failed", "error", err)
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to check debug data"})
+		utils.HandleError(w, err, http.StatusInternalServerError, constants.OpDebugData)
 		return
 	}
 
-	utils.RespondWithJSON(w, http.StatusOK, debugResult)
-	slog.Info("Debug data check completed", "result", debugResult)
+	utils.HandleSuccess(w, debugResult, http.StatusOK, constants.OpDebugData, map[string]interface{}{
+		"result": debugResult,
+	})
 }

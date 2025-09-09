@@ -3,8 +3,9 @@ module github.com/gov-dx-sandbox/exchange/policy-decision-point
 go 1.24.6
 
 require (
-	github.com/gov-dx-sandbox/exchange/config v0.0.0-00010101000000-000000000000
-	github.com/gov-dx-sandbox/exchange/utils v0.0.0-00010101000000-000000000000
+	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
+	github.com/gov-dx-sandbox/exchange/shared/constants v0.0.0
+	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 	github.com/open-policy-agent/opa v1.8.0
 )
 
@@ -52,6 +53,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/gov-dx-sandbox/exchange/config => ./config
+replace github.com/gov-dx-sandbox/exchange/shared/config => ../shared/config
 
-replace github.com/gov-dx-sandbox/exchange/utils => ./utils
+replace github.com/gov-dx-sandbox/exchange/shared/constants => ../shared/constants
+
+replace github.com/gov-dx-sandbox/exchange/shared/utils => ../shared/utils

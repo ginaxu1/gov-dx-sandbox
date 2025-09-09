@@ -1,18 +1,28 @@
 #!/bin/bash
-
 # Policy Decision Point (PDP) Test Suite
+
 echo "=== Policy Decision Point (PDP) Test Suite ==="
 echo ""
 
-# Test 1: Valid request with no consent required
-echo "Test 1: Valid request with no consent required"
-echo "Requesting: person.fullName, person.nic, person.photo"
-echo "Expected: allow=true, consent_required=false"
-echo ""
+# Test function
+test_pdp() {
+    local test_name="$1"
+    local expected="$2"
+    local data="$3"
+    
+    echo "Test: $test_name"
+    echo "Expected: $expected"
+    echo ""
+    
+    curl -X POST http://localhost:8082/decide \
+      -H "Content-Type: application/json" \
+      -d "$data" | jq '.'
+    
+    echo "---"
+}
 
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+# Test 1: Valid request with no consent required
+test_pdp "Valid request with no consent required" "allow=true, consent_required=false" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -23,19 +33,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName", "person.nic", "person.photo"]
     }
-  }' | jq '.'
-
-echo "---"
+  }'
 
 # Test 2: Valid request with consent required
-echo "Test 2: Valid request with consent required"
-echo "Requesting: person.fullName, person.permanentAddress, person.birthDate"
-echo "Expected: allow=true, consent_required=true, consent_required_fields=[person.permanentAddress, person.birthDate]"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+test_pdp "Valid request with consent required" "allow=true, consent_required=true" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -46,19 +47,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName", "person.permanentAddress", "person.birthDate"]
     }
-  }' | jq '.'
-
-echo "---"
+  }'
 
 # Test 3: Invalid consumer
-echo "Test 3: Invalid consumer"
-echo "Requesting with unknown consumer: unknown-app"
-echo "Expected: allow=false, deny_reason=Consumer not found in grants"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+test_pdp "Invalid consumer" "allow=false, deny_reason=Consumer not found" '{
     "consumer": {
       "id": "unknown-app",
       "name": "Unknown Application"
@@ -68,19 +60,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName"]
     }
-  }' | jq '.'
-
-echo "---"
+  }'
 
 # Test 4: Unauthorized field access
-echo "Test 4: Unauthorized field access"
-echo "Requesting unauthorized field: person.birthDate"
-echo "Expected: allow=true, consent_required=true (current behavior - field exists but requires consent)"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+test_pdp "Unauthorized field access" "allow=true, consent_required=true" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -91,19 +74,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName", "person.birthDate"]
     }
-  }' | jq '.'
-
-echo "---"
+  }'
 
 # Test 5: Invalid action
-echo "Test 5: Invalid action"
-echo "Requesting action: write (not supported)"
-echo "Expected: allow=false, deny_reason=Invalid action requested"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+test_pdp "Invalid action" "allow=false, deny_reason=Invalid action" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -114,19 +88,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "write",
       "data_fields": ["person.fullName"]
     }
-  }' | jq '.'
+  }'
 
-echo "---"
-
-# Test 6: Single field test (person.fullName only)
-echo "Test 6: Single field test (person.fullName only)"
-echo "Requesting: person.fullName"
-echo "Expected: allow=true, consent_required=false"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+# Test 6: Single field test
+test_pdp "Single field test" "allow=true, consent_required=false" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -137,19 +102,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName"]
     }
-  }' | jq '.'
+  }'
 
-echo "---"
-
-# Test 7: Two fields test (person.fullName, person.nic)
-echo "Test 7: Two fields test (person.fullName, person.nic)"
-echo "Requesting: person.fullName, person.nic"
-echo "Expected: allow=true, consent_required=false"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+# Test 7: Two fields test
+test_pdp "Two fields test" "allow=true, consent_required=false" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -160,19 +116,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName", "person.nic"]
     }
-  }' | jq '.'
+  }'
 
-echo "---"
-
-# Test 8: Mixed fields test (approved + unapproved)
-echo "Test 8: Mixed fields test (approved + unapproved)"
-echo "Requesting: person.fullName, person.permanentAddress"
-echo "Expected: allow=false, deny_reason=Consumer not authorized for requested fields"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+# Test 8: Mixed fields test
+test_pdp "Mixed fields test" "allow=false, deny_reason=not authorized" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -183,19 +130,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName", "person.permanentAddress"]
     }
-  }' | jq '.'
-
-echo "---"
+  }'
 
 # Test 9: All approved fields test
-echo "Test 9: All approved fields test"
-echo "Requesting: person.fullName, person.nic, person.photo (all approved)"
-echo "Expected: allow=true, consent_required=false"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+test_pdp "All approved fields test" "allow=true, consent_required=false" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -206,19 +144,10 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.fullName", "person.nic", "person.photo"]
     }
-  }' | jq '.'
-
-echo "---"
+  }'
 
 # Test 10: Single unauthorized field test
-echo "Test 10: Single unauthorized field test"
-echo "Requesting only unauthorized field: person.birthDate"
-echo "Expected: allow=true, consent_required=true (field exists but requires consent)"
-echo ""
-
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
+test_pdp "Single unauthorized field test" "allow=true, consent_required=true" '{
     "consumer": {
       "id": "passport-app",
       "name": "Passport Application Service",
@@ -229,9 +158,7 @@ curl -X POST http://localhost:8082/decide \
       "action": "read",
       "data_fields": ["person.birthDate"]
     }
-  }' | jq '.'
+  }'
 
-echo "---"
 echo ""
-
 echo "PDP Test Suite Complete"

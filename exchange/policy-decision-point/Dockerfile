@@ -13,8 +13,11 @@ ARG GIT_COMMIT
 RUN apk add --no-cache git ca-certificates tzdata
 
 # Copy go mod files and source code
-COPY go.mod go.sum ./
-COPY . ./
+COPY policy-decision-point/go.mod policy-decision-point/go.sum ./
+COPY policy-decision-point/ ./
+
+# Copy shared packages
+COPY shared/ /app/shared/
 
 # Download dependencies
 RUN go mod download
@@ -38,9 +41,6 @@ WORKDIR /app
 
 # Copy binary from builder stage
 COPY --from=builder /app/service_binary /app/
-
-# Copy configuration files
-COPY --from=builder /app/config/ /app/config/
 
 # Copy service-specific files (policies and data)
 COPY --from=builder /app/policies/ /app/policies/

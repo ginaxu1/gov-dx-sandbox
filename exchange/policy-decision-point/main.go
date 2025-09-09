@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/config"
-	"github.com/gov-dx-sandbox/exchange/utils"
+	"github.com/gov-dx-sandbox/exchange/shared/config"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
 // Build information - set during build

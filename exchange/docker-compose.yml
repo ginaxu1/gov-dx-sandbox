@@ -3,42 +3,10 @@
 #       docker compose --env-file .env.production up --build
 
 services:
-  orchestration-engine:
-    build:
-      context: ./orchestration-engine-go
-      dockerfile: Dockerfile
-      args:
-        SERVICE_PATH: orchestration-engine
-        BUILD_VERSION: ${BUILD_VERSION:-dev}
-        BUILD_TIME: ${BUILD_TIME:-2025-09-09T16:30:00Z}
-        GIT_COMMIT: ${GIT_COMMIT:-local}
-    container_name: oe-${ENVIRONMENT:-local}
-    ports:
-      - "${PORT_OE:-8080}:8080"
-    environment:
-      - ENVIRONMENT=${ENVIRONMENT:-local}
-      - PORT=8080
-      - PDP_URL=http://policy-decision-point:8082
-      - CE_URL=http://consent-engine:8081
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - LOG_FORMAT=${LOG_FORMAT:-text}
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    depends_on:
-      - policy-decision-point
-      - consent-engine
-    networks:
-      - exchange-network
-
   policy-decision-point:
     build:
-      context: ./policy-decision-point
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: policy-decision-point/Dockerfile
       args:
         SERVICE_PATH: policy-decision-point
         BUILD_VERSION: ${BUILD_VERSION:-dev}
@@ -64,8 +32,8 @@ services:
 
   consent-engine:
     build:
-      context: ./consent-engine
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: consent-engine/Dockerfile
       args:
         SERVICE_PATH: consent-engine
         BUILD_VERSION: ${BUILD_VERSION:-dev}

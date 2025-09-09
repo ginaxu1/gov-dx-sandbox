@@ -3,18 +3,29 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+if [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    echo "Exchange Services Testing"
+    echo "Usage: $0 [help]"
+    echo ""
+    echo "Tests: PDP (${PDP_URL}), CE (${CE_URL})"
+    echo "Prerequisites: Services running, jq installed"
+    echo "Start services: ./scripts/manage.sh start-local"
+    exit 0
+fi
+
 echo "Testing Exchange Services..."
 
-# Test PDP
 echo "Testing PDP..."
-curl -s -X POST http://localhost:8082/decide \
+curl -s -X POST "${PDP_URL}/decide" \
   -H "Content-Type: application/json" \
-  -d '{"consumer":{"id":"test-app","name":"Test App","type":"mobile_app"},"request":{"resource":"person_data","action":"read","data_fields":["person.fullName"]},"timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' | jq '.'
+  -d "$PDP_TEST_DATA" | jq '.'
 
-# Test CE
 echo "Testing CE..."
-curl -s -X POST http://localhost:8081/consent \
+curl -s -X POST "${CE_URL}/consent" \
   -H "Content-Type: application/json" \
-  -d '{"consumer_id":"test-app","data_owner":"test-owner","data_fields":["person.fullName"],"purpose":"testing","expiry_days":30}' | jq '.'
+  -d "$CE_TEST_DATA" | jq '.'
 
 echo "✅ All tests passed!"

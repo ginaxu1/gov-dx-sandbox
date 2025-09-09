@@ -1,31 +1,53 @@
 # Exchange Services Makefile
 
-.PHONY: start-local start-prod stop logs test clean build help
+.PHONY: start-local start-prod stop logs test status clean build help
 
 # Default to local environment
 start: start-local
 
+# Service management (using consolidated manage.sh)
 start-local:
-	@./scripts/start-local.sh
+	@./scripts/manage.sh start-local
 
 start-prod:
-	@./scripts/start-production.sh
+	@./scripts/manage.sh start-prod
 
 stop:
-	@./scripts/stop.sh
+	@./scripts/manage.sh stop
 
+# Monitoring and testing
 logs:
-	@./scripts/logs.sh
+	@./scripts/manage.sh logs
 
 test:
 	@./scripts/test.sh
 
+status:
+	@./scripts/manage.sh status
+
+# Maintenance
 clean:
 	@docker compose down -v --remove-orphans
 	@docker system prune -f
 
 build:
+	@echo "Preparing for Docker build..."
+	@./scripts/prepare-docker-build.sh
 	@docker compose build
+	@echo "Restoring for local development..."
+	@./scripts/restore-local-build.sh
+
+build-local:
+	@echo "Building for local development..."
+	@./scripts/restore-local-build.sh
+	@docker compose build
+
+build-prod:
+	@echo "Building for production deployment..."
+	@./scripts/prepare-docker-build.sh
+	@docker compose --env-file .env.production build
+	@echo "Restoring for local development..."
+	@./scripts/restore-local-build.sh
 
 # Environment switching
 switch-local:
@@ -43,17 +65,6 @@ local:
 prod:
 	@docker compose --env-file .env.production up --build
 
+# Help
 help:
-	@echo "Available commands:"
-	@echo "  make start        - Start services (local environment)"
-	@echo "  make start-local  - Start services in local environment"
-	@echo "  make start-prod   - Start services in production environment"
-	@echo "  make stop         - Stop all services"
-	@echo "  make logs         - View logs"
-	@echo "  make test         - Run tests"
-	@echo "  make clean        - Clean up containers and volumes"
-	@echo "  make build        - Build services"
-	@echo "  make switch-local - Switch to local environment"
-	@echo "  make switch-prod  - Switch to production environment"
-	@echo "  make local        - Direct: docker compose --env-file .env.local up --build"
-	@echo "  make prod         - Direct: docker compose --env-file .env.production up --build"
+	@./scripts/manage.sh help

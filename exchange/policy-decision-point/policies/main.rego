@@ -12,6 +12,44 @@ default decision = {
     "conditions": {}
 }
 
+# Denial rules for specific scenarios - these must come first
+decision = {
+    "allow": false,
+    "deny_reason": "Consumer not found in grants",
+    "consent_required": false,
+    "consent_required_fields": [],
+    "data_owner": "",
+    "expiry_time": "",
+    "conditions": {}
+} {
+    not consumer_grants[input.consumer.id]
+}
+
+decision = {
+    "allow": false,
+    "deny_reason": "Consumer not authorized for requested fields",
+    "consent_required": false,
+    "consent_required_fields": [],
+    "data_owner": "",
+    "expiry_time": "",
+    "conditions": {}
+} {
+    consumer_grants[input.consumer.id]
+    not all_fields_approved(input.request.data_fields, consumer_grants[input.consumer.id].approved_fields)
+}
+
+decision = {
+    "allow": false,
+    "deny_reason": "Invalid action requested",
+    "consent_required": false,
+    "consent_required_fields": [],
+    "data_owner": "",
+    "expiry_time": "",
+    "conditions": {}
+} {
+    input.request.action != "read"
+}
+
 # Main decision rule - allows access if all ABAC conditions are met
 decision = {
     "allow": true,
@@ -125,42 +163,4 @@ get_expiry_time(consent_fields) = expiry {
     expiry := get_consent_expiry_time(consent_fields)
 } else = "" {
     count(consent_fields) == 0
-}
-
-# Denial rules for specific scenarios
-decision = {
-    "allow": false,
-    "deny_reason": "Consumer not found in grants",
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-} {
-    not consumer_grants[input.consumer.id]
-}
-
-decision = {
-    "allow": false,
-    "deny_reason": "Consumer not authorized for requested fields",
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-} {
-    consumer_grants[input.consumer.id]
-    not all_fields_approved(input.request.data_fields, consumer_grants[input.consumer.id].approved_fields)
-}
-
-decision = {
-    "allow": false,
-    "deny_reason": "Invalid action requested",
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-} {
-    input.request.action != "read"
 }
