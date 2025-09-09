@@ -1,0 +1,94 @@
+# WSO2 Choreo Component Configuration for Policy Decision Point
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  # +required Unique name for the endpoint.
+  - name: policy-decision-api
+    # +optional Display name for the endpoint.
+    displayName: Policy Decision Point API
+    # +required Service section has the user service endpoint details
+    service:
+      # +optional Context (base path) of the API that gets exposed via the endpoint.
+      basePath: /policy
+      # +required Numeric port value that gets exposed via the endpoint
+      port: 8082
+    # +required Type of traffic that the endpoint is accepting.
+    type: REST
+    # +optional Network level visibilities of the endpoint.
+    networkVisibilities: 
+      - Public
+      - Organization
+
+# +optional Defines runtime configurations
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    # +required Name of the environment variable
+    - name: ENVIRONMENT
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Environment
+          # +optional default value is true if not specified
+          required: true
+          # +optional default value is string if not specified
+          type: string
+    - name: LOG_LEVEL
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Log Level
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: string
+    - name: LOG_FORMAT
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Log Format
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: string
+    - name: API_KEY
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: API Key
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: secret
+    - name: ENABLE_CORS
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Enable CORS
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: boolean
+    - name: RATE_LIMIT_PER_MINUTE
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Rate Limit (per minute)
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: number
