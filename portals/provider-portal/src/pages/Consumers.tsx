@@ -1,5 +1,3 @@
-import React from 'react';
-
 export const Consumers: React.FC = () => {
     return (
        <div>

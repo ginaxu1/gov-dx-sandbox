@@ -1,5 +1,5 @@
 // components/Navbar.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 interface NavItem {
   label: string;

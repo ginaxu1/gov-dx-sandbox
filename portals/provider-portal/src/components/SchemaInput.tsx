@@ -1,5 +1,5 @@
 // components/SchemaInput.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { IntrospectionResult } from '../types/graphql';
 import { SchemaService } from '../services/schemaService';
 

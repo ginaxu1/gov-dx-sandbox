@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export type Route = {
   path: string;
@@ -40,7 +40,7 @@ export const Router: React.FC<{ routes: Route[] }> = ({ routes }) => {
   };
 
   // Provide navigation context to child components
-  React.useEffect(() => {
+  useEffect(() => {
     (window as any).navigate = navigate;
   }, []);
 
