@@ -1,26 +1,57 @@
-# exchange/docker-compose.yml
-
-version: '3.8'
+# Exchange Services - Environment-based Configuration
+# Usage: docker compose --env-file .env.local up --build
+#       docker compose --env-file .env.production up --build
 
 services:
+  orchestration-engine:
+    build:
+      context: ./orchestration-engine-go
+      dockerfile: Dockerfile
+      args:
+        SERVICE_PATH: orchestration-engine
+        BUILD_VERSION: ${BUILD_VERSION:-dev}
+        BUILD_TIME: ${BUILD_TIME:-2025-09-09T16:30:00Z}
+        GIT_COMMIT: ${GIT_COMMIT:-local}
+    container_name: oe-${ENVIRONMENT:-local}
+    ports:
+      - "${PORT_OE:-8080}:8080"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-local}
+      - PORT=8080
+      - PDP_URL=http://policy-decision-point:8082
+      - CE_URL=http://consent-engine:8081
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    depends_on:
+      - policy-decision-point
+      - consent-engine
+    networks:
+      - exchange-network
+
   policy-decision-point:
     build:
-      context: .
+      context: ./policy-decision-point
       dockerfile: Dockerfile
       args:
         SERVICE_PATH: policy-decision-point
-        BUILD_VERSION: ${BUILD_VERSION:-latest}
-        BUILD_TIME: ${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
-    container_name: policy-decision-point
+        BUILD_VERSION: ${BUILD_VERSION:-dev}
+        BUILD_TIME: ${BUILD_TIME:-2025-09-09T16:30:00Z}
+        GIT_COMMIT: ${GIT_COMMIT:-local}
+    container_name: pdp-${ENVIRONMENT:-local}
     ports:
-      - "8082:8082"
+      - "${PORT_PDP:-8082}:8082"
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - ENVIRONMENT=${ENVIRONMENT:-local}
       - PORT=8082
-      - LOG_LEVEL=${LOG_LEVEL:-warn}
-      - LOG_FORMAT=${LOG_FORMAT:-json}
-    command: ["./service_binary", "-env=${ENVIRONMENT:-production}", "-port=8082"]
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
       interval: 30s
@@ -33,22 +64,21 @@ services:
 
   consent-engine:
     build:
-      context: .
+      context: ./consent-engine
       dockerfile: Dockerfile
       args:
         SERVICE_PATH: consent-engine
-        BUILD_VERSION: ${BUILD_VERSION:-latest}
-        BUILD_TIME: ${BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
-    container_name: consent-engine
+        BUILD_VERSION: ${BUILD_VERSION:-dev}
+        BUILD_TIME: ${BUILD_TIME:-2025-09-09T16:30:00Z}
+        GIT_COMMIT: ${GIT_COMMIT:-local}
+    container_name: ce-${ENVIRONMENT:-local}
     ports:
-      - "8081:8081"
+      - "${PORT_CE:-8081}:8081"
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - ENVIRONMENT=${ENVIRONMENT:-local}
       - PORT=8081
-      - LOG_LEVEL=${LOG_LEVEL:-warn}
-      - LOG_FORMAT=${LOG_FORMAT:-json}
-    command: ["./service_binary", "-env=${ENVIRONMENT:-production}", "-port=8081"]
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
       interval: 30s

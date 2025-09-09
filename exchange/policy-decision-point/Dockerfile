@@ -43,13 +43,8 @@ COPY --from=builder /app/service_binary /app/
 COPY --from=builder /app/config/ /app/config/
 
 # Copy service-specific files (policies and data)
-RUN mkdir -p /app/policies /app/data && \
-    if [ -d "/app/policies" ]; then \
-        cp -r /app/policies/* /app/policies/ 2>/dev/null || true; \
-    fi && \
-    if [ -d "/app/data" ]; then \
-        cp -r /app/data/* /app/data/ 2>/dev/null || true; \
-    fi
+COPY --from=builder /app/policies/ /app/policies/
+COPY --from=builder /app/data/ /app/data/
 
 # Change ownership to appuser
 RUN chown -R appuser:appuser /app

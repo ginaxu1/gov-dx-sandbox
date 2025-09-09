@@ -100,7 +100,7 @@ func getDefaultPort(serviceName string) string {
 		return port
 	}
 	// Fallback to environment variable or default
-	return getEnvOrDefault("PORT", "8080")
+	return getEnvOrDefault("PORT", "8082")
 }
 
 func getDefaultLogLevel(env string) string {

@@ -74,7 +74,7 @@ type ServerConfig struct {
 // DefaultServerConfig returns a default server configuration
 func DefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
-		Port:         GetEnvOrDefault("PORT", "8080"),
+		Port:         GetEnvOrDefault("PORT", "8081"),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,

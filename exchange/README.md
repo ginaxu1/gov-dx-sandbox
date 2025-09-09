@@ -1,89 +1,198 @@
 # Exchange Services
 
-Data exchange platform implementing consent management and policy-based authorization for government data sharing.
-
-## Services
-
-- **Policy Decision Point (PDP)**: Port 8082 - ABAC authorization using Open Policy Agent
-- **Consent Engine (CE)**: Port 8081 - Consent record management and portal
+Microservices-based data exchange platform with policy enforcement and consent management.
 
 ## Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
-- Go 1.24+ (for local development)
+- curl, jq (for testing)
 
-### Start Services
+### Environment Configuration
+
 ```bash
-# Start all services
-docker-compose up -d
+# Local Development
+docker compose --env-file .env.local up --build
 
-# Check health
-curl http://localhost:8082/health  # PDP
-curl http://localhost:8081/health  # CE
+# Production Testing
+docker compose --env-file .env.production up --build
 
-# View logs
-docker-compose logs -f
+# Stop services
+docker compose down
 ```
 
-### Run Tests
-```bash
-# Integration tests
-cd integration-tests && ./run-all-tests.sh
+### Environment Files
 
-# Unit tests
-go test ./...
+| File | Purpose |
+|------|---------|
+| `.env.local` | Local development (debug logging) |
+| `.env.production` | Production (warn logging, JSON format) |
+
+### Quick Commands
+
+```bash
+# Start services
+make start              # Local (default)
+make start-prod         # Production
+
+# Direct Docker Compose
+make local              # docker compose --env-file .env.local up --build
+make prod               # docker compose --env-file .env.production up --build
+
+# Management
+make stop              # Stop all services
+make logs              # View logs
+make test              # Run API tests
+make clean             # Clean up containers
 ```
 
-### Development
+## API Endpoints
+
+| Service | Port | Endpoints |
+|---------|------|-----------|
+| **Policy Decision Point** | 8082 | `/decide`, `/health`, `/debug` |
+| **Consent Engine** | 8081 | `/consent`, `/consent/{id}`, `/consent/portal`, `/data-owner/{owner}`, `/consumer/{consumer}`, `/admin/expiry-check`, `/health` |
+
+### Example API Calls
+
 ```bash
-# Run locally
-cd policy-decision-point && go run main.go
-cd consent-engine && go run main.go
+# Policy Decision
+curl -X POST http://localhost:8082/decide \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consumer": {"id": "test-app", "name": "Test App", "type": "mobile_app"},
+    "request": {"resource": "person_data", "action": "read", "data_fields": ["person.fullName"]},
+    "timestamp": "2025-09-09T16:30:00Z"
+  }'
+
+# Consent Management
+curl -X POST http://localhost:8081/consent \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consumer_id": "test-app",
+    "data_owner": "test-owner", 
+    "data_fields": ["person.fullName"],
+    "purpose": "testing",
+    "expiry_days": 30
+  }'
+
+# Get Consent by ID
+curl -X GET http://localhost:8081/consent/{consent-id}
+
+# Get Consents by Data Owner
+curl -X GET http://localhost:8081/data-owner/{owner-id}
+
+# Get Consents by Consumer
+curl -X GET http://localhost:8081/consumer/{consumer-id}
+```
+
+## Architecture
+
+```
+exchange/
+├── policy-decision-point/    # Policy service (Port 8082)
+├── consent-engine/           # Consent service (Port 8081)
+├── docker-compose.yml        # Multi-environment orchestration
+├── .env.local               # Local environment config
+├── .env.production          # Production environment config
+├── scripts/                 # Development scripts
+│   ├── start-local.sh
+│   ├── start-production.sh
+│   ├── stop.sh
+│   ├── logs.sh
+│   └── test.sh
+└── Makefile                 # Convenience commands
 ```
 
 ## Configuration
 
-Unified configuration system with environment-based settings:
+### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENVIRONMENT` | `local` | Environment (local/production) |
-| `PORT` | 8081/8082 | Service port (auto-detected) |
-| `LOG_LEVEL` | `debug`/`warn` | Log level |
-| `LOG_FORMAT` | `text`/`json` | Log format |
-
-## API Endpoints
-
-### Policy Decision Point (Port 8082)
-- `POST /decide` - Authorization decisions
-- `GET /health` - Health check
-
-### Consent Engine (Port 8081)
-- `POST /consent` - Create consent record
-- `GET /consent/{id}` - Get consent status
-- `PUT /consent/{id}` - Update consent
-- `GET /consent-portal/{id}` - Consent portal
-- `GET /health` - Health check
-
-## Deployment
-
-### Docker
+**Local (`.env.local`):**
 ```bash
-docker-compose up -d --build
+ENVIRONMENT=local
+BUILD_VERSION=dev
+LOG_LEVEL=debug
+LOG_FORMAT=text
 ```
+
+**Production (`.env.production`):**
+```bash
+ENVIRONMENT=production
+BUILD_VERSION=latest
+LOG_LEVEL=warn
+LOG_FORMAT=json
+```
+
+## Testing
+
+```bash
+# Unit tests
+cd policy-decision-point && go test -v ./...
+cd consent-engine && go test -v ./...
+
+# Integration tests
+cd integration-tests && ./run-all-tests.sh
+
+# API tests
+./scripts/test.sh
+```
+
+## Production Deployment
 
 ### WSO2 Choreo
-Services configured with component definitions in `.choreo/` directories.
 
-## Project Structure
+**Important**: For production deployment, WSO2 Choreo manages the deployment process. You don't need to use Docker Compose directly in production.
 
+**How it works:**
+1. Choreo's CI/CD pipeline builds the Docker image from your service's Dockerfile
+2. Choreo injects production environment variables at runtime (configured in Choreo Console)
+3. Each service is deployed independently as a Choreo component
+
+**Local Production Testing:**
+```bash
+# Test production configuration locally
+docker compose --env-file .env.production up --build
 ```
-exchange/
-├── config/                    # Configuration management
-├── consent-engine/           # Consent service
-├── policy-decision-point/    # Policy service
-├── utils/                    # Shared utilities
-├── integration-tests/        # Test suite
-└── orchestration-engine-go/  # Orchestration service
+
+**Choreo Configuration:**
+- Each service has its own `.choreo/component.yaml` file
+- Production environment variables are configured in Choreo Console
+- Services are deployed independently and can be scaled separately
+
+## Development
+
+### Adding New Services
+1. Create service directory with `Dockerfile`
+2. Add to `docker-compose.yml`
+3. Add health checks
+4. Update environment files if needed
+
+### Configuration Management
+- **Local Development**: Use `.env.local` with Docker Compose
+- **Production**: WSO2 Choreo manages environment variables at runtime
+
+### Environment Switching Best Practices
+1. Use `docker compose --env-file .env.local up --build` for local development
+2. Use `docker compose --env-file .env.production up --build` for production testing
+3. Always stop services before switching environments: `docker compose down`
+4. Use `make clean` to remove old containers when switching
+5. Check logs with `make logs` after switching
+
+### Direct Docker Compose Usage
+```bash
+# Local development
+docker compose --env-file .env.local up --build
+
+# Production testing
+docker compose --env-file .env.production up --build
+
+# Stop services
+docker compose down
+
+# View logs
+docker compose logs -f
+
+# Clean up
+docker compose down -v --remove-orphans
 ```
