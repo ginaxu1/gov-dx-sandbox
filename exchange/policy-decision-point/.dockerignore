@@ -1,3 +1,0 @@
-# Use parent directory as build context
-# This file tells Docker to use the parent directory (exchange/) as the build context
-# when building from this service directory
