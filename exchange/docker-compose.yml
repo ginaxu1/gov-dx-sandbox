@@ -1,27 +1,42 @@
 # exchange/docker-compose.yml
 
 services:
-  pdp_app:
+  policy-decision-point:
     build:
       context: .
       dockerfile: Dockerfile
-      target: pdp-final 
       args:
         SERVICE_PATH: policy-decision-point
-    container_name: pdp_app
+    container_name: policy-decision-point
     ports:
-      - "8080:8080"
+      - "8082:8082"
     environment:
-      - PORT=8080
-  ce_app:
+      - ENVIRONMENT=production
+      - PORT=8082
+    command: ["./service_binary", "-env=production", "-port=8082"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  consent-engine:
     build:
       context: .
       dockerfile: Dockerfile
-      target: ce-final 
       args:
         SERVICE_PATH: consent-engine
-    container_name: ce_app
+    container_name: consent-engine
     ports:
       - "8081:8081"
     environment:
+      - ENVIRONMENT=production
       - PORT=8081
+    command: ["./service_binary", "-env=production", "-port=8081"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

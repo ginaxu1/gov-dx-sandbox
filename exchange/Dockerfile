@@ -56,10 +56,6 @@ USER appuser
 # Expose port (will be overridden by service-specific ports)
 EXPOSE 8080
 
-# Health check (port will be determined by service configuration)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8080}/health || exit 1
-
 # Set environment variables
 ENV CONFIG_DIR=/app/config
 ENV ENVIRONMENT=production

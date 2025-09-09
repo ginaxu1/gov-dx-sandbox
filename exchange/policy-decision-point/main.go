@@ -13,13 +13,8 @@ import (
 )
 
 func main() {
-	// Load configuration
-	env := getEnvironment()
-	cfg, err := config.LoadConfigForEnvironment("policy-decision-point", env)
-	if err != nil {
-		slog.Error("Failed to load configuration", "error", err)
-		os.Exit(1)
-	}
+	// Load configuration using flags
+	cfg := config.LoadConfig("policy-decision-point")
 
 	// Setup logging
 	setupLogging(cfg)
@@ -53,14 +48,6 @@ func main() {
 		slog.Error("Could not start server", "error", err)
 		os.Exit(1)
 	}
-}
-
-// getEnvironment returns the environment from environment variable or defaults to local
-func getEnvironment() string {
-	if env := os.Getenv("ENVIRONMENT"); env != "" {
-		return env
-	}
-	return "local"
 }
 
 // setupLogging configures logging based on the configuration
