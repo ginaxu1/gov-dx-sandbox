@@ -183,3 +183,81 @@ func PanicRecoveryMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// JSONHandler handles JSON requests and responses
+func JSONHandler(w http.ResponseWriter, r *http.Request, target interface{}, handler func() (interface{}, int, error)) {
+	if err := ParseJSONRequest(r, target); err != nil {
+		RespondWithError(w, http.StatusBadRequest, "Invalid JSON request")
+		return
+	}
+
+	data, statusCode, err := handler()
+	if err != nil {
+		RespondWithError(w, statusCode, err.Error())
+		return
+	}
+
+	RespondWithSuccess(w, statusCode, data)
+}
+
+// PathHandler handles path-based requests
+func PathHandler(w http.ResponseWriter, r *http.Request, prefix string, handler func(string) (interface{}, int, error)) {
+	id := strings.TrimPrefix(r.URL.Path, prefix)
+	if id == "" {
+		RespondWithError(w, http.StatusBadRequest, "ID is required")
+		return
+	}
+
+	data, statusCode, err := handler(id)
+	if err != nil {
+		RespondWithError(w, statusCode, err.Error())
+		return
+	}
+
+	RespondWithSuccess(w, statusCode, data)
+}
+
+// GenericHandler handles generic requests
+func GenericHandler(w http.ResponseWriter, r *http.Request, handler func() (interface{}, int, error)) {
+	data, statusCode, err := handler()
+	if err != nil {
+		RespondWithError(w, statusCode, err.Error())
+		return
+	}
+
+	RespondWithSuccess(w, statusCode, data)
+}
+
+// SetupLogging configures logging based on the configuration
+func SetupLogging(format, level string) {
+	var handler slog.Handler
+
+	switch format {
+	case "json":
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: getLogLevel(level),
+		})
+	default:
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level: getLogLevel(level),
+		})
+	}
+
+	slog.SetDefault(slog.New(handler))
+}
+
+// getLogLevel converts string level to slog.Level
+func getLogLevel(level string) slog.Level {
+	switch strings.ToLower(level) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}

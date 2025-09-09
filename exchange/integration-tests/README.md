@@ -83,7 +83,7 @@ cd /path/to/exchange && docker-compose up -d
 
 ## Service Endpoints
 
-### Policy Decision Point (Port 8080)
+### Policy Decision Point (Port 8082)
 - `POST /decide` - Authorization decision endpoint
 - `GET /debug` - Debug information endpoint
 
@@ -113,7 +113,7 @@ docker-compose restart
 
 ### Test Failures
 1. Ensure both services are running and healthy
-2. Check that the correct ports (8080, 8081) are available
+2. Check that the correct ports (8082, 8081) are available
 3. Verify that the latest code changes are deployed in containers
 4. Check container logs for any errors
 

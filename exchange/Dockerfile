@@ -3,28 +3,32 @@
 FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
+
+# Build arguments
 ARG SERVICE_PATH
 ARG BUILD_VERSION=latest
+ARG BUILD_TIME
+ARG GIT_COMMIT
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Copy go mod files
+# Copy go mod files first for better caching
 COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with build info
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-w -s -X main.Version=${BUILD_VERSION}" \
+    -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
     -o /app/service_binary ./$SERVICE_PATH
 
 # Final stage
-FROM alpine:3.18
+FROM alpine:3.17
 
-# Install ca-certificates for HTTPS requests
+# Install runtime dependencies
 RUN apk --no-cache add ca-certificates tzdata wget
 
 # Create non-root user
@@ -59,6 +63,10 @@ EXPOSE 8080
 # Set environment variables
 ENV CONFIG_DIR=/app/config
 ENV ENVIRONMENT=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8080}/health || exit 1
 
 # Run the application with environment-based flags
 CMD ["./service_binary", "-env=${ENVIRONMENT:-production}", "-port=${PORT:-8080}"]

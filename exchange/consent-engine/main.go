@@ -12,6 +12,13 @@ import (
 	"github.com/gov-dx-sandbox/exchange/utils"
 )
 
+// Build information - set during build
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
 // apiServer holds dependencies for the HTTP handlers
 type apiServer struct {
 	engine ConsentEngine
@@ -208,24 +215,19 @@ func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *apiServer) healthHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
-		return
-	}
-	utils.RespondWithJSON(w, http.StatusOK, map[string]string{"status": "healthy", "service": "consent-engine"})
-}
-
 func main() {
 	// Load configuration using flags
 	cfg := config.LoadConfig("consent-engine")
 
 	// Setup logging
-	setupLogging(cfg)
+	utils.SetupLogging(cfg.Logging.Format, cfg.Logging.Level)
 
 	slog.Info("Starting consent engine",
 		"environment", cfg.Environment,
-		"port", cfg.Service.Port)
+		"port", cfg.Service.Port,
+		"version", Version,
+		"build_time", BuildTime,
+		"git_commit", GitCommit)
 
 	// Initialize consent engine
 	engine := NewConsentEngine()
@@ -241,47 +243,18 @@ func main() {
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 
-	// Get port from configuration
-	port := cfg.Service.Port
-	listenAddr := fmt.Sprintf(":%s", port)
+	// Create server using utils
+	serverConfig := &utils.ServerConfig{
+		Port:         cfg.Service.Port,
+		ReadTimeout:  cfg.Service.Timeout,
+		WriteTimeout: cfg.Service.Timeout,
+		IdleTimeout:  60 * time.Second,
+	}
+	httpServer := utils.CreateServer(serverConfig, mux)
 
-	slog.Info("Consent engine server starting", "address", listenAddr)
-	if err := http.ListenAndServe(listenAddr, mux); err != nil {
-		slog.Error("could not start consent engine server", "error", err)
+	// Start server with graceful shutdown
+	if err := utils.StartServerWithGracefulShutdown(httpServer, "consent-engine"); err != nil {
+		slog.Error("Server failed", "error", err)
 		os.Exit(1)
-	}
-}
-
-// setupLogging configures logging based on the configuration
-func setupLogging(cfg *config.Config) {
-	var handler slog.Handler
-
-	switch cfg.Logging.Format {
-	case "json":
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: getLogLevel(cfg.Logging.Level),
-		})
-	default:
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level: getLogLevel(cfg.Logging.Level),
-		})
-	}
-
-	slog.SetDefault(slog.New(handler))
-}
-
-// getLogLevel converts string level to slog.Level
-func getLogLevel(level string) slog.Level {
-	switch strings.ToLower(level) {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn", "warning":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
 	}
 }

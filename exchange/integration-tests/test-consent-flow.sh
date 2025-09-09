@@ -20,7 +20,7 @@ echo "Expected: Direct data access without consent flow"
 echo ""
 
 echo "Step 1: App requests data (person.fullName, person.nic, person.photo)"
-PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -56,7 +56,7 @@ echo "Expected: Consent flow triggered, consent required"
 echo ""
 
 echo "Step 1: App requests data with consent-required fields"
-PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -114,7 +114,7 @@ echo "Expected: Access denied without consent flow"
 echo ""
 
 echo "Step 1: App requests unauthorized data"
-PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -151,7 +151,7 @@ echo "Expected: Access denied, consumer not found"
 echo ""
 
 echo "Step 1: Unknown consumer requests data"
-PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -206,7 +206,7 @@ echo "---"
 # Summary
 echo -e "${BLUE}=== Test Summary ===${NC}"
 echo "This test suite verifies the consent flow components:"
-echo "1. Policy Decision Point (PDP) - Port 8080"
+echo "1. Policy Decision Point (PDP) - Port 8082"
 echo "2. Consent Engine (CE) - Port 8081"
 echo ""
 echo "The flow follows the diagram:"

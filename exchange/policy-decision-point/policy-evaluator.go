@@ -41,7 +41,6 @@ type RequestInfo struct {
 	DataOwner  string   `json:"data_owner,omitempty"`
 }
 
-
 // AuthorizationDecision represents the output of policy evaluation
 type AuthorizationDecision struct {
 	Allow                 bool                   `json:"allow"`

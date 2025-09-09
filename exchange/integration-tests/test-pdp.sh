@@ -12,7 +12,7 @@ echo "Requesting: person.fullName, person.nic, person.photo"
 echo "Expected: allow=true, consent_required=false"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -35,7 +35,7 @@ echo "Requesting: person.fullName, person.permanentAddress, person.birthDate"
 echo "Expected: allow=true, consent_required=true, consent_required_fields=[person.permanentAddress, person.birthDate]"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -58,7 +58,7 @@ echo "Requesting with unknown consumer: unknown-app"
 echo "Expected: allow=false, deny_reason=Consumer not found in grants"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -80,7 +80,7 @@ echo "Requesting unauthorized field: person.birthDate"
 echo "Expected: allow=false, deny_reason=Consumer not authorized for requested fields"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -102,7 +102,7 @@ echo "Requesting action: write (not supported)"
 echo "Expected: allow=false, deny_reason=Invalid action requested"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -124,7 +124,7 @@ echo "Requesting: person.fullName"
 echo "Expected: allow=true, consent_required=false"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -147,7 +147,7 @@ echo "Requesting: person.fullName, person.nic"
 echo "Expected: allow=true, consent_required=false"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -170,7 +170,7 @@ echo "Requesting: person.fullName, person.permanentAddress"
 echo "Expected: allow=false, deny_reason=Consumer not authorized for requested fields"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -193,7 +193,7 @@ echo "Requesting: person.fullName, person.nic, person.photo (all approved)"
 echo "Expected: allow=true, consent_required=false"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -216,7 +216,7 @@ echo "Requesting: person.fullName"
 echo "Expected: allow=true, consent_required=false"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -240,7 +240,7 @@ echo "Requesting: person.fullName, person.nic"
 echo "Expected: allow=true, consent_required=false"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -264,7 +264,7 @@ echo "Requesting: person.fullName, person.permanentAddress"
 echo "Expected: allow=false, deny_reason=Consumer not authorized for requested fields"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -283,12 +283,12 @@ echo "---"
 echo ""
 
 # Test 9: All approved fields test
-cd /Users/tmp/gov-dx-sandbox/exchange/policy-decision-point && echo "Testing key scenarios:" && echo "" && echo "Test 6: Single field test" && curl -X POST http://localhost:8080/decide -H "Content-Type: application/json" -d '{"consumer":{"id":"passport-app","name":"Passport Application Service","type":"government_service"},"request":{"resource":"person_data","action":"read","data_fields":["person.fullName"]}' | jq '.' && echo "" && echo "Test 1: All approved fields" && curl -X POST http://localhost:8080/decide -H "Content-Type: application/json" -d '{"consumer":{"id":"passport-app","name":"Passport Application Service","type":"government_service"},"request":{"resource":"person_data","action":"read","data_fields":["person.fullName","person.nic","person.photo"]}' | jq '.'echo "Test 9: All approved fields test"
+cd /Users/tmp/gov-dx-sandbox/exchange/policy-decision-point && echo "Testing key scenarios:" && echo "" && echo "Test 6: Single field test" && curl -X POST http://localhost:8082/decide -H "Content-Type: application/json" -d '{"consumer":{"id":"passport-app","name":"Passport Application Service","type":"government_service"},"request":{"resource":"person_data","action":"read","data_fields":["person.fullName"]}' | jq '.' && echo "" && echo "Test 1: All approved fields" && curl -X POST http://localhost:8082/decide -H "Content-Type: application/json" -d '{"consumer":{"id":"passport-app","name":"Passport Application Service","type":"government_service"},"request":{"resource":"person_data","action":"read","data_fields":["person.fullName","person.nic","person.photo"]}' | jq '.'echo "Test 9: All approved fields test"
 echo "Requesting: person.fullName, person.nic, person.photo (all approved)"
 echo "Expected: allow=true, consent_required=false"
 echo ""
 
-curl -X POST http://localhost:8080/decide \
+curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {

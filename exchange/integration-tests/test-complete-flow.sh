@@ -37,7 +37,7 @@ echo "DataCustodian sends 'check consent?' query to PDP"
 
 # Test with consent-required fields
 echo "Testing with consent-required fields (person.permanentAddress, person.birthDate)..."
-PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -137,7 +137,7 @@ echo -e "${PURPLE}Step 9: App requests data again from DataCustodian${NC}"
 echo "App sends getData() request to DataCustodian again"
 
 # Test the same request again (now with consent)
-PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {

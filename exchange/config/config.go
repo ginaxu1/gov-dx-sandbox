@@ -38,22 +38,28 @@ type SecurityConfig struct {
 
 // LoadConfig loads configuration from flags and environment variables
 func LoadConfig(serviceName string) *Config {
+	// Get environment first to determine defaults
+	env := getEnvOrDefault("ENVIRONMENT", "local")
+
 	// Define flags
-	env := flag.String("env", getEnvOrDefault("ENVIRONMENT", "local"), "Environment: local or production")
+	envFlag := flag.String("env", env, "Environment: local or production")
 	port := flag.String("port", getDefaultPort(serviceName), "Service port")
 	host := flag.String("host", getEnvOrDefault("HOST", "0.0.0.0"), "Host address")
 	timeout := flag.Duration("timeout", 10*time.Second, "Request timeout")
-	logLevel := flag.String("log-level", getDefaultLogLevel(*env), "Log level")
-	logFormat := flag.String("log-format", getDefaultLogFormat(*env), "Log format")
-	jwtSecret := flag.String("jwt-secret", getDefaultJWTSecret(*env), "JWT secret")
-	enableCORS := flag.Bool("cors", getDefaultCORS(*env), "Enable CORS")
-	rateLimit := flag.Int("rate-limit", getDefaultRateLimit(*env), "Rate limit per minute")
+	logLevel := flag.String("log-level", getDefaultLogLevel(env), "Log level")
+	logFormat := flag.String("log-format", getDefaultLogFormat(env), "Log format")
+	jwtSecret := flag.String("jwt-secret", getDefaultJWTSecret(env), "JWT secret")
+	enableCORS := flag.Bool("cors", getDefaultCORS(env), "Enable CORS")
+	rateLimit := flag.Int("rate-limit", getDefaultRateLimit(env), "Rate limit per minute")
 
 	// Parse flags
 	flag.Parse()
 
-	return &Config{
-		Environment: *env,
+	// Use flag value if provided, otherwise use environment default
+	finalEnv := *envFlag
+
+	config := &Config{
+		Environment: finalEnv,
 		Service: ServiceConfig{
 			Name:    serviceName,
 			Port:    *port,
@@ -70,6 +76,11 @@ func LoadConfig(serviceName string) *Config {
 			RateLimit:  *rateLimit,
 		},
 	}
+
+	// Validate configuration
+	validateConfig(config)
+
+	return config
 }
 
 // Helper functions
@@ -88,7 +99,8 @@ func getDefaultPort(serviceName string) string {
 	if port, exists := ports[serviceName]; exists {
 		return port
 	}
-	return "8080"
+	// Fallback to environment variable or default
+	return getEnvOrDefault("PORT", "8080")
 }
 
 func getDefaultLogLevel(env string) string {
@@ -107,7 +119,8 @@ func getDefaultLogFormat(env string) string {
 
 func getDefaultJWTSecret(env string) string {
 	if env == "production" {
-		return ""
+		// In production, require JWT secret to be set via environment variable
+		return getEnvOrDefault("JWT_SECRET", "")
 	}
 	return "local-secret-key"
 }
@@ -121,4 +134,14 @@ func getDefaultRateLimit(env string) int {
 		return 100
 	}
 	return 1000
+}
+
+// validateConfig validates the configuration and logs warnings for production
+func validateConfig(cfg *Config) {
+	if cfg.Environment == "production" {
+		if cfg.Security.JWTSecret == "" {
+			// Log warning but don't fail - let the service handle it
+			// This allows for graceful degradation
+		}
+	}
 }

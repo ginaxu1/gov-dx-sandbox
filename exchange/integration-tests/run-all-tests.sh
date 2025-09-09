@@ -1,11 +1,23 @@
-go#!/bin/bash
+#!/bin/bash
 
 # Comprehensive Test Runner for Exchange Services
 # Runs all test suites for the Policy Decision Point and Consent Engine
 
+set -e  # Exit on any error
+
 echo "=== Exchange Services Test Suite ==="
 echo "Running comprehensive tests for PDP and Consent Engine"
 echo ""
+
+# Cleanup function
+cleanup() {
+    echo ""
+    echo "Cleaning up test environment..."
+    # Add any cleanup logic here if needed
+}
+
+# Set trap for cleanup on exit
+trap cleanup EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -27,24 +39,24 @@ echo ""
 echo -e "${PURPLE}=== Service Health Check ===${NC}"
 
 # Check PDP
-echo "Checking Policy Decision Point (PDP) on port 8080..."
-PDP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/debug 2>/dev/null || echo "000")
+echo "Checking Policy Decision Point (PDP) on port 8082..."
+PDP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8082/health 2>/dev/null || echo "000")
 if [ "$PDP_STATUS" = "200" ]; then
     echo -e "${GREEN}✅ PDP is running (HTTP $PDP_STATUS)${NC}"
 else
     echo -e "${RED}❌ PDP is not responding (HTTP $PDP_STATUS)${NC}"
-    echo "Please start the PDP service: cd $EXCHANGE_DIR && docker-compose up -d pdp_app"
+    echo "Please start the PDP service: cd $EXCHANGE_DIR && docker-compose up -d policy-decision-point"
     exit 1
 fi
 
 # Check Consent Engine
 echo "Checking Consent Engine (CE) on port 8081..."
-CE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/consent-portal/ 2>/dev/null || echo "000")
-if [ "$CE_STATUS" = "400" ]; then
+CE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/health 2>/dev/null || echo "000")
+if [ "$CE_STATUS" = "200" ]; then
     echo -e "${GREEN}✅ Consent Engine is running (HTTP $CE_STATUS)${NC}"
 else
     echo -e "${RED}❌ Consent Engine is not responding (HTTP $CE_STATUS)${NC}"
-    echo "Please start the Consent Engine: cd $EXCHANGE_DIR && docker-compose up -d ce_app"
+    echo "Please start the Consent Engine: cd $EXCHANGE_DIR && docker-compose up -d consent-engine"
     exit 1
 fi
 
@@ -118,7 +130,7 @@ echo "✅ Complete Flow - End-to-end flow simulation"
 echo "✅ Complete Consent Flow - Full consent flow with Consent Engine"
 echo ""
 echo "Services Tested:"
-echo "✅ Policy Decision Point (Port 8080)"
+echo "✅ Policy Decision Point (Port 8082)"
 echo "✅ Consent Engine (Port 8081)"
 echo ""
 echo -e "${GREEN}Exchange Services Test Suite Complete!${NC}"

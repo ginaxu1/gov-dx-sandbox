@@ -5,13 +5,13 @@ schemaVersion: 1.2
 # +optional Incoming connection details for the component
 endpoints:
   # +required Unique name for the endpoint.
-  - name: policy-decision-api
+  - name: policy-decision-point-api
     # +optional Display name for the endpoint.
     displayName: Policy Decision Point API
     # +required Service section has the user service endpoint details
     service:
       # +optional Context (base path) of the API that gets exposed via the endpoint.
-      basePath: /policy
+      basePath: /decide
       # +required Numeric port value that gets exposed via the endpoint
       port: 8082
     # +required Type of traffic that the endpoint is accepting.
@@ -20,6 +20,15 @@ endpoints:
     networkVisibilities: 
       - Public
       - Organization
+
+# +optional Outgoing connection details for the component.
+dependencies:
+  # +optional Defines the connection references from the Internal Marketplace.
+  connectionReferences:
+    # +required Name of the connection.
+    - name: database-connection
+      # +required service identifer of the dependent component.
+      resourceRef: service:/DatabaseProject/PostgreSQLComponent/v1/ad088/PUBLIC
 
 # +optional Defines runtime configurations
 configurations:
@@ -37,6 +46,17 @@ configurations:
           required: true
           # +optional default value is string if not specified
           type: string
+    - name: PORT
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Port
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: number
     - name: LOG_LEVEL
       # +required value source
       valueFrom:
@@ -59,36 +79,36 @@ configurations:
           required: false
           # +optional default value is string if not specified
           type: string
-    - name: API_KEY
+    - name: OPA_POLICIES_PATH
       # +required value source
       valueFrom:
         # +required config form value source
         configForm:
           # +optional display name inside the config form
-          displayName: API Key
+          displayName: OPA Policies Path
           # +optional default value is true if not specified
           required: false
           # +optional default value is string if not specified
-          type: secret
-    - name: ENABLE_CORS
+          type: string
+    - name: OPA_DATA_PATH
       # +required value source
       valueFrom:
         # +required config form value source
         configForm:
           # +optional display name inside the config form
-          displayName: Enable CORS
+          displayName: OPA Data Path
+          # +optional default value is true if not specified
+          required: false
+          # +optional default value is string if not specified
+          type: string
+    - name: ENABLE_DEBUG
+      # +required value source
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form
+          displayName: Enable Debug Mode
           # +optional default value is true if not specified
           required: false
           # +optional default value is string if not specified
           type: boolean
-    - name: RATE_LIMIT_PER_MINUTE
-      # +required value source
-      valueFrom:
-        # +required config form value source
-        configForm:
-          # +optional display name inside the config form
-          displayName: Rate Limit (per minute)
-          # +optional default value is true if not specified
-          required: false
-          # +optional default value is string if not specified
-          type: number
