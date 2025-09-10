@@ -57,6 +57,16 @@ cd integration-tests && ./run-all-tests.sh
 
 ## Architecture
 
+The Data Exchange Platform implements a comprehensive consent-based data sharing system with policy enforcement and consent management. The platform consists of three main services coordinated by the Orchestration Engine.
+
+### Service Architecture
+
+- **Orchestration Engine (OE)**: Coordinates data access requests between PDP and Consent Engine
+- **Policy Decision Point (PDP) - Port 8082**: ABAC authorization using Open Policy Agent (OPA)
+- **Consent Engine (CE) - Port 8081**: Manages data owner consent workflow
+
+### Directory Structure
+
 ```
 exchange/
 ├── policy-decision-point/    # Policy service (Port 8082)
@@ -68,6 +78,100 @@ exchange/
 ├── scripts/                 # Essential development scripts
 └── Makefile                 # Convenience commands
 ```
+
+## Data Flow
+
+### 1. Data Consumer Request
+
+The Data Consumer sends a GetData request to the Orchestration Engine:
+
+```json
+{
+  "dataConsumer": {
+    "id": "passport-app",
+    "type": "application"
+  },
+  "dataOwner": {
+    "id": "user-nuwan-fernando-456"
+  },
+  "request": {
+    "type": "GraphQL",
+    "query_fields": [
+      "fullName",
+      "nic",
+      "birthDate",
+      "permanentAddress"
+    ]
+  }
+}
+```
+
+### 2. Policy Decision Point (PDP) Evaluation
+
+The Orchestration Engine forwards the request to the Policy Decision Point (PDP) for authorization:
+
+- **PDP Service**: Embedded OPA engine evaluates Rego policies
+- **Data Sources**: 
+  - `/policies/main.rego` - Authorization rules
+  - `provider-metadata.json` - Field-level metadata and consent requirements
+
+### 3. Authorization Decision Scenarios
+
+#### Access Permitted + Consent Required
+```json
+{
+  "decision": {
+    "allow": true,
+    "deny_reason": null,
+    "consent_required": true,
+    "consent_required_fields": [
+      "person.permanentAddress",
+      "person.birthDate"
+    ],
+    "data_owner": "user-nuwan-fernando-456",
+    "expiry_time": "30d",
+    "conditions": {}
+  }
+}
+```
+
+#### Access Denied/Insufficient Permissions
+```json
+{
+  "decision": {
+    "allow": false,
+    "deny_reason": "Consumer not authorized for requested fields",
+    "consent_required": false,
+    "consent_required_fields": [],
+    "data_owner": "",
+    "expiry_time": "",
+    "conditions": {}
+  }
+}
+```
+
+#### Access Permitted + No Consent Required
+```json
+{
+  "decision": {
+    "allow": true,
+    "deny_reason": null,
+    "consent_required": false,
+    "consent_required_fields": [],
+    "data_owner": "",
+    "expiry_time": "",
+    "conditions": {}
+  }
+}
+```
+
+### 4. Orchestration Engine Response
+
+Based on the PDP decision, the Orchestration Engine:
+
+- **If `allow: false`**: Immediately rejects the request and sends an error back to the Data Consumer
+- **If `allow: true` and consent required**: Makes a second API call to the Consent Management Engine (CE)
+- **If `allow: true` and no consent needed**: Proceeds to fetch data from Data Providers
 
 ## API Reference
 

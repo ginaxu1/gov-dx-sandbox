@@ -8,7 +8,7 @@ import (
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
 	"github.com/gov-dx-sandbox/api-server-go/services"
-	"github.com/gov-dx-sandbox/exchange/utils"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
 // APIServer manages all API routes and handlers
@@ -29,11 +29,20 @@ func NewAPIServer() *APIServer {
 	}
 }
 
+// ProviderService returns the provider service instance
+func (s *APIServer) ProviderService() *services.ProviderService {
+	return s.providerService
+}
+
 // SetupRoutes configures all API routes
 func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	// Consumer routes
 	mux.Handle("/consumers", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleConsumers)))
 	mux.Handle("/consumers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleConsumerByID)))
+
+	// Consumer application routes (RESTful)
+	mux.Handle("/consumer-applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleConsumerApplications)))
+	mux.Handle("/consumer-applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleConsumerApplicationByID)))
 
 	// Provider routes
 	mux.Handle("/provider-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSubmissions)))
@@ -76,7 +85,7 @@ func (s *APIServer) handleCollection(w http.ResponseWriter, r *http.Request, get
 
 // Generic handler for item endpoints (GET, PUT, DELETE by ID)
 func (s *APIServer) handleItem(w http.ResponseWriter, r *http.Request, getter func(string) (interface{}, error), updater func(string, interface{}) (interface{}, error), deleter func(string) error) {
-	id := utils.ExtractIDFromPath(r.URL.Path)
+	id := utils.ExtractIDFromPathString(r.URL.Path)
 	if id == "" {
 		utils.RespondWithError(w, http.StatusBadRequest, "ID is required")
 		return
@@ -114,32 +123,25 @@ func (s *APIServer) handleItem(w http.ResponseWriter, r *http.Request, getter fu
 }
 
 // Helper functions for parsing requests
-func (s *APIServer) parseAndCreateApplication(req interface{}) (interface{}, error) {
+
+// Service method wrappers for use with generic handlers
+func (s *APIServer) createConsumerServiceMethod(req interface{}) (interface{}, error) {
+	createReq := req.(models.CreateConsumerRequest)
+	return s.consumerService.CreateConsumer(createReq)
+}
+
+func (s *APIServer) parseAndCreateConsumer(req interface{}) (interface{}, error) {
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	var createReq models.CreateApplicationRequest
+	var createReq models.CreateConsumerRequest
 	if err := json.Unmarshal(reqBytes, &createReq); err != nil {
 		return nil, fmt.Errorf("failed to parse request: %w", err)
 	}
 
-	return s.consumerService.CreateApplication(createReq)
-}
-
-func (s *APIServer) parseAndUpdateApplication(id string, req interface{}) (interface{}, error) {
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	var updateReq models.UpdateApplicationRequest
-	if err := json.Unmarshal(reqBytes, &updateReq); err != nil {
-		return nil, fmt.Errorf("failed to parse request: %w", err)
-	}
-
-	return s.consumerService.UpdateApplication(id, updateReq)
+	return s.consumerService.CreateConsumer(createReq)
 }
 
 func (s *APIServer) parseAndCreateProviderSubmission(req interface{}) (interface{}, error) {
@@ -170,20 +172,6 @@ func (s *APIServer) parseAndUpdateProviderSubmission(id string, req interface{})
 	return s.providerService.UpdateProviderSubmission(id, updateReq)
 }
 
-func (s *APIServer) parseAndCreateProviderSchema(req interface{}) (interface{}, error) {
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	var createReq models.CreateProviderSchemaRequest
-	if err := json.Unmarshal(reqBytes, &createReq); err != nil {
-		return nil, fmt.Errorf("failed to parse request: %w", err)
-	}
-
-	return s.providerService.CreateProviderSchema(createReq)
-}
-
 func (s *APIServer) parseAndUpdateProviderSchema(id string, req interface{}) (interface{}, error) {
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
@@ -202,24 +190,132 @@ func (s *APIServer) parseAndUpdateProviderSchema(id string, req interface{}) (in
 func (s *APIServer) handleConsumers(w http.ResponseWriter, r *http.Request) {
 	s.handleCollection(w, r,
 		func() (interface{}, error) {
-			apps, err := s.consumerService.GetAllApplications()
+			consumers, err := s.consumerService.GetAllConsumers()
 			if err != nil {
 				return nil, err
 			}
-			return utils.CreateCollectionResponse(apps, len(apps)), nil
+			return utils.CreateCollectionResponse(consumers, len(consumers)), nil
 		},
 		func(req interface{}) (interface{}, error) {
-			return s.parseAndCreateApplication(req)
+			return s.parseAndCreateConsumer(req)
 		},
 	)
 }
 
 func (s *APIServer) handleConsumerByID(w http.ResponseWriter, r *http.Request) {
 	s.handleItem(w, r,
-		func(id string) (interface{}, error) { return s.consumerService.GetApplication(id) },
-		s.parseAndUpdateApplication,
-		func(id string) error { return s.consumerService.DeleteApplication(id) },
+		func(id string) (interface{}, error) { return s.consumerService.GetConsumer(id) },
+		nil, // No update for consumers
+		nil, // No delete for consumers
 	)
+}
+
+// Consumer application handlers (RESTful)
+func (s *APIServer) handleConsumerApplications(w http.ResponseWriter, r *http.Request) {
+	// GET /consumer-applications - Get all applications (admin view)
+	s.handleCollection(w, r,
+		func() (interface{}, error) {
+			apps, err := s.consumerService.GetAllConsumerApps()
+			if err != nil {
+				return nil, err
+			}
+			return utils.CreateCollectionResponse(apps, len(apps)), nil
+		},
+		nil, // No POST at this level - use /consumer-applications/:consumerId
+	)
+}
+
+func (s *APIServer) handleConsumerApplicationByID(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	id := utils.ExtractIDFromPathString(path)
+
+	if id == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "ID is required")
+		return
+	}
+
+	// Determine if this is a consumer ID or submission ID based on the ID format and HTTP method
+	if strings.HasPrefix(id, "consumer_") {
+		// This is a consumer ID - handle consumer-specific operations
+		s.handleConsumerApplicationsForConsumer(w, r, id)
+	} else if strings.HasPrefix(id, "sub_") {
+		// This is a submission ID - handle individual application operations
+		s.handleIndividualConsumerApplication(w, r, id)
+	} else {
+		// Unknown ID format - try consumer first, then submission
+		if r.Method == "POST" || r.Method == "GET" {
+			// For POST/GET, assume it's a consumer ID
+			s.handleConsumerApplicationsForConsumer(w, r, id)
+		} else {
+			// For other methods, assume it's a submission ID
+			s.handleIndividualConsumerApplication(w, r, id)
+		}
+	}
+}
+
+// Handle operations for a specific consumer's applications
+func (s *APIServer) handleConsumerApplicationsForConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /consumer-applications/:consumerId - Get applications for specific consumer
+		apps, err := s.consumerService.GetConsumerAppsByConsumerID(consumerID)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, utils.CreateCollectionResponse(apps, len(apps)))
+	case http.MethodPost:
+		// POST /consumer-applications/:consumerId - Create application for specific consumer
+		var req models.CreateConsumerAppRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		// Set the consumer ID from the URL
+		req.ConsumerID = consumerID
+
+		app, err := s.consumerService.CreateConsumerApp(req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusCreated, app)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// Handle operations for individual consumer applications
+func (s *APIServer) handleIndividualConsumerApplication(w http.ResponseWriter, r *http.Request, submissionID string) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /consumer-applications/:submissionId - Get specific application
+		app, err := s.consumerService.GetConsumerApp(submissionID)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, app)
+	case http.MethodPut:
+		// PUT /consumer-applications/:submissionId - Update application (admin approval)
+		var req models.UpdateConsumerAppRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		response, err := s.consumerService.UpdateConsumerApp(submissionID, req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusOK, response)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
 // Provider submission handlers
@@ -276,16 +372,53 @@ func (s *APIServer) handleProviderSchemas(w http.ResponseWriter, r *http.Request
 			}
 			return utils.CreateCollectionResponse(schemas, len(schemas)), nil
 		},
-		s.parseAndCreateProviderSchema,
+		nil, // No POST at this level - use /provider-schemas/:providerId
 	)
 }
 
 func (s *APIServer) handleProviderSchemaByID(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	providerID := utils.ExtractIDFromPathString(path)
+
+	if providerID == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Provider ID is required")
+		return
+	}
+
+	// Handle provider-specific schema creation
+	if r.Method == http.MethodPost {
+		s.handleCreateProviderSchemaSDL(w, r, providerID)
+		return
+	}
+
+	// Handle other operations (GET, PUT) for individual schemas
 	s.handleItem(w, r,
 		func(id string) (interface{}, error) { return s.providerService.GetProviderSchema(id) },
 		s.parseAndUpdateProviderSchema,
 		nil, // No delete for schemas
 	)
+}
+
+// handleCreateProviderSchemaSDL handles POST /provider-schemas/:providerId
+func (s *APIServer) handleCreateProviderSchemaSDL(w http.ResponseWriter, r *http.Request, providerID string) {
+	if r.Method != http.MethodPost {
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req models.CreateProviderSchemaSDLRequest
+	if err := utils.ParseJSONRequest(r, &req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	schema, err := s.providerService.CreateProviderSchemaSDL(providerID, req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
 
 // Admin handler

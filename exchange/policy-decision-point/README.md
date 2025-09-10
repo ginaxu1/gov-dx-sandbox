@@ -6,7 +6,7 @@ Authorization service using Open Policy Agent (OPA) that evaluates data access r
 
 - **Technology**: Go + Open Policy Agent (OPA) + Rego policies
 - **Port**: 8082
-- **Purpose**: ABAC authorization with field-level access control
+- **Purpose**: Attribute-based access control (ABAC) authorization with field-level access control
 
 ## Data Flow
 
@@ -78,15 +78,63 @@ curl -X POST http://localhost:8082/decide \
 - `data/provider-metadata.json` - Field permissions and consent requirements
 - `policies/main.rego` - OPA authorization policies
 
+### Field Access Control Logic
+
+#### Access Control Types
+
+1. **Public Fields** (`access_control_type: "public"`)
+   - Any consumer can access
+   - No allow_list restrictions
+   - Consent only required if `consent_required: true` AND `provider != owner`
+
+2. **Restricted Fields** (`access_control_type: "restricted"`)
+   - Only consumers in `allow_list` can access
+   - Consent required if `consent_required: true` AND `provider != owner`
+
+#### Consent Requirements
+
+Consent is required when:
+- `consent_required: true` AND
+- `provider != owner` (data is cross-provider)
+
 ## Schema Conversion
 
-Converts GraphQL SDL to provider metadata:
+The platform supports converting GraphQL SDL schemas to provider metadata format:
 
+### GraphQL SDL Input
 ```graphql
 type User {
-  id: ID! @accessControl(type: "public") @isOwner(value: true)
-  email: String! @accessControl(type: "restricted") @isOwner(value: false)
+  id: ID! @accessControl(type: "public") @source(value: "authoritative") @isOwner(value: true)
+  name: String! @accessControl(type: "public") @source(value: "authoritative") @isOwner(value: true)
+  email: String! @accessControl(type: "restricted") @source(value: "authoritative") @isOwner(value: false)
 }
 ```
 
-→ Generates field-level permissions in `provider-metadata.json`
+### Converted Provider Metadata
+```json
+{
+  "fields": {
+    "user.id": {
+      "consent_required": false,
+      "owner": "drp",
+      "provider": "drp",
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "user.name": {
+      "consent_required": false,
+      "owner": "drp",
+      "provider": "drp",
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "user.email": {
+      "consent_required": true,
+      "owner": "drp",
+      "provider": "drp",
+      "access_control_type": "restricted",
+      "allow_list": []
+    }
+  }
+}
+```

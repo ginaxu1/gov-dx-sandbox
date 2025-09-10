@@ -1,6 +1,39 @@
 {
   "fields": {
-    "person.fullName": { 
+    "birthinfo.birthCertificateID": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "birthinfo.birthDate": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "birthinfo.birthPlace": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.birthDate": {
+      "owner": "rgd",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "driver-app",
+          "expiry_time": "30d"
+        }
+      ]
+    },
+    "person.fullName": {
       "owner": "drp",
       "provider": "drp",
       "consent_required": false,
@@ -21,7 +54,7 @@
       "access_control_type": "restricted",
       "allow_list": [
         {
-          "consumerId": "passport-app", 
+          "consumerId": "passport-app",
           "expiry_time": "30d"
         }
       ]
@@ -33,20 +66,8 @@
       "access_control_type": "restricted",
       "allow_list": [
         {
-          "consumerId": "passport-app", 
+          "consumerId": "passport-app",
           "expiry_time": "7d"
-        }
-      ]
-    },
-    "person.birthDate": {
-      "owner": "rgd",
-      "provider": "drp",
-      "consent_required": false,
-      "access_control_type": "restricted",
-      "allow_list": [
-         {
-          "consumerId": "driver-app", 
-          "expiry_time": "30d"
         }
       ]
     },
@@ -56,11 +77,80 @@
       "consent_required": true,
       "access_control_type": "restricted",
       "allow_list": [
-         {
-          "consumerId": "driver-app", 
+        {
+          "consumerId": "driver-app",
           "expiry_time": "1d"
         }
       ]
+    },
+    "query.getBirthInfo(userId": {
+      "owner": "prov_947c7b7992fbf6e7",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": [],
+      "description": "Default Description"
+    },
+    "query.getUser(id": {
+      "owner": "prov_947c7b7992fbf6e7",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": [],
+      "description": "Default Description"
+    },
+    "query.listUsers": {
+      "owner": "prov_947c7b7992fbf6e7",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": [],
+      "description": "Default Description"
+    },
+    "query.listUsersByBirthPlace(birthPlace": {
+      "owner": "prov_947c7b7992fbf6e7",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": [],
+      "description": "Default Description"
+    },
+    "query.searchUsersByName(name": {
+      "owner": "prov_947c7b7992fbf6e7",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": [],
+      "description": "Default Description"
+    },
+    "user.birthInfo": {
+      "owner": "prov_947c7b7992fbf6e7",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": [],
+      "description": "authoritative"
+    },
+    "user.email": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "user.id": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "user.name": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
     }
   }
 }

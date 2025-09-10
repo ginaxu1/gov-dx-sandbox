@@ -1,4 +1,4 @@
-package services_test
+package tests
 
 import (
 	"testing"
@@ -16,7 +16,7 @@ func TestAdminService_GetDashboard(t *testing.T) {
 
 	// Create applications
 	appReq := models.CreateApplicationRequest{
-		RequiredFields: map[string]interface{}{"person.fullName": true},
+		RequiredFields: map[string]bool{"person.fullName": true},
 	}
 	_, err := consumerService.CreateApplication(appReq)
 	if err != nil {
