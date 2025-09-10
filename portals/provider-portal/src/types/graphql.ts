@@ -54,7 +54,7 @@ export interface FieldConfiguration {
   isOwner: boolean | null;
   description: string;
   isQueryType: boolean; // Is Field Defined Inside a Query Type
-  isUserDefinedTypeField: boolean; // Is Field is a User Defined Type 
+  isUserDefinedTypeField: boolean; // Is this field a User Defined Type field
 }
 
 export interface SchemaRegistration {
