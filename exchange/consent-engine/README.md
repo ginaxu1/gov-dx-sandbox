@@ -1,353 +1,189 @@
-# Consent Engine - Consent Flow Implementation
+# Consent Engine (CE)
 
-## Overview
+The Consent Engine is a service that manages data owner consent workflows for data access requests. It creates, tracks, and manages consent records, enabling data owners to grant or revoke access to their personal data.
 
-Manages data owner consent workflow. Creates consent records, provides consent portals, and tracks consent status for data access requests requiring explicit permission.
+## How It Works
 
-## Architecture
+### Architecture
+- **Technology**: Go + In-memory storage
+- **Purpose**: Consent management and workflow coordination
+- **Port**: 8081
 
-1. **Orchestration Engine** requests consent record creation
-2. **Consent Engine** creates consent record and provides portal URL
-3. **Data Owner** interacts with consent portal to approve/deny consent
-4. **Consent Engine** manages consent status and expiry
-5. **Orchestration Engine** checks consent status before data access
+### Consent Workflow
 
-## Consent Flow States
+1. **Consent Request**: When the Policy Decision Point determines that consent is required, the Orchestration Engine calls the Consent Engine
+2. **Consent Creation**: A consent record is created with pending status
+3. **Data Owner Notification**: The data owner is notified via the consent portal
+4. **Consent Decision**: The data owner can grant or deny consent
+5. **Consent Tracking**: The system tracks consent status, expiry, and revocation
 
-### Consent Status
-- **pending**: Consent request created but not yet actioned
-- **approved**: Data owner has approved the consent request
-- **denied**: Data owner has denied the consent request
-- **expired**: Consent has expired based on expiry time
-- **revoked**: Consent has been revoked by the data owner
+### Consent States
 
-### Consent Types
-- **realtime**: Real-time consent from the user via consent portal
-- **offline**: Offline consent from the data owner (pre-configured)
+- **`pending`**: Consent request created, awaiting data owner decision
+- **`granted`**: Data owner has granted consent
+- **`denied`**: Data owner has denied consent
+- **`expired`**: Consent has expired based on expiry_time
+- **`revoked`**: Consent has been revoked by data owner
 
-## API Endpoints
+### Data Storage
 
-### Consent Management
+The Consent Engine uses in-memory storage for development and testing. In production, this would be replaced with a persistent database.
 
-#### Create Consent Request
-```http
-POST /consent
-Content-Type: application/json
+## Running
 
-{
-  "data_consumer": "passport-app",
-  "data_owner": "user123",
-  "fields": ["person.permanentAddress", "person.birthDate"],
-  "type": "realtime",
-  "session_id": "sess_12345",
-  "redirect_url": "https://passport-app.gov.lk/callback",
-  "expiry_time": "30d",
-  "metadata": {
-    "request_source": "official_portal"
-  }
-}
-```
-
-#### Get Consent Status
-```http
-GET /consent/{consent_id}
-```
-
-#### Update Consent Status
-```http
-PUT /consent/{consent_id}
-Content-Type: application/json
-
-{
-  "status": "approved",
-  "updated_by": "system",
-  "reason": "automatic_approval",
-  "metadata": {
-    "approval_method": "automated"
-  }
-}
-```
-
-#### Revoke Consent
-```http
-DELETE /consent/{consent_id}
-Content-Type: application/json
-
-{
-  "reason": "user_requested_revocation"
-}
-```
-
-### Consent Portal Integration
-
-#### Process Consent Portal Request
-```http
-POST /consent-portal/
-Content-Type: application/json
-
-{
-  "consent_id": "consent_123",
-  "action": "approve",
-  "data_owner": "user123",
-  "session_id": "sess_12345",
-  "reason": "user_approved_via_portal"
-}
-```
-
-#### Get Consent Portal Information
-```http
-GET /consent-portal/?consent_id={consent_id}
-```
-
-### Data Owner Operations
-
-#### Get Consents by Data Owner
-```http
-GET /data-owner/{data_owner_id}
-```
-
-### Consumer Operations
-
-#### Get Consents by Consumer
-```http
-GET /consumer/{consumer_id}
-```
-
-### Administrative Operations
-
-#### Check Consent Expiry
-```http
-POST /admin/expiry-check
-```
-
-## Consent Workflow Examples
-
-### Example 1: Real-time Consent Flow
-
-1. **PDP Decision**: PDP determines consent is required for `person.permanentAddress`
-2. **Create Consent**: Orchestration Engine creates consent request
-3. **Redirect User**: User is redirected to consent portal
-4. **User Action**: User approves/denies consent via portal
-5. **Update Status**: Consent status is updated
-6. **Data Access**: Orchestration Engine proceeds with data access
-
+### Local Development
 ```bash
-# Step 1: Create consent request
-curl -X POST http://localhost:8081/consent \
-  -H "Content-Type: application/json" \
-  -d '{
-    "data_consumer": "passport-app",
-    "data_owner": "user123",
-    "fields": ["person.permanentAddress"],
-    "type": "realtime",
-    "expiry_time": "30d"
-  }'
+# Ensure you're in local development state
+cd /Users/tmp/gov-dx-sandbox/exchange && ./scripts/restore-local-build.sh
 
-# Step 2: User approves via consent portal
-curl -X POST http://localhost:8081/consent-portal/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consent_id": "consent_123",
-    "action": "approve",
-    "data_owner": "user123"
-  }'
-
-# Step 3: Check consent status
-curl http://localhost:8081/consent/consent_123
+# Run the service
+cd consent-engine
+go run main.go
 ```
 
-### Example 2: Offline Consent Flow
-
-1. **Pre-configured Consent**: Data owner has pre-approved certain data access
-2. **Create Consent**: System creates consent with offline type
-3. **Automatic Approval**: Consent is automatically approved
-4. **Data Access**: Orchestration Engine proceeds immediately
-
+### Docker
 ```bash
-# Create offline consent
-curl -X POST http://localhost:8081/consent \
-  -H "Content-Type: application/json" \
-  -d '{
-    "data_consumer": "passport-app",
-    "data_owner": "user123",
-    "fields": ["person.fullName", "person.nic"],
-    "type": "offline"
-  }'
-
-# Automatically approve offline consent
-curl -X PUT http://localhost:8081/consent/consent_456 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "approved",
-    "updated_by": "system",
-    "reason": "offline_consent_pre_approved"
-  }'
+# Build and run
+docker build -t ce .
+docker run -p 8081:8081 ce
 ```
 
-## Integration with Policy Decision Point
-
-The Consent Engine integrates with the PDP through the following flow:
-
-1. **PDP Evaluation**: PDP evaluates request and determines consent requirements
-2. **Consent Creation**: If consent required, Orchestration Engine creates consent record
-3. **Portal Redirect**: User is redirected to consent portal
-4. **Consent Decision**: Data owner provides consent decision
-5. **Status Update**: Consent status is updated
-6. **Data Access**: Orchestration Engine checks consent status before data access
-
-### Current Integration Status
-
-**PDP Implementation**: Successfully implemented with working ABAC authorization
-**Consent Engine**: Fully implemented with all consent workflow features
-**Data Loading**: OPA data loading mechanism working correctly
-**Authorization Flow**: PDP correctly identifies consent requirements
-**Consent Workflow**: Complete consent lifecycle management implemented
-
-### Integration Testing
-
-To test the complete PDP → Consent Engine integration:
-
-1. **Test PDP Authorization** (PDP determines consent is required):
-```bash
-curl -X POST http://localhost:8080/decide \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumer": {"id": "passport-app"},
-    "request": {
-      "resource": "person_data",
-      "action": "read",
-      "data_fields": ["person.permanentAddress"],
-      "data_owner": "drp"
-    }
-  }'
-```
-
-2. **Create Consent Record** (Orchestration Engine creates consent):
-```bash
-curl -X POST http://localhost:8081/consent \
-  -H "Content-Type: application/json" \
-  -d '{
-    "data_consumer": "passport-app",
-    "data_owner": "user123",
-    "fields": ["person.permanentAddress"],
-    "type": "realtime",
-    "expiry_time": "30d"
-  }'
-```
-
-3. **Process Consent** (Data owner approves via portal):
-```bash
-curl -X POST http://localhost:8081/consent-portal/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consent_id": "consent_abc123",
-    "action": "approve",
-    "data_owner": "user123"
-  }'
-```
-
-### PDP Response with Consent Required
-```json
-{
-  "allow": true,
-  "deny_reason": null,
-  "consent_required": true,
-  "consent_required_fields": ["person.permanentAddress", "person.birthDate"],
-  "data_owner": "drp",
-  "expiry_time": "30d",
-  "conditions": {
-    "consumer_verified": true,
-    "resource_authorized": true,
-    "time_valid": true,
-    "context_valid": true
-  }
-}
-```
-
-## Consent Expiry Management
-
-The Consent Engine supports automatic expiry management:
-
-- **Expiry Time**: Set during consent creation (e.g., "30d", "1h", "7d")
-- **Automatic Expiry**: System automatically marks consents as expired
-- **Expiry Check**: Administrative endpoint to check and update expired consents
-- **Renewal**: Expired consents can be renewed by creating new consent requests
-
-### Expiry Time Formats
-- `30d` - 30 days
-- `1h` - 1 hour
-- `7d` - 7 days
-- `30m` - 30 minutes
-- `60s` - 60 seconds
-
-## Security Considerations
-
-- **Data Owner Validation**: All consent portal actions validate data owner identity
-- **Status Transition Validation**: Only valid status transitions are allowed
-- **Session Management**: Session IDs are tracked for audit purposes
-- **Audit Logging**: All consent actions are logged with timestamps and reasons
-- **Expiry Enforcement**: Expired consents are automatically invalidated
-
-## Status Transition Rules
-
-```
-pending → approved, denied, expired
-approved → revoked, expired
-denied → pending (allow retry)
-expired → pending (allow renewal)
-revoked → (no transitions allowed)
-```
-
-## Recent Updates and Fixes
-
-### API Routing Improvements
-- **Fixed consent endpoint routing**: Both `/consent` and `/consent/` endpoints now work correctly
-- **Improved error handling**: Better handling of malformed requests and missing parameters
-- **Enhanced response consistency**: Standardized JSON responses across all endpoints
-
-### Test Organization
-- **Centralized test scripts**: All test scripts moved to `/tests` directory for better organization
-- **Comprehensive test coverage**: Added complete consent flow integration tests
-- **Automated test runner**: `run-all-tests.sh` executes all test suites in sequence
-
-### Container Deployment
-- **Updated Docker containers**: Rebuilt containers with latest routing fixes
-- **Improved build process**: Better separation of build and runtime stages
-- **Enhanced security**: Non-root user execution in containers
-
-## Error Handling
-
-The Consent Engine provides comprehensive error handling:
-
-- **Invalid Status Transitions**: Returns error for invalid status changes
-- **Data Owner Mismatch**: Validates data owner identity for portal actions
-- **Missing Records**: Returns appropriate HTTP status codes
-- **Invalid Input**: Validates request structure and required fields
+> **For complete deployment instructions, see [Main README](../README.md#building-for-local-development)**
 
 ## Testing
 
-### Quick Test
+### Unit Tests
 ```bash
-cd ../tests && ./test-complete-consent-flow.sh
+# All tests
+go test -v
+
+# Specific test suites
+go test -v -run TestConsentEngine
+go test -v -run TestConsentWorkflow
+go test -v -run TestConsentExpiry
 ```
 
-### Manual API Test
+### Test Coverage
+The test suite covers:
+
+1. **Consent Creation**: Creating new consent records
+2. **Consent Retrieval**: Getting consent by ID, data owner, or consumer
+3. **Consent Updates**: Updating consent status (grant/deny/revoke)
+4. **Consent Expiry**: Handling expired consents
+5. **Consent Portal**: Portal functionality for data owners
+6. **Error Handling**: Invalid requests and edge cases
+
+> **For integration testing, see [Main README](../README.md#testing)**
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/consent` | POST | Create consent record |
+| `/consent/{id}` | GET, PUT, DELETE | Get, update, or revoke consent |
+| `/consent/portal` | GET, POST | Portal info and processing |
+| `/data-owner/{owner}` | GET | Get consents by data owner |
+| `/consumer/{consumer}` | GET | Get consents by consumer |
+| `/admin/expiry-check` | POST | Check consent expiry |
+| `/health` | GET | Health check |
+
+## Example Usage
+
+### Create Consent
 ```bash
-# Create consent
 curl -X POST http://localhost:8081/consent \
   -H "Content-Type: application/json" \
   -d '{
-    "data_consumer": "passport-app",
-    "data_owner": "user123", 
-    "fields": ["person.permanentAddress"],
-    "type": "realtime"
-  }'
-
-# Update consent status
-curl -X PUT http://localhost:8081/consent/{consent_id} \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "approved",
-    "updated_by": "user123"
+    "consumer_id": "passport-app",
+    "data_owner": "user-nuwan-fernando-456", 
+    "data_fields": ["person.permanentAddress", "person.birthDate"],
+    "purpose": "passport application",
+    "expiry_days": 30
   }'
 ```
+
+### Get Consent by ID
+```bash
+curl -X GET http://localhost:8081/consent/{consent-id}
+```
+
+### Get Consents by Data Owner
+```bash
+curl -X GET http://localhost:8081/data-owner/user-nuwan-fernando-456
+```
+
+### Get Consents by Consumer
+```bash
+curl -X GET http://localhost:8081/consumer/passport-app
+```
+
+### Update Consent Status
+```bash
+curl -X PUT http://localhost:8081/consent/{consent-id} \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "granted"
+  }'
+```
+
+### Revoke Consent
+```bash
+curl -X DELETE http://localhost:8081/consent/{consent-id}
+```
+
+### Check Consent Expiry
+```bash
+curl -X POST http://localhost:8081/admin/expiry-check
+```
+
+## Configuration
+
+### Environment Variables
+- `PORT` - Service port (default: 8081)
+- `ENVIRONMENT` - Environment (local/production)
+- `LOG_LEVEL` - Logging level (debug/info/warn/error)
+
+### Consent Record Structure
+```json
+{
+  "id": "consent-123",
+  "consumer_id": "passport-app",
+  "data_owner": "user-nuwan-fernando-456",
+  "data_fields": ["person.permanentAddress", "person.birthDate"],
+  "purpose": "passport application",
+  "status": "granted",
+  "created_at": "2025-09-10T10:00:00Z",
+  "updated_at": "2025-09-10T10:05:00Z",
+  "expires_at": "2025-10-10T10:00:00Z"
+}
+```
+
+## Consent Portal
+
+The consent portal provides a web interface for data owners to manage their consents:
+
+### Portal Endpoints
+- `GET /consent/portal` - Get portal information and pending consents
+- `POST /consent/portal` - Process consent decisions from the portal
+
+### Portal Workflow
+1. Data owner accesses the portal
+2. Portal displays pending consent requests
+3. Data owner can grant or deny each request
+4. Portal updates consent status via API
+5. Data owner can view and manage existing consents
+
+## Integration
+
+The Consent Engine integrates with:
+- **Orchestration Engine**: Receives consent requests and provides consent status
+- **Policy Decision Point**: Provides consent requirements for authorization decisions
+- **Data Owner Portal**: Web interface for consent management
+
+## Security Considerations
+
+- Consent records are immutable once created (status can only be updated)
+- Expired consents are automatically flagged
+- Data owners can revoke consent at any time
+- All consent operations are logged for audit purposes
+- Consent records include purpose and expiry information for transparency

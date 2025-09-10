@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
-	"github.com/gov-dx-sandbox/exchange/utils"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
 func main() {

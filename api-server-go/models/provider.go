@@ -67,6 +67,7 @@ type ProviderSchema struct {
 	Status              ProviderSchemaStatus `json:"status"`
 	SchemaInput         *SchemaInput         `json:"schemaInput,omitempty"`
 	FieldConfigurations FieldConfigurations  `json:"fieldConfigurations"`
+	SDL                 string               `json:"sdl,omitempty"` // Store SDL directly
 }
 
 // SchemaInput represents the original schema source
@@ -88,6 +89,11 @@ type CreateProviderSchemaRequest struct {
 	ProviderID          string              `json:"providerId"`
 	SchemaInput         *SchemaInput        `json:"schemaInput,omitempty"`
 	FieldConfigurations FieldConfigurations `json:"fieldConfigurations"`
+}
+
+// CreateProviderSchemaSDLRequest represents the request to create a provider schema with SDL
+type CreateProviderSchemaSDLRequest struct {
+	SDL string `json:"sdl" validate:"required"`
 }
 
 // UpdateProviderSubmissionRequest represents the request to update a provider submission

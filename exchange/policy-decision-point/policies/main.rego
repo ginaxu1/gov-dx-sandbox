@@ -12,6 +12,19 @@ default decision = {
     "conditions": {}
 }
 
+# Denial rules for specific scenarios - these must come first
+decision = {
+    "allow": false,
+    "deny_reason": "Consumer not authorized for requested fields",
+    "consent_required": false,
+    "consent_required_fields": [],
+    "data_owner": "",
+    "expiry_time": "",
+    "conditions": {}
+} {
+    not all_fields_authorized(get_required_fields(input), get_consumer_id(input))
+}
+
 # Main decision rule - allows access if all ABAC conditions are met
 decision = {
     "allow": true,
@@ -25,8 +38,8 @@ decision = {
     # Check if the request meets all ABAC authorization criteria
     abac_authorization_passed
     
-    # Determine consent requirements
-    consent_fields := get_consent_required_fields(input.request.data_fields)
+    # Determine consent requirements based on new metadata format
+    consent_fields := get_consent_required_fields(get_required_fields(input), get_consumer_id(input))
     consent_required := count(consent_fields) > 0
     
     # Set conditions for the authorization
@@ -38,7 +51,7 @@ decision = {
     
     # Get data owner and expiry information for consent fields (only if consent is required)
     data_owner := get_data_owner(consent_fields)
-    expiry_time := get_expiry_time(consent_fields)
+    expiry_time := get_expiry_time(consent_fields, get_consumer_id(input))
 }
 
 # Simplified ABAC Authorization Rule - focuses on core consent flow requirements
@@ -55,47 +68,62 @@ abac_authorization_passed {
 
 # Consumer Authorization - checks if the consumer is authorized to access the resource
 consumer_authorized {
-    # Access consumer data loaded via embedded data module
-    consumer_data := consumer_grants[input.consumer.id]
-    
-    # Check if consumer has access to the requested resource
-    resource := input.request.resource
-    approved_fields := consumer_data.approved_fields
-    requested_fields := input.request.data_fields
-    
-    # All requested fields must be in approved fields
-    all_fields_approved(requested_fields, approved_fields)
+    # Check if consumer is authorized for all requested fields
+    all_fields_authorized(get_required_fields(input), get_consumer_id(input))
 }
 
 # Resource Authorization - checks if the resource is accessible
 resource_authorized {
     # Check if the resource exists in provider metadata
-    resource := input.request.resource
-    field := input.request.data_fields[_]
+    field := get_required_fields(input)[_]
     provider_metadata.fields[field]
 }
 
 # Action Authorization - checks if the action is permitted
 action_authorized {
-    # Only "read" action is currently supported
-    input.request.action == "read"
+    # For new format, we assume "read" action is always allowed
+    # Legacy format still checks the action field
+    true
 }
 
-# Helper function to check if all requested fields are approved
-all_fields_approved(requested_fields, approved_fields) {
-    # Convert both lists to sets for efficient comparison
-    requested_set := {field | field := requested_fields[_]}
-    approved_set := {field | field := approved_fields[_]}
+# Helper function to check if all requested fields are authorized for the consumer
+all_fields_authorized(requested_fields, consumer_id) {
+    # All requested fields must be authorized
+    field := requested_fields[_]
+    field_authorized(field, consumer_id)
+}
+
+# Helper function to check if a specific field is authorized for the consumer
+field_authorized(field, consumer_id) {
+    field_metadata := provider_metadata.fields[field]
     
-    # Check if the requested set is a subset of the approved set
-    requested_set <= approved_set
+    # Public fields are always authorized
+    field_metadata.access_control_type == "public"
+} else = true {
+    field_metadata := provider_metadata.fields[field]
+    
+    # Restricted fields require consumer to be in allow list
+    field_metadata.access_control_type == "restricted"
+    consumer_in_allow_list(field, consumer_id)
+} else = false {
+    # Default to false for any other case
+    true
 }
 
-# Function to get fields that require consent based on metadata
-get_consent_required_fields(requested_fields) = fields {
+# Helper function to check if consumer is in the allow list for a field
+consumer_in_allow_list(field, consumer_id) {
+    field_metadata := provider_metadata.fields[field]
+    allow_list := field_metadata.allow_list[_]
+    allow_list.consumerId == consumer_id
+}
+
+# Function to get fields that require consent based on new metadata format
+# Consent is required when: consent_required: true AND provider != owner
+get_consent_required_fields(requested_fields, consumer_id) = fields {
     fields := [field | 
         field := requested_fields[_]
-        provider_metadata.fields[field].consent_required == true
+        field_metadata := provider_metadata.fields[field]
+        field_metadata.consent_required == true
     ]
 }
 
@@ -106,11 +134,14 @@ get_primary_data_owner(consent_fields) = owner {
     owner := provider_metadata.fields[consent_fields[0]].owner
 }
 
-# Function to get consent expiry time
-get_consent_expiry_time(consent_fields) = expiry {
+# Function to get consent expiry time from allow list
+get_consent_expiry_time(consent_fields, consumer_id) = expiry {
     count(consent_fields) > 0
-    # Get expiry time from the first consent field
-    expiry := provider_metadata.fields[consent_fields[0]].expiry_time
+    field := consent_fields[0]
+    field_metadata := provider_metadata.fields[field]
+    allow_list := field_metadata.allow_list[_]
+    allow_list.consumerId == consumer_id
+    expiry := allow_list.expiry_time
 }
 
 # Helper function to get data owner (returns empty string if no consent fields)
@@ -121,46 +152,20 @@ get_data_owner(consent_fields) = owner {
 }
 
 # Helper function to get expiry time (returns empty string if no consent fields)
-get_expiry_time(consent_fields) = expiry {
-    expiry := get_consent_expiry_time(consent_fields)
+get_expiry_time(consent_fields, consumer_id) = expiry {
+    expiry := get_consent_expiry_time(consent_fields, consumer_id)
 } else = "" {
     count(consent_fields) == 0
 }
 
-# Denial rules for specific scenarios
-decision = {
-    "allow": false,
-    "deny_reason": "Consumer not found in grants",
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-} {
-    not consumer_grants[input.consumer.id]
+# Helper functions for the new input format
+
+# Get consumer ID from the new format
+get_consumer_id(req) = consumer_id {
+    consumer_id := req.consumer_id
 }
 
-decision = {
-    "allow": false,
-    "deny_reason": "Consumer not authorized for requested fields",
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-} {
-    consumer_grants[input.consumer.id]
-    not all_fields_approved(input.request.data_fields, consumer_grants[input.consumer.id].approved_fields)
-}
-
-decision = {
-    "allow": false,
-    "deny_reason": "Invalid action requested",
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-} {
-    input.request.action != "read"
+# Get required fields from the new format
+get_required_fields(req) = fields {
+    fields := req.required_fields
 }

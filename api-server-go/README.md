@@ -7,7 +7,7 @@ A RESTful API server for government data exchange portal management. Built with 
 The API server provides RESTful endpoints for managing:
 - Consumer applications
 - Provider submissions and profiles
-- Provider schemas
+- Provider schemas (with SDL support)
 - Admin functions
 
 ## Architecture
@@ -23,6 +23,7 @@ api-server-go/
 ├── services/            # Business logic
 │   ├── consumer.go      # Consumer operations
 │   ├── provider.go      # Provider operations
+│   ├── schema_converter.go # SDL to provider metadata conversion
 │   └── admin.go         # Admin dashboard
 ├── tests/               # Unit tests
 └── go.mod              # Dependencies
@@ -53,10 +54,56 @@ api-server-go/
 - `GET /provider-schemas` - List schemas
 - `POST /provider-schemas` - Create schema
 - `GET /provider-schemas/{id}` - Get schema
-- `PUT /provider-schemas/{id}` - Update schema
+- `PUT /provider-schemas/{id}` - Update schema (approval updates provider-metadata.json)
+- `POST /providers/{provider-id}/schemas` - Create schema with SDL payload
 
 ### Admin
 - `GET /admin/dashboard` - Dashboard with metrics and recent activity
+
+## Example Usage
+
+### Provider Schema Submission with SDL
+```bash
+# Submit a schema with GraphQL SDL
+curl -X POST http://localhost:3000/providers/drp/schemas \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sdl": "directive @accessControl(type: String!) on FIELD_DEFINITION\n\ndirective @source(value: String!) on FIELD_DEFINITION\n\ndirective @isOwner(value: Boolean!) on FIELD_DEFINITION\n\ndirective @description(value: String!) on FIELD_DEFINITION\n\ntype BirthInfo {\n  birthCertificateID: ID! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  birthPlace: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  birthDate: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n}\n\ntype User {\n  id: ID! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  name: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  email: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  birthInfo: BirthInfo @accessControl(type: \"public\") @source(value: \"authoritative\") @description(value: \"Default Description\")\n}\n\ntype Query {\n  getUser(id: ID!): User @description(value: \"Default Description\")\n  listUsers: [User!]! @description(value: \"Default Description\")\n  getBirthInfo(userId: ID!): BirthInfo @description(value: \"Default Description\")\n  listUsersByBirthPlace(birthPlace: String!): [User!]! @description(value: \"Default Description\")\n  searchUsersByName(name: String!): [User!]! @description(value: \"Default Description\")\n}"
+  }'
+```
+
+### Schema Approval (Updates provider-metadata.json)
+```bash
+# Approve a schema - this automatically updates provider-metadata.json
+curl -X PUT http://localhost:3000/provider-schemas/{schema-id} \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "approved"
+  }'
+```
+
+### Consumer Application Management
+```bash
+# Create a consumer application
+curl -X POST http://localhost:3000/consumers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requiredFields": {
+      "person.fullName": "required",
+      "person.email": "required"
+    }
+  }'
+
+# Get all consumer applications
+curl -X GET http://localhost:3000/consumers
+
+# Approve consumer application
+curl -X PUT http://localhost:3000/consumers/{app-id} \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "approved"
+  }'
+```
 
 ## Development
 

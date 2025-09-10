@@ -1,21 +1,20 @@
-# Integration test scripts for the Exchange Services
+# Integration Tests
+
+Integration test scripts for the Exchange Services platform.
 
 ## Test Scripts
 
-### Core Tests
-
-- `test-pdp.sh`: PDP policy logic and authorization tests
-- `test-consent-flow.sh`: Basic consent flow integration tests
-- `test-complete-flow.sh`: End-to-end flow simulation tests
-- `test-complete-consent-flow.sh`: Full consent flow with Consent Engine integration
-
-### Test Runner
-
-- `run-all-tests.sh`: Executes all test suites in sequence
+| Script | Purpose |
+|--------|---------|
+| `test-pdp.sh` | PDP policy logic and authorization tests |
+| `test-consent-flow.sh` | Basic consent flow integration tests |
+| `test-complete-flow.sh` | End-to-end flow simulation tests |
+| `test-complete-consent-flow.sh` | Full consent flow with Consent Engine integration |
+| `run-all-tests.sh` | Executes all test suites in sequence |
 
 ## Prerequisites
 
-Start services:
+Ensure services are running:
 ```bash
 cd /path/to/exchange && docker-compose up -d
 ```
@@ -32,6 +31,8 @@ cd /path/to/exchange && docker-compose up -d
 ./test-complete-flow.sh          # End-to-end flow tests
 ./test-complete-consent-flow.sh  # Full integration tests
 ```
+
+> **For basic testing commands, see [Main README](../README.md#testing)**
 
 ## Test Coverage
 
@@ -81,20 +82,9 @@ cd /path/to/exchange && docker-compose up -d
 - Full flow: AppUser → App → DataCustodian → PDP → ConsentEngine
 - Expected: Complete consent flow with data access after consent
 
-## Service Endpoints
+## Service Information
 
-### Policy Decision Point (Port 8080)
-- `POST /decide` - Authorization decision endpoint
-- `GET /debug` - Debug information endpoint
-
-### Consent Engine (Port 8081)
-- `POST /consent` - Create consent record
-- `GET /consent/{id}` - Get consent record
-- `PUT /consent/{id}` - Update consent record
-- `DELETE /consent/{id}` - Revoke consent record
-- `GET /consent-portal/` - Consent portal information
-- `GET /data-owner/{owner}` - Get consents by data owner
-- `GET /consumer/{consumer}` - Get consents by consumer
+> **For complete API documentation, see [Main README](../README.md#api-reference)**
 
 ## Troubleshooting
 
@@ -113,7 +103,7 @@ docker-compose restart
 
 ### Test Failures
 1. Ensure both services are running and healthy
-2. Check that the correct ports (8080, 8081) are available
+2. Check that the correct ports (8082, 8081) are available
 3. Verify that the latest code changes are deployed in containers
 4. Check container logs for any errors
 

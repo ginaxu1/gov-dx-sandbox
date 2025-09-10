@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // ApplicationStatus represents the status of a data consumer's application
 type ApplicationStatus string
 
@@ -9,12 +11,23 @@ const (
 	StatusDenied   ApplicationStatus = "denied"
 )
 
-// Application represents a data consumer's application to access specific data fields
-type Application struct {
-	AppID          string                 `json:"appId"`
-	Status         ApplicationStatus      `json:"status"`
-	RequiredFields map[string]interface{} `json:"requiredFields"`
-	Credentials    *Credentials           `json:"credentials,omitempty"`
+// Consumer represents a data consumer organization
+type Consumer struct {
+	ConsumerID   string    `json:"consumerId"`
+	ConsumerName string    `json:"consumerName"`
+	ContactEmail string    `json:"contactEmail"`
+	PhoneNumber  string    `json:"phoneNumber"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// ConsumerApp represents a consumer's application to access specific data fields
+type ConsumerApp struct {
+	SubmissionID  string                 `json:"submissionId"`
+	ConsumerID    string                 `json:"consumerId"`
+	Status        ApplicationStatus      `json:"status"`
+	RequiredFields map[string]bool       `json:"required_fields"`
+	CreatedAt     time.Time              `json:"createdAt"`
+	Credentials   *Credentials           `json:"credentials,omitempty"`
 }
 
 // Credentials represents API credentials for a consumer
@@ -23,19 +36,33 @@ type Credentials struct {
 	APISecret string `json:"apiSecret"`
 }
 
-// CreateApplicationRequest represents the request to create a new application
-type CreateApplicationRequest struct {
-	RequiredFields map[string]interface{} `json:"requiredFields"`
+// CreateConsumerRequest represents the request to create a new consumer
+type CreateConsumerRequest struct {
+	ConsumerName string `json:"consumerName"`
+	ContactEmail string `json:"contactEmail"`
+	PhoneNumber  string `json:"phoneNumber"`
 }
 
-// UpdateApplicationRequest represents the request to update an application
-type UpdateApplicationRequest struct {
-	Status         *ApplicationStatus     `json:"status,omitempty"`
-	RequiredFields map[string]interface{} `json:"requiredFields,omitempty"`
+// CreateConsumerAppRequest represents the request to create a new consumer application
+type CreateConsumerAppRequest struct {
+	ConsumerID     string           `json:"consumerId"`
+	RequiredFields map[string]bool  `json:"required_fields"`
 }
 
-// UpdateApplicationResponse represents the response when updating a consumer application
-type UpdateApplicationResponse struct {
-	*Application
+// UpdateConsumerAppRequest represents the request to update a consumer application
+type UpdateConsumerAppRequest struct {
+	Status         *ApplicationStatus `json:"status,omitempty"`
+	RequiredFields map[string]bool    `json:"required_fields,omitempty"`
+}
+
+// UpdateConsumerAppResponse represents the response when updating a consumer application
+type UpdateConsumerAppResponse struct {
+	*ConsumerApp
 	ProviderID string `json:"providerId,omitempty"` // Only present when status is approved
 }
+
+// Legacy models for backward compatibility
+type Application = ConsumerApp
+type CreateApplicationRequest = CreateConsumerAppRequest
+type UpdateApplicationRequest = UpdateConsumerAppRequest
+type UpdateApplicationResponse = UpdateConsumerAppResponse

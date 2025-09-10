@@ -26,7 +26,11 @@ mocks/mock-dmt/Config.toml
 # Intellij Configs
 **/.idea/**
 
-# Go binaries
-**/policy-decision-point
-**/consent-engine
-**/orchestration-engine-go
+# Go binaries (compiled executables only)
+**/policy-decision-point/policy-decision-point
+**/consent-engine/consent-engine
+**/orchestration-engine-go/orchestration-engine-go
+
+# Allow .choreo directories for WSO2 Choreo deployment
+!**/.choreo/
+!**/.choreo/**
