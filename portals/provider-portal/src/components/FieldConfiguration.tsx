@@ -16,7 +16,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
   configuration,
   onChange
 }) => {
-  const handleSourceChange = (source: 'authorative' | 'fallback' | 'other') => {
+  const handleSourceChange = (source: 'authoritative' | 'fallback' | 'other') => {
     onChange(typeName, field.name, { ...configuration, source });
   };
 
@@ -56,7 +56,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
               Source <span className="text-red-500">*</span>
             </label>
             <div className="flex space-x-4">
-              {(['authorative', 'fallback', 'other'] as const).map((option) => (
+              {(['authoritative', 'fallback', 'other'] as const).map((option) => (
                 <label key={option} className="flex items-center">
                   <input
                     type="radio"

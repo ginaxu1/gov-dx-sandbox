@@ -42,8 +42,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         if (type.name === "Query"){
           type.fields?.forEach(field => {
             initialConfigs[type.name][field.name] = {
-              source: "" as any,
-              isOwner: null as any,
+              source: "",
+              isOwner: null,
               description: field.description || '',
               isQueryType: true,
               isUserDefinedTypeField: false
@@ -54,8 +54,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
           type.fields?.forEach(field => {
             const isUserDefinedTypeField_ = userDefinedTypes_.map(t => t.name).includes(SchemaService.getTypeString(field.type));
             initialConfigs[type.name][field.name] = {
-              source: '' as any,
-              isOwner: isUserDefinedTypeField_ ? (null as any): false,
+              source: '',
+              isOwner: isUserDefinedTypeField_ ? (null): false,
               description: field.description || '',
               isQueryType: false,
               isUserDefinedTypeField: isUserDefinedTypeField_
