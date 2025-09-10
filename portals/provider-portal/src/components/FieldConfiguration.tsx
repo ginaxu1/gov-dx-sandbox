@@ -1,6 +1,7 @@
 // components/FieldConfiguration.tsx
 import type { GraphQLField } from '../types/graphql';
 import type { FieldConfiguration as FieldConfig } from '../types/graphql';
+import { SchemaService } from '../services/schemaService';
 
 interface FieldConfigurationProps {
   typeName: string;
@@ -27,23 +28,13 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
     onChange(typeName, field.name, { ...configuration, description });
   };
 
-  const getTypeString = (type: any): string => {
-    if (type.kind === 'NON_NULL') {
-      return `${getTypeString(type.ofType)}!`;
-    }
-    if (type.kind === 'LIST') {
-      return `[${getTypeString(type.ofType)}]`;
-    }
-    return type.name || type.kind;
-  };
-
   return (
     <div className="border-l-4 border-blue-200 pl-4 mb-4">
       <div className="flex items-start gap-4">
         <div className="flex-1">
           <div className="font-medium text-gray-800 mb-1">
             <span className="text-blue-600">{field.name}</span>
-            <span className="text-gray-500 ml-2">: {getTypeString(field.type)}</span>
+            <span className="text-gray-500 ml-2">: {SchemaService.getTypeString(field.type)}</span>
           </div>
           
           {field.description && (
@@ -52,7 +43,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
 
           {field.args && field.args.length > 0 && (
             <div className="text-xs text-gray-500 mb-2">
-              Args: {field.args.map(arg => `${arg.name}: ${getTypeString(arg.type)}`).join(', ')}
+              Args: {field.args.map(arg => `${arg.name}: ${SchemaService.getTypeString(arg.type)}`).join(', ')}
             </div>
           )}
         </div>
