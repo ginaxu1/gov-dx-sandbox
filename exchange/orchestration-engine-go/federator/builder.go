@@ -1,72 +1,11 @@
 package federator
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/kinds"
 )
-
-func flattenedPaths(field *ast.Field, parentPath string) []string {
-	// Initialize a slice to hold the flattened paths for this field's sub-tree.
-	var paths []string
-
-	// If the field has no selection set, it's a leaf node.
-	// We construct its full path and return it in a single-element slice.
-	if field.SelectionSet == nil {
-		if parentPath == "" {
-			return []string{field.Name.Value}
-		}
-		// Construct the full path by appending the field name to the parent path.
-		fullPath := parentPath + "." + field.Name.Value
-		return []string{fullPath}
-	}
-
-	// This field is an internal node, so we need to process its sub-selections.
-	// First, determine the current path prefix for this level of recursion.
-	currentPath := field.Name.Value
-	if parentPath != "" {
-		currentPath = parentPath + "." + field.Name.Value
-	}
-
-	// Iterate over each selection within the field's selection set.
-	for _, selection := range field.SelectionSet.Selections {
-		switch sel := selection.(type) {
-		case *ast.Field:
-			// Recursively call flattenedPaths on the sub-field.
-			// The currentPath serves as the parent path for the next level.
-			subPaths := flattenedPaths(sel, currentPath)
-
-			// Append the returned sub-paths to our main paths slice.
-			// The `...` operator unpacks the sub-paths slice,
-			// appending each element individually.
-			paths = append(paths, subPaths...)
-		default:
-			continue
-		}
-	}
-
-	return paths
-}
-
-// the function iterates through a list of keys of a lookup table
-// and returns a list of keys that match the given field paths.
-func matchFieldPaths(fieldPaths []string, lookupTable map[string]string) []string {
-	var matchedKeys []string
-	for key := range lookupTable {
-		for _, path := range fieldPaths {
-			if key == path {
-				matchedKeys = append(matchedKeys, lookupTable[key])
-				break // No need to check other paths once a match is found
-			}
-		}
-	}
-
-	sort.Strings(matchedKeys)
-
-	return matchedKeys
-}
 
 func BuildProviderLevelQuery(fieldsMap []string) []*federationServiceAST {
 	var queries []*federationServiceAST
