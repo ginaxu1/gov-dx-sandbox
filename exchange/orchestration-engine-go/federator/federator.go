@@ -12,12 +12,21 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/provider"
+	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/parser"
+	"github.com/graphql-go/graphql/language/source"
 )
 
 // Federator struct that includes all the context needed for federation.
 type Federator struct {
 	Providers map[string]*provider.Provider
 	Client    *http.Client
+	Schema    *ast.Document
+}
+
+type federationServiceAST struct {
+	ServiceKey string
+	QueryAst   *ast.Document
 }
 
 type federationServiceRequest struct {
@@ -38,6 +47,16 @@ type providerResponse struct {
 type federationResponse struct {
 	ServiceKey string             `json:"serviceKey"`
 	Responses  []providerResponse `json:"responses"`
+}
+
+// GetProviderResponse Returns the specific provider response by service key
+func (f *federationResponse) GetProviderResponse(providerKey string) *providerResponse {
+	for _, resp := range f.Responses {
+		if resp.ServiceKey == providerKey {
+			return &resp
+		}
+	}
+	return nil
 }
 
 // Initialize sets up the Federator with providers and an HTTP client.
@@ -73,20 +92,30 @@ func Initialize() *Federator {
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
-	splitRequests, err := splitQuery(request.Query)
+
+	// Convert the query string into its ast
+	src := source.NewSource(&source.Source{
+		Body: []byte(request.Query),
+		Name: "Query",
+	})
+
+	doc, err := parser.Parse(parser.ParseParams{Source: src})
+
 	if err != nil {
-		logger.Log.Error("Failed to split query", "Error", err)
-		return graphql.Response{
-			Data:   nil,
-			Errors: []interface{}{"Failed to split query: " + err.Error()},
-		}
+		logger.Log.Error("Failed to parse query", "Error", err)
 	}
+
+	splitRequests := QueryBuilder(doc)
 
 	if len(splitRequests) == 0 {
 		logger.Log.Info("No valid service queries found in the request")
 		return graphql.Response{
-			Data:   nil,
-			Errors: []interface{}{"No valid service queries found in the request"},
+			Data: nil,
+			Errors: []interface{}{
+				map[string]interface{}{
+					"message": "No valid service queries found in the request",
+				},
+			},
 		}
 	}
 
@@ -94,6 +123,10 @@ func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 		FederationServiceRequest: splitRequests,
 	}
 	responses := f.performFederation(federationRequest)
+
+	// Transform the federated responses back to the original query structure
+
+	AccumulateResponse(doc, responses)
 
 	return f.mergeResponses(responses.Responses)
 }

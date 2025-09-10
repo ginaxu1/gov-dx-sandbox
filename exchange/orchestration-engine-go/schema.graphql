@@ -1,0 +1,42 @@
+directive @deprecated(
+    reason: String = "No longer supported"
+) on FIELD_DEFINITION | ENUM_VALUE
+
+directive @sourceInfo(
+    providerKey: String!
+    providerField: String!
+) on FIELD_DEFINITION
+
+directive @sourceInfoArgList(
+    providerArgs: [SourceInfoInput!]
+) on ARGUMENT_DEFINITION
+
+type Query {
+    personInfo(nic: String!): PersonInfo
+    vehicle: VehicleInfo
+}
+
+input SourceInfoInput {
+    providerKey: String!
+    providerField: String!
+}
+
+type PersonInfo {
+    name: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name")
+    address: String @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress")
+    profession: String @sourceInfo(providerKey: "drp", providerField: "person.profession")
+    birthInfo: BirthInfo
+    birthRegistrationNumber: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo")
+    ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data")
+}
+
+type VehicleInfo {
+    regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.registrationNumber")
+    make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.make")
+    model: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.model")
+    year: Int @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.yearOfManufacture")
+}
+
+type BirthInfo {
+    brNo: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo")
+}

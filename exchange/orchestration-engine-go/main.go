@@ -11,7 +11,24 @@ func main() {
 	logger.Init()
 	configs.LoadConfig()
 
-	federatorInstance := federator.Initialize()
+	query := `
+		query BasicInfoQuery {
+		  personInfo(nic: "199512345678") {
+		    name
+		    address
+		    profession
+		    birthInfo {
+		      brNo
+			}
+			birthRegistrationNumber
+		  }
+		}
+	`
+	_ = query
 
-	server.RunServer(federatorInstance)
+	//federator.QueryBuilder(query)
+
+	var federationObject = federator.Initialize()
+
+	server.RunServer(federationObject)
 }
