@@ -26,25 +26,9 @@ type PolicyEvaluator struct {
 
 // AuthorizationRequest represents the input structure for policy evaluation
 type AuthorizationRequest struct {
-	Consumer  ConsumerInfo `json:"consumer"`
-	Request   RequestInfo  `json:"request"`
-	Timestamp time.Time    `json:"timestamp"`
-}
-
-// ConsumerInfo contains information about the requesting consumer
-type ConsumerInfo struct {
-	ID         string            `json:"id"`
-	Name       string            `json:"name,omitempty"`
-	Type       string            `json:"type,omitempty"`
-	Attributes map[string]string `json:"attributes,omitempty"`
-}
-
-// RequestInfo contains details about the data access request
-type RequestInfo struct {
-	Resource   string   `json:"resource"`
-	Action     string   `json:"action"`
-	DataFields []string `json:"data_fields"`
-	DataOwner  string   `json:"data_owner,omitempty"`
+	ConsumerID     string    `json:"consumer_id"`
+	RequiredFields []string  `json:"required_fields"`
+	Timestamp      time.Time `json:"timestamp,omitempty"`
 }
 
 // AuthorizationDecision represents the output of policy evaluation
@@ -64,30 +48,22 @@ func NewPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 
 	query := "data.opendif.authz.decision"
 
-	// Load data files explicitly
-	consumerGrantsData, err := loadJSONFile("./data/consumer-grants.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to load consumer grants: %w", err)
-	}
-	slog.Info("Consumer grants data loaded", "data", consumerGrantsData)
-
+	// Load provider metadata file
 	providerMetadataData, err := loadJSONFile("./data/provider-metadata.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
 	}
 	slog.Info("Provider metadata data loaded", "data", providerMetadataData)
 
-	// Convert data to JSON strings for embedding in policy
-	consumerGrantsJSON, _ := json.Marshal(consumerGrantsData)
+	// Convert data to JSON string for embedding in policy
 	providerMetadataJSON, _ := json.Marshal(providerMetadataData)
 
 	// Create a module with the data embedded as JSON values
 	dataModule := fmt.Sprintf(`
 		package opendif.authz
 
-		consumer_grants = %s
 		provider_metadata = %s
-		`, string(consumerGrantsJSON), string(providerMetadataJSON))
+		`, string(providerMetadataJSON))
 
 	r := rego.New(
 		rego.Query(query),
@@ -157,8 +133,8 @@ func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (*Au
 	}
 
 	slog.Info("Policy evaluation completed",
-		"consumer", authReq.Consumer.ID,
-		"resource", authReq.Request.Resource,
+		"consumer_id", authReq.ConsumerID,
+		"required_fields", authReq.RequiredFields,
 		"allow", decision.Allow,
 		"consent_required", decision.ConsentRequired)
 
@@ -179,17 +155,16 @@ func (p *PolicyEvaluator) validateInput(input interface{}) (*AuthorizationReques
 	}
 
 	// Validate required fields
-	if authReq.Consumer.ID == "" {
-		return nil, fmt.Errorf(constants.ErrConsumerIDRequired)
+	if authReq.ConsumerID == "" {
+		return nil, fmt.Errorf("consumer_id is required")
 	}
-	if authReq.Request.Resource == "" {
-		return nil, fmt.Errorf(constants.ErrResourceRequired)
+	if len(authReq.RequiredFields) == 0 {
+		return nil, fmt.Errorf("required_fields cannot be empty")
 	}
-	if authReq.Request.Action == "" {
-		return nil, fmt.Errorf(constants.ErrActionRequired)
-	}
-	if len(authReq.Request.DataFields) == 0 {
-		return nil, fmt.Errorf(constants.ErrDataFieldsRequired)
+
+	// Add timestamp if not provided
+	if authReq.Timestamp.IsZero() {
+		authReq.Timestamp = time.Now()
 	}
 
 	return &authReq, nil
@@ -215,28 +190,21 @@ func (p *PolicyEvaluator) convertToDecision(result interface{}) (*AuthorizationD
 func (p *PolicyEvaluator) DebugData(ctx context.Context) (interface{}, error) {
 	query := "data.opendif.authz.debug_data"
 
-	// Load data files explicitly
-	consumerGrantsData, err := loadJSONFile("./data/consumer-grants.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to load consumer grants: %w", err)
-	}
-
+	// Load provider metadata file
 	providerMetadataData, err := loadJSONFile("./data/provider-metadata.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
 	}
 
-	// Convert data to JSON strings for embedding in policy
-	debugConsumerGrantsJSON, _ := json.Marshal(consumerGrantsData)
+	// Convert data to JSON string for embedding in policy
 	debugProviderMetadataJSON, _ := json.Marshal(providerMetadataData)
 
 	// Create a module with the data embedded as JSON values
 	debugDataModule := fmt.Sprintf(`
 package opendif.authz
 
-consumer_grants = %s
 provider_metadata = %s
-`, string(debugConsumerGrantsJSON), string(debugProviderMetadataJSON))
+`, string(debugProviderMetadataJSON))
 
 	r := rego.New(
 		rego.Query(query),

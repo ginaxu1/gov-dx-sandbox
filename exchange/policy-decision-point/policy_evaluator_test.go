@@ -17,7 +17,7 @@ func TestNewPolicyEvaluator(t *testing.T) {
 	}
 }
 
-func TestPolicyEvaluator_Authorize(t *testing.T) {
+func TestPolicyEvaluator_Authorize_NewFormat(t *testing.T) {
 	ctx := context.Background()
 	evaluator, err := NewPolicyEvaluator(ctx)
 	if err != nil {
@@ -25,78 +25,83 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		request  map[string]interface{}
-		expected bool
+		name            string
+		request         map[string]interface{}
+		expected        bool
+		consentRequired bool
 	}{
 		{
-			name: "Valid request - no consent required",
+			name: "New format - passport-app with fullName and permanentAddress",
 			request: map[string]interface{}{
-				"consumer": map[string]interface{}{
-					"id": "passport-app",
-				},
-				"request": map[string]interface{}{
-					"resource":    "person_data",
-					"action":      "read",
-					"data_fields": []string{"person.fullName", "person.nic"},
-				},
+				"consumer_id":     "passport-app",
+				"required_fields": []string{"person.fullName", "person.permanentAddress"},
 			},
-			expected: true,
+			expected:        true,
+			consentRequired: false,
 		},
 		{
-			name: "Request for unapproved field - should be denied",
+			name: "New format - driver-app with fullName and birthDate",
 			request: map[string]interface{}{
-				"consumer": map[string]interface{}{
-					"id": "passport-app",
-				},
-				"request": map[string]interface{}{
-					"resource":    "person_data",
-					"action":      "read",
-					"data_fields": []string{"person.permanentAddress"},
-				},
+				"consumer_id":     "driver-app",
+				"required_fields": []string{"person.fullName", "person.birthDate"},
 			},
-			expected: false,
+			expected:        true,
+			consentRequired: false,
 		},
 		{
-			name: "Invalid consumer",
+			name: "New format - passport-app with photo (requires consent)",
 			request: map[string]interface{}{
-				"consumer": map[string]interface{}{
-					"id": "unknown-app",
-				},
-				"request": map[string]interface{}{
-					"resource":    "person_data",
-					"action":      "read",
-					"data_fields": []string{"person.fullName"},
-				},
+				"consumer_id":     "passport-app",
+				"required_fields": []string{"person.photo"},
 			},
-			expected: false,
+			expected:        true,
+			consentRequired: true,
 		},
 		{
-			name: "Unauthorized field access",
+			name: "New format - unauthorized consumer",
 			request: map[string]interface{}{
-				"consumer": map[string]interface{}{
-					"id": "passport-app",
-				},
-				"request": map[string]interface{}{
-					"resource":    "person_data",
-					"action":      "read",
-					"data_fields": []string{"person.ssn"},
-				},
+				"consumer_id":     "unauthorized-app",
+				"required_fields": []string{"person.permanentAddress"},
 			},
-			expected: false,
+			expected:        false,
+			consentRequired: false,
+		},
+		{
+			name: "New format - missing consumer_id",
+			request: map[string]interface{}{
+				"required_fields": []string{"person.fullName"},
+			},
+			expected:        false,
+			consentRequired: false,
+		},
+		{
+			name: "New format - empty required_fields",
+			request: map[string]interface{}{
+				"consumer_id":     "passport-app",
+				"required_fields": []string{},
+			},
+			expected:        false,
+			consentRequired: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			decision, err := evaluator.Authorize(ctx, tt.request)
-
 			if err != nil {
-				t.Fatalf("Authorize failed: %v", err)
+				t.Fatalf("Authorize() error = %v", err)
 			}
 
 			if decision.Allow != tt.expected {
-				t.Errorf("Expected allow=%v, got %v", tt.expected, decision.Allow)
+				t.Errorf("Authorize() Allow = %v, expected %v", decision.Allow, tt.expected)
+			}
+
+			if decision.ConsentRequired != tt.consentRequired {
+				t.Errorf("Authorize() ConsentRequired = %v, expected %v", decision.ConsentRequired, tt.consentRequired)
+			}
+
+			if !tt.expected && decision.DenyReason == "" {
+				t.Error("Expected DenyReason to be set when access is denied")
 			}
 		})
 	}
@@ -109,7 +114,7 @@ func TestPolicyEvaluator_ConsentRequired(t *testing.T) {
 		t.Fatalf("Failed to create policy evaluator: %v", err)
 	}
 
-	// Test that requesting unapproved fields results in denial (not consent requirement)
+	// Test that requesting unauthorized fields results in denial (not consent requirement)
 	request := map[string]interface{}{
 		"consumer": map[string]interface{}{
 			"id": "passport-app",
@@ -117,7 +122,7 @@ func TestPolicyEvaluator_ConsentRequired(t *testing.T) {
 		"request": map[string]interface{}{
 			"resource":    "person_data",
 			"action":      "read",
-			"data_fields": []string{"person.fullName", "person.permanentAddress"},
+			"data_fields": []string{"person.birthDate"},
 		},
 	}
 
@@ -126,93 +131,18 @@ func TestPolicyEvaluator_ConsentRequired(t *testing.T) {
 		t.Fatalf("Authorize failed: %v", err)
 	}
 
-	// Since person.permanentAddress is not in approved fields, the request should be denied
+	// Since person.birthDate is not in passport-app's allow list, the request should be denied
 	// and consent_required should be false (because it's denied outright)
 	if decision.Allow {
-		t.Error("Expected allow=false for unapproved field")
+		t.Error("Expected allow=false for unauthorized field")
 	}
 
 	if decision.ConsentRequired {
-		t.Error("Expected consent_required=false for unapproved field (should be denied outright)")
+		t.Error("Expected consent_required=false for unauthorized field (should be denied outright)")
 	}
 
 	if len(decision.ConsentRequiredFields) != 0 {
 		t.Errorf("Expected empty consent_required_fields for unapproved field, got %v", decision.ConsentRequiredFields)
-	}
-}
-
-func TestPolicyEvaluator_ConsentFlow(t *testing.T) {
-	ctx := context.Background()
-	evaluator, err := NewPolicyEvaluator(ctx)
-	if err != nil {
-		t.Fatalf("Failed to create policy evaluator: %v", err)
-	}
-
-	// This test demonstrates the consent flow logic:
-	// 1. Consumer requests approved fields that don't require consent -> allow=true, consent_required=false
-	// 2. Consumer requests approved fields that require consent -> allow=false, consent_required=true
-	// 3. Consumer requests unapproved fields -> allow=false, consent_required=false
-
-	tests := []struct {
-		name                    string
-		request                 map[string]interface{}
-		expectedAllow           bool
-		expectedConsentRequired bool
-		expectedConsentFields   []string
-	}{
-		{
-			name: "Approved fields, no consent required",
-			request: map[string]interface{}{
-				"consumer": map[string]interface{}{
-					"id": "passport-app",
-				},
-				"request": map[string]interface{}{
-					"resource":    "person_data",
-					"action":      "read",
-					"data_fields": []string{"person.fullName", "person.nic"},
-				},
-			},
-			expectedAllow:           true,
-			expectedConsentRequired: false,
-			expectedConsentFields:   []string{},
-		},
-		{
-			name: "Unapproved fields (should be denied outright)",
-			request: map[string]interface{}{
-				"consumer": map[string]interface{}{
-					"id": "passport-app",
-				},
-				"request": map[string]interface{}{
-					"resource":    "person_data",
-					"action":      "read",
-					"data_fields": []string{"person.permanentAddress"},
-				},
-			},
-			expectedAllow:           false,
-			expectedConsentRequired: false,
-			expectedConsentFields:   []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			decision, err := evaluator.Authorize(ctx, tt.request)
-			if err != nil {
-				t.Fatalf("Authorize failed: %v", err)
-			}
-
-			if decision.Allow != tt.expectedAllow {
-				t.Errorf("Expected allow=%v, got %v", tt.expectedAllow, decision.Allow)
-			}
-
-			if decision.ConsentRequired != tt.expectedConsentRequired {
-				t.Errorf("Expected consent_required=%v, got %v", tt.expectedConsentRequired, decision.ConsentRequired)
-			}
-
-			if len(decision.ConsentRequiredFields) != len(tt.expectedConsentFields) {
-				t.Errorf("Expected consent_required_fields length=%d, got %d", len(tt.expectedConsentFields), len(decision.ConsentRequiredFields))
-			}
-		})
 	}
 }
 

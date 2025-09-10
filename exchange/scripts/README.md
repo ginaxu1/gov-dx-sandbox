@@ -1,13 +1,18 @@
-# Exchange Services Scripts
+# Scripts
+
+Essential management scripts for the Exchange Services platform.
 
 ## Core Scripts
-- **`common.sh`** - Common configuration and functions used by all scripts
-- **`manage.sh`** - Consolidated management script for all service operations
-- **`test.sh`** - Run basic API tests with help functionality
 
-## Consolidated Management (`manage.sh`)
+| Script | Purpose |
+|--------|---------|
+| `common.sh` | Common configuration and functions used by all scripts |
+| `manage.sh` | Consolidated management script for all service operations |
+| `test.sh` | Run basic API tests with help functionality |
+| `restore-local-build.sh` | Restore to local development state |
+| `prepare-docker-build.sh` | Prepare for production/Choreo deployment |
 
-The `manage.sh` script consolidates all service management operations:
+## Management Commands
 
 ```bash
 # Environment Management
@@ -23,31 +28,6 @@ The `manage.sh` script consolidates all service management operations:
 ./scripts/manage.sh help            # Show available commands
 ```
 
-## Usage Examples
-
-```bash
-# Start services
-./scripts/manage.sh start-local
-make start
-
-# Check status
-./scripts/manage.sh status
-make status
-
-# View logs
-./scripts/manage.sh logs                    # All services
-./scripts/manage.sh logs policy-decision-point  # Specific service
-make logs
-
-# Run tests
-./scripts/test.sh
-make test
-
-# Get help
-./scripts/manage.sh help
-make help
-```
-
 ## Configuration
 
 All configuration is centralized in `common.sh`:
@@ -57,3 +37,5 @@ All configuration is centralized in `common.sh`:
 - Common utility functions
 
 To modify service configuration, update `common.sh` and all scripts will automatically use the new values.
+
+> **For basic script usage, see [Main README](../README.md#scripts)**

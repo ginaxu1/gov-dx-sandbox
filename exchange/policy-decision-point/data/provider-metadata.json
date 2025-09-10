@@ -1,17 +1,66 @@
 {
   "fields": {
-    "person.fullName": { "consent_required": false, "owner": "drp" },
-    "person.nic": { "consent_required": false, "owner": "drp" },
-    "person.photo": { "consent_required": false, "owner": "drp" },
-    "person.permanentAddress": {
-      "consent_required": true,
+    "person.fullName": { 
       "owner": "drp",
-      "expiry_time": "30d"
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.nic": {
+      "owner": "drp",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.permanentAddress": {
+      "owner": "drp",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "passport-app", 
+          "expiry_time": "30d"
+        }
+      ]
+    },
+    "person.photo": {
+      "owner": "drp",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "passport-app", 
+          "expiry_time": "7d"
+        }
+      ]
     },
     "person.birthDate": {
-      "consent_required": true,
       "owner": "rgd",
-      "expiry_time": "30d"
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "restricted",
+      "allow_list": [
+         {
+          "consumerId": "driver-app", 
+          "expiry_time": "30d"
+        }
+      ]
+    },
+    "person.ssn": {
+      "owner": "rgd",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": [
+         {
+          "consumerId": "driver-app", 
+          "expiry_time": "1d"
+        }
+      ]
     }
   }
 }

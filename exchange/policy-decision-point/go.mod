@@ -53,8 +53,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/gov-dx-sandbox/exchange/shared/config => /app/shared/config
+replace github.com/gov-dx-sandbox/exchange/shared/config => ../shared/config
 
-replace github.com/gov-dx-sandbox/exchange/shared/constants => /app/shared/constants
+replace github.com/gov-dx-sandbox/exchange/shared/constants => ../shared/constants
 
-replace github.com/gov-dx-sandbox/exchange/shared/utils => /app/shared/utils
+replace github.com/gov-dx-sandbox/exchange/shared/utils => ../shared/utils
