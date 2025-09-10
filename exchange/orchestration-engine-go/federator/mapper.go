@@ -34,8 +34,6 @@ func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
 			}
 		}
 
-		_ = providerArgs
-
 		PushArgumentsToProviderQueryAst(providerArgs, q)
 
 		var query = printer.Print(q.QueryAst).(string)
