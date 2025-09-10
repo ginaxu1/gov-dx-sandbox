@@ -49,6 +49,7 @@ export interface IntrospectionResult {
 }
 
 export interface FieldConfiguration {
+  accessControlType: 'public' | 'restricted' | ''; // '' indicates not set
   source: 'authoritative' | 'fallback' | 'other' | ''; // '' indicates not set
   isOwner: boolean | null;
   description: string;

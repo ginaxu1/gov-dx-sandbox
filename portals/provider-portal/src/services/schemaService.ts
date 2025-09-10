@@ -134,6 +134,7 @@ export class SchemaService {
 
 		// 3. Add directive definitions
 		const sdlWithDirectives = `
+      directive @accessControl(type: String!) on FIELD_DEFINITION
 			directive @source(value: String!) on FIELD_DEFINITION
 			directive @isOwner(value: Boolean!) on FIELD_DEFINITION
 			directive @description(value: String!) on FIELD_DEFINITION
@@ -159,6 +160,20 @@ export class SchemaService {
         if (!config) return;
 
         const directives = [...(node.directives ?? [])];
+
+        if (config.accessControlType) {
+          directives.push({
+            kind: Kind.DIRECTIVE,
+            name: { kind: Kind.NAME, value: "accessControl" },
+            arguments: [
+              {
+                kind: Kind.ARGUMENT,
+                name: { kind: Kind.NAME, value: "type" },
+                value: { kind: Kind.STRING, value: config.accessControlType },
+              },
+            ],
+          });
+        }
 
         if (config.source) {
           directives.push({
