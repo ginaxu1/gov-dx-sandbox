@@ -97,16 +97,12 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]strin
 	}
 	var providerDirectives, arguments = recursivelyExtractSourceSchemaInfo(selections, schema, queryObjectDef, nil, nil)
 
-	_ = arguments
-
 	providerFieldMap = ProviderFieldMap(providerDirectives)
 
 	var requiredArguments = FindRequiredArguments(providerFieldMap, configs.AppConfig.ArgMapping)
 
 	var extractedArgs = ExtractRequiredArguments(requiredArguments, arguments)
 
-	_ = extractedArgs
-	// return the map
 	return providerFieldMap, extractedArgs
 }
 
