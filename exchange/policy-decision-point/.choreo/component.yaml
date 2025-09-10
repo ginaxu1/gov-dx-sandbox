@@ -7,13 +7,11 @@ build:
   # +required Build type
   type: docker
   # +optional Docker build context (relative to repository root)
-  context: exchange/policy-decision-point
+  context: .
   # +optional Dockerfile path (relative to build context)
-  dockerfile: Dockerfile
+  dockerfile: exchange/policy-decision-point/Dockerfile
   # +required Build arguments
   args:
-    - name: SERVICE_PATH
-      value: policy-decision-point
     - name: BUILD_VERSION
       value: latest
     - name: BUILD_TIME
