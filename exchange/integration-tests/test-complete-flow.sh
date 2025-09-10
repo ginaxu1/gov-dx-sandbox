@@ -37,7 +37,7 @@ echo "DataCustodian sends 'check consent?' query to PDP"
 
 # Test with consent-required fields
 echo "Testing with consent-required fields (person.permanentAddress, person.birthDate)..."
-PDP_RESPONSE=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -137,7 +137,7 @@ echo -e "${PURPLE}Step 9: App requests data again from DataCustodian${NC}"
 echo "App sends getData() request to DataCustodian again"
 
 # Test the same request again (now with consent)
-PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8080/decide \
+PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
     "consumer": {
@@ -173,7 +173,7 @@ echo ""
 
 # Summary
 echo -e "${BLUE}=== Consent Flow Test Summary ===${NC}"
-echo "The complete consent flow has been tested according to the diagram:"
+echo "The complete consent flow has been tested:"
 echo ""
 echo "1. AppUser -> App: login request"
 echo "2. App -> DataCustodian: getData() request"
@@ -185,7 +185,7 @@ echo "7. App -> ConsentService: redirect"
 echo "8. ConsentService -> DataOwner: consent interaction"
 echo "9. ConsentService -> App: consent granted"
 echo "10. App -> DataCustodian: getData() request (with consent)"
-echo "11. DataCustodian -> App: data :)"
+echo "11. DataCustodian -> App: data"
 echo ""
 echo -e "${GREEN}Complete Consent Flow Test Finished${NC}"
 echo ""

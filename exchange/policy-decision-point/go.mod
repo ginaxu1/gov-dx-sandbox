@@ -1,11 +1,11 @@
-// exchange/go.mod
-
-module github.com/gov-dx-sandbox/exchange
+module github.com/gov-dx-sandbox/exchange/policy-decision-point
 
 go 1.24.6
 
 require (
-	github.com/google/uuid v1.6.0
+	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
+	github.com/gov-dx-sandbox/exchange/shared/constants v0.0.0
+	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 	github.com/open-policy-agent/opa v1.8.0
 )
 
@@ -19,6 +19,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.4 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/httprc/v3 v3.0.0 // indirect
@@ -51,3 +52,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/gov-dx-sandbox/exchange/shared/config => ../shared/config
+
+replace github.com/gov-dx-sandbox/exchange/shared/constants => ../shared/constants
+
+replace github.com/gov-dx-sandbox/exchange/shared/utils => ../shared/utils

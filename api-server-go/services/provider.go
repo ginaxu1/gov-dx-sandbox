@@ -12,17 +12,19 @@ import (
 )
 
 type ProviderService struct {
-	submissions map[string]*models.ProviderSubmission
-	profiles    map[string]*models.ProviderProfile
-	schemas     map[string]*models.ProviderSchema
-	mutex       sync.RWMutex
+	submissions     map[string]*models.ProviderSubmission
+	profiles        map[string]*models.ProviderProfile
+	schemas         map[string]*models.ProviderSchema
+	schemaConverter *SchemaConverter
+	mutex           sync.RWMutex
 }
 
 func NewProviderService() *ProviderService {
 	return &ProviderService{
-		submissions: make(map[string]*models.ProviderSubmission),
-		profiles:    make(map[string]*models.ProviderProfile),
-		schemas:     make(map[string]*models.ProviderSchema),
+		submissions:     make(map[string]*models.ProviderSubmission),
+		profiles:        make(map[string]*models.ProviderProfile),
+		schemas:         make(map[string]*models.ProviderSchema),
+		schemaConverter: NewSchemaConverter(),
 	}
 }
 
@@ -198,6 +200,37 @@ func (s *ProviderService) CreateProviderSchema(req models.CreateProviderSchemaRe
 	return schema, nil
 }
 
+// CreateProviderSchemaSDL creates a new provider schema from SDL
+func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.CreateProviderSchemaSDLRequest) (*models.ProviderSchema, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Verify provider exists
+	_, exists := s.profiles[providerID]
+	if !exists {
+		return nil, fmt.Errorf("provider profile not found")
+	}
+
+	// Generate unique schema submission ID
+	schemaID, err := s.generateSchemaID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate schema ID: %w", err)
+	}
+
+	schema := &models.ProviderSchema{
+		SubmissionID:        schemaID,
+		ProviderID:          providerID,
+		Status:              models.SchemaStatusPending,
+		SDL:                 req.SDL,
+		FieldConfigurations: make(models.FieldConfigurations),
+	}
+
+	s.schemas[schemaID] = schema
+
+	slog.Info("Created new provider schema from SDL", "submissionId", schemaID, "providerId", providerID)
+	return schema, nil
+}
+
 func (s *ProviderService) GetProviderSchema(id string) (*models.ProviderSchema, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -225,6 +258,16 @@ func (s *ProviderService) UpdateProviderSchema(id string, req models.UpdateProvi
 	}
 	if req.FieldConfigurations != nil {
 		schema.FieldConfigurations = req.FieldConfigurations
+	}
+
+	// If schema is approved, update provider-metadata.json
+	if req.Status != nil && *req.Status == "approved" && schema.SDL != "" {
+		if err := s.schemaConverter.UpdateProviderMetadataFile(schema.ProviderID, schema.SDL); err != nil {
+			slog.Error("Failed to update provider-metadata.json", "error", err, "providerId", schema.ProviderID)
+			// Don't fail the update, just log the error
+		} else {
+			slog.Info("Updated provider-metadata.json from approved schema", "providerId", schema.ProviderID)
+		}
 	}
 
 	slog.Info("Updated provider schema", "submissionId", id, "status", schema.Status)

@@ -1,4 +1,4 @@
-package services_test
+package tests
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ func TestConsumerService_CreateApplication(t *testing.T) {
 	service := services.NewConsumerService()
 
 	req := models.CreateApplicationRequest{
-		RequiredFields: map[string]interface{}{
+		RequiredFields: map[string]bool{
 			"person.fullName": true,
 			"person.nic":      true,
 		},
@@ -22,8 +22,8 @@ func TestConsumerService_CreateApplication(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if app.AppID == "" {
-		t.Error("Expected AppID to be generated")
+	if app.SubmissionID == "" {
+		t.Error("Expected SubmissionID to be generated")
 	}
 
 	if app.Status != models.StatusPending {
@@ -40,7 +40,7 @@ func TestConsumerService_GetApplication(t *testing.T) {
 
 	// Create an application first
 	req := models.CreateApplicationRequest{
-		RequiredFields: map[string]interface{}{"person.fullName": true},
+		RequiredFields: map[string]bool{"person.fullName": true},
 	}
 	createdApp, err := service.CreateApplication(req)
 	if err != nil {
@@ -48,13 +48,13 @@ func TestConsumerService_GetApplication(t *testing.T) {
 	}
 
 	// Retrieve the application
-	app, err := service.GetApplication(createdApp.AppID)
+	app, err := service.GetApplication(createdApp.SubmissionID)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if app.AppID != createdApp.AppID {
-		t.Errorf("Expected AppID %s, got %s", createdApp.AppID, app.AppID)
+	if app.SubmissionID != createdApp.SubmissionID {
+		t.Errorf("Expected SubmissionID %s, got %s", createdApp.SubmissionID, app.SubmissionID)
 	}
 }
 
@@ -72,7 +72,7 @@ func TestConsumerService_UpdateApplication(t *testing.T) {
 
 	// Create an application
 	req := models.CreateApplicationRequest{
-		RequiredFields: map[string]interface{}{"person.fullName": true},
+		RequiredFields: map[string]bool{"person.fullName": true},
 	}
 	createdApp, err := service.CreateApplication(req)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestConsumerService_UpdateApplication(t *testing.T) {
 		Status: &[]models.ApplicationStatus{models.StatusApproved}[0],
 	}
 
-	updatedApp, err := service.UpdateApplication(createdApp.AppID, updateReq)
+	updatedApp, err := service.UpdateApplication(createdApp.SubmissionID, updateReq)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -108,7 +108,7 @@ func TestConsumerService_DeleteApplication(t *testing.T) {
 
 	// Create an application
 	req := models.CreateApplicationRequest{
-		RequiredFields: map[string]interface{}{"person.fullName": true},
+		RequiredFields: map[string]bool{"person.fullName": true},
 	}
 	createdApp, err := service.CreateApplication(req)
 	if err != nil {
@@ -116,13 +116,13 @@ func TestConsumerService_DeleteApplication(t *testing.T) {
 	}
 
 	// Delete the application
-	err = service.DeleteApplication(createdApp.AppID)
+	err = service.DeleteApplication(createdApp.SubmissionID)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	// Verify it's deleted
-	_, err = service.GetApplication(createdApp.AppID)
+	_, err = service.GetApplication(createdApp.SubmissionID)
 	if err == nil {
 		t.Error("Expected error for deleted application")
 	}
@@ -133,10 +133,10 @@ func TestConsumerService_GetAllApplications(t *testing.T) {
 
 	// Create multiple applications
 	req1 := models.CreateApplicationRequest{
-		RequiredFields: map[string]interface{}{"person.fullName": true},
+		RequiredFields: map[string]bool{"person.fullName": true},
 	}
 	req2 := models.CreateApplicationRequest{
-		RequiredFields: map[string]interface{}{"person.nic": true},
+		RequiredFields: map[string]bool{"person.nic": true},
 	}
 
 	_, err := service.CreateApplication(req1)

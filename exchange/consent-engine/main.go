@@ -8,7 +8,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/utils"
+	"github.com/gov-dx-sandbox/exchange/shared/config"
+	"github.com/gov-dx-sandbox/exchange/shared/constants"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
+)
+
+// Build information - set during build
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 // apiServer holds dependencies for the HTTP handlers
@@ -16,15 +25,17 @@ type apiServer struct {
 	engine ConsentEngine
 }
 
-// Consent handlers using utils patterns
+// Consent handlers - organized for better readability
 func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 	var req CreateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
 		record, err := s.engine.CreateConsent(req)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to create consent record: %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentCreateFailed+": %w", err)
 		}
-		slog.Info("Created consent record", "id", record.ID, "owner", record.DataOwner)
+		utils.HandleSuccess(w, record, http.StatusCreated, constants.OpCreateConsent, map[string]interface{}{
+			"id": record.ID, "owner": record.DataOwner,
+		})
 		return record, http.StatusCreated, nil
 	})
 }
@@ -33,7 +44,7 @@ func (s *apiServer) getConsentStatus(w http.ResponseWriter, r *http.Request) {
 	utils.PathHandler(w, r, "/consent/", func(id string) (interface{}, int, error) {
 		record, err := s.engine.GetConsentStatus(id)
 		if err != nil {
-			return nil, http.StatusNotFound, fmt.Errorf("consent record not found: %w", err)
+			return nil, http.StatusNotFound, fmt.Errorf(constants.ErrConsentNotFound+": %w", err)
 		}
 		return record, http.StatusOK, nil
 	})
@@ -42,16 +53,18 @@ func (s *apiServer) getConsentStatus(w http.ResponseWriter, r *http.Request) {
 func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 	var req UpdateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id := strings.TrimPrefix(r.URL.Path, "/consent/")
-		if id == "" {
-			return nil, http.StatusBadRequest, fmt.Errorf("consent ID is required")
+		id, err := utils.ExtractIDFromPath(r, "/consent/")
+		if err != nil {
+			return nil, http.StatusBadRequest, err
 		}
 
 		record, err := s.engine.UpdateConsent(id, req)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to update consent record: %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentUpdateFailed+": %w", err)
 		}
-		slog.Info("Updated consent record", "id", record.ID, "status", record.Status)
+		utils.HandleSuccess(w, record, http.StatusOK, constants.OpUpdateConsent, map[string]interface{}{
+			"id": record.ID, "status": record.Status,
+		})
 		return record, http.StatusOK, nil
 	})
 }
@@ -59,16 +72,18 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Reason string }
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id := strings.TrimPrefix(r.URL.Path, "/consent/")
-		if id == "" {
-			return nil, http.StatusBadRequest, fmt.Errorf("consent ID is required")
+		id, err := utils.ExtractIDFromPath(r, "/consent/")
+		if err != nil {
+			return nil, http.StatusBadRequest, err
 		}
 
 		record, err := s.engine.RevokeConsent(id, req.Reason)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to revoke consent record: %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentRevokeFailed+": %w", err)
 		}
-		slog.Info("Revoked consent record", "id", record.ID, "reason", req.Reason)
+		utils.HandleSuccess(w, record, http.StatusOK, constants.OpRevokeConsent, map[string]interface{}{
+			"id": record.ID, "reason": req.Reason,
+		})
 		return record, http.StatusOK, nil
 	})
 }
@@ -79,23 +94,25 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
 		record, err := s.engine.ProcessConsentPortalRequest(req)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to process consent portal request: %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrPortalRequestFailed+": %w", err)
 		}
-		slog.Info("Processed consent portal request", "id", record.ID, "action", req.Action, "status", record.Status)
+		utils.HandleSuccess(w, record, http.StatusOK, constants.OpProcessPortalRequest, map[string]interface{}{
+			"id": record.ID, "action": req.Action, "status": record.Status,
+		})
 		return record, http.StatusOK, nil
 	})
 }
 
 func (s *apiServer) getConsentPortalInfo(w http.ResponseWriter, r *http.Request) {
 	utils.GenericHandler(w, r, func() (interface{}, int, error) {
-		consentID := r.URL.Query().Get("consent_id")
-		if consentID == "" {
-			return nil, http.StatusBadRequest, fmt.Errorf("consent ID is required")
+		consentID, err := utils.ExtractQueryParam(r, "consent_id")
+		if err != nil {
+			return nil, http.StatusBadRequest, err
 		}
 
 		record, err := s.engine.GetConsentStatus(consentID)
 		if err != nil {
-			return nil, http.StatusNotFound, fmt.Errorf("consent record not found: %w", err)
+			return nil, http.StatusNotFound, fmt.Errorf(constants.ErrConsentNotFound+": %w", err)
 		}
 
 		return map[string]interface{}{
@@ -115,7 +132,7 @@ func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Reques
 	utils.PathHandler(w, r, "/data-owner/", func(dataOwner string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByDataOwner(dataOwner)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to get consent records: %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentGetFailed+": %w", err)
 		}
 		return map[string]interface{}{
 			"data_owner": dataOwner,
@@ -129,7 +146,7 @@ func (s *apiServer) getConsentsByConsumer(w http.ResponseWriter, r *http.Request
 	utils.PathHandler(w, r, "/consumer/", func(consumer string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByConsumer(consumer)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to get consent records: %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentGetFailed+": %w", err)
 		}
 		return map[string]interface{}{
 			"consumer": consumer,
@@ -143,9 +160,15 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 	utils.GenericHandler(w, r, func() (interface{}, int, error) {
 		expiredRecords, err := s.engine.CheckConsentExpiry()
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to check consent expiry: %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentExpiryFailed+": %w", err)
 		}
-		slog.Info("Checked consent expiry", "expired_count", len(expiredRecords))
+		utils.HandleSuccess(w, map[string]interface{}{
+			"expired_records": expiredRecords,
+			"count":           len(expiredRecords),
+			"checked_at":      time.Now(),
+		}, http.StatusOK, constants.OpCheckConsentExpiry, map[string]interface{}{
+			"expired_count": len(expiredRecords),
+		})
 		return map[string]interface{}{
 			"expired_records": expiredRecords,
 			"count":           len(expiredRecords),
@@ -154,7 +177,7 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Route handlers
+// Route handlers - organized for better readability
 func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/consent")
 	switch {
@@ -167,7 +190,7 @@ func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodDelete:
 		s.revokeConsent(w, r)
 	default:
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
 
@@ -178,7 +201,7 @@ func (s *apiServer) consentPortalHandler(w http.ResponseWriter, r *http.Request)
 	case http.MethodGet:
 		s.getConsentPortalInfo(w, r)
 	default:
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
 
@@ -186,7 +209,7 @@ func (s *apiServer) dataOwnerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		s.getConsentsByDataOwner(w, r)
 	} else {
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
 
@@ -194,7 +217,7 @@ func (s *apiServer) consumerHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		s.getConsentsByConsumer(w, r)
 	} else {
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
 
@@ -203,24 +226,25 @@ func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 	if path == "/expiry-check" && r.Method == http.MethodPost {
 		s.checkConsentExpiry(w, r)
 	} else {
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
-}
-
-func (s *apiServer) healthHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
-		return
-	}
-	utils.RespondWithJSON(w, http.StatusOK, map[string]string{"status": "healthy", "service": "consent-engine"})
 }
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-	}))
-	slog.SetDefault(logger)
+	// Load configuration using flags
+	cfg := config.LoadConfig("consent-engine")
 
+	// Setup logging
+	utils.SetupLogging(cfg.Logging.Format, cfg.Logging.Level)
+
+	slog.Info("Starting consent engine",
+		"environment", cfg.Environment,
+		"port", cfg.Service.Port,
+		"version", Version,
+		"build_time", BuildTime,
+		"git_commit", GitCommit)
+
+	// Initialize consent engine
 	engine := NewConsentEngine()
 	server := &apiServer{engine: engine}
 
@@ -234,13 +258,18 @@ func main() {
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 
-	// Setup server with default configuration
-	config := utils.DefaultServerConfig()
-	config.Port = utils.GetEnvOrDefault("PORT", "8081")
-	serverInstance := utils.CreateServer(config, mux)
+	// Create server using utils
+	serverConfig := &utils.ServerConfig{
+		Port:         cfg.Service.Port,
+		ReadTimeout:  cfg.Service.Timeout,
+		WriteTimeout: cfg.Service.Timeout,
+		IdleTimeout:  60 * time.Second,
+	}
+	httpServer := utils.CreateServer(serverConfig, mux)
 
 	// Start server with graceful shutdown
-	if err := utils.StartServerWithGracefulShutdown(serverInstance, "consent-engine"); err != nil {
+	if err := utils.StartServerWithGracefulShutdown(httpServer, "consent-engine"); err != nil {
+		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
 }

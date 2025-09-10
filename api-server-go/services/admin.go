@@ -139,7 +139,7 @@ func (s *AdminService) generateRecentActivity(applications []*models.Application
 			Type:        "application_created",
 			Description: "New consumer application submitted",
 			Timestamp:   time.Now(), // In a real system, this would be app.CreatedAt
-			ID:          app.AppID,
+			ID:          app.SubmissionID,
 		})
 	}
 

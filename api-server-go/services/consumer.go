@@ -6,27 +6,164 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
 )
 
 type ConsumerService struct {
-	applications map[string]*models.Application
+	consumers    map[string]*models.Consumer
+	applications map[string]*models.ConsumerApp
 	mutex        sync.RWMutex
 }
 
 func NewConsumerService() *ConsumerService {
 	return &ConsumerService{
-		applications: make(map[string]*models.Application),
+		consumers:    make(map[string]*models.Consumer),
+		applications: make(map[string]*models.ConsumerApp),
 	}
 }
 
-// GetAllApplications retrieves all consumer applications
-func (s *ConsumerService) GetAllApplications() ([]*models.Application, error) {
+// Consumer management methods
+
+// CreateConsumer creates a new consumer
+func (s *ConsumerService) CreateConsumer(req models.CreateConsumerRequest) (*models.Consumer, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Generate unique consumer ID
+	consumerID, err := s.generateConsumerID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate consumer ID: %w", err)
+	}
+
+	consumer := &models.Consumer{
+		ConsumerID:   consumerID,
+		ConsumerName: req.ConsumerName,
+		ContactEmail: req.ContactEmail,
+		PhoneNumber:  req.PhoneNumber,
+		CreatedAt:    time.Now(),
+	}
+
+	s.consumers[consumerID] = consumer
+
+	slog.Info("Created new consumer", "consumerId", consumerID)
+	return consumer, nil
+}
+
+// GetConsumer retrieves a specific consumer
+func (s *ConsumerService) GetConsumer(id string) (*models.Consumer, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	applications := make([]*models.Application, 0, len(s.applications))
+	consumer, exists := s.consumers[id]
+	if !exists {
+		return nil, fmt.Errorf("consumer not found")
+	}
+
+	return consumer, nil
+}
+
+// GetAllConsumers retrieves all consumers
+func (s *ConsumerService) GetAllConsumers() ([]*models.Consumer, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	consumers := make([]*models.Consumer, 0, len(s.consumers))
+	for _, consumer := range s.consumers {
+		consumers = append(consumers, consumer)
+	}
+
+	return consumers, nil
+}
+
+// ConsumerApp management methods
+
+// CreateConsumerApp creates a new consumer application
+func (s *ConsumerService) CreateConsumerApp(req models.CreateConsumerAppRequest) (*models.ConsumerApp, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Verify consumer exists
+	_, exists := s.consumers[req.ConsumerID]
+	if !exists {
+		return nil, fmt.Errorf("consumer not found")
+	}
+
+	// Generate unique submission ID
+	submissionID, err := s.generateSubmissionID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate submission ID: %w", err)
+	}
+
+	application := &models.ConsumerApp{
+		SubmissionID:   submissionID,
+		ConsumerID:     req.ConsumerID,
+		Status:         models.StatusPending,
+		RequiredFields: req.RequiredFields,
+		CreatedAt:      time.Now(),
+	}
+
+	s.applications[submissionID] = application
+
+	slog.Info("Created new consumer application", "submissionId", submissionID, "consumerId", req.ConsumerID)
+	return application, nil
+}
+
+// GetConsumerApp retrieves a specific consumer application
+func (s *ConsumerService) GetConsumerApp(id string) (*models.ConsumerApp, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	application, exists := s.applications[id]
+	if !exists {
+		return nil, fmt.Errorf("application not found")
+	}
+
+	return application, nil
+}
+
+// UpdateConsumerApp updates a consumer application
+func (s *ConsumerService) UpdateConsumerApp(id string, req models.UpdateConsumerAppRequest) (*models.UpdateConsumerAppResponse, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	application, exists := s.applications[id]
+	if !exists {
+		return nil, fmt.Errorf("application not found")
+	}
+
+	response := &models.UpdateConsumerAppResponse{
+		ConsumerApp: application,
+	}
+
+	// Update fields if provided
+	if req.Status != nil {
+		application.Status = *req.Status
+	}
+	if req.RequiredFields != nil {
+		application.RequiredFields = req.RequiredFields
+	}
+
+	// Generate credentials if status is approved and credentials don't exist
+	if application.Status == models.StatusApproved && application.Credentials == nil {
+		credentials, err := s.generateCredentials()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate credentials: %w", err)
+		}
+		application.Credentials = credentials
+	}
+
+	slog.Info("Updated consumer application", "submissionId", id, "status", application.Status)
+	return response, nil
+}
+
+// GetAllConsumerApps retrieves all consumer applications
+func (s *ConsumerService) GetAllConsumerApps() ([]*models.ConsumerApp, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	applications := make([]*models.ConsumerApp, 0, len(s.applications))
 	for _, app := range s.applications {
 		applications = append(applications, app)
 	}
@@ -34,27 +171,73 @@ func (s *ConsumerService) GetAllApplications() ([]*models.Application, error) {
 	return applications, nil
 }
 
-// CreateApplication creates a new consumer application
-func (s *ConsumerService) CreateApplication(req models.CreateApplicationRequest) (*models.Application, error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+// GetConsumerAppsByConsumerID retrieves all applications for a specific consumer
+func (s *ConsumerService) GetConsumerAppsByConsumerID(consumerID string) ([]*models.ConsumerApp, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
-	// Generate unique app ID
-	appID, err := s.generateAppID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate app ID: %w", err)
+	// Verify consumer exists
+	_, exists := s.consumers[consumerID]
+	if !exists {
+		return nil, fmt.Errorf("consumer not found")
 	}
 
-	application := &models.Application{
-		AppID:          appID,
-		Status:         models.StatusPending,
+	applications := make([]*models.ConsumerApp, 0)
+	for _, app := range s.applications {
+		if app.ConsumerID == consumerID {
+			applications = append(applications, app)
+		}
+	}
+
+	return applications, nil
+}
+
+// Legacy methods for backward compatibility
+
+// GetAllApplications retrieves all consumer applications (legacy)
+func (s *ConsumerService) GetAllApplications() ([]*models.Application, error) {
+	apps, err := s.GetAllConsumerApps()
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert ConsumerApp to Application (they're the same type now)
+	applications := make([]*models.Application, len(apps))
+	for i, app := range apps {
+		applications[i] = (*models.Application)(app)
+	}
+
+	return applications, nil
+}
+
+// CreateApplication creates a new consumer application (legacy)
+func (s *ConsumerService) CreateApplication(req models.CreateApplicationRequest) (*models.Application, error) {
+	// Convert to new format - this is a legacy method that creates a consumer app without a consumer
+	// This should not be used in new code
+
+	// Create a default consumer for legacy compatibility
+	consumerReq := models.CreateConsumerRequest{
+		ConsumerName: "Legacy Consumer",
+		ContactEmail: "legacy@example.com",
+		PhoneNumber:  "000-000-0000",
+	}
+
+	consumer, err := s.CreateConsumer(consumerReq)
+	if err != nil {
+		return nil, err
+	}
+
+	consumerAppReq := models.CreateConsumerAppRequest{
+		ConsumerID:     consumer.ConsumerID,
 		RequiredFields: req.RequiredFields,
 	}
 
-	s.applications[appID] = application
+	consumerApp, err := s.CreateConsumerApp(consumerAppReq)
+	if err != nil {
+		return nil, err
+	}
 
-	slog.Info("Created new application", "appId", appID)
-	return application, nil
+	return (*models.Application)(consumerApp), nil
 }
 
 // GetApplication retrieves a specific consumer application
@@ -81,7 +264,7 @@ func (s *ConsumerService) UpdateApplication(id string, req models.UpdateApplicat
 	}
 
 	response := &models.UpdateApplicationResponse{
-		Application: application,
+		ConsumerApp: application,
 	}
 
 	// Update fields if provided
@@ -124,7 +307,27 @@ func (s *ConsumerService) DeleteApplication(id string) error {
 	return nil
 }
 
-// generateAppID generates a unique application ID
+// ID generation methods
+
+// generateConsumerID generates a unique consumer ID
+func (s *ConsumerService) generateConsumerID() (string, error) {
+	bytes := make([]byte, 8)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "consumer_" + hex.EncodeToString(bytes), nil
+}
+
+// generateSubmissionID generates a unique submission ID
+func (s *ConsumerService) generateSubmissionID() (string, error) {
+	bytes := make([]byte, 8)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "sub_" + hex.EncodeToString(bytes), nil
+}
+
+// generateAppID generates a unique application ID (legacy)
 func (s *ConsumerService) generateAppID() (string, error) {
 	bytes := make([]byte, 8)
 	if _, err := rand.Read(bytes); err != nil {
