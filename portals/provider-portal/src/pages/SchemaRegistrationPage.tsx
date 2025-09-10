@@ -22,38 +22,15 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   const [success, setSuccess] = useState('');
   const [userDefinedTypes, setUserDefinedTypes] = useState<GraphQLType[]>([]);
 
-
-  const getUserDefinedTypes = (schema: IntrospectionResult) => {
-    return schema.data.__schema.types.filter(type =>
-      !type.name.startsWith('__') && // Remove introspection types
-      type.kind === 'OBJECT' &&
-      type.fields &&
-      type.fields.length > 0
-    );
-  };
-
-  const getTypeString = (type: any): string => {
-    if (type.kind === 'NON_NULL') {
-      return `${getTypeString(type.ofType)}!`;
-    }
-    if (type.kind === 'LIST') {
-      return `[${getTypeString(type.ofType)}]`;
-    }
-    return type.name || type.kind;
-  };
-
   const handleSchemaLoaded = (loadedSchema: IntrospectionResult) => {
     setSchema(loadedSchema);
     setStep('configure');
     setError('');
-    console.log("Loaded Schema:", loadedSchema);  
     // Initialize configurations for all fields
     const initialConfigs: Record<string, Record<string, FieldConfiguration>> = {};
 
-    const userDefinedTypes_ = getUserDefinedTypes(loadedSchema);
+    const userDefinedTypes_ = SchemaService.getUserDefinedTypes(loadedSchema);
     setUserDefinedTypes(userDefinedTypes_);
-    console.log("User Defined Types:", userDefinedTypes_);
-    console.log("userDefinedTypes:", userDefinedTypes);
     loadedSchema.data.__schema.types
       .filter(type => 
         !type.name.startsWith('__') && 
@@ -75,8 +52,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         }
         else {
           type.fields?.forEach(field => {
-            const isUserDefinedTypeField_ = userDefinedTypes_.map(t => t.name).includes(getTypeString(field.type));
-            console.log(`Field: ${getTypeString(field.type)}, UserDefined: ${isUserDefinedTypeField_}`);
+            const isUserDefinedTypeField_ = userDefinedTypes_.map(t => t.name).includes(SchemaService.getTypeString(field.type));
             initialConfigs[type.name][field.name] = {
               source: '' as any,
               isOwner: isUserDefinedTypeField_ ? (null as any): false,

@@ -1,10 +1,29 @@
 // services/schemaService.ts
 import { getIntrospectionQuery, buildClientSchema, buildSchema, printSchema, parse, print, visit, Kind, graphql } from "graphql";
 import type { ObjectTypeDefinitionNode, ObjectTypeExtensionNode } from "graphql";
-import type { IntrospectionResult, SchemaRegistration, FieldConfiguration} from '../types/graphql';
+import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType} from '../types/graphql';
 
 export class SchemaService {
   private static readonly INTROSPECTION_QUERY = getIntrospectionQuery();
+
+  static getUserDefinedTypes(schema: IntrospectionResult): GraphQLType[] {
+    return schema.data.__schema.types.filter(type =>
+      !type.name.startsWith('__') && // Remove introspection types
+      type.kind === 'OBJECT' &&
+      type.fields &&
+      type.fields.length > 0
+    );
+  }
+
+  static getTypeString(type: any): string {
+    if (type.kind === 'NON_NULL') {
+      return `${this.getTypeString(type.ofType)}!`;
+    }
+    if (type.kind === 'LIST') {
+      return `[${this.getTypeString(type.ofType)}]`;
+    }
+    return type.name || type.kind;
+  };
 
   static async fetchSchemaFromEndpoint(endpoint: string): Promise<IntrospectionResult> {
     try {
