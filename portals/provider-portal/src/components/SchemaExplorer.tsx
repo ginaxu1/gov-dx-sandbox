@@ -44,7 +44,7 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
             return false;
           }
         } else {
-          if (!config.source || config.isOwner === null) {
+          if (!config.accessControlType || !config.source || config.isOwner === null) {
             return false;
           }
         }
@@ -70,7 +70,7 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
             configured++;
           }
         } else {
-            if (config?.source && config?.isOwner !== null) {
+            if (config?.accessControlType && config?.source && config?.isOwner !== null) {
               configured++;
           }
         }

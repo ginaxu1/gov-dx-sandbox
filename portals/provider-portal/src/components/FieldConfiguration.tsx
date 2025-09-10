@@ -16,6 +16,10 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
   configuration,
   onChange
 }) => {
+  const handleAccessControlChange = (accessControlType: 'public' | 'restricted' | '') => {
+    onChange(typeName, field.name, { ...configuration, accessControlType });
+  };
+
   const handleSourceChange = (source: 'authoritative' | 'fallback' | 'other') => {
     onChange(typeName, field.name, { ...configuration, source });
   };
@@ -49,6 +53,30 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
         </div>
 
         <div className="flex-1 space-y-3">
+          {/* Access Control Configuration */}
+          {(!configuration.isQueryType && !configuration.isUserDefinedTypeField) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Access Control <span className="text-red-500">*</span>
+              </label>
+              <div className="flex space-x-4">
+                {(['public', 'restricted'] as const).map((option) => (
+                  <label key={option} className="flex items-center">
+                    <input
+                      type="radio"
+                      name={`accessControl-${typeName}-${field.name}`}
+                      value={option}
+                      checked={configuration.accessControlType === option}
+                      onChange={() => handleAccessControlChange(option)}
+                      className="mr-1 text-blue-600 focus:ring-blue-500"
+                      required
+                    />
+                    <span className="text-sm capitalize">{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Source Configuration */}
           {(!configuration.isQueryType && !configuration.isUserDefinedTypeField) && (
           <div>
@@ -99,7 +127,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
               {
                 (configuration.isUserDefinedTypeField && !configuration.isQueryType) && (
                   <span className='text-blue-500'>
-                    This is an user-defined type field. You need to specify the source and isOwner for all the fields inside this user-defined type.<br />
+                    This is a user-defined type field. You need to specify the source and isOwner for all the fields inside this user-defined type.<br />
                   </span>
                 )
               }
