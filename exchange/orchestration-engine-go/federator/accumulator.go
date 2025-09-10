@@ -42,11 +42,6 @@ func AccumulateResponse(queryAST *ast.Document, federatedResponse *federationRes
 					}
 				}
 
-				//if parentNode, ok := p.Parent.(*ast.Field); ok {
-				//	def := FindFieldDefinitionFromFieldName(fieldName, configs.AppConfig.Schema, parentNode.Name.Value)
-				//
-				//	_ = def
-				//}
 			}
 			return visitor.ActionNoChange, p.Node
 		},
