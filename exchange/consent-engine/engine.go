@@ -120,9 +120,10 @@ type ConsentResponse struct {
 	ID               string                 `json:"id"`
 	Status           ConsentStatus          `json:"status"`
 	Type             ConsentType            `json:"type"`
-	CreatedAt        time.Time              `json:"created_at"`
-	UpdatedAt        time.Time              `json:"updated_at"`
-	ExpiresAt        *time.Time             `json:"expires_at,omitempty"`
+	CreatedAt        string                 `json:"created_at"`     // RFC3339 format
+	UpdatedAt        string                 `json:"updated_at"`     // RFC3339 format
+	ExpiresAt        string                 `json:"expires_at"`     // Epoch timestamp as string
+	GrantDuration    string                 `json:"grant_duration"` // Duration of consent grant (e.g., "30d", "1h")
 	DataConsumer     string                 `json:"data_consumer"`
 	DataOwner        string                 `json:"data_owner"`
 	Fields           []string               `json:"fields"`
@@ -153,13 +154,34 @@ type SMSOTPResponse struct {
 
 // ToConsentResponse converts a ConsentRecord to ConsentResponse
 func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
+	// Convert timestamps to strings
+	createdAt := cr.CreatedAt.Format(time.RFC3339)
+	updatedAt := cr.UpdatedAt.Format(time.RFC3339)
+
+	// Convert ExpiresAt to epoch timestamp string
+	var expiresAtStr string
+	if cr.ExpiresAt != nil {
+		expiresAtStr = fmt.Sprintf("%d", cr.ExpiresAt.Unix())
+	}
+
+	// Get grant duration from metadata or use default
+	grantDuration := "30d" // default
+	if cr.Metadata != nil {
+		if duration, exists := cr.Metadata["grant_duration"]; exists {
+			if durationStr, ok := duration.(string); ok {
+				grantDuration = durationStr
+			}
+		}
+	}
+
 	return ConsentResponse{
 		ID:               cr.ID,
 		Status:           cr.Status,
 		Type:             cr.Type,
-		CreatedAt:        cr.CreatedAt,
-		UpdatedAt:        cr.UpdatedAt,
-		ExpiresAt:        cr.ExpiresAt,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+		ExpiresAt:        expiresAtStr,
+		GrantDuration:    grantDuration,
 		DataConsumer:     cr.DataConsumer,
 		DataOwner:        cr.DataOwner,
 		Fields:           cr.Fields,
@@ -516,8 +538,9 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 		RedirectURL:      req.RedirectURL,
 		ConsentPortalURL: fmt.Sprintf("/consent-portal/%s", consentID),
 		Metadata: map[string]interface{}{
-			"purpose":    req.Purpose,
-			"request_id": fmt.Sprintf("req_%s", consentID[len(consentID)-8:]), // Last 8 chars of consent ID
+			"purpose":        req.Purpose,
+			"request_id":     fmt.Sprintf("req_%s", consentID[len(consentID)-8:]), // Last 8 chars of consent ID
+			"grant_duration": req.GrantDuration,
 		},
 	}
 

@@ -53,19 +53,16 @@ app_in_allow_list(field, app_id) {
 }
 
 # Function to get fields that require consent
-# Consent is required when: consent_required: true AND owner != provider
+# Consent is required when: consent_required: true (determined by @isOwner directive)
 get_consent_required_fields(requested_fields, app_id) = fields {
     fields := [field | 
         field := requested_fields[_]
         field_metadata := provider_metadata.fields[field]
         field_metadata.consent_required == true
-        field_metadata.owner != field_metadata.provider
     ]
 }
 
-
 # Helper functions for input format
-
 # Get consumer ID from the input
 get_consumer_id(req) = consumer_id {
     consumer_id := req.consumer_id

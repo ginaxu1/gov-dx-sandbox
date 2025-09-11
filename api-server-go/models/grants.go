@@ -10,7 +10,7 @@ type ConsumerGrant struct {
 
 // ConsumerGrantsData represents the complete consumer grants data structure
 type ConsumerGrantsData struct {
-	LegacyConsumerGrants map[string]ConsumerGrant `json:"legacy_consumer_grants"`
+	LegacyConsumerGrants map[string]ConsumerGrant `json:"legacyConsumerGrants"`
 }
 
 // CreateConsumerGrantRequest represents the request to create a new consumer grant
@@ -28,18 +28,18 @@ type UpdateConsumerGrantRequest struct {
 type ProviderField struct {
 	Owner             string                 `json:"owner" validate:"required"`
 	Provider          string                 `json:"provider" validate:"required"`
-	ConsentRequired   bool                   `json:"consent_required"`
-	AccessControlType string                 `json:"access_control_type" validate:"required,oneof=public restricted"`
-	AllowList         []AllowListEntry       `json:"allow_list"`
+	ConsentRequired   bool                   `json:"consentRequired"`
+	AccessControlType string                 `json:"accessControlType" validate:"required,oneof=public restricted"`
+	AllowList         []AllowListEntry       `json:"allowList"`
 	Description       string                 `json:"description,omitempty"`
-	ExpiryTime        string                 `json:"expiry_time,omitempty"`
+	ExpiryTime        string                 `json:"expiryTime,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // AllowListEntry represents an entry in the allow list for restricted fields
 type AllowListEntry struct {
 	ConsumerID string `json:"consumerId" validate:"required"`
-	ExpiryTime string `json:"expiry_time" validate:"required"`
+	ExpiryTime string `json:"expiryTime" validate:"required"`
 	CreatedAt  string `json:"createdAt,omitempty"`
 }
 
@@ -53,11 +53,11 @@ type CreateProviderFieldRequest struct {
 	FieldName         string                 `json:"fieldName" validate:"required"`
 	Owner             string                 `json:"owner" validate:"required"`
 	Provider          string                 `json:"provider" validate:"required"`
-	ConsentRequired   bool                   `json:"consent_required"`
-	AccessControlType string                 `json:"access_control_type" validate:"required,oneof=public restricted"`
-	AllowList         []AllowListEntry       `json:"allow_list"`
+	ConsentRequired   bool                   `json:"consentRequired"`
+	AccessControlType string                 `json:"accessControlType" validate:"required,oneof=public restricted"`
+	AllowList         []AllowListEntry       `json:"allowList"`
 	Description       string                 `json:"description,omitempty"`
-	ExpiryTime        string                 `json:"expiry_time,omitempty"`
+	ExpiryTime        string                 `json:"expiryTime,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -65,11 +65,11 @@ type CreateProviderFieldRequest struct {
 type UpdateProviderFieldRequest struct {
 	Owner             *string                `json:"owner,omitempty"`
 	Provider          *string                `json:"provider,omitempty"`
-	ConsentRequired   *bool                  `json:"consent_required,omitempty"`
-	AccessControlType *string                `json:"access_control_type,omitempty" validate:"omitempty,oneof=public restricted"`
-	AllowList         []AllowListEntry       `json:"allow_list,omitempty"`
+	ConsentRequired   *bool                  `json:"consentRequired,omitempty"`
+	AccessControlType *string                `json:"accessControlType,omitempty" validate:"omitempty,oneof=public restricted"`
+	AllowList         []AllowListEntry       `json:"allowList,omitempty"`
 	Description       *string                `json:"description,omitempty"`
-	ExpiryTime        *string                `json:"expiry_time,omitempty"`
+	ExpiryTime        *string                `json:"expiryTime,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -81,8 +81,9 @@ type SchemaConversionRequest struct {
 
 // SchemaConversionResponse represents the response from schema conversion
 type SchemaConversionResponse struct {
-	ProviderID string                 `json:"providerId"`
-	Metadata   map[string]interface{} `json:"metadata"`
+	ProviderID  string                   `json:"providerId"`
+	Fields      map[string]ProviderField `json:"fields"`
+	ConvertedAt string                   `json:"convertedAt"`
 }
 
 // AllowListManagementRequest represents the request to add/update a consumer in allow_list

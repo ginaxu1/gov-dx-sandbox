@@ -7,22 +7,21 @@ import (
 	"time"
 )
 
-// GraphQLField represents a field in the GraphQL schema
+// GraphQLField represents a field in the GraphQL schema (PDP-focused)
 type GraphQLField struct {
 	Name          string
 	Type          string
 	AccessControl string
-	Source        string
-	IsOwner       bool
-	Owner         string // NEW: explicit owner from @owner directive
 	Description   string
 	ParentType    string
+	Source        string
+	IsOwner       bool
+	Owner         string
 }
 
-// AuthorizationConfig represents the authorization configuration for fields
+// AuthorizationConfig represents the authorization configuration for fields (PDP-focused)
 type AuthorizationConfig struct {
-	FieldOwners     map[string]string            `json:"field_owners,omitempty"`
-	Authorization   map[string]FieldAuthorization `json:"authorization,omitempty"`
+	Authorization map[string]FieldAuthorization `json:"authorization,omitempty"`
 }
 
 // FieldAuthorization represents authorization data for a specific field
@@ -150,11 +149,12 @@ func (sc *SchemaConverter) ConvertSDLToProviderMetadata(sdl string, providerID s
 			fieldPath = strings.ToLower(field.ParentType) + "." + field.Name
 		}
 
-		// Determine the actual owner
-		actualOwner := sc.determineOwner(field, providerID, authConfig)
-
-		// Determine consent requirement based on owner vs provider
-		consentRequired := actualOwner != providerID && field.AccessControl == "restricted"
+		// Determine if consent is required based on @isOwner directive
+		// If provider is not the owner (@isOwner: false), consent is required for restricted fields
+		consentRequired := false
+		if !field.IsOwner && field.AccessControl == "restricted" {
+			consentRequired = true
+		}
 
 		// Determine access control type
 		accessControlType := field.AccessControl
@@ -176,13 +176,19 @@ func (sc *SchemaConverter) ConvertSDLToProviderMetadata(sdl string, providerID s
 			}
 		}
 
-		// Create field metadata
+		// Determine owner: use explicit @owner directive or default to "citizen" if @isOwner: true
+		owner := field.Owner
+		if owner == "" && field.IsOwner {
+			owner = "citizen"
+		}
+
+		// Create field metadata (only what PDP needs)
 		fieldMetadata := map[string]interface{}{
-			"consent_required":    consentRequired,
-			"owner":               actualOwner,
-			"provider":            providerID,
 			"access_control_type": accessControlType,
 			"allow_list":          allowList,
+			"consent_required":    consentRequired,
+			"owner":               owner,
+			"provider":            providerID,
 		}
 
 		// Add description if available
@@ -248,26 +254,26 @@ func (sc *SchemaConverter) parseFieldLine(line, parentType string) *GraphQLField
 
 	// Extract directives
 	accessControl := sc.extractDirective(line, "@accessControl")
-	source := sc.extractDirective(line, "@source")
-	isOwner := sc.extractDirective(line, "@isOwner")
-	owner := sc.extractDirective(line, "@owner")
 	description := sc.extractDirective(line, "@description")
+	source := sc.extractDirective(line, "@source")
+	isOwnerStr := sc.extractDirective(line, "@isOwner")
+	owner := sc.extractDirective(line, "@owner")
 
 	// Parse isOwner boolean
-	isOwnerBool := false
-	if isOwner == "true" {
-		isOwnerBool = true
+	isOwner := false
+	if isOwnerStr == "true" {
+		isOwner = true
 	}
 
 	return &GraphQLField{
 		Name:          fieldName,
 		Type:          fieldType,
 		AccessControl: accessControl,
-		Source:        source,
-		IsOwner:       isOwnerBool,
-		Owner:         owner,
 		Description:   description,
 		ParentType:    parentType,
+		Source:        source,
+		IsOwner:       isOwner,
+		Owner:         owner,
 	}
 }
 
@@ -295,7 +301,7 @@ func (sc *SchemaConverter) extractDirective(line, directive string) string {
 		return typeMatch[1]
 	}
 
-	// Try to extract boolean value for @isOwner
+	// Try to extract boolean value for @isOwner (without quotes)
 	boolRegex := regexp.MustCompile(`\([^)]*value:\s*(true|false)`)
 	boolMatch := boolRegex.FindStringSubmatch(matches[0])
 	if len(boolMatch) >= 2 {
@@ -306,39 +312,8 @@ func (sc *SchemaConverter) extractDirective(line, directive string) string {
 }
 
 // determineOwner determines the actual owner of a field
-func (sc *SchemaConverter) determineOwner(field GraphQLField, providerID string, authConfig *AuthorizationConfig) string {
-	// Priority 1: @owner directive in SDL
-	if field.Owner != "" {
-		return field.Owner
-	}
-	
-	// Priority 2: field_owners in authorization config
-	if authConfig != nil && authConfig.FieldOwners != nil {
-		fieldPath := field.Name
-		if field.ParentType != "" && field.ParentType != "Query" {
-			fieldPath = strings.ToLower(field.ParentType) + "." + field.Name
-		}
-		if owner, exists := authConfig.FieldOwners[fieldPath]; exists {
-			return owner
-		}
-	}
-	
-	// Priority 3: isOwner directive
-	if field.IsOwner {
-		return providerID // Provider owns the data
-	}
-	
-	// Default fallback
-	return "unknown"
-}
-
-// determineConsentRequired determines if a field requires consent
-func (sc *SchemaConverter) determineConsentRequired(field GraphQLField) bool {
-	// Consent is required if:
-	// 1. Field is not owned by the provider (isOwner: false)
-	// 2. AND field has restricted access control
-	return !field.IsOwner && field.AccessControl == "restricted"
-}
+// Note: Ownership and consent determination are handled by the Orchestration Engine
+// The PDP only needs to know about access control types and consumer authorization
 
 // cleanSDL removes comments and normalizes whitespace
 func (sc *SchemaConverter) cleanSDL(sdl string) string {

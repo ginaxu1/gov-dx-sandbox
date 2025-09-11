@@ -36,12 +36,6 @@ api-server-go/
 └── go.mod              # Dependencies
 ```
 
-**Key Features:**
-- Generic handler pattern reduces code duplication
-- Shared utils package for common operations
-- In-memory storage with thread-safe operations
-- Comprehensive input validation
-
 ## API Endpoints
 
 ### Health & Debug
@@ -565,7 +559,7 @@ curl -X PUT http://localhost:3000/providers/{providerId}/schema-submissions/{sch
     "status": "pending"
   }'
 
-# Approve schema (pending -> approved) - this automatically updates provider-metadatajson
+# Approve schema (pending -> approved) - this automatically updates provider-metadata.json
 curl -X PUT http://localhost:3000/providers/{providerId}/schema-submissions/{schemaId} \
   -H "Content-Type: application/json" \
   -d '{

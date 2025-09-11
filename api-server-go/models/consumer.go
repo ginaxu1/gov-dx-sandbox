@@ -25,7 +25,7 @@ type ConsumerApp struct {
 	SubmissionID   string            `json:"submissionId"`
 	ConsumerID     string            `json:"consumerId"`
 	Status         ApplicationStatus `json:"status"`
-	RequiredFields map[string]bool   `json:"required_fields"`
+	RequiredFields map[string]bool   `json:"requiredFields"`
 	CreatedAt      time.Time         `json:"createdAt"`
 	Credentials    *Credentials      `json:"credentials,omitempty"`
 }

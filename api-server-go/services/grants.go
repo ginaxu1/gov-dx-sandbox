@@ -546,3 +546,18 @@ func (s *GrantsService) consumerExistsInAllowList(allowList []models.AllowListEn
 	}
 	return false
 }
+
+// loadProviderMetadata loads provider metadata from the service
+func (s *GrantsService) loadProviderMetadata() (*models.ProviderMetadataData, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.providerMetadata, nil
+}
+
+// saveProviderMetadata saves provider metadata to the service
+func (s *GrantsService) saveProviderMetadata(metadata *models.ProviderMetadataData) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.providerMetadata = metadata
+	return nil
+}

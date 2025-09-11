@@ -35,12 +35,9 @@ type AuthorizationRequest struct {
 
 // AuthorizationDecision represents the output of policy evaluation
 type AuthorizationDecision struct {
-	Allow                 bool                   `json:"allow"`
-	ConsentRequired       bool                   `json:"consent_required"`
-	ConsentRequiredFields []string               `json:"consent_required_fields,omitempty"`
-	DataOwner             string                 `json:"data_owner,omitempty"`
-	ExpiryTime            string                 `json:"expiry_time,omitempty"`
-	Conditions            map[string]interface{} `json:"conditions,omitempty"`
+	Allow                 bool     `json:"allow"`
+	ConsentRequired       bool     `json:"consent_required"`
+	ConsentRequiredFields []string `json:"consent_required_fields,omitempty"`
 }
 
 // NewPolicyEvaluator creates and initializes a new evaluator by loading policies from disk.

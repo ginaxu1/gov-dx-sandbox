@@ -16,16 +16,19 @@ type APIServer struct {
 	consumerService *services.ConsumerService
 	providerService *services.ProviderService
 	adminService    *services.AdminService
+	grantsService   *services.GrantsService
 }
 
 // NewAPIServer creates a new API server instance
 func NewAPIServer() *APIServer {
 	consumerService := services.NewConsumerService()
 	providerService := services.NewProviderService()
+	grantsService := services.NewGrantsService()
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
+		grantsService:   grantsService,
 	}
 }
 
@@ -324,8 +327,8 @@ func (s *APIServer) handleProvidersCollection(w http.ResponseWriter, r *http.Req
 	switch r.Method {
 	case http.MethodGet:
 		// GET /providers - List all providers
-			profiles, err := s.providerService.GetAllProviderProfiles()
-			if err != nil {
+		profiles, err := s.providerService.GetAllProviderProfiles()
+		if err != nil {
 			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve providers")
 			return
 		}
@@ -341,7 +344,7 @@ func (s *APIServer) handleProviderByID(w http.ResponseWriter, r *http.Request, p
 	case http.MethodGet:
 		// GET /providers/{providerId} - Get specific provider
 		profile, err := s.providerService.GetProviderProfile(providerID)
-			if err != nil {
+		if err != nil {
 			utils.RespondWithError(w, http.StatusNotFound, "Provider not found")
 			return
 		}
@@ -373,8 +376,8 @@ func (s *APIServer) handleProviders(w http.ResponseWriter, r *http.Request) {
 		// /providers/{providerId} - Get specific provider
 		if r.Method == http.MethodGet {
 			s.handleProviderByID(w, r, providerID)
-		return
-	}
+			return
+		}
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
@@ -408,18 +411,18 @@ func (s *APIServer) handleProviderSchemaSubmissions(w http.ResponseWriter, r *ht
 	case http.MethodPost:
 		// POST /providers/:provider-id/schema-submissions - Create new schema submission or modify existing
 		var req models.CreateProviderSchemaSubmissionRequest
-	if err := utils.ParseJSONRequest(r, &req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
 
 		schema, err := s.providerService.CreateProviderSchemaSubmission(providerID, req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 
-	utils.RespondWithSuccess(w, http.StatusCreated, schema)
+		utils.RespondWithSuccess(w, http.StatusCreated, schema)
 	case http.MethodGet:
 		// GET /providers/:provider-id/schema-submissions - List all schema submissions for provider
 		schemas, err := s.providerService.GetProviderSchemasByProviderID(providerID)
@@ -624,7 +627,7 @@ func (s *APIServer) handleProviderSubmissionByID(w http.ResponseWriter, r *http.
 
 // handleAllowListManagement handles /admin/fields/{fieldName}/allow-list
 func (s *APIServer) handleAllowListManagement(w http.ResponseWriter, r *http.Request) {
-	fieldName := utils.ExtractFieldNameFromPath(r.URL.Path)
+	fieldName := ExtractFieldNameFromPath(r.URL.Path)
 	if fieldName == "" {
 		utils.RespondWithError(w, http.StatusBadRequest, "Field name is required")
 		return
@@ -662,9 +665,9 @@ func (s *APIServer) handleAllowListManagement(w http.ResponseWriter, r *http.Req
 
 // handleAllowListConsumerManagement handles /admin/fields/{fieldName}/allow-list/{consumerId}
 func (s *APIServer) handleAllowListConsumerManagement(w http.ResponseWriter, r *http.Request) {
-	fieldName := utils.ExtractFieldNameFromPath(r.URL.Path)
-	consumerID := utils.ExtractConsumerIDFromPath(r.URL.Path)
-	
+	fieldName := ExtractFieldNameFromPath(r.URL.Path)
+	consumerID := ExtractConsumerIDFromPath(r.URL.Path)
+
 	if fieldName == "" || consumerID == "" {
 		utils.RespondWithError(w, http.StatusBadRequest, "Field name and consumer ID are required")
 		return
@@ -703,20 +706,20 @@ func (s *APIServer) handleAllowListConsumerManagement(w http.ResponseWriter, r *
 // handleAllowListRoutes routes allow_list management requests
 func (s *APIServer) handleAllowListRoutes(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	
+
 	// Check if this is a consumer-specific allow_list request
 	// Pattern: /admin/fields/{fieldName}/allow-list/{consumerId}
 	if strings.Contains(path, "/allow-list/") && len(strings.Split(path, "/")) >= 6 {
 		s.handleAllowListConsumerManagement(w, r)
 		return
 	}
-	
+
 	// Pattern: /admin/fields/{fieldName}/allow-list
 	if strings.HasSuffix(path, "/allow-list") {
 		s.handleAllowListManagement(w, r)
 		return
 	}
-	
+
 	// If no pattern matches, return 404
 	utils.RespondWithError(w, http.StatusNotFound, "Allow list endpoint not found")
 }
