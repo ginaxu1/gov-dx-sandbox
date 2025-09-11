@@ -2,44 +2,64 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
-	"github.com/gov-dx-sandbox/exchange/utils"
+	"github.com/gov-dx-sandbox/exchange/shared/config"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
-// Constants for configuration
-const (
-	defaultPort = "8080"
+// Build information - set during build
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
+	// Load configuration
+	cfg := config.LoadConfig("policy-decision-point")
 
-	ctx := context.Background()
+	// Setup logging
+	utils.SetupLogging(cfg.Logging.Format, cfg.Logging.Level)
 
-	// Create an instance of our evaluator
+	slog.Info("Starting policy decision point",
+		"environment", cfg.Environment,
+		"port", cfg.Service.Port,
+		"version", Version,
+		"build_time", BuildTime,
+		"git_commit", GitCommit)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Initialize policy evaluator
 	evaluator, err := NewPolicyEvaluator(ctx)
 	if err != nil {
-		slog.Error("Could not initialize policy evaluator", "error", err)
+		slog.Error("Failed to initialize policy evaluator", "error", err)
 		os.Exit(1)
 	}
 
-	// Register the handler method from our evaluator instance
-	http.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
+	// Setup routes
+	mux := http.NewServeMux()
+	mux.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
+	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.debugHandler)))
+	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("policy-decision-point")))
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
+	// Create server using utils
+	serverConfig := &utils.ServerConfig{
+		Port:         cfg.Service.Port,
+		ReadTimeout:  cfg.Service.Timeout,
+		WriteTimeout: cfg.Service.Timeout,
+		IdleTimeout:  60 * time.Second,
 	}
-	listenAddr := fmt.Sprintf(":%s", port)
+	server := utils.CreateServer(serverConfig, mux)
 
-	slog.Info("PCE server starting", "address", listenAddr)
-	if err := http.ListenAndServe(listenAddr, nil); err != nil {
-		slog.Error("Could not start server", "error", err)
+	// Start server with graceful shutdown
+	if err := utils.StartServerWithGracefulShutdown(server, "policy-decision-point"); err != nil {
+		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
 }
