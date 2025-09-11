@@ -16,16 +16,39 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
   configuration,
   onChange
 }) => {
+
   const handleAccessControlChange = (accessControlType: 'public' | 'restricted' | '') => {
     onChange(typeName, field.name, { ...configuration, accessControlType });
   };
 
   const handleSourceChange = (source: 'authoritative' | 'fallback' | 'other') => {
-    onChange(typeName, field.name, { ...configuration, source });
+    const newConfig = { ...configuration, source };
+    
+    if (source === 'authoritative') {
+      newConfig.isOwner = configuration.isOwner ?? false;
+      newConfig.owner = 'Default Owner';
+    } else {
+      newConfig.isOwner = null;
+      newConfig.owner = '';
+    }
+    // console.log(newConfig.isOwner);
+    // console.log(newConfig.owner);
+    onChange(typeName, field.name, newConfig);
   };
 
-  const handleIsOwnerChange = (isOwner: true | false) => {
-    onChange(typeName, field.name, { ...configuration, isOwner });
+  const handleIsOwnerChange = (isOwner: boolean | null) => {
+    const newConfig = { ...configuration, isOwner };
+    if (isOwner === false) {
+      newConfig.owner = 'Default Owner';
+    } else {
+      newConfig.owner = '';
+    }
+    // console.log(newConfig.owner);
+    onChange(typeName, field.name, newConfig);
+  };
+
+  const handleOwnerChange = (owner: string) => {
+    onChange(typeName, field.name, { ...configuration, owner });
   };
 
   const handleDescriptionChange = (description: string) => {
@@ -103,12 +126,12 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
           )}
 
           {/* Is Owner Configuration */}
-          {(!configuration.isQueryType && !configuration.isUserDefinedTypeField) && (
+          {(!configuration.isQueryType && !configuration.isUserDefinedTypeField && configuration.source==="authoritative") && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <span>Is Owner</span>
                 <input
-                    type="checkbox"
+                  type="checkbox"
                   name={`isOwner-${typeName}-${field.name}`}
                   checked={configuration.isOwner === true}
                   onChange={(e) => handleIsOwnerChange(e.target.checked)}
@@ -118,32 +141,49 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
           </div>
         )}
 
-          {/* Description */}
+        {/* Owner Identifier */}
+        {(!configuration.isQueryType && !configuration.isUserDefinedTypeField && configuration.isOwner === false) && (
           <div>
-            <label 
-              htmlFor={`desc-${typeName}-${field.name}`}
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              {
-                (configuration.isUserDefinedTypeField && !configuration.isQueryType) && (
-                  <span className='text-blue-500'>
-                    This is a user-defined type field. You need to specify the source and isOwner for all the fields inside this user-defined type.<br />
-                  </span>
-                )
-              }
-              Description
-              {(configuration.isQueryType || configuration.isUserDefinedTypeField) && <span className="text-red-500 ml-1">*</span>}
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Owner Identifier <span className="text-red-500">*</span>
             </label>
-            <textarea
-              id={`desc-${typeName}-${field.name}`}
-              value={configuration.description}
-              onChange={(e) => handleDescriptionChange(e.target.value)}
-              placeholder="Describe this field's purpose and data source..."
-              rows={2}
+            <input
+              type="text"
+              name={`owner-${typeName}-${field.name}`}
+              value={configuration.owner}
+              onChange={(e) => handleOwnerChange(e.target.value)}
               className="w-full text-sm px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              required={configuration.isQueryType || configuration.isUserDefinedTypeField}
+              required
             />
-            </div>
+          </div>
+        )}
+
+        {/* Description */}
+        <div>
+          <label 
+            htmlFor={`desc-${typeName}-${field.name}`}
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            {
+              (configuration.isUserDefinedTypeField && !configuration.isQueryType) && (
+                <span className='text-blue-500'>
+                  This is a user-defined type field. You need to specify the source and isOwner for all the fields inside this user-defined type.<br />
+                </span>
+              )
+            }
+            Description
+            {(configuration.isQueryType || configuration.isUserDefinedTypeField) && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <textarea
+            id={`desc-${typeName}-${field.name}`}
+            value={configuration.description}
+            onChange={(e) => handleDescriptionChange(e.target.value)}
+            placeholder="Describe this field's purpose and data source..."
+            rows={2}
+            className="w-full text-sm px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            required={configuration.isQueryType || configuration.isUserDefinedTypeField}
+          />
+        </div>
         </div>
       </div>
     </div>
