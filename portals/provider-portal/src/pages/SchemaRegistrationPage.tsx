@@ -8,22 +8,26 @@ import { SchemaService } from '../services/schemaService';
 interface SchemaRegistrationPageProps {
   providerId: string;
   providerName: string;
+  previous_schema_id: string | null;
 }
 
 export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   providerId,
   providerName,
+  previous_schema_id
 }) => {
   const [step, setStep] = useState<'input' | 'configure'>('input');
   const [schema, setSchema] = useState<IntrospectionResult | null>(null);
+  const [endpoint, setEndpoint] = useState<string>('');
   const [configurations, setConfigurations] = useState<Record<string, Record<string, FieldConfiguration>>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [userDefinedTypes, setUserDefinedTypes] = useState<GraphQLType[]>([]);
 
-  const handleSchemaLoaded = (loadedSchema: IntrospectionResult) => {
+  const handleSchemaLoaded = (loadedSchema: IntrospectionResult, endpoint: string) => {
     setSchema(loadedSchema);
+    setEndpoint(endpoint);
     setStep('configure');
     setError('');
     // Initialize configurations for all fields
@@ -45,6 +49,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
               accessControlType: '',
               source: '',
               isOwner: null,
+              owner: '',
               description: 'Default Description',
               isQueryType: true,
               isUserDefinedTypeField: false
@@ -55,9 +60,10 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
           type.fields?.forEach(field => {
             const isUserDefinedTypeField_ = userDefinedTypes_.map(t => t.name).includes(SchemaService.getTypeString(field.type));
             initialConfigs[type.name][field.name] = {
-              accessControlType: 'public',
-              source: 'authoritative',
-              isOwner: isUserDefinedTypeField_ ? null: false,
+              accessControlType: isUserDefinedTypeField_ ? '' :'public',
+              source: isUserDefinedTypeField_ ? '' : 'fallback',
+              isOwner: null,
+              owner: '',
               description: field.description || isUserDefinedTypeField_ ? 'Default Description' : '',
               isQueryType: false,
               isUserDefinedTypeField: isUserDefinedTypeField_
@@ -85,6 +91,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
 
   const handleSubmitRegistration = async () => {
     console.log('Submitting registration...');
+
     if (!schema) {
       setError('Schema is required');
       return;
@@ -101,7 +108,9 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
       console.log(sdl);
 
       const registration: SchemaRegistration = {
-        sdl
+        sdl,
+        previous_schema_id: previous_schema_id,
+        schema_endpoint: endpoint,
       };
       console.log('Registering schema:', registration);
       await SchemaService.registerSchema(providerId,registration);
@@ -291,11 +300,34 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
                 />
               </div>
-
-              <p className="mt-1 text-sm text-gray-500">
-                This will be used to identify your data provider in the system
-              </p>
-
+              <div className="mt-4">
+                <label htmlFor="previousSchemaId" className="block text-sm font-medium text-gray-700 mb-2">
+                  Previous Schema ID
+                </label>
+                <input
+                  type="text"
+                  id="previousSchemaId"
+                  value={previous_schema_id ? previous_schema_id : ''}
+                  placeholder="None"
+                  disabled
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
+                />
+              </div>
+              <div className="mt-4">
+                <label htmlFor="schemaEndpoint" className="block text-sm font-medium text-gray-700 mb-2">
+                  Schema Endpoint
+                </label>
+                <input
+                  type="text"
+                  id="schemaEndpoint"
+                  value={endpoint ? endpoint : ''}
+                  placeholder="Schema Endpoint"
+                  disabled
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
+                />
+              </div>
             </div>
 
             {/* Back Button */}

@@ -52,6 +52,7 @@ export interface FieldConfiguration {
   accessControlType: 'public' | 'restricted' | ''; // '' indicates not set
   source: 'authoritative' | 'fallback' | 'other' | ''; // '' indicates not set
   isOwner: boolean | null;
+  owner: string; // Owner Identifier
   description: string;
   isQueryType: boolean; // Is Field Defined Inside a Query Type
   isUserDefinedTypeField: boolean; // Is this field a User Defined Type field
@@ -59,4 +60,6 @@ export interface FieldConfiguration {
 
 export interface SchemaRegistration {
   sdl: string;
+  previous_schema_id: string | null;
+  schema_endpoint: string;
 }

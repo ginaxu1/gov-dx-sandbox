@@ -103,9 +103,9 @@ export class SchemaService {
 
   static async registerSchema(providerId: string, registration: SchemaRegistration): Promise<void> {
     const baseUrl = import.meta.env.VITE_BASE_PATH || '';
-    console.log('Registering schema at:', `${baseUrl}providers/${providerId}/schemas`);
+    console.log('Registering schema at:', `${baseUrl}providers/${providerId}/schema-submissions`);
     try {
-      const response = await fetch(`${baseUrl}providers/${providerId}/schemas`, {
+      const response = await fetch(`${baseUrl}providers/${providerId}/schema-submissions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,10 +134,11 @@ export class SchemaService {
 
 		// 3. Add directive definitions
 		const sdlWithDirectives = `
-      directive @accessControl(type: String!) on FIELD_DEFINITION
-			directive @source(value: String!) on FIELD_DEFINITION
-			directive @isOwner(value: Boolean!) on FIELD_DEFINITION
-			directive @description(value: String!) on FIELD_DEFINITION
+      directive @accessControl(type: String) on FIELD_DEFINITION
+			directive @source(value: String) on FIELD_DEFINITION
+			directive @isOwner(value: Boolean) on FIELD_DEFINITION
+			directive @owner(value: String) on FIELD_DEFINITION
+			directive @description(value: String) on FIELD_DEFINITION
 
 			${baseSDL}
 		`;
@@ -198,6 +199,20 @@ export class SchemaService {
               kind: Kind.ARGUMENT,
               name: { kind: Kind.NAME, value: "value" },
               value: { kind: Kind.BOOLEAN, value: config.isOwner },
+              },
+            ],
+          });
+        }
+
+        if (config.owner) {
+          directives.push({
+            kind: Kind.DIRECTIVE,
+            name: { kind: Kind.NAME, value: "owner" },
+            arguments: [
+              {
+                kind: Kind.ARGUMENT,
+                name: { kind: Kind.NAME, value: "value" },
+                value: { kind: Kind.STRING, value: config.owner },
               },
             ],
           });

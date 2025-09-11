@@ -22,9 +22,10 @@ function App() {
 
   const providerId = "prov_bd7fa213a556e7105677313c";
   const providerName = "Department Registrar of Persons";
+  const previousSchemaId = "";
 
   const SchemaRegistrationRoute: React.FC = () => (
-    <SchemaRegistrationPage providerId={providerId} providerName={providerName} />
+    <SchemaRegistrationPage providerId={providerId} providerName={providerName} previous_schema_id={previousSchemaId} />
   );
 
   // Fixed route order - more specific routes first

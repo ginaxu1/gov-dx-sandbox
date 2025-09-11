@@ -4,7 +4,7 @@ import type { IntrospectionResult } from '../types/graphql';
 import { SchemaService } from '../services/schemaService';
 
 interface SchemaInputProps {
-  onSchemaLoaded: (schema: IntrospectionResult) => void;
+  onSchemaLoaded: (schema: IntrospectionResult, endpoint: string) => void;
   onError: (error: string) => void;
   loading: boolean;
   setLoading: (loading: boolean) => void;
@@ -55,7 +55,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
           throw new Error('Invalid input method');
       }
 
-      onSchemaLoaded(schema);
+      onSchemaLoaded(schema, endpoint);
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Unknown error occurred');
     } finally {
@@ -70,6 +70,12 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
     }
   };
 
+  const clearMemory = () => {
+    setEndpoint('');
+    setSdlContent('');
+    setJsonFile(null);
+  }
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">Provide GraphQL Schema</h2>
@@ -78,7 +84,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
         <div className="flex space-x-4 mb-4">
           <button
             type="button"
-            onClick={() => setInputMethod('endpoint')}
+            onClick={() => {setInputMethod('endpoint'); clearMemory();}}
             className={`px-4 py-2 rounded-md transition-colors ${
               inputMethod === 'endpoint'
                 ? 'bg-blue-500 text-white'
@@ -89,7 +95,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setInputMethod('json')}
+            onClick={() => {setInputMethod('json'); clearMemory();}}
             className={`px-4 py-2 rounded-md transition-colors ${
               inputMethod === 'json'
                 ? 'bg-blue-500 text-white'
@@ -100,7 +106,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setInputMethod('sdl')}
+            onClick={() => {setInputMethod('sdl'); clearMemory();}}
             className={`px-4 py-2 rounded-md transition-colors ${
               inputMethod === 'sdl'
                 ? 'bg-blue-500 text-white'
@@ -116,7 +122,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
         {inputMethod === 'endpoint' && (
           <div>
             <label htmlFor="endpoint" className="block text-sm font-medium text-gray-700 mb-2">
-              GraphQL Endpoint URL (with introspection enabled)
+              GraphQL Endpoint URL (with introspection enabled)<span className="text-red-500">*</span>
             </label>
             <input
               type="url"
@@ -134,7 +140,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
         {inputMethod === 'json' && (
           <div>
             <label htmlFor="jsonFile" className="block text-sm font-medium text-gray-700 mb-2">
-              Upload Introspection Result JSON
+              Upload Introspection Result JSON<span className="text-red-500">*</span>
             </label>
             <input
               type="file"
@@ -146,10 +152,25 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
               disabled={loading}
             />
             {jsonFile && (
-              <p className="mt-2 text-sm text-gray-600">
-                Selected file: {jsonFile.name}
-              </p>
+              <div>
+                <p className="mt-2 text-sm text-gray-600">
+                  Selected file: {jsonFile.name}
+                </p>
+              </div>
             )}
+            <label htmlFor="endpoint" className="block text-sm font-medium text-gray-700 mb-2">
+              GraphQL Endpoint URL<span className="text-red-500">*</span>
+            </label>
+            <input
+              type="url"
+              id="endpoint"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+              placeholder="https://api.example.com/graphql"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+              disabled={loading}
+            />
           </div>
         )}
 
@@ -176,12 +197,25 @@ type User {
               required
               disabled={loading}
             />
+            <label htmlFor="endpoint" className="block text-sm font-medium text-gray-700 mb-2">
+              GraphQL Endpoint URL<span className="text-red-500">*</span>
+            </label>
+            <input
+              type="url"
+              id="endpoint"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+              placeholder="https://api.example.com/graphql"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+              disabled={loading}
+            />
           </div>
         )}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !endpoint || (inputMethod==="json" && !jsonFile) || (inputMethod==="sdl" && !sdlContent)}
           className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? 'Fetching Schema...' : 'Fetch Schema'}
