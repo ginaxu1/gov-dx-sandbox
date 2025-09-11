@@ -26,6 +26,17 @@ type apiServer struct {
 }
 
 // Consent handlers - organized for better readability
+func (s *apiServer) processConsentRequest(w http.ResponseWriter, r *http.Request) {
+	var req ConsentRequest
+	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
+		record, err := s.engine.ProcessConsentRequest(req)
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to process consent request: %w", err)
+		}
+		return record, http.StatusCreated, nil
+	})
+}
+
 func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 	var req CreateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
@@ -62,9 +73,6 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentUpdateFailed+": %w", err)
 		}
-		utils.HandleSuccess(w, record, http.StatusOK, constants.OpUpdateConsent, map[string]interface{}{
-			"id": record.ID, "status": record.Status,
-		})
 		return record, http.StatusOK, nil
 	})
 }
@@ -81,9 +89,6 @@ func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentRevokeFailed+": %w", err)
 		}
-		utils.HandleSuccess(w, record, http.StatusOK, constants.OpRevokeConsent, map[string]interface{}{
-			"id": record.ID, "reason": req.Reason,
-		})
 		return record, http.StatusOK, nil
 	})
 }
@@ -177,18 +182,43 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// sendConsentOTP sends an OTP for consent verification
+func (s *apiServer) sendConsentOTP(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		PhoneNumber string `json:"phone_number"`
+	}
+	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
+		consentID, err := utils.ExtractIDFromPath(r, "/consent/")
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+
+		// Remove the /otp suffix from the path
+		consentID = strings.TrimSuffix(consentID, "/otp")
+
+		response, err := s.engine.SendConsentOTP(consentID, req.PhoneNumber)
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to send OTP: %w", err)
+		}
+
+		return response, http.StatusOK, nil
+	})
+}
+
 // Route handlers - organized for better readability
 func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/consent")
 	switch {
 	case path == "" && r.Method == http.MethodPost:
-		s.createConsent(w, r)
+		s.processConsentRequest(w, r)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodGet:
 		s.getConsentStatus(w, r)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodPut:
 		s.updateConsent(w, r)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodDelete:
 		s.revokeConsent(w, r)
+	case strings.HasSuffix(path, "/otp") && r.Method == http.MethodPost:
+		s.sendConsentOTP(w, r)
 	default:
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
