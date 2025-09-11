@@ -167,7 +167,7 @@ func recursivelyExtractSourceSchemaInfo(
 	return directives, arguments
 }
 
-// Helper function to find a field definition in the schema by field name and parent object name
+// FindFieldDefinitionFromFieldName Helper function to find a field definition in the schema by field name and parent object name
 func FindFieldDefinitionFromFieldName(fieldName string, schema *ast.Document, parentObjectName string) *ast.FieldDefinition {
 	// Find the parent object definition in the schema
 	parentObjectDef := findTopLevelObjectDefinitionInSchema(parentObjectName, schema)

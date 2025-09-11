@@ -126,9 +126,11 @@ func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 
 	// Transform the federated responses back to the original query structure
 
-	AccumulateResponse(doc, responses)
+	var response = AccumulateResponse(doc, responses)
 
-	return f.mergeResponses(responses.Responses)
+	return response
+
+	//return f.mergeResponses(responses.Responses)
 }
 
 func (f *Federator) performFederation(r *federationRequest) *federationResponse {

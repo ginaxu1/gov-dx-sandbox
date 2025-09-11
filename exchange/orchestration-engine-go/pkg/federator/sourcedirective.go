@@ -15,7 +15,7 @@ func ExtractSourceInfoFromDirective(field *ast.Field) *SourceInfo {
 	var providerKey, providerField string
 
 	for _, dir := range field.Directives {
-		if dir.Name.Value != "source" {
+		if dir.Name.Value != "sourceInfo" {
 			continue
 		}
 		for _, arg := range dir.Arguments {
