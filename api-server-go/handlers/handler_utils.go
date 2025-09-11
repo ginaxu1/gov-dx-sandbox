@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -215,4 +216,24 @@ func ParseCreateProviderSchemaSDLRequest(body []byte) (interface{}, error) {
 		return nil, fmt.Errorf("failed to parse provider schema SDL request: %w", err)
 	}
 	return req, nil
+}
+
+// ExtractFieldNameFromPath extracts field name from URL path like /admin/fields/{fieldName}/allow-list
+func ExtractFieldNameFromPath(path string) string {
+	// Pattern: /admin/fields/{fieldName}/allow-list or /admin/fields/{fieldName}/allow-list/{consumerId}
+	parts := strings.Split(path, "/")
+	if len(parts) >= 4 && parts[1] == "admin" && parts[2] == "fields" {
+		return parts[3]
+	}
+	return ""
+}
+
+// ExtractConsumerIDFromPath extracts consumer ID from URL path like /admin/fields/{fieldName}/allow-list/{consumerId}
+func ExtractConsumerIDFromPath(path string) string {
+	// Pattern: /admin/fields/{fieldName}/allow-list/{consumerId}
+	parts := strings.Split(path, "/")
+	if len(parts) >= 6 && parts[1] == "admin" && parts[2] == "fields" && parts[4] == "allow-list" {
+		return parts[5]
+	}
+	return ""
 }

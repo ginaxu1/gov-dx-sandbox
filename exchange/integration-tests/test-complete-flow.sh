@@ -36,20 +36,14 @@ echo -e "${PURPLE}Step 3: DataCustodian checks consent with PDP${NC}"
 echo "DataCustodian sends 'check consent?' query to PDP"
 
 # Test with consent-required fields
-echo "Testing with consent-required fields (person.permanentAddress, person.birthDate)..."
+echo "Testing with consent-required fields (person.nic, person.photo)..."
 PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer": {
-      "id": "passport-app",
-      "name": "Passport Application Service",
-      "type": "government_service"
-    },
-    "request": {
-      "resource": "person_data",
-      "action": "read",
-      "data_fields": ["person.fullName", "person.permanentAddress", "person.birthDate"]
-    }
+    "consumer_id": "passport-app",
+    "app_id": "passport-app",
+    "request_id": "req_complete_flow",
+    "required_fields": ["person.fullName", "person.nic", "person.photo"]
   }')
 
 echo "PDP Decision:"
