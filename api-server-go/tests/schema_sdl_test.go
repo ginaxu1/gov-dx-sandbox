@@ -20,7 +20,7 @@ func TestProviderSchemaSDLAPI(t *testing.T) {
 	providerID := createProviderProfile(t, mux, apiServer)
 
 	t.Run("Create Provider Schema with SDL", func(t *testing.T) {
-		reqBody := models.CreateProviderSchemaSDLRequest{
+		reqBody := models.CreateProviderSchemaSubmissionRequest{
 			SDL: `directive @accessControl(type: String!) on FIELD_DEFINITION
 
 directive @source(value: String!) on FIELD_DEFINITION
@@ -52,7 +52,7 @@ type Query {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/provider-schemas/"+providerID, bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/providers/"+providerID+"/schema-submissions", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -81,12 +81,12 @@ type Query {
 	})
 
 	t.Run("Create Provider Schema with SDL - Provider Not Found", func(t *testing.T) {
-		reqBody := models.CreateProviderSchemaSDLRequest{
+		reqBody := models.CreateProviderSchemaSubmissionRequest{
 			SDL: "type User { id: ID! }",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/provider-schemas/nonexistent-provider", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/providers/nonexistent-provider/schema-submissions", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -98,7 +98,7 @@ type Query {
 	})
 
 	t.Run("Create Provider Schema with SDL - Invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/provider-schemas/test-provider", bytes.NewBufferString("invalid json"))
+		req := httptest.NewRequest("POST", "/providers/test-provider/schema-submissions", bytes.NewBufferString("invalid json"))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()

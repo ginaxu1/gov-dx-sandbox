@@ -24,9 +24,10 @@ const (
 type ProviderSchemaStatus string
 
 const (
-	SchemaStatusPending         ProviderSchemaStatus = "pending"
-	SchemaStatusApproved        ProviderSchemaStatus = "approved"
-	SchemaStatusChangesRequired ProviderSchemaStatus = "changes_required"
+	SchemaStatusDraft    ProviderSchemaStatus = "draft"
+	SchemaStatusPending  ProviderSchemaStatus = "pending"
+	SchemaStatusApproved ProviderSchemaStatus = "approved"
+	SchemaStatusRejected ProviderSchemaStatus = "rejected"
 )
 
 // ProviderSubmission represents a temporary submission from a potential new provider
@@ -64,6 +65,7 @@ type FieldConfigurations map[string]map[string]FieldConfiguration
 type ProviderSchema struct {
 	SubmissionID        string               `json:"submissionId"`
 	ProviderID          string               `json:"providerId"`
+	SchemaID            *string              `json:"schemaId,omitempty"` // Only set when status is approved
 	Status              ProviderSchemaStatus `json:"status"`
 	SchemaInput         *SchemaInput         `json:"schemaInput,omitempty"`
 	FieldConfigurations FieldConfigurations  `json:"fieldConfigurations"`
@@ -94,6 +96,12 @@ type CreateProviderSchemaRequest struct {
 // CreateProviderSchemaSDLRequest represents the request to create a provider schema with SDL
 type CreateProviderSchemaSDLRequest struct {
 	SDL string `json:"sdl" validate:"required"`
+}
+
+// CreateProviderSchemaSubmissionRequest represents the request to create a new schema submission or modify an existing one
+type CreateProviderSchemaSubmissionRequest struct {
+	SDL      string  `json:"sdl" validate:"required"`
+	SchemaID *string `json:"schema_id,omitempty"` // Optional: if provided, this is a modification of existing schema
 }
 
 // UpdateProviderSubmissionRequest represents the request to update a provider submission

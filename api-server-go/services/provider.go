@@ -231,6 +231,133 @@ func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.
 	return schema, nil
 }
 
+// CreateProviderSchemaSubmission creates a new schema submission or modifies an existing one
+func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req models.CreateProviderSchemaSubmissionRequest) (*models.ProviderSchema, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Verify provider exists
+	_, exists := s.profiles[providerID]
+	if !exists {
+		return nil, fmt.Errorf("provider profile not found")
+	}
+
+	// If schema_id is provided, this is a modification of existing schema
+	if req.SchemaID != nil && *req.SchemaID != "" {
+		// Verify the existing schema belongs to this provider
+		existingSchema, exists := s.schemas[*req.SchemaID]
+		if !exists {
+			return nil, fmt.Errorf("schema not found")
+		}
+		if existingSchema.ProviderID != providerID {
+			return nil, fmt.Errorf("schema does not belong to this provider")
+		}
+
+		// Create a new submission for the modification
+		schemaID, err := s.generateSchemaID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate schema ID: %w", err)
+		}
+
+		schema := &models.ProviderSchema{
+			SubmissionID:        schemaID,
+			ProviderID:          providerID,
+			Status:              models.SchemaStatusDraft,
+			SDL:                 req.SDL,
+			FieldConfigurations: make(models.FieldConfigurations),
+		}
+
+		s.schemas[schemaID] = schema
+
+		slog.Info("Created schema modification submission", "submissionId", schemaID, "providerId", providerID, "originalSchemaId", *req.SchemaID)
+		return schema, nil
+	}
+
+	// This is a new schema submission
+	schemaID, err := s.generateSchemaID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate schema ID: %w", err)
+	}
+
+	schema := &models.ProviderSchema{
+		SubmissionID:        schemaID,
+		ProviderID:          providerID,
+		Status:              models.SchemaStatusDraft,
+		SDL:                 req.SDL,
+		FieldConfigurations: make(models.FieldConfigurations),
+	}
+
+	s.schemas[schemaID] = schema
+
+	slog.Info("Created new schema submission", "submissionId", schemaID, "providerId", providerID)
+	return schema, nil
+}
+
+// SubmitSchemaForReview changes schema status from draft to pending for admin review
+func (s *ProviderService) SubmitSchemaForReview(schemaID string) (*models.ProviderSchema, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	schema, exists := s.schemas[schemaID]
+	if !exists {
+		return nil, fmt.Errorf("schema not found")
+	}
+
+	if schema.Status != models.SchemaStatusDraft {
+		return nil, fmt.Errorf("only draft schemas can be submitted for review")
+	}
+
+	schema.Status = models.SchemaStatusPending
+	s.schemas[schemaID] = schema
+
+	slog.Info("Schema submitted for review", "submissionId", schemaID, "providerId", schema.ProviderID)
+	return schema, nil
+}
+
+// GetApprovedSchemasByProviderID gets all approved schemas for a specific provider
+func (s *ProviderService) GetApprovedSchemasByProviderID(providerID string) ([]*models.ProviderSchema, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Verify provider exists
+	_, exists := s.profiles[providerID]
+	if !exists {
+		return nil, fmt.Errorf("provider profile not found")
+	}
+
+	var approvedSchemas []*models.ProviderSchema
+	for _, schema := range s.schemas {
+		if schema.ProviderID == providerID &&
+			schema.Status == models.SchemaStatusApproved &&
+			schema.SchemaID != nil {
+			approvedSchemas = append(approvedSchemas, schema)
+		}
+	}
+
+	return approvedSchemas, nil
+}
+
+// GetProviderSchemasByProviderID gets all schema submissions for a specific provider
+func (s *ProviderService) GetProviderSchemasByProviderID(providerID string) ([]*models.ProviderSchema, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Verify provider exists
+	_, exists := s.profiles[providerID]
+	if !exists {
+		return nil, fmt.Errorf("provider profile not found")
+	}
+
+	schemas := make([]*models.ProviderSchema, 0)
+	for _, schema := range s.schemas {
+		if schema.ProviderID == providerID {
+			schemas = append(schemas, schema)
+		}
+	}
+
+	return schemas, nil
+}
+
 func (s *ProviderService) GetProviderSchema(id string) (*models.ProviderSchema, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -252,25 +379,46 @@ func (s *ProviderService) UpdateProviderSchema(id string, req models.UpdateProvi
 		return nil, fmt.Errorf("provider schema not found")
 	}
 
-	// Update fields if provided
+	// Validate status transitions
 	if req.Status != nil {
+		// Only allow admin to approve pending schemas
+		if *req.Status == models.SchemaStatusApproved && schema.Status != models.SchemaStatusPending {
+			return nil, fmt.Errorf("only pending schemas can be approved")
+		}
+
+		// Only allow admin to reject pending schemas
+		if *req.Status == models.SchemaStatusRejected && schema.Status != models.SchemaStatusPending {
+			return nil, fmt.Errorf("only pending schemas can be rejected")
+		}
+
 		schema.Status = *req.Status
+
+		// If schema is approved, set schema_id and update provider-metadata.json
+		if *req.Status == models.SchemaStatusApproved {
+			// Generate a schema_id for approved schemas
+			schemaID, err := s.generateSchemaID()
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate schema ID: %w", err)
+			}
+			schema.SchemaID = &schemaID
+
+			// Update provider-metadata.json
+			if schema.SDL != "" {
+				if err := s.schemaConverter.UpdateProviderMetadataFile(schema.ProviderID, schema.SDL); err != nil {
+					slog.Error("Failed to update provider-metadata.json", "error", err, "providerId", schema.ProviderID)
+					// Don't fail the update, just log the error
+				} else {
+					slog.Info("Updated provider-metadata.json from approved schema", "providerId", schema.ProviderID, "schemaId", schemaID)
+				}
+			}
+		}
 	}
+
 	if req.FieldConfigurations != nil {
 		schema.FieldConfigurations = req.FieldConfigurations
 	}
 
-	// If schema is approved, update provider-metadata.json
-	if req.Status != nil && *req.Status == "approved" && schema.SDL != "" {
-		if err := s.schemaConverter.UpdateProviderMetadataFile(schema.ProviderID, schema.SDL); err != nil {
-			slog.Error("Failed to update provider-metadata.json", "error", err, "providerId", schema.ProviderID)
-			// Don't fail the update, just log the error
-		} else {
-			slog.Info("Updated provider-metadata.json from approved schema", "providerId", schema.ProviderID)
-		}
-	}
-
-	slog.Info("Updated provider schema", "submissionId", id, "status", schema.Status)
+	slog.Info("Updated provider schema", "submissionId", id, "status", schema.Status, "schemaId", schema.SchemaID)
 	return schema, nil
 }
 
