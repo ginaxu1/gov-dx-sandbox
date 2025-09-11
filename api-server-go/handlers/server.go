@@ -34,6 +34,11 @@ func (s *APIServer) ProviderService() *services.ProviderService {
 	return s.providerService
 }
 
+// GetProviderService returns the provider service instance (alias for consistency)
+func (s *APIServer) GetProviderService() *services.ProviderService {
+	return s.providerService
+}
+
 // SetupRoutes configures all API routes
 func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	// Consumer routes
@@ -44,13 +49,13 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	mux.Handle("/consumer-applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleConsumerApplications)))
 	mux.Handle("/consumer-applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleConsumerApplicationByID)))
 
-	// Provider routes
+	// Provider submission routes
 	mux.Handle("/provider-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSubmissions)))
 	mux.Handle("/provider-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSubmissionByID)))
-	mux.Handle("/provider-profiles", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderProfiles)))
-	mux.Handle("/provider-profiles/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderProfileByID)))
-	mux.Handle("/provider-schemas", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSchemas)))
-	mux.Handle("/provider-schemas/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSchemaByID)))
+
+	// RESTful provider routes
+	mux.Handle("/providers", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProvidersCollection)))
+	mux.Handle("/providers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviders)))
 
 	// Admin routes
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAdmin)))
@@ -144,48 +149,6 @@ func (s *APIServer) parseAndCreateConsumer(req interface{}) (interface{}, error)
 	return s.consumerService.CreateConsumer(createReq)
 }
 
-func (s *APIServer) parseAndCreateProviderSubmission(req interface{}) (interface{}, error) {
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	var createReq models.CreateProviderSubmissionRequest
-	if err := json.Unmarshal(reqBytes, &createReq); err != nil {
-		return nil, fmt.Errorf("failed to parse request: %w", err)
-	}
-
-	return s.providerService.CreateProviderSubmission(createReq)
-}
-
-func (s *APIServer) parseAndUpdateProviderSubmission(id string, req interface{}) (interface{}, error) {
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	var updateReq models.UpdateProviderSubmissionRequest
-	if err := json.Unmarshal(reqBytes, &updateReq); err != nil {
-		return nil, fmt.Errorf("failed to parse request: %w", err)
-	}
-
-	return s.providerService.UpdateProviderSubmission(id, updateReq)
-}
-
-func (s *APIServer) parseAndUpdateProviderSchema(id string, req interface{}) (interface{}, error) {
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	var updateReq models.UpdateProviderSchemaRequest
-	if err := json.Unmarshal(reqBytes, &updateReq); err != nil {
-		return nil, fmt.Errorf("failed to parse request: %w", err)
-	}
-
-	return s.providerService.UpdateProviderSchema(id, updateReq)
-}
-
 // Consumer handlers
 func (s *APIServer) handleConsumers(w http.ResponseWriter, r *http.Request) {
 	s.handleCollection(w, r,
@@ -203,11 +166,46 @@ func (s *APIServer) handleConsumers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *APIServer) handleConsumerByID(w http.ResponseWriter, r *http.Request) {
-	s.handleItem(w, r,
-		func(id string) (interface{}, error) { return s.consumerService.GetConsumer(id) },
-		nil, // No update for consumers
-		nil, // No delete for consumers
-	)
+	id := utils.ExtractIDFromPathString(r.URL.Path)
+	if id == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Consumer ID is required")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// GET /consumers/{consumerId} - Get specific consumer
+		consumer, err := s.consumerService.GetConsumer(id)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, "Consumer not found")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, consumer)
+	case http.MethodPut:
+		// PUT /consumers/{consumerId} - Update consumer
+		var req models.UpdateConsumerRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		consumer, err := s.consumerService.UpdateConsumer(id, req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, consumer)
+	case http.MethodDelete:
+		// DELETE /consumers/{consumerId} - Delete consumer
+		err := s.consumerService.DeleteConsumer(id)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to delete consumer")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusNoContent, nil)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
 // Consumer application handlers (RESTful)
@@ -318,107 +316,184 @@ func (s *APIServer) handleIndividualConsumerApplication(w http.ResponseWriter, r
 	}
 }
 
-// Provider submission handlers
-func (s *APIServer) handleProviderSubmissions(w http.ResponseWriter, r *http.Request) {
-	s.handleCollection(w, r,
-		func() (interface{}, error) {
-			subs, err := s.providerService.GetAllProviderSubmissions()
-			if err != nil {
-				return nil, err
-			}
-			return utils.CreateCollectionResponse(subs, len(subs)), nil
-		},
-		s.parseAndCreateProviderSubmission,
-	)
+// handleProvidersCollection handles /providers (GET all providers)
+func (s *APIServer) handleProvidersCollection(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /providers - List all providers
+		profiles, err := s.providerService.GetAllProviderProfiles()
+		if err != nil {
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve providers")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, profiles)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
-func (s *APIServer) handleProviderSubmissionByID(w http.ResponseWriter, r *http.Request) {
-	s.handleItem(w, r,
-		func(id string) (interface{}, error) { return s.providerService.GetProviderSubmission(id) },
-		s.parseAndUpdateProviderSubmission,
-		nil, // No delete for submissions
-	)
+// handleProviderByID handles /providers/{providerId} (GET specific provider)
+func (s *APIServer) handleProviderByID(w http.ResponseWriter, r *http.Request, providerID string) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /providers/{providerId} - Get specific provider
+		profile, err := s.providerService.GetProviderProfile(providerID)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, "Provider not found")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, profile)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
-// Provider profile handlers
-func (s *APIServer) handleProviderProfiles(w http.ResponseWriter, r *http.Request) {
-	s.handleCollection(w, r,
-		func() (interface{}, error) {
-			profiles, err := s.providerService.GetAllProviderProfiles()
-			if err != nil {
-				return nil, err
-			}
-			return utils.CreateCollectionResponse(profiles, len(profiles)), nil
-		},
-		nil, // No create for profiles (they're created via submission approval)
-	)
-}
-
-func (s *APIServer) handleProviderProfileByID(w http.ResponseWriter, r *http.Request) {
-	s.handleItem(w, r,
-		func(id string) (interface{}, error) { return s.providerService.GetProviderProfile(id) },
-		nil, // No update for profiles
-		nil, // No delete for profiles
-	)
-}
-
-// Provider schema handlers
-func (s *APIServer) handleProviderSchemas(w http.ResponseWriter, r *http.Request) {
-	s.handleCollection(w, r,
-		func() (interface{}, error) {
-			schemas, err := s.providerService.GetAllProviderSchemas()
-			if err != nil {
-				return nil, err
-			}
-			return utils.CreateCollectionResponse(schemas, len(schemas)), nil
-		},
-		nil, // No POST at this level - use /provider-schemas/:providerId
-	)
-}
-
-func (s *APIServer) handleProviderSchemaByID(w http.ResponseWriter, r *http.Request) {
+// handleProviders handles RESTful provider routes
+func (s *APIServer) handleProviders(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	providerID := utils.ExtractIDFromPathString(path)
 
+	// Extract provider ID from path like /providers/{provider-id}/...
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(pathParts) < 2 || pathParts[0] != "providers" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid provider path")
+		return
+	}
+
+	providerID := pathParts[1]
 	if providerID == "" {
 		utils.RespondWithError(w, http.StatusBadRequest, "Provider ID is required")
 		return
 	}
 
-	// Handle provider-specific schema creation
-	if r.Method == http.MethodPost {
-		s.handleCreateProviderSchemaSDL(w, r, providerID)
-		return
-	}
-
-	// Handle other operations (GET, PUT) for individual schemas
-	s.handleItem(w, r,
-		func(id string) (interface{}, error) { return s.providerService.GetProviderSchema(id) },
-		s.parseAndUpdateProviderSchema,
-		nil, // No delete for schemas
-	)
-}
-
-// handleCreateProviderSchemaSDL handles POST /provider-schemas/:providerId
-func (s *APIServer) handleCreateProviderSchemaSDL(w http.ResponseWriter, r *http.Request, providerID string) {
-	if r.Method != http.MethodPost {
+	// Handle base provider endpoints
+	if len(pathParts) == 2 {
+		// /providers/{providerId} - Get specific provider
+		if r.Method == http.MethodGet {
+			s.handleProviderByID(w, r, providerID)
+			return
+		}
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	var req models.CreateProviderSchemaSDLRequest
-	if err := utils.ParseJSONRequest(r, &req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+	// Check if this is a schemas sub-resource (approved schemas only)
+	if len(pathParts) == 3 && pathParts[2] == "schemas" {
+		s.handleProviderSchemas(w, r, providerID)
 		return
 	}
 
-	schema, err := s.providerService.CreateProviderSchemaSDL(providerID, req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+	// Check if this is a schema-submissions sub-resource
+	if len(pathParts) == 3 && pathParts[2] == "schema-submissions" {
+		s.handleProviderSchemaSubmissions(w, r, providerID)
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusCreated, schema)
+	// Check if this is a specific schema submission (e.g., /providers/:id/schema-submissions/:schemaId)
+	if len(pathParts) == 4 && pathParts[2] == "schema-submissions" {
+		schemaID := pathParts[3]
+		s.handleProviderSchemaSubmissionByID(w, r, providerID, schemaID)
+		return
+	}
+
+	// Handle other provider sub-resources here in the future
+	utils.RespondWithError(w, http.StatusNotFound, "Resource not found")
+}
+
+// handleProviderSchemaSubmissions handles /providers/:provider-id/schema-submissions
+func (s *APIServer) handleProviderSchemaSubmissions(w http.ResponseWriter, r *http.Request, providerID string) {
+	switch r.Method {
+	case http.MethodPost:
+		// POST /providers/:provider-id/schema-submissions - Create new schema submission or modify existing
+		var req models.CreateProviderSchemaSubmissionRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		schema, err := s.providerService.CreateProviderSchemaSubmission(providerID, req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusCreated, schema)
+	case http.MethodGet:
+		// GET /providers/:provider-id/schema-submissions - List all schema submissions for provider
+		schemas, err := s.providerService.GetProviderSchemasByProviderID(providerID)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusOK, utils.CreateCollectionResponse(schemas, len(schemas)))
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// handleProviderSchemaSubmissionByID handles /providers/:provider-id/schema-submissions/:schemaId
+func (s *APIServer) handleProviderSchemaSubmissionByID(w http.ResponseWriter, r *http.Request, providerID, schemaID string) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /providers/:provider-id/schema-submissions/:schemaId - Get specific schema
+		schema, err := s.providerService.GetProviderSchema(schemaID)
+
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+
+		// Verify the schema belongs to the provider
+		if schema.ProviderID != providerID {
+			utils.RespondWithError(w, http.StatusNotFound, "Schema not found for this provider")
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusOK, schema)
+	case http.MethodPut:
+		// PUT /providers/:provider-id/schema-submissions/:schemaId - Update schema (status changes)
+		var req models.UpdateProviderSchemaRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		// Check if this is a status update to "pending" (submit for review)
+		if req.Status != nil && *req.Status == "pending" {
+			// Submit schema for review (draft -> pending)
+			schema, err := s.providerService.SubmitSchemaForReview(schemaID)
+			if err != nil {
+				utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+
+			// Verify the schema belongs to the provider
+			if schema.ProviderID != providerID {
+				utils.RespondWithError(w, http.StatusNotFound, "Schema not found for this provider")
+				return
+			}
+
+			utils.RespondWithSuccess(w, http.StatusOK, schema)
+			return
+		}
+
+		// Regular schema update (admin approval/rejection)
+		schema, err := s.providerService.UpdateProviderSchema(schemaID, req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		// Verify the schema belongs to the provider
+		if schema.ProviderID != providerID {
+			utils.RespondWithError(w, http.StatusNotFound, "Schema not found for this provider")
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusOK, schema)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
 // Admin handler
@@ -426,13 +501,117 @@ func (s *APIServer) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/admin")
 
 	switch {
-	case path == "/dashboard" && r.Method == http.MethodGet:
-		dashboard, err := s.adminService.GetDashboard()
+	case path == "/metrics" && r.Method == http.MethodGet:
+		// GET /admin/metrics - Get system metrics
+		metrics, err := s.adminService.GetMetrics()
 		if err != nil {
-			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get dashboard")
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get metrics")
 			return
 		}
-		utils.RespondWithSuccess(w, http.StatusOK, dashboard)
+		utils.RespondWithSuccess(w, http.StatusOK, metrics)
+	case path == "/recent-activity" && r.Method == http.MethodGet:
+		// GET /admin/recent-activity - Get recent system activity
+		activity, err := s.adminService.GetRecentActivity()
+		if err != nil {
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get recent activity")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, activity)
+	case path == "/statistics" && r.Method == http.MethodGet:
+		// GET /admin/statistics - Get detailed statistics by resource type
+		stats, err := s.adminService.GetStatistics()
+		if err != nil {
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get statistics")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, stats)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// handleProviderSchemas handles /providers/:provider-id/schemas
+func (s *APIServer) handleProviderSchemas(w http.ResponseWriter, r *http.Request, providerID string) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /providers/:provider-id/schemas - List approved schemas for provider
+		schemas, err := s.providerService.GetApprovedSchemasByProviderID(providerID)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusOK, utils.CreateCollectionResponse(schemas, len(schemas)))
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// Provider submission handlers
+
+// handleProviderSubmissions handles /provider-submissions
+func (s *APIServer) handleProviderSubmissions(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// GET /provider-submissions - List all provider submissions
+		submissions, err := s.providerService.GetAllProviderSubmissions()
+		if err != nil {
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve provider submissions")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, utils.CreateCollectionResponse(submissions, len(submissions)))
+	case http.MethodPost:
+		// POST /provider-submissions - Create new provider submission
+		var req models.CreateProviderSubmissionRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		submission, err := s.providerService.CreateProviderSubmission(req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusCreated, submission)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// handleProviderSubmissionByID handles /provider-submissions/{submissionId}
+func (s *APIServer) handleProviderSubmissionByID(w http.ResponseWriter, r *http.Request) {
+	submissionID := utils.ExtractIDFromPathString(r.URL.Path)
+	if submissionID == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// GET /provider-submissions/{submissionId} - Get specific provider submission
+		submission, err := s.providerService.GetProviderSubmission(submissionID)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, "Provider submission not found")
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, submission)
+	case http.MethodPut:
+		// PUT /provider-submissions/{submissionId} - Update provider submission (admin approval/rejection)
+		var req models.UpdateProviderSubmissionRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		submission, err := s.providerService.UpdateProviderSubmission(submissionID, req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		utils.RespondWithSuccess(w, http.StatusOK, submission)
 	default:
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}

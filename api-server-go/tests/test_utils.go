@@ -72,21 +72,21 @@ func (ts *TestServer) MakeDELETERequest(url string) *httptest.ResponseRecorder {
 }
 
 // AssertResponseStatus checks if the response has the expected status code
-func AssertResponseStatus(t testing.T, w *httptest.ResponseRecorder, expectedStatus int) {
+func AssertResponseStatus(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int) {
 	if w.Code != expectedStatus {
 		t.Errorf("Expected status %d, got %d. Response: %s", expectedStatus, w.Code, w.Body.String())
 	}
 }
 
 // AssertJSONResponse checks if the response can be unmarshaled as JSON
-func AssertJSONResponse(t testing.T, w *httptest.ResponseRecorder, target interface{}) {
+func AssertJSONResponse(t *testing.T, w *httptest.ResponseRecorder, target interface{}) {
 	if err := json.Unmarshal(w.Body.Bytes(), target); err != nil {
 		t.Errorf("Failed to unmarshal response: %v. Response: %s", err, w.Body.String())
 	}
 }
 
 // AssertErrorResponse checks if the response contains an error
-func AssertErrorResponse(t testing.T, w *httptest.ResponseRecorder, expectedStatus int) {
+func AssertErrorResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int) {
 	AssertResponseStatus(t, w, expectedStatus)
 
 	var errorResp map[string]string
@@ -98,7 +98,7 @@ func AssertErrorResponse(t testing.T, w *httptest.ResponseRecorder, expectedStat
 }
 
 // AssertSuccessResponse checks if the response is successful
-func AssertSuccessResponse(t testing.T, w *httptest.ResponseRecorder, expectedStatus int) {
+func AssertSuccessResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int) {
 	AssertResponseStatus(t, w, expectedStatus)
 
 	// Try to unmarshal as JSON to ensure it's valid
@@ -107,7 +107,7 @@ func AssertSuccessResponse(t testing.T, w *httptest.ResponseRecorder, expectedSt
 }
 
 // CreateTestConsumer creates a consumer for testing and returns the consumer ID
-func (ts *TestServer) CreateTestConsumer(t testing.T, name, email, phone string) string {
+func (ts *TestServer) CreateTestConsumer(t *testing.T, name, email, phone string) string {
 	consumerReq := map[string]string{
 		"consumerName": name,
 		"contactEmail": email,
@@ -129,7 +129,7 @@ func (ts *TestServer) CreateTestConsumer(t testing.T, name, email, phone string)
 }
 
 // CreateTestConsumerApp creates a consumer application for testing and returns the submission ID
-func (ts *TestServer) CreateTestConsumerApp(t testing.T, consumerID string, requiredFields map[string]bool) string {
+func (ts *TestServer) CreateTestConsumerApp(t *testing.T, consumerID string, requiredFields map[string]bool) string {
 	appReq := map[string]interface{}{
 		"required_fields": requiredFields,
 	}
@@ -148,34 +148,53 @@ func (ts *TestServer) CreateTestConsumerApp(t testing.T, consumerID string, requ
 	return submissionID
 }
 
-// CreateTestProviderSubmission creates a provider submission for testing and returns the submission ID
-func (ts *TestServer) CreateTestProviderSubmission(t testing.T, name, email, phone string) string {
-	providerReq := map[string]string{
-		"providerName": name,
-		"contactEmail": email,
-		"phoneNumber":  phone,
+// CreateTestProviderProfile creates a provider profile directly for testing and returns the provider ID
+func (ts *TestServer) CreateTestProviderProfile(t *testing.T, name, email, phone, providerType string) string {
+	profile, err := ts.APIServer.GetProviderService().CreateProviderProfileForTesting(
+		name, email, phone, providerType,
+	)
+	if err != nil {
+		t.Fatalf("Failed to create provider profile: %v", err)
+	}
+	return profile.ProviderID
+}
+
+// CreateTestSchemaSubmission creates a schema submission for testing and returns the schema ID
+func (ts *TestServer) CreateTestSchemaSubmission(t *testing.T, providerID, sdl string) string {
+	schemaReq := map[string]interface{}{
+		"sdl":       sdl,
+		"schema_id": nil,
 	}
 
-	w := ts.MakePOSTRequest("/provider-submissions", providerReq)
+	w := ts.MakePOSTRequest("/providers/"+providerID+"/schema-submissions", schemaReq)
 	AssertResponseStatus(t, w, http.StatusCreated)
 
-	var submission map[string]interface{}
-	AssertJSONResponse(t, w, &submission)
+	var schema map[string]interface{}
+	AssertJSONResponse(t, w, &schema)
 
-	submissionID, ok := submission["submissionId"].(string)
+	schemaID, ok := schema["submissionId"].(string)
 	if !ok {
 		t.Fatal("Expected submissionId in response")
 	}
 
-	return submissionID
+	return schemaID
 }
 
-// ApproveTestProviderSubmission approves a provider submission for testing
-func (ts *TestServer) ApproveTestProviderSubmission(t testing.T, submissionID string) {
+// SubmitSchemaForReview submits a draft schema for admin review
+func (ts *TestServer) SubmitSchemaForReview(t *testing.T, providerID, schemaID string) {
+	updateReq := map[string]string{
+		"status": "pending",
+	}
+	w := ts.MakePUTRequest("/providers/"+providerID+"/schema-submissions/"+schemaID, updateReq)
+	AssertResponseStatus(t, w, http.StatusOK)
+}
+
+// ApproveSchemaSubmission approves a schema submission for testing
+func (ts *TestServer) ApproveSchemaSubmission(t *testing.T, providerID, schemaID string) {
 	updateReq := map[string]string{
 		"status": "approved",
 	}
 
-	w := ts.MakePUTRequest("/provider-submissions/"+submissionID, updateReq)
+	w := ts.MakePUTRequest("/providers/"+providerID+"/schema-submissions/"+schemaID, updateReq)
 	AssertResponseStatus(t, w, http.StatusOK)
 }

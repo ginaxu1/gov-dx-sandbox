@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
@@ -36,54 +37,69 @@ func TestAdminService_GetDashboard(t *testing.T) {
 	}
 
 	// Get dashboard
-	dashboard, err := service.GetDashboard()
+	metrics, err := service.GetMetrics()
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	// Check dashboard structure
-	overview, ok := dashboard["overview"].(map[string]interface{})
-	if !ok {
-		t.Error("Expected overview section in dashboard")
+	// Check metrics structure
+	if len(metrics) == 0 {
+		t.Error("Expected metrics to have data")
 	}
 
-	if overview["total_applications"].(int) != 1 {
-		t.Errorf("Expected 1 application, got %v", overview["total_applications"])
+	if metrics["total_applications"].(int) != 1 {
+		t.Errorf("Expected 1 application, got %v", metrics["total_applications"])
 	}
 
-	if overview["total_submissions"].(int) != 1 {
-		t.Errorf("Expected 1 submission, got %v", overview["total_submissions"])
+	if metrics["total_submissions"].(int) != 1 {
+		t.Errorf("Expected 1 submission, got %v", metrics["total_submissions"])
 	}
 
-	// Check that recent activity exists
-	activity, ok := dashboard["recent_activity"].([]map[string]interface{})
-	if !ok {
-		t.Error("Expected recent_activity section in dashboard")
+	// Check that metrics has expected fields
+	if _, ok := metrics["total_applications"]; !ok {
+		t.Error("Expected total_applications in metrics")
 	}
-
-	if len(activity) == 0 {
-		t.Error("Expected recent activity to have entries")
+	if _, ok := metrics["total_submissions"]; !ok {
+		t.Error("Expected total_submissions in metrics")
 	}
 }
 
-func TestAdminService_GetDashboard_Empty(t *testing.T) {
+func TestAdminService_GetMetrics_Empty(t *testing.T) {
 	service := services.NewAdminService()
 
-	dashboard, err := service.GetDashboard()
+	metrics, err := service.GetMetrics()
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	overview, ok := dashboard["overview"].(map[string]interface{})
-	if !ok {
-		t.Error("Expected overview section in dashboard")
+	if len(metrics) == 0 {
+		t.Error("Expected metrics to have data")
 	}
 
-	// All counts should be 0 for empty dashboard
+	// All counts should be 0 for empty metrics
 	expectedCounts := []string{"total_applications", "total_submissions", "total_profiles", "total_schemas"}
 	for _, countKey := range expectedCounts {
-		if overview[countKey].(int) != 0 {
-			t.Errorf("Expected %s to be 0, got %v", countKey, overview[countKey])
+		if metrics[countKey].(int) != 0 {
+			t.Errorf("Expected %s to be 0, got %v", countKey, metrics[countKey])
 		}
 	}
+}
+
+// HTTP endpoint tests for admin resources
+func TestAdminEndpoints(t *testing.T) {
+	ts := NewTestServer()
+
+	t.Run("Admin Resources", func(t *testing.T) {
+		// Test GET /admin/metrics
+		w := ts.MakeGETRequest("/admin/metrics")
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test GET /admin/recent-activity
+		w = ts.MakeGETRequest("/admin/recent-activity")
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test GET /admin/statistics
+		w = ts.MakeGETRequest("/admin/statistics")
+		AssertResponseStatus(t, w, http.StatusOK)
+	})
 }
