@@ -3,14 +3,11 @@ import strawberry
 from typing import Optional
 import uvicorn
 from strawberry.fastapi import GraphQLRouter
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI
 from dotenv import load_dotenv
 
 # SQLAlchemy imports for table creation
-from database import engine, get_db
-from mock_data import Father, Informant, Mother, PersonData, mock_data
-from models import SQLAlchemyPersonInfo
-from sqlalchemy.orm import Session
+from mock_data import Father, Informant, Mother, mock_data
 from pydantic import BaseModel
 from datetime import date
 from contextlib import asynccontextmanager
@@ -29,16 +26,14 @@ class Query:
         return "Healthy"
 
     @strawberry.field(description="Get person information by NIC")
-    def get_person_info(self, nic: strawberry.ID, info: Info) -> Optional[PersonData]:
-        db = info.context["db"]
-        return db.query(SQLAlchemyPersonInfo).filter_by(nic=nic).first()
+    def get_person_info(self, nic: strawberry.ID) -> Optional[PersonData]:
+        # Get Data From Mock Data
+        for data in mock_data['birth']:
+            if data.nic == str(nic):
+                return data
+        return None
 
-
-# Strawberry context for DB session
-def get_context_dependency(db: Session = Depends(get_db)):
-    return {"db": db}
-
-schema = strawberry.federation.Schema(query=Query, types=[PersonData, Informant, Father, Mother], enable_federation_2=True)
+schema = strawberry.federation.Schema(query=Query, types=[PersonData, Informant, Father, Mother])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -60,12 +55,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Create all tables in the database
-# Create all tables in the database
-from database import Base
-Base.metadata.create_all(bind=engine)
-
-
 # Pydantic schema for request validation
 from typing import Optional
 class PersonCreate(BaseModel):
@@ -78,31 +67,8 @@ class PersonCreate(BaseModel):
     address: Optional[str] = None
     profession: Optional[str] = None
 
-
-# POST endpoint to create a new Person
-@app.post("/person", response_model=dict, tags=["Person"])
-def create_person(person: PersonCreate, db: Session = Depends(get_db)):
-    db_person = SQLAlchemyPersonInfo(
-        full_name=person.full_name,
-        other_names=person.other_names,
-        birth_date=person.birth_date,
-        birth_place=person.birth_place,
-        email=person.email,
-        nic=person.nic,
-        address=person.address,
-        profession=person.profession
-    )
-    db.add(db_person)
-    try:
-        db.commit()
-        db.refresh(db_person)
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-    return {"id": db_person.id, "nic": db_person.nic}
-
 # Add GraphQL router
-graphql_app = GraphQLRouter(schema, context_getter=get_context_dependency)
+graphql_app = GraphQLRouter(schema)
 app.include_router(graphql_app, prefix="/graphql")
 
 # Health check endpoint
