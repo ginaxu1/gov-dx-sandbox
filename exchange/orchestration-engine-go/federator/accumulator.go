@@ -22,26 +22,28 @@ func AccumulateResponse(queryAST *ast.Document, federatedResponse *federationRes
 			if node, ok := p.Node.(*ast.Field); ok {
 				fieldName := node.Name.Value
 
-				path = append(path, fieldName)
+				if len(path) > 0 {
 
-				var providerInfo = federator.ExtractSourceInfoFromDirective(node)
+					var providerInfo = federator.ExtractSourceInfoFromDirective(node)
 
-				if providerInfo != nil {
-					var response = federatedResponse.GetProviderResponse(providerInfo.ProviderKey)
+					if providerInfo != nil {
+						var response = federatedResponse.GetProviderResponse(providerInfo.ProviderKey)
 
-					if response != nil {
-						var value, err = getValueAtPath(response.Response.Data, providerInfo.ProviderField)
-						if err == nil {
-							_, err = PushValue(responseData, strings.Join(path, "."), value)
-							if err != nil {
-								fmt.Printf("Error pushing value at path %s: %v\n", strings.Join(path, "."), err)
+						if response != nil {
+							var value, err = getValueAtPath(response.Response.Data, providerInfo.ProviderField)
+							if err == nil {
+								_, err = PushValue(responseData, strings.Join(append(path, fieldName), "."), value)
+								if err != nil {
+									fmt.Printf("Error pushing value at path %s: %v\n", strings.Join(path, "."), err)
+								}
+							} else {
+								fmt.Printf("Error getting value at path %s: %v\n", providerInfo.ProviderField, err)
 							}
-						} else {
-							fmt.Printf("Error getting value at path %s: %v\n", providerInfo.ProviderField, err)
 						}
 					}
 				}
 
+				path = append(path, fieldName)
 			}
 			return visitor.ActionNoChange, p.Node
 		},
