@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from datetime import date
 import strawberry
-from typing import Optional
-from strawberry.federation.schema_directives import External
 
 @strawberry.type
 class Informant:
@@ -32,7 +30,7 @@ class Mother:
 @dataclass
 class PersonInfo:
     id: int
-    brNo: str
+    br_no: str
     district: str
     division: str
     birth_date: date
@@ -48,10 +46,11 @@ class PersonInfo:
     registrar_signature: str
     informant: Informant
 
-@strawberry.federation.type(keys=["nic"])
+@strawberry.type
 class PersonData:
+    id: int
+    br_no: str
     nic: strawberry.ID
-    birth_registration_no: str
     district: str
     division: str
     birth_date: date
@@ -66,41 +65,30 @@ class PersonData:
     registrar_signature: str
     informant: Informant
 
-        # Reference resolver (called by federation gateway)
-    @classmethod
-    def resolve_reference(cls, nic: strawberry.ID) -> Optional["PersonData"]:
-        # Federation passes { nic: "..." } here
-
-        for person in mock_data["birth"]:
-            if person.nic == nic:
-                return person
-
-        return None
-
 
 mock_data = {
     "birth": [
         PersonData(
             id=1,
-            brNo="BR2025001",
+            br_no="BR2025001",
             district="Colombo",
             division="Colombo North",
             birth_date=date(2020, 5, 12),
             birth_place="Colombo General Hospital",
-            name="Aarav Perera",
+            name="Nuwan Fernando",
             sex="Male",
             nic=strawberry.ID("199512345678"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
-                name="Sunil Perera",
+                name="Sunil Fernando",
                 nic="710123456V",
                 birth_date=date(1985, 8, 21),
                 birth_place="Colombo",
                 race="Sinhala"
             ),
             mother=Mother(
-                name="Kamala Perera",
+                name="Kamala Fernando",
                 nic="790987654V",
                 birth_date=date(1987, 2, 11),
                 birth_place="Galle",
@@ -110,8 +98,8 @@ mock_data = {
             date_of_registration=date(2020, 5, 15),
             registrar_signature="R. Silva",
             informant=Informant(
-                signature="Sunil Perera",
-                full_name="Sunil Perera",
+                signature="Sunil Fernando",
+                full_name="Sunil Fernando",
                 residence="12 Galle Rd, Colombo",
                 relationship_to_baby="Father",
                 nic="710123456V"
@@ -119,7 +107,7 @@ mock_data = {
         ),
         PersonData(
             id=2,
-            brNo="BR2025002",
+            br_no="BR2025002",
             district="Galle",
             division="Galle Urban",
             birth_date=date(2021, 1, 20),
@@ -156,7 +144,7 @@ mock_data = {
         ),
         PersonData(
             id=3,
-            brNo="BR2025003",
+            br_no="BR2025003",
             district="Kandy",
             division="Kandy Central",
             birth_date=date(2019, 8, 9),
@@ -193,7 +181,7 @@ mock_data = {
         ),
         PersonData(
             id=4,
-            brNo="BR2025004",
+            br_no="BR2025004",
             district="Galle",
             division="Galle South",
             birth_date=date(2020, 1, 15),
