@@ -77,6 +77,46 @@ func (s *ConsumerService) GetAllConsumers() ([]*models.Consumer, error) {
 	return consumers, nil
 }
 
+// UpdateConsumer updates a consumer
+func (s *ConsumerService) UpdateConsumer(id string, req models.UpdateConsumerRequest) (*models.Consumer, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	consumer, exists := s.consumers[id]
+	if !exists {
+		return nil, fmt.Errorf("consumer not found")
+	}
+
+	// Update fields if provided
+	if req.ConsumerName != nil {
+		consumer.ConsumerName = *req.ConsumerName
+	}
+	if req.ContactEmail != nil {
+		consumer.ContactEmail = *req.ContactEmail
+	}
+	if req.PhoneNumber != nil {
+		consumer.PhoneNumber = *req.PhoneNumber
+	}
+
+	slog.Info("Updated consumer", "consumerId", id)
+	return consumer, nil
+}
+
+// DeleteConsumer deletes a consumer
+func (s *ConsumerService) DeleteConsumer(id string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	_, exists := s.consumers[id]
+	if !exists {
+		return fmt.Errorf("consumer not found")
+	}
+
+	delete(s.consumers, id)
+	slog.Info("Deleted consumer", "consumerId", id)
+	return nil
+}
+
 // ConsumerApp management methods
 
 // CreateConsumerApp creates a new consumer application

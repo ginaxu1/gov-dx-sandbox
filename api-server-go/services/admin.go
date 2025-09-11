@@ -40,33 +40,103 @@ func (s *AdminService) GetProviderService() *ProviderService {
 	return s.providerService
 }
 
-// GetDashboard returns admin dashboard data
-func (s *AdminService) GetDashboard() (map[string]interface{}, error) {
+// GetMetrics returns basic system metrics
+func (s *AdminService) GetMetrics() (map[string]interface{}, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
 	// Get counts from services
 	applications, err := s.consumerService.GetAllApplications()
 	if err != nil {
-		slog.Error("Failed to get applications for dashboard", "error", err)
+		slog.Error("Failed to get applications for metrics", "error", err)
 		return nil, err
 	}
 
 	submissions, err := s.providerService.GetAllProviderSubmissions()
 	if err != nil {
-		slog.Error("Failed to get provider submissions for dashboard", "error", err)
+		slog.Error("Failed to get provider submissions for metrics", "error", err)
 		return nil, err
 	}
 
 	profiles, err := s.providerService.GetAllProviderProfiles()
 	if err != nil {
-		slog.Error("Failed to get provider profiles for dashboard", "error", err)
+		slog.Error("Failed to get provider profiles for metrics", "error", err)
 		return nil, err
 	}
 
 	schemas, err := s.providerService.GetAllProviderSchemas()
 	if err != nil {
-		slog.Error("Failed to get provider schemas for dashboard", "error", err)
+		slog.Error("Failed to get provider schemas for metrics", "error", err)
+		return nil, err
+	}
+
+	metrics := map[string]interface{}{
+		"total_applications": len(applications),
+		"total_submissions":  len(submissions),
+		"total_profiles":     len(profiles),
+		"total_schemas":      len(schemas),
+	}
+
+	return metrics, nil
+}
+
+// GetRecentActivity returns recent system activity
+func (s *AdminService) GetRecentActivity() ([]map[string]interface{}, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Get data from services
+	applications, err := s.consumerService.GetAllApplications()
+	if err != nil {
+		slog.Error("Failed to get applications for recent activity", "error", err)
+		return nil, err
+	}
+
+	submissions, err := s.providerService.GetAllProviderSubmissions()
+	if err != nil {
+		slog.Error("Failed to get provider submissions for recent activity", "error", err)
+		return nil, err
+	}
+
+	profiles, err := s.providerService.GetAllProviderProfiles()
+	if err != nil {
+		slog.Error("Failed to get provider profiles for recent activity", "error", err)
+		return nil, err
+	}
+
+	schemas, err := s.providerService.GetAllProviderSchemas()
+	if err != nil {
+		slog.Error("Failed to get provider schemas for recent activity", "error", err)
+		return nil, err
+	}
+
+	// Generate recent activity
+	recentActivity := s.generateRecentActivity(applications, submissions, profiles, schemas)
+
+	return recentActivity, nil
+}
+
+// GetStatistics returns detailed statistics by resource type
+func (s *AdminService) GetStatistics() (map[string]interface{}, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Get data from services
+	applications, err := s.consumerService.GetAllApplications()
+	if err != nil {
+		slog.Error("Failed to get applications for statistics", "error", err)
+		return nil, err
+	}
+
+	submissions, err := s.providerService.GetAllProviderSubmissions()
+	if err != nil {
+		slog.Error("Failed to get provider submissions for statistics", "error", err)
+		return nil, err
+	}
+
+	schemas, err := s.providerService.GetAllProviderSchemas()
+	if err != nil {
+		slog.Error("Failed to get provider schemas for statistics", "error", err)
 		return nil, err
 	}
 
@@ -75,23 +145,13 @@ func (s *AdminService) GetDashboard() (map[string]interface{}, error) {
 	submissionStats := s.countSubmissionsByStatus(submissions)
 	schemaStats := s.countSchemasByStatus(schemas)
 
-	// Generate recent activity
-	recentActivity := s.generateRecentActivity(applications, submissions, profiles, schemas)
-
-	dashboard := map[string]interface{}{
-		"overview": map[string]interface{}{
-			"total_applications": len(applications),
-			"total_submissions":  len(submissions),
-			"total_profiles":     len(profiles),
-			"total_schemas":      len(schemas),
-		},
-		"applications":    applicationStats,
-		"submissions":     submissionStats,
-		"schemas":         schemaStats,
-		"recent_activity": recentActivity,
+	statistics := map[string]interface{}{
+		"applications": applicationStats,
+		"submissions":  submissionStats,
+		"schemas":      schemaStats,
 	}
 
-	return dashboard, nil
+	return statistics, nil
 }
 
 // countApplicationsByStatus counts applications by their status

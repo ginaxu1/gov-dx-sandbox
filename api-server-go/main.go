@@ -25,6 +25,11 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, map[string]string{"status": "healthy", "service": "api-server"})
 	})))
 
+	// Debug endpoint
+	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		utils.RespondWithJSON(w, http.StatusOK, map[string]string{"path": r.URL.Path, "method": r.Method})
+	})))
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {

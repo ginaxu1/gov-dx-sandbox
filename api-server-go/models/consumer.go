@@ -22,12 +22,12 @@ type Consumer struct {
 
 // ConsumerApp represents a consumer's application to access specific data fields
 type ConsumerApp struct {
-	SubmissionID  string                 `json:"submissionId"`
-	ConsumerID    string                 `json:"consumerId"`
-	Status        ApplicationStatus      `json:"status"`
-	RequiredFields map[string]bool       `json:"required_fields"`
-	CreatedAt     time.Time              `json:"createdAt"`
-	Credentials   *Credentials           `json:"credentials,omitempty"`
+	SubmissionID   string            `json:"submissionId"`
+	ConsumerID     string            `json:"consumerId"`
+	Status         ApplicationStatus `json:"status"`
+	RequiredFields map[string]bool   `json:"required_fields"`
+	CreatedAt      time.Time         `json:"createdAt"`
+	Credentials    *Credentials      `json:"credentials,omitempty"`
 }
 
 // Credentials represents API credentials for a consumer
@@ -43,10 +43,17 @@ type CreateConsumerRequest struct {
 	PhoneNumber  string `json:"phoneNumber"`
 }
 
+// UpdateConsumerRequest represents the request to update a consumer
+type UpdateConsumerRequest struct {
+	ConsumerName *string `json:"consumerName,omitempty"`
+	ContactEmail *string `json:"contactEmail,omitempty"`
+	PhoneNumber  *string `json:"phoneNumber,omitempty"`
+}
+
 // CreateConsumerAppRequest represents the request to create a new consumer application
 type CreateConsumerAppRequest struct {
-	ConsumerID     string           `json:"consumerId"`
-	RequiredFields map[string]bool  `json:"required_fields"`
+	ConsumerID     string          `json:"consumerId"`
+	RequiredFields map[string]bool `json:"required_fields"`
 }
 
 // UpdateConsumerAppRequest represents the request to update a consumer application

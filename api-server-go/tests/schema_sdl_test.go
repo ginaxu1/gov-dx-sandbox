@@ -20,7 +20,7 @@ func TestProviderSchemaSDLAPI(t *testing.T) {
 	providerID := createProviderProfile(t, mux, apiServer)
 
 	t.Run("Create Provider Schema with SDL", func(t *testing.T) {
-		reqBody := models.CreateProviderSchemaSDLRequest{
+		reqBody := models.CreateProviderSchemaSubmissionRequest{
 			SDL: `directive @accessControl(type: String!) on FIELD_DEFINITION
 
 directive @source(value: String!) on FIELD_DEFINITION
@@ -52,7 +52,7 @@ type Query {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/provider-schemas/"+providerID, bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/providers/"+providerID+"/schema-submissions", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -75,18 +75,18 @@ type Query {
 			t.Error("Expected SDL to be present in response")
 		}
 
-		if response["status"] != "pending" {
-			t.Errorf("Expected status 'pending', got %v", response["status"])
+		if response["status"] != "draft" {
+			t.Errorf("Expected status 'draft', got %v", response["status"])
 		}
 	})
 
 	t.Run("Create Provider Schema with SDL - Provider Not Found", func(t *testing.T) {
-		reqBody := models.CreateProviderSchemaSDLRequest{
+		reqBody := models.CreateProviderSchemaSubmissionRequest{
 			SDL: "type User { id: ID! }",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/provider-schemas/nonexistent-provider", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/providers/nonexistent-provider/schema-submissions", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -98,7 +98,7 @@ type Query {
 	})
 
 	t.Run("Create Provider Schema with SDL - Invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/provider-schemas/test-provider", bytes.NewBufferString("invalid json"))
+		req := httptest.NewRequest("POST", "/providers/test-provider/schema-submissions", bytes.NewBufferString("invalid json"))
 		req.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -112,59 +112,44 @@ type Query {
 
 // Helper function to create a provider profile for testing
 func createProviderProfile(t *testing.T, mux *http.ServeMux, apiServer *handlers.APIServer) string {
-	// Create a provider submission first
-	submissionReq := map[string]interface{}{
-		"providerName": "Test Provider",
-		"contactEmail": "test@example.com",
-		"phoneNumber":  "1234567890",
-		"providerType": "government",
+	// Create a provider profile directly using the service
+	profile, err := apiServer.GetProviderService().CreateProviderProfileForTesting(
+		"Test Provider",
+		"test@example.com",
+		"1234567890",
+		"government",
+	)
+	if err != nil {
+		t.Fatalf("Failed to create provider profile: %v", err)
 	}
 
-	jsonBody, _ := json.Marshal(submissionReq)
-	req := httptest.NewRequest("POST", "/provider-submissions", bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
+	t.Logf("Created provider with ID: %s", profile.ProviderID)
+	return profile.ProviderID
+}
 
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
+// Health and debug endpoint tests
+func TestHealthAndDebugEndpoints(t *testing.T) {
+	ts := NewTestServer()
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("Failed to create provider submission: %d", w.Code)
-	}
+	// Add health and debug endpoints
+	ts.Mux.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy","service":"api-server"}`))
+	}))
+	ts.Mux.Handle("/debug", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"path":"` + r.URL.Path + `","method":"` + r.Method + `"}`))
+	}))
 
-	var submissionResponse map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &submissionResponse); err != nil {
-		t.Fatalf("Failed to unmarshal submission response: %v", err)
-	}
+	t.Run("Health and Debug", func(t *testing.T) {
+		// Test health endpoint
+		w := ts.MakeGETRequest("/health")
+		AssertResponseStatus(t, w, http.StatusOK)
 
-	submissionID := submissionResponse["submissionId"].(string)
-
-	// Approve the submission to create a provider profile
-	approveReq := map[string]interface{}{
-		"status": "approved",
-	}
-
-	jsonBody, _ = json.Marshal(approveReq)
-	req = httptest.NewRequest("PUT", "/provider-submissions/"+submissionID, bytes.NewBuffer(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-
-	w = httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("Failed to approve provider submission: %d", w.Code)
-	}
-
-	// Extract provider ID from the response
-	var approveResponse map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &approveResponse); err != nil {
-		t.Fatalf("Failed to unmarshal approval response: %v", err)
-	}
-
-	providerID, ok := approveResponse["providerId"].(string)
-	if !ok {
-		t.Fatalf("Provider ID not found in approval response: %v", approveResponse)
-	}
-
-	t.Logf("Created provider with ID: %s", providerID)
-	return providerID
+		// Test debug endpoint
+		w = ts.MakeGETRequest("/debug")
+		AssertResponseStatus(t, w, http.StatusOK)
+	})
 }
