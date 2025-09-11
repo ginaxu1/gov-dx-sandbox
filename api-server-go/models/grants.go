@@ -50,26 +50,26 @@ type ProviderMetadataData struct {
 
 // CreateProviderFieldRequest represents the request to create a new provider field
 type CreateProviderFieldRequest struct {
-	FieldName        string           `json:"fieldName" validate:"required"`
-	Owner            string           `json:"owner" validate:"required"`
-	Provider         string           `json:"provider" validate:"required"`
-	ConsentRequired  bool             `json:"consent_required"`
-	AccessControlType string          `json:"access_control_type" validate:"required,oneof=public restricted"`
-	AllowList        []AllowListEntry `json:"allow_list"`
-	Description      string           `json:"description,omitempty"`
-	ExpiryTime       string           `json:"expiry_time,omitempty"`
-	Metadata         map[string]interface{} `json:"metadata,omitempty"`
+	FieldName         string                 `json:"fieldName" validate:"required"`
+	Owner             string                 `json:"owner" validate:"required"`
+	Provider          string                 `json:"provider" validate:"required"`
+	ConsentRequired   bool                   `json:"consent_required"`
+	AccessControlType string                 `json:"access_control_type" validate:"required,oneof=public restricted"`
+	AllowList         []AllowListEntry       `json:"allow_list"`
+	Description       string                 `json:"description,omitempty"`
+	ExpiryTime        string                 `json:"expiry_time,omitempty"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // UpdateProviderFieldRequest represents the request to update a provider field
 type UpdateProviderFieldRequest struct {
-	Owner             *string          `json:"owner,omitempty"`
-	Provider          *string          `json:"provider,omitempty"`
-	ConsentRequired   *bool            `json:"consent_required,omitempty"`
-	AccessControlType *string          `json:"access_control_type,omitempty" validate:"omitempty,oneof=public restricted"`
-	AllowList         []AllowListEntry `json:"allow_list,omitempty"`
-	Description       *string          `json:"description,omitempty"`
-	ExpiryTime        *string          `json:"expiry_time,omitempty"`
+	Owner             *string                `json:"owner,omitempty"`
+	Provider          *string                `json:"provider,omitempty"`
+	ConsentRequired   *bool                  `json:"consent_required,omitempty"`
+	AccessControlType *string                `json:"access_control_type,omitempty" validate:"omitempty,oneof=public restricted"`
+	AllowList         []AllowListEntry       `json:"allow_list,omitempty"`
+	Description       *string                `json:"description,omitempty"`
+	ExpiryTime        *string                `json:"expiry_time,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -82,6 +82,33 @@ type SchemaConversionRequest struct {
 // SchemaConversionResponse represents the response from schema conversion
 type SchemaConversionResponse struct {
 	ProviderID string                 `json:"providerId"`
-	Fields     map[string]ProviderField `json:"fields"`
-	ConvertedAt string                `json:"convertedAt"`
+	Metadata   map[string]interface{} `json:"metadata"`
+}
+
+// AllowListManagementRequest represents the request to add/update a consumer in allow_list
+type AllowListManagementRequest struct {
+	ConsumerID    string `json:"consumerId" validate:"required"`
+	ExpiresAt     int64  `json:"expires_at" validate:"required"`
+	GrantDuration string `json:"grant_duration,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	UpdatedBy     string `json:"updated_by,omitempty"`
+}
+
+// AllowListManagementResponse represents the response from allow_list operations
+type AllowListManagementResponse struct {
+	Success    bool                   `json:"success"`
+	Operation  string                 `json:"operation"`
+	FieldName  string                 `json:"field_name"`
+	ConsumerID string                 `json:"consumer_id"`
+	Data       AllowListEntry         `json:"data"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// AllowListListResponse represents the response for listing allow_list entries
+type AllowListListResponse struct {
+	Success   bool                   `json:"success"`
+	FieldName string                 `json:"field_name"`
+	AllowList []AllowListEntry       `json:"allow_list"`
+	Count     int                    `json:"count"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }

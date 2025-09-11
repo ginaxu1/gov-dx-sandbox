@@ -45,13 +45,16 @@ cd integration-tests && ./run-all-tests.sh
 ## What's in Exchange
 
 ### Services
-- **Policy Decision Point (PDP)** - Port 8082: Authorization service using OPA and Rego policies
+- **Policy Decision Point (PDP)** - Port 8082: Authorization service using OPA and Rego policies with enhanced GraphQL SDL conversion
 - **Consent Engine (CE)** - Port 8081: Consent management and workflow coordination
 
 ### Key Features
 - **ABAC Authorization**: Attribute-based access control with field-level permissions
 - **Consent Management**: Complete consent workflow for data owners
-- **GraphQL Schema Support**: Convert GraphQL SDL to provider metadata
+- **Enhanced GraphQL Schema Support**: Convert GraphQL SDL to provider metadata with:
+  - `@owner` directive for explicit data ownership
+  - Separate authorization configuration for flexible access control
+  - Automatic allow_list population from authorization config
 - **Multi-Environment**: Local development and production deployment support
 - **Docker Ready**: Containerized services with Docker Compose orchestration
 
@@ -85,24 +88,12 @@ exchange/
 
 The Data Consumer sends a GetData request to the Orchestration Engine:
 
-```json
+```
+/graphql
 {
-  "dataConsumer": {
-    "id": "passport-app",
-    "type": "application"
-  },
-  "dataOwner": {
-    "id": "user-nuwan-fernando-456"
-  },
-  "request": {
-    "type": "GraphQL",
-    "query_fields": [
-      "fullName",
-      "nic",
-      "birthDate",
-      "permanentAddress"
-    ]
-  }
+    "query": "query GetUser($id: ID!) { user(id: $id) { id name address profession }",
+    "variables": { "id": "123" },
+    "operationName": "GetUser"
 }
 ```
 
@@ -122,15 +113,11 @@ The Orchestration Engine forwards the request to the Policy Decision Point (PDP)
 {
   "decision": {
     "allow": true,
-    "deny_reason": null,
     "consent_required": true,
     "consent_required_fields": [
       "person.permanentAddress",
       "person.birthDate"
-    ],
-    "data_owner": "user-nuwan-fernando-456",
-    "expiry_time": "30d",
-    "conditions": {}
+    ]
   }
 }
 ```
@@ -140,12 +127,8 @@ The Orchestration Engine forwards the request to the Policy Decision Point (PDP)
 {
   "decision": {
     "allow": false,
-    "deny_reason": "Consumer not authorized for requested fields",
     "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
+    "consent_required_fields": []
   }
 }
 ```
@@ -155,12 +138,8 @@ The Orchestration Engine forwards the request to the Policy Decision Point (PDP)
 {
   "decision": {
     "allow": true,
-    "deny_reason": null,
     "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
+    "consent_required_fields": []
   }
 }
 ```

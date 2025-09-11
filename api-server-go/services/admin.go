@@ -71,10 +71,10 @@ func (s *AdminService) GetMetrics() (map[string]interface{}, error) {
 	}
 
 	metrics := map[string]interface{}{
-		"total_applications": len(applications),
-		"total_submissions":  len(submissions),
-		"total_profiles":     len(profiles),
-		"total_schemas":      len(schemas),
+		"total_consumer_apps":        len(applications),
+		"total_provider_submissions": len(submissions),
+		"total_providers":            len(profiles),
+		"total_schemas":              len(schemas),
 	}
 
 	return metrics, nil
@@ -146,9 +146,9 @@ func (s *AdminService) GetStatistics() (map[string]interface{}, error) {
 	schemaStats := s.countSchemasByStatus(schemas)
 
 	statistics := map[string]interface{}{
-		"applications": applicationStats,
-		"submissions":  submissionStats,
-		"schemas":      schemaStats,
+		"consumer-apps":        applicationStats,
+		"provider-submissions": submissionStats,
+		"provider-schemas":     schemaStats,
 	}
 
 	return statistics, nil

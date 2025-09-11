@@ -72,6 +72,12 @@ api-server-go/
 - `GET /providers` - List all providers
 - `GET /providers/{providerId}` - Get specific provider
 
+### Allow List Management
+- `GET /admin/fields/{fieldName}/allow-list` - List consumers in allow_list for a field
+- `POST /admin/fields/{fieldName}/allow-list` - Add consumer to allow_list for a field
+- `PUT /admin/fields/{fieldName}/allow-list/{consumerId}` - Update consumer in allow_list
+- `DELETE /admin/fields/{fieldName}/allow-list/{consumerId}` - Remove consumer from allow_list
+
 ### Provider Schema Management
 - `GET /providers/{providerId}/schemas` - List approved schemas (status=approved, schemaId not null)
 - `GET /providers/{providerId}/schema-submissions` - List provider's schema submissions (all statuses)
@@ -467,9 +473,9 @@ api-server-go/
 **Response:**
 ```json
 {
-  "total_applications": 0,
-  "total_submissions": 0,
-  "total_profiles": 0,
+  "total_consumer_apps": 0,
+  "total_provider_submissions": 0,
+  "total_providers": 0,
   "total_schemas": 0
 }
 ```
@@ -495,19 +501,19 @@ api-server-go/
 **Response:**
 ```json
 {
-  "applications": {
+  "consumer-apps": {
     "total": 0,
     "pending": 0,
     "approved": 0,
     "denied": 0
   },
-  "submissions": {
+  "provider-submissions": {
     "total": 0,
     "pending": 0,
     "approved": 0,
     "rejected": 0
   },
-  "schemas": {
+  "provider-schemas": {
     "total": 0,
     "draft": 0,
     "pending": 0,
@@ -559,7 +565,7 @@ curl -X PUT http://localhost:3000/providers/{providerId}/schema-submissions/{sch
     "status": "pending"
   }'
 
-# Approve schema (pending -> approved) - this automatically updates provider-metadata.json
+# Approve schema (pending -> approved) - this automatically updates provider-metadatajson
 curl -X PUT http://localhost:3000/providers/{providerId}/schema-submissions/{schemaId} \
   -H "Content-Type: application/json" \
   -d '{
@@ -613,6 +619,38 @@ curl -X PUT http://localhost:3000/consumer-applications/{submissionId} \
   -d '{
     "status": "approved"
   }'
+```
+
+### Allow List Management Examples
+
+```bash
+# List consumers in allow_list for a field
+curl -X GET http://localhost:3000/admin/fields/person.permanentAddress/allow-list
+
+# Add consumer to allow_list for a field
+curl -X POST http://localhost:3000/admin/fields/person.permanentAddress/allow-list \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consumerId": "passport-app",
+    "expires_at": 1757560679,
+    "grant_duration": "30d",
+    "reason": "Consent approved by data owner",
+    "updated_by": "admin"
+  }'
+
+# Update consumer in allow_list
+curl -X PUT http://localhost:3000/admin/fields/person.permanentAddress/allow-list/passport-app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consumerId": "passport-app",
+    "expires_at": 1757560679,
+    "grant_duration": "60d",
+    "reason": "Extended access period",
+    "updated_by": "admin"
+  }'
+
+# Remove consumer from allow_list
+curl -X DELETE http://localhost:3000/admin/fields/person.permanentAddress/allow-list/passport-app
 ```
 
 ## Development
