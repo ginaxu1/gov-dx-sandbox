@@ -1,0 +1,107 @@
+{
+  "fields": {
+    "birthinfo.birthCertificateID": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "birthinfo.birthDate": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "birthinfo.birthPlace": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.birthDate": {
+      "owner": "rgd",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "driver-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.nic": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.permanentAddress": {
+      "owner": "rgd",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "person.photo": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "7d"
+        }
+      ]
+    },
+    "user.birthInfo": {
+      "owner": "prov_947c7b7992fbf6e7",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": [],
+      "description": "authoritative"
+    },
+    "user.email": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "user.id": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "user.name": {
+      "owner": "external",
+      "provider": "prov_947c7b7992fbf6e7",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    }
+  }
+}
