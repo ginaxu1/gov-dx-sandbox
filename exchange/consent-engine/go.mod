@@ -9,8 +9,8 @@ require (
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 )
 
-replace github.com/gov-dx-sandbox/exchange/shared/config => ../shared/config
+replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
 
-replace github.com/gov-dx-sandbox/exchange/shared/constants => ../shared/constants
+replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constants
 
-replace github.com/gov-dx-sandbox/exchange/shared/utils => ../shared/utils
+replace github.com/gov-dx-sandbox/exchange/shared/utils => ./shared/utils
