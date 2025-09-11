@@ -7,9 +7,9 @@ build:
   # +required Build type
   type: docker
   # +optional Docker build context (relative to repository root)
-  context: .
+  context: exchange/consent-engine
   # +optional Dockerfile path (relative to build context)
-  dockerfile: exchange/consent-engine/Dockerfile
+  dockerfile: Dockerfile
   # +required Build arguments
   args:
     - name: BUILD_VERSION
