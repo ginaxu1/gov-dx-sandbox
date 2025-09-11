@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
@@ -195,4 +196,151 @@ func TestProviderService_GetProviderSchema_NotFound(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for nonexistent schema")
 	}
+}
+
+// HTTP endpoint tests for provider management
+func TestProviderEndpoints(t *testing.T) {
+	ts := NewTestServer()
+
+	t.Run("Provider Management", func(t *testing.T) {
+		// Test GET /providers (empty initially)
+		w := ts.MakeGETRequest("/providers")
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Create a provider profile
+		providerID := ts.CreateTestProviderProfile(t, "Test Provider", "provider@example.com", "1234567890", "government")
+
+		// Test GET /providers (should now have one provider)
+		w = ts.MakeGETRequest("/providers")
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test GET /providers/{providerId}
+		w = ts.MakeGETRequest("/providers/" + providerID)
+		AssertResponseStatus(t, w, http.StatusOK)
+	})
+
+	t.Run("Provider Schema Management", func(t *testing.T) {
+		// Create a provider profile
+		providerID := ts.CreateTestProviderProfile(t, "Test Provider", "provider@example.com", "1234567890", "government")
+
+		// Test GET /providers/{providerId}/schemas (empty initially)
+		w := ts.MakeGETRequest("/providers/" + providerID + "/schemas")
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test GET /providers/{providerId}/schema-submissions (empty initially)
+		w = ts.MakeGETRequest("/providers/" + providerID + "/schema-submissions")
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test POST /providers/{providerId}/schema-submissions (new schema)
+		schemaID := ts.CreateTestSchemaSubmission(t, providerID, "type Query { test: String }")
+
+		// Test GET /providers/{providerId}/schema-submissions/{schemaId}
+		w = ts.MakeGETRequest("/providers/" + providerID + "/schema-submissions/" + schemaID)
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test PUT /providers/{providerId}/schema-submissions/{schemaId} (submit for review)
+		ts.SubmitSchemaForReview(t, providerID, schemaID)
+
+		// Test PUT /providers/{providerId}/schema-submissions/{schemaId} (admin approval)
+		ts.ApproveSchemaSubmission(t, providerID, schemaID)
+
+		// Test GET /providers/{providerId}/schemas (should now have approved schema)
+		w = ts.MakeGETRequest("/providers/" + providerID + "/schemas")
+		AssertResponseStatus(t, w, http.StatusOK)
+	})
+
+	t.Run("Schema Status Workflow", func(t *testing.T) {
+		// Create provider and schema
+		providerID := ts.CreateTestProviderProfile(t, "Workflow Provider", "workflow@example.com", "1234567890", "government")
+		schemaID := ts.CreateTestSchemaSubmission(t, providerID, "type Query { workflow: String }")
+
+		// Verify initial status is draft
+		w := ts.MakeGETRequest("/providers/" + providerID + "/schema-submissions/" + schemaID)
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Submit for review (draft -> pending)
+		ts.SubmitSchemaForReview(t, providerID, schemaID)
+
+		// Verify status is now pending
+		w = ts.MakeGETRequest("/providers/" + providerID + "/schema-submissions/" + schemaID)
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Approve schema (pending -> approved)
+		ts.ApproveSchemaSubmission(t, providerID, schemaID)
+
+		// Verify schema appears in approved schemas
+		w = ts.MakeGETRequest("/providers/" + providerID + "/schemas")
+		AssertResponseStatus(t, w, http.StatusOK)
+	})
+
+	t.Run("Provider Schema Modification", func(t *testing.T) {
+		// Create provider and initial schema
+		providerID := ts.CreateTestProviderProfile(t, "Modification Provider", "mod@example.com", "1234567890", "government")
+		initialSchemaID := ts.CreateTestSchemaSubmission(t, providerID, "type Query { original: String }")
+
+		// Submit and approve initial schema
+		ts.SubmitSchemaForReview(t, providerID, initialSchemaID)
+		ts.ApproveSchemaSubmission(t, providerID, initialSchemaID)
+
+		// Create modification schema
+		modificationReq := map[string]interface{}{
+			"sdl":       "type Query { modified: String }",
+			"schema_id": initialSchemaID,
+		}
+		w := ts.MakePOSTRequest("/providers/"+providerID+"/schema-submissions", modificationReq)
+		AssertResponseStatus(t, w, http.StatusCreated)
+
+		var response map[string]interface{}
+		AssertJSONResponse(t, w, &response)
+		modificationID := response["submissionId"].(string)
+
+		// Submit and approve modification
+		ts.SubmitSchemaForReview(t, providerID, modificationID)
+		ts.ApproveSchemaSubmission(t, providerID, modificationID)
+
+		// Verify both schemas are approved
+		w = ts.MakeGETRequest("/providers/" + providerID + "/schemas")
+		AssertResponseStatus(t, w, http.StatusOK)
+	})
+
+	t.Run("Provider Submissions", func(t *testing.T) {
+		// Test GET /provider-submissions (empty initially)
+		w := ts.MakeGETRequest("/provider-submissions")
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test POST /provider-submissions
+		submissionReq := map[string]interface{}{
+			"providerName": "DRP Test Inc",
+			"contactEmail": "contact@healthtech.com",
+			"phoneNumber":  "+1-555-0789",
+			"providerType": "business",
+		}
+		w = ts.MakePOSTRequest("/provider-submissions", submissionReq)
+		AssertResponseStatus(t, w, http.StatusCreated)
+
+		var response map[string]interface{}
+		AssertJSONResponse(t, w, &response)
+		submissionID := response["submissionId"].(string)
+
+		// Test GET /provider-submissions/{submissionId}
+		w = ts.MakeGETRequest("/provider-submissions/" + submissionID)
+		AssertResponseStatus(t, w, http.StatusOK)
+
+		// Test PUT /provider-submissions/{submissionId} (admin approval)
+		approvalReq := map[string]string{
+			"status": "approved",
+		}
+		w = ts.MakePUTRequest("/provider-submissions/"+submissionID, approvalReq)
+		AssertResponseStatus(t, w, http.StatusOK)
+	})
+
+	t.Run("Error Cases", func(t *testing.T) {
+		// Test 400 for non-existent provider (provider service returns 400, not 404)
+		w := ts.MakeGETRequest("/providers/non-existent/schemas")
+		AssertResponseStatus(t, w, http.StatusBadRequest)
+
+		// Test 404 for non-existent schema
+		w = ts.MakeGETRequest("/providers/test-provider/schema-submissions/non-existent")
+		AssertResponseStatus(t, w, http.StatusNotFound)
+	})
 }

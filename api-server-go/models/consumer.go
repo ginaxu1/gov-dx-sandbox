@@ -43,6 +43,13 @@ type CreateConsumerRequest struct {
 	PhoneNumber  string `json:"phoneNumber"`
 }
 
+// UpdateConsumerRequest represents the request to update a consumer
+type UpdateConsumerRequest struct {
+	ConsumerName *string `json:"consumerName,omitempty"`
+	ContactEmail *string `json:"contactEmail,omitempty"`
+	PhoneNumber  *string `json:"phoneNumber,omitempty"`
+}
+
 // CreateConsumerAppRequest represents the request to create a new consumer application
 type CreateConsumerAppRequest struct {
 	ConsumerID     string          `json:"consumerId"`

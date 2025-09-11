@@ -464,3 +464,26 @@ func (s *ProviderService) createProviderProfile(submission *models.ProviderSubmi
 
 	return profile, nil
 }
+
+// CreateProviderProfileForTesting creates a provider profile directly for testing purposes
+func (s *ProviderService) CreateProviderProfileForTesting(providerName, contactEmail, phoneNumber, providerType string) (*models.ProviderProfile, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	providerID, err := s.generateProviderID()
+	if err != nil {
+		return nil, err
+	}
+
+	profile := &models.ProviderProfile{
+		ProviderID:   providerID,
+		ProviderName: providerName,
+		ContactEmail: contactEmail,
+		PhoneNumber:  phoneNumber,
+		ProviderType: models.ProviderType(providerType),
+		ApprovedAt:   time.Now(),
+	}
+
+	s.profiles[providerID] = profile
+	return profile, nil
+}
