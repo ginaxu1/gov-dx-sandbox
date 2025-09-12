@@ -1,14 +1,15 @@
 # API Server (Go)
 
-A RESTful API server for government data exchange portal management. Built with Go and runs on port 3000.
+A API server for government data exchange portal management. Built with Go and runs on port 3000.
 
 ## Overview
 
-The API server provides RESTful endpoints for managing:
+The API server provides endpoints for managing:
 - Consumer applications
 - Provider submissions and profiles
 - Provider schemas (with SDL support)
 - Admin functions
+- Consent Management Workflow integration
 
 ## Architecture
 
@@ -66,12 +67,6 @@ api-server-go/
 - `GET /providers` - List all providers
 - `GET /providers/{providerId}` - Get specific provider
 
-### Allow List Management
-- `GET /admin/fields/{fieldName}/allow-list` - List consumers in allow_list for a field
-- `POST /admin/fields/{fieldName}/allow-list` - Add consumer to allow_list for a field
-- `PUT /admin/fields/{fieldName}/allow-list/{consumerId}` - Update consumer in allow_list
-- `DELETE /admin/fields/{fieldName}/allow-list/{consumerId}` - Remove consumer from allow_list
-
 ### Provider Schema Management
 - `GET /providers/{providerId}/schemas` - List approved schemas (status=approved, schemaId not null)
 - `GET /providers/{providerId}/schema-submissions` - List provider's schema submissions (all statuses)
@@ -83,6 +78,12 @@ api-server-go/
 - `GET /admin/metrics` - Get system metrics
 - `GET /admin/recent-activity` - Get recent system activity
 - `GET /admin/statistics` - Get detailed statistics
+
+### Allow List Management
+- `GET /admin/fields/{fieldName}/allow-list` - List consumers in allow_list for a field
+- `POST /admin/fields/{fieldName}/allow-list` - Add consumer to allow_list for a field
+- `PUT /admin/fields/{fieldName}/allow-list/{consumerId}` - Update consumer in allow_list
+- `DELETE /admin/fields/{fieldName}/allow-list/{consumerId}` - Remove consumer from allow_list
 
 ## Detailed API Documentation
 
@@ -532,13 +533,147 @@ The `/consumer-applications/{id}` endpoint handles both consumer IDs and submiss
 - IDs starting with `sub_` are treated as submission IDs
 - For other formats, the HTTP method determines the behavior (POST/GET = consumer, PUT = submission)
 
-This design allows for flexible access patterns but may cause confusion. Consider using separate endpoints for better RESTful design.
+This design allows for flexible access patterns but may cause confusion. Consider using separate endpoints for better design.
 
 ### Provider Profile Creation
 Provider profiles are created automatically when a provider submission is approved. There is no direct endpoint to create provider profiles - they are generated through the approval workflow.
 
 ### Schema Modification
 To modify an existing approved schema, create a new schema submission with the `schema_id` field set to the original schema's ID. This creates a new submission that references the original schema for modification.
+
+## Consent Management Workflow Integration
+
+The API server integrates with the Consent Management Workflow through the **Consent Engine service** (running on port 8081). The consent workflow ensures that data consumers obtain proper consent before accessing personal data.
+
+### Workflow Overview
+
+1. **Data Consumer Request**: A data consumer (e.g., Passport Application) requests access to specific data fields
+2. **Policy Decision**: The Policy Decision Point (PDP) determines if consent is required
+3. **Consent Creation**: If consent is required, a consent record is created with "pending" status
+4. **Data Owner Notification**: The data owner is notified via SMS OTP (simplified to "000000" for testing)
+5. **Consent Decision**: The data owner grants or denies consent through the consent portal
+6. **Allow List Update**: Approved consent adds the consumer to the allow list for the requested fields
+7. **Data Access**: Once consent is approved, the data consumer can access the requested data
+
+### Consent Record Structure
+
+```json
+{
+  "consent_id": "consent_abc123",
+  "owner_id": "199512345678",
+  "data_consumer": "passport-app",
+  "status": "pending",
+  "type": "realtime",
+  "created_at": "2025-09-10T10:20:00Z",
+  "updated_at": "2025-09-10T10:20:00Z",
+  "expires_at": "2025-10-10T10:20:00Z",
+  "fields": [
+    "person.permanentAddress"
+  ],
+  "session_id": "session_123",
+  "redirect_url": "https://passport-app.gov.lk/callback"
+}
+```
+
+### Consent Engine Endpoints
+The consent workflow is handled by the **Consent Engine service** (port 8081), not this API server:
+
+#### `POST http://localhost:8081/consent`
+**Description:** Initiate a consent workflow request
+
+**Payload:**
+```json
+{
+  "app_id": "passport-app",
+  "data_fields": [
+    {
+      "owner_type": "citizen",
+      "owner_id": "199512345678",
+      "fields": ["person.permanentAddress"]
+    }
+  ],
+  "purpose": "passport_application",
+  "session_id": "session_123",
+  "redirect_url": "https://passport-app.gov.lk/callback"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "pending",
+  "redirect_url": "https://consent-portal.gov.lk/consent_abc123",
+  "fields": ["person.permanentAddress"],
+  "owner_id": "199512345678",
+  "consent_id": "consent_abc123",
+  "session_id": "session_123",
+  "purpose": "passport_application",
+  "message": "Consent required. Please visit the consent portal."
+}
+```
+
+#### `GET http://localhost:8081/consent/{id}`
+**Description:** Get consent workflow status
+
+**Response:**
+```json
+{
+  "consent_id": "consent_abc123",
+  "owner_id": "199512345678",
+  "data_consumer": "passport-app",
+  "status": "approved",
+  "type": "realtime",
+  "created_at": "2025-09-10T10:20:00Z",
+  "updated_at": "2025-09-10T10:20:00Z",
+  "expires_at": "2025-10-10T10:20:00Z",
+  "fields": ["person.permanentAddress"],
+  "session_id": "session_123",
+  "redirect_url": "https://passport-app.gov.lk/callback"
+}
+```
+
+#### `POST http://localhost:8081/consent` (Update Status)
+**Description:** Update consent workflow status when user clicks Yes/No
+
+**Payload:**
+```json
+{
+  "consent_id": "consent_abc123",
+  "status": "approved"
+}
+```
+
+#### `GET http://localhost:8081/consent-portal/?consent_id={id}`
+**Description:** Get consent information for the consent portal
+
+**Response:**
+```json
+{
+  "consentId": "consent_abc123",
+  "status": "pending",
+  "dataConsumer": "passport-app",
+  "dataOwner": "199512345678",
+  "fields": ["person.permanentAddress"],
+  "consentPortalUrl": "/consent-portal/consent_abc123",
+  "expiresAt": "2025-10-10T10:20:00Z",
+  "createdAt": "2025-09-10T10:20:00Z"
+}
+```
+
+### Service Integration
+
+The API server works in conjunction with:
+- **API Server (Port 3000)**: Manages consumers, providers, and allow lists
+- **Orchestration Engine (Port 8080)**: Coordinates data requests and consent workflow
+- **Consent Engine (Port 8081)**: Manages consent records and OTP verification
+- **Policy Decision Point (Port 8082)**: Determines consent requirements and manages allow lists
+
+### Simplified OTP for Testing
+
+For testing purposes, the OTP verification is simplified:
+- **OTP Value**: Always "000000"
+- **Verification**: Any request with `"otp": "000000"` is automatically approved
+- **SMS Simulation**: OTP is logged to console instead of sending actual SMS
 
 ## Example Usage
 
