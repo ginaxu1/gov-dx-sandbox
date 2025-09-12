@@ -22,8 +22,8 @@ type PdpRequest struct {
 
 type PdpResponse struct {
 	Allowed               bool     `json:"allow"`
-	ConsentRequired       bool     `json:"consentRequired"`
-	ConsentRequiredFields []string `json:"ConsentRequiredFields"`
+	ConsentRequired       bool     `json:"consent_required"`
+	ConsentRequiredFields []string `json:"consent_required_fields"`
 }
 
 type PdpClient struct {
