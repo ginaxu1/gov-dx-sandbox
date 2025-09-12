@@ -22,7 +22,7 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 		t.Fatalf("CreateConsent failed: %v", err)
 	}
 
-	if record.ID == "" {
+	if record.ConsentID == "" {
 		t.Error("Expected non-empty consent ID")
 	}
 
@@ -34,8 +34,8 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 		t.Errorf("Expected DataConsumer=%s, got %s", req.DataConsumer, record.DataConsumer)
 	}
 
-	if record.DataOwner != req.DataOwner {
-		t.Errorf("Expected DataOwner=%s, got %s", req.DataOwner, record.DataOwner)
+	if record.OwnerID != req.DataOwner {
+		t.Errorf("Expected DataOwner=%s, got %s", req.DataOwner, record.OwnerID)
 	}
 }
 
@@ -56,13 +56,13 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 	}
 
 	// Test getting the consent status
-	retrieved, err := engine.GetConsentStatus(record.ID)
+	retrieved, err := engine.GetConsentStatus(record.ConsentID)
 	if err != nil {
 		t.Fatalf("GetConsentStatus failed: %v", err)
 	}
 
-	if retrieved.ID != record.ID {
-		t.Errorf("Expected ID=%s, got %s", record.ID, retrieved.ID)
+	if retrieved.ConsentID != record.ConsentID {
+		t.Errorf("Expected ID=%s, got %s", record.ConsentID, retrieved.ConsentID)
 	}
 
 	if retrieved.Status != StatusPending {
@@ -93,7 +93,7 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 		Reason:    "User approved via portal",
 	}
 
-	updated, err := engine.UpdateConsent(record.ID, updateReq)
+	updated, err := engine.UpdateConsent(record.ConsentID, updateReq)
 	if err != nil {
 		t.Fatalf("UpdateConsent failed: %v", err)
 	}
@@ -130,13 +130,13 @@ func TestConsentEngine_RevokeConsent(t *testing.T) {
 		Reason:    "User approved consent",
 	}
 
-	approved, err := engine.UpdateConsent(record.ID, updateReq)
+	approved, err := engine.UpdateConsent(record.ConsentID, updateReq)
 	if err != nil {
 		t.Fatalf("UpdateConsent failed: %v", err)
 	}
 
 	// Now revoke the approved consent
-	revoked, err := engine.RevokeConsent(approved.ID, "User requested revocation")
+	revoked, err := engine.RevokeConsent(approved.ConsentID, "User requested revocation")
 	if err != nil {
 		t.Fatalf("RevokeConsent failed: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		Reason:    "User approved consent",
 	}
 
-	approved, err := engine.UpdateConsent(record.ID, updateReq)
+	approved, err := engine.UpdateConsent(record.ConsentID, updateReq)
 	if err != nil {
 		t.Fatalf("UpdateConsent failed: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 	}
 
 	// Verify the record is now expired
-	retrieved, err := engine.GetConsentStatus(approved.ID)
+	retrieved, err := engine.GetConsentStatus(approved.ConsentID)
 	if err != nil {
 		t.Fatalf("GetConsentStatus failed: %v", err)
 	}

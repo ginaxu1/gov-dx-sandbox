@@ -39,7 +39,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		// Check response status
 		if w.Code != http.StatusCreated {
@@ -53,20 +56,14 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		// Validate response fields
-		if response.ID == "" {
-			t.Error("Expected non-empty ID")
+		if response.ConsentID == "" {
+			t.Error("Expected non-empty ConsentID")
 		}
-		if response.Status != StatusPending {
+		if response.Status != string(StatusPending) {
 			t.Errorf("Expected status %s, got %s", StatusPending, response.Status)
 		}
-		if response.Type != ConsentTypeRealTime {
-			t.Errorf("Expected type %s, got %s", ConsentTypeRealTime, response.Type)
-		}
-		if response.DataConsumer != "passport-app" {
-			t.Errorf("Expected DataConsumer 'passport-app', got '%s'", response.DataConsumer)
-		}
-		if response.DataOwner != "199512345678" {
-			t.Errorf("Expected DataOwner '199512345678', got '%s'", response.DataOwner)
+		if response.OwnerID != "199512345678" {
+			t.Errorf("Expected OwnerID '199512345678', got '%s'", response.OwnerID)
 		}
 		if len(response.Fields) != 1 || response.Fields[0] != "personInfo.address" {
 			t.Errorf("Expected fields ['personInfo.address'], got %v", response.Fields)
@@ -74,21 +71,14 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		if response.SessionID != "session_123" {
 			t.Errorf("Expected SessionID 'session_123', got '%s'", response.SessionID)
 		}
-		if response.RedirectURL != "https://passport-app.gov.lk/callback" {
-			t.Errorf("Expected RedirectURL 'https://passport-app.gov.lk/callback', got '%s'", response.RedirectURL)
+		if response.RedirectURL == "" {
+			t.Error("Expected non-empty RedirectURL")
 		}
-		if response.ConsentPortalURL == "" {
-			t.Error("Expected non-empty ConsentPortalURL")
+		if response.Purpose != "passport_application" {
+			t.Errorf("Expected purpose 'passport_application', got '%s'", response.Purpose)
 		}
-		if response.Metadata == nil {
-			t.Error("Expected non-nil Metadata")
-		} else {
-			if response.Metadata["purpose"] != "passport_application" {
-				t.Errorf("Expected purpose 'passport_application', got '%v'", response.Metadata["purpose"])
-			}
-			if response.Metadata["request_id"] == "" {
-				t.Error("Expected non-empty request_id in metadata")
-			}
+		if response.Message == "" {
+			t.Error("Expected non-empty Message")
 		}
 	})
 
@@ -115,7 +105,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
@@ -172,7 +165,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
@@ -184,13 +180,26 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		// Should use first data owner as primary
-		if response.DataOwner != "199512345678" {
-			t.Errorf("Expected DataOwner '199512345678', got '%s'", response.DataOwner)
+		if response.OwnerID != "199512345678" {
+			t.Errorf("Expected OwnerID '199512345678', got '%s'", response.OwnerID)
 		}
-
-		expectedFields := []string{"personInfo.name", "personInfo.birthDate"}
+		// Each data owner gets their own ConsentRecord
+		// The response should only contain fields from the first data owner
+		expectedFields := []string{"personInfo.name"}
 		if len(response.Fields) != len(expectedFields) {
 			t.Errorf("Expected %d fields, got %d", len(expectedFields), len(response.Fields))
+		}
+
+		// Verify that separate ConsentRecord objects were created for each data owner
+		// by checking if we can retrieve consent records for both data owners
+		records1, err1 := server.engine.GetConsentsByDataOwner("199512345678")
+		if err1 != nil || len(records1) == 0 {
+			t.Errorf("Expected to find consent records for first data owner")
+		}
+
+		records2, err2 := server.engine.GetConsentsByDataOwner("gov_12345")
+		if err2 != nil || len(records2) == 0 {
+			t.Errorf("Expected to find consent records for second data owner")
 		}
 	})
 
@@ -209,7 +218,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		// Should return error status
 		if w.Code == http.StatusCreated {
@@ -236,7 +248,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		// Should return error status
 		if w.Code == http.StatusCreated {
@@ -266,7 +281,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
-		server.processConsentRequest(createW, createReqHTTP)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(createW, createReqHTTP, consentReq)
 
 		if createW.Code != http.StatusCreated {
 			t.Fatalf("Failed to create consent record: %d", createW.Code)
@@ -278,7 +296,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		// Now get the consent status
-		getReq := httptest.NewRequest("GET", fmt.Sprintf("/consent/%s", createResponse.ID), nil)
+		getReq := httptest.NewRequest("GET", fmt.Sprintf("/consent/%s", createResponse.ConsentID), nil)
 		getW := httptest.NewRecorder()
 
 		server.getConsentStatus(getW, getReq)
@@ -292,8 +310,8 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 			t.Fatalf("Failed to unmarshal get response: %v", err)
 		}
 
-		if getResponse.ID != createResponse.ID {
-			t.Errorf("Expected ID %s, got %s", createResponse.ID, getResponse.ID)
+		if getResponse.ConsentID != createResponse.ConsentID {
+			t.Errorf("Expected ConsentID %s, got %s", createResponse.ConsentID, getResponse.ConsentID)
 		}
 		if getResponse.Status != StatusPending {
 			t.Errorf("Expected status %s, got %s", StatusPending, getResponse.Status)
@@ -322,7 +340,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
-		server.processConsentRequest(createW, createReqHTTP)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(createW, createReqHTTP, consentReq)
 
 		if createW.Code != http.StatusCreated {
 			t.Fatalf("Failed to create consent record: %d", createW.Code)
@@ -341,7 +362,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		updateJsonBody, _ := json.Marshal(updateReq)
-		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consent/%s", createResponse.ID), bytes.NewBuffer(updateJsonBody))
+		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(updateJsonBody))
 		updateReqHTTP.Header.Set("Content-Type", "application/json")
 		updateW := httptest.NewRecorder()
 
@@ -383,7 +404,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
-		server.processConsentRequest(createW, createReqHTTP)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(createW, createReqHTTP, consentReq)
 
 		if createW.Code != http.StatusCreated {
 			t.Fatalf("Failed to create consent record: %d", createW.Code)
@@ -402,7 +426,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		updateJsonBody, _ := json.Marshal(updateReq)
-		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consent/%s", createResponse.ID), bytes.NewBuffer(updateJsonBody))
+		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(updateJsonBody))
 		updateReqHTTP.Header.Set("Content-Type", "application/json")
 		updateW := httptest.NewRecorder()
 
@@ -418,7 +442,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		revokeJsonBody, _ := json.Marshal(revokeReq)
-		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consent/%s", createResponse.ID), bytes.NewBuffer(revokeJsonBody))
+		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(revokeJsonBody))
 		revokeReqHTTP.Header.Set("Content-Type", "application/json")
 		revokeW := httptest.NewRecorder()
 
@@ -463,7 +487,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 			createReqHTTP.Header.Set("Content-Type", "application/json")
 			createW := httptest.NewRecorder()
 
-			server.processConsentRequest(createW, createReqHTTP)
+			// Create a ConsentRequest from the JSON body
+			var consentReq ConsentRequest
+			json.Unmarshal(jsonBody, &consentReq)
+			server.processConsentRequest(createW, createReqHTTP, consentReq)
 
 			if createW.Code != http.StatusCreated {
 				t.Fatalf("Failed to create consent record %d: %d", i, createW.Code)
@@ -520,7 +547,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 			createReqHTTP.Header.Set("Content-Type", "application/json")
 			createW := httptest.NewRecorder()
 
-			server.processConsentRequest(createW, createReqHTTP)
+			// Create a ConsentRequest from the JSON body
+			var consentReq ConsentRequest
+			json.Unmarshal(jsonBody, &consentReq)
+			server.processConsentRequest(createW, createReqHTTP, consentReq)
 
 			if createW.Code != http.StatusCreated {
 				t.Fatalf("Failed to create consent record %d: %d", i, createW.Code)
@@ -574,7 +604,10 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
-		server.processConsentRequest(createW, createReqHTTP)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(createW, createReqHTTP, consentReq)
 
 		if createW.Code != http.StatusCreated {
 			t.Fatalf("Failed to create consent record: %d", createW.Code)
@@ -586,7 +619,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		// Test sending OTP
-		otpReq := httptest.NewRequest("POST", fmt.Sprintf("/consent/%s/otp", createResponse.ID), bytes.NewBufferString(`{"phone_number": "+1234567890"}`))
+		otpReq := httptest.NewRequest("POST", fmt.Sprintf("/consent/%s/otp", createResponse.ConsentID), bytes.NewBufferString(`{"phone_number": "+1234567890"}`))
 		otpReq.Header.Set("Content-Type", "application/json")
 		otpW := httptest.NewRecorder()
 
@@ -605,8 +638,8 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 			t.Error("Expected OTP send to be successful")
 		}
 
-		if otpResponse.ConsentID != createResponse.ID {
-			t.Errorf("Expected ConsentID=%s, got %s", createResponse.ID, otpResponse.ConsentID)
+		if otpResponse.ConsentID != createResponse.ConsentID {
+			t.Errorf("Expected ConsentID=%s, got %s", createResponse.ConsentID, otpResponse.ConsentID)
 		}
 	})
 }
@@ -688,7 +721,10 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
-		server.processConsentRequest(createW, createReqHTTP)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(createW, createReqHTTP, consentReq)
 
 		if createW.Code != http.StatusCreated {
 			t.Fatalf("Failed to create consent record: %d", createW.Code)
@@ -705,7 +741,7 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 		}
 
 		revokeJsonBody, _ := json.Marshal(revokeReq)
-		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consent/%s", createResponse.ID), bytes.NewBuffer(revokeJsonBody))
+		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(revokeJsonBody))
 		revokeReqHTTP.Header.Set("Content-Type", "application/json")
 		revokeW := httptest.NewRecorder()
 
@@ -746,7 +782,10 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("Expected status %d, got %d", w.Code, http.StatusCreated)
@@ -790,7 +829,10 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("Expected status %d, got %d", w.Code, http.StatusCreated)
@@ -827,7 +869,10 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		// Should return error for empty app_id
 		if w.Code == http.StatusCreated {
@@ -861,7 +906,10 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		server.processConsentRequest(w, req)
+		// Create a ConsentRequest from the JSON body
+		var consentReq ConsentRequest
+		json.Unmarshal(jsonBody, &consentReq)
+		server.processConsentRequest(w, req, consentReq)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("Expected status %d, got %d", w.Code, http.StatusCreated)
