@@ -28,7 +28,7 @@
       "access_control_type": "restricted",
       "allow_list": [
         {
-          "consumerId": "driver-app",
+          "consumer_id": "driver-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
         }
@@ -55,7 +55,7 @@
       "access_control_type": "restricted",
       "allow_list": [
         {
-          "consumerId": "passport-app",
+          "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
         }
@@ -68,7 +68,7 @@
       "access_control_type": "restricted",
       "allow_list": [
         {
-          "consumerId": "passport-app",
+          "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "7d"
         }
