@@ -29,7 +29,8 @@
       "allow_list": [
         {
           "consumer_id": "driver-app",
-          "expiry_time": ""
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
         }
       ]
     },
@@ -55,7 +56,8 @@
       "allow_list": [
         {
           "consumer_id": "passport-app",
-          "expiry_time": ""
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
         }
       ]
     },
@@ -67,7 +69,8 @@
       "allow_list": [
         {
           "consumer_id": "passport-app",
-          "expiry_time": ""
+          "expires_at": 1757560679,
+          "grant_duration": "7d"
         }
       ]
     },
