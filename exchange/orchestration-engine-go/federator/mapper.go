@@ -2,7 +2,9 @@ package federator
 
 import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/printer"
 )
@@ -16,6 +18,29 @@ func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
 
 	// Collect the directives from the query
 	var maps, args = ProviderSchemaCollector(schema, doc)
+
+	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
+
+	resp, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
+		ConsumerId:     "passport-app",
+		AppId:          "passport-app",
+		RequestId:      "request_123",
+		RequiredFields: maps,
+	})
+
+	if err != nil {
+		logger.Log.Info("PDP request failed: %v", err)
+	}
+
+	if resp == nil {
+		logger.Log.Error("Failed to get response from PDP")
+		return requests
+	}
+
+	if !resp.Allowed {
+		logger.Log.Info("Request not allowed by PDP")
+		return requests
+	}
 
 	var queries = BuildProviderLevelQuery(maps)
 
