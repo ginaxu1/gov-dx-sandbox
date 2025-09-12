@@ -31,7 +31,7 @@ type FieldAuthorization struct {
 
 // AllowListEntry represents an entry in the allow list
 type AllowListEntry struct {
-	ConsumerID    string `json:"consumerId"`
+	ConsumerID    string `json:"consumer_id"`
 	ExpiresAt     int64  `json:"expires_at"`
 	GrantDuration string `json:"grant_duration,omitempty"`
 }
@@ -57,7 +57,7 @@ func (sc *SchemaConverter) createAllowListEntry(consumerID, grantDuration string
 	}
 
 	return map[string]interface{}{
-		"consumerId":     consumerID,
+		"consumer_id":    consumerID,
 		"expires_at":     expiresAt,
 		"grant_duration": grantDuration,
 	}

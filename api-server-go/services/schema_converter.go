@@ -40,7 +40,7 @@ type ProviderField struct {
 
 // AllowListEntry represents an entry in the allow list
 type AllowListEntry struct {
-	ConsumerID string `json:"consumerId"`
+	ConsumerID string `json:"consumer_id"`
 	ExpiryTime string `json:"expiry_time"`
 }
 

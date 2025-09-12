@@ -38,9 +38,9 @@ type ProviderField struct {
 
 // AllowListEntry represents an entry in the allow list for restricted fields
 type AllowListEntry struct {
-	ConsumerID string `json:"consumerId" validate:"required"`
-	ExpiryTime string `json:"expiryTime" validate:"required"`
-	CreatedAt  string `json:"createdAt,omitempty"`
+	ConsumerID string `json:"consumer_id" validate:"required"`
+	ExpiryTime string `json:"expiry_time" validate:"required"`
+	CreatedAt  string `json:"created_at,omitempty"`
 }
 
 // ProviderMetadataData represents the complete provider metadata structure
@@ -88,7 +88,7 @@ type SchemaConversionResponse struct {
 
 // AllowListManagementRequest represents the request to add/update a consumer in allow_list
 type AllowListManagementRequest struct {
-	ConsumerID    string `json:"consumerId" validate:"required"`
+	ConsumerID    string `json:"consumer_id" validate:"required"`
 	ExpiresAt     int64  `json:"expires_at" validate:"required"`
 	GrantDuration string `json:"grant_duration,omitempty"`
 	Reason        string `json:"reason,omitempty"`
