@@ -2,6 +2,7 @@ package federator
 
 import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
@@ -9,7 +10,7 @@ import (
 	"github.com/graphql-go/graphql/language/printer"
 )
 
-func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
+func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 
 	// initialize return variable
 	var requests = make([]*federationServiceRequest, 0)
@@ -20,8 +21,9 @@ func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
 	var maps, args = ProviderSchemaCollector(schema, doc)
 
 	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
+	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
 
-	resp, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
+	pdpResponse, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
 		ConsumerId:     "passport-app",
 		AppId:          "passport-app",
 		RequestId:      "request_123",
@@ -32,15 +34,55 @@ func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
 		logger.Log.Info("PDP request failed: %v", err)
 	}
 
-	if resp == nil {
+	if pdpResponse == nil {
 		logger.Log.Error("Failed to get response from PDP")
-		return requests
+		return requests, nil
 	}
 
-	if !resp.Allowed {
+	if !pdpResponse.Allowed {
 		logger.Log.Info("Request not allowed by PDP")
-		return requests
+		return requests, nil
 	}
+
+	if pdpResponse.ConsentRequired {
+		logger.Log.Info("Consent required for fields: %v", pdpResponse.ConsentRequiredFields)
+
+		ceResp, err := ceClient.MakeConsentRequest(&consent.CERequest{
+			ConsumerId:  "passport-app",
+			AppId:       "passport-app",
+			RequestId:   "request_123",
+			Purpose:     "testing",
+			SessionId:   "session_123",
+			RedirectUrl: "http://localhost",
+			RequiredFields: []consent.DataOwnerRecord{
+				{
+					OwnerType: "citizen",
+					OwnerId:   "199512345678",
+					Fields:    pdpResponse.ConsentRequiredFields,
+				},
+			},
+		})
+
+		if err != nil {
+			logger.Log.Info("CE request failed: %v", err)
+			return requests, nil
+		}
+
+		// log the consent response
+		logger.Log.Info("Consent Response", ceResp)
+
+		if ceResp.Status != "approved" {
+			logger.Log.Info("Consent not approved")
+			return requests, &graphql.JSONError{
+				Message: "Consent not approved",
+				Extensions: map[string]interface{}{
+					"redirectUrl": ceResp.RedirectUrl,
+				},
+			}
+		}
+	}
+
+	logger.Log.Info("Consent approved, proceeding with query execution")
 
 	var queries = BuildProviderLevelQuery(maps)
 
@@ -73,7 +115,7 @@ func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
 		})
 	}
 
-	return requests
+	return requests, nil
 }
 
 // ProviderFieldMap A function to convert the directives into a map of service key to list of fields.

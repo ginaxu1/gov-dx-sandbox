@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
@@ -18,6 +19,7 @@ type Cfg struct {
 	*graphql.MappingAST
 	Schema *ast.Document
 	*policy.PdpConfig
+	*consent.CeConfig
 }
 
 const ConfigFilePath = "./config.json"
