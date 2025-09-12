@@ -6,6 +6,7 @@ import (
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -16,6 +17,7 @@ type Cfg struct {
 	*federator.Options
 	*graphql.MappingAST
 	Schema *ast.Document
+	*policy.PdpConfig
 }
 
 const ConfigFilePath = "./config.json"
