@@ -56,7 +56,7 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	mux.Handle("/provider-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSubmissions)))
 	mux.Handle("/provider-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSubmissionByID)))
 
-	// RESTful provider routes
+	// provider routes
 	mux.Handle("/providers", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProvidersCollection)))
 	mux.Handle("/providers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviders)))
 
@@ -354,7 +354,7 @@ func (s *APIServer) handleProviderByID(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
-// handleProviders handles RESTful provider routes
+// handleProviders handles provider routes
 func (s *APIServer) handleProviders(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
