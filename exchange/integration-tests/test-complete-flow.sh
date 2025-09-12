@@ -113,7 +113,7 @@ CE_CREATE_RESPONSE=$(curl -s -X POST "http://localhost:8081/consent" \
 echo "Consent creation response: $CE_CREATE_RESPONSE"
 
 if [ "$CE_CREATE_RESPONSE" != "" ] && [ "$CE_CREATE_RESPONSE" != "404 page not found" ]; then
-    echo -e "${GREEN}ConsentService -> DataOwner: consent approved${NC}"
+    echo -e "${GREEN}ConsentService -> DataOwner: consent granted${NC}"
 else
     echo -e "${YELLOW}⚠️  Consent creation endpoint may not be fully implemented${NC}"
 fi
@@ -122,8 +122,8 @@ echo ""
 
 # Step 8: ConsentService sends message back to App
 echo -e "${PURPLE}Step 8: ConsentService sends message back to App${NC}"
-echo "ConsentService notifies App that consent has been approved"
-echo -e "${GREEN}ConsentService -> App: consent approved${NC}"
+echo "ConsentService notifies App that consent has been granted"
+echo -e "${GREEN}ConsentService -> App: consent granted${NC}"
 echo ""
 
 # Step 9: App requests data again from DataCustodian
@@ -177,7 +177,7 @@ echo "5. DataCustodian -> App: consent needed"
 echo "6. App -> AppUser: redirect to consent portal"
 echo "7. App -> ConsentService: redirect"
 echo "8. ConsentService -> DataOwner: consent interaction"
-echo "9. ConsentService -> App: consent approved"
+echo "9. ConsentService -> App: consent granted"
 echo "10. App -> DataCustodian: getData() request (with consent)"
 echo "11. DataCustodian -> App: data"
 echo ""

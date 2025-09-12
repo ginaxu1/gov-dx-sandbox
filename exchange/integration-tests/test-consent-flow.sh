@@ -110,15 +110,15 @@ test_pdp_request "Data Owner = Provider" \
 
 if [ "$ALLOW" = "true" ]; then
     if [ "$CONSENT_REQUIRED" = "true" ]; then
-        echo -e "${GREEN}✅ Test 1 PASSED: Access approved with consent required for some fields${NC}"
+        echo -e "${GREEN}✅ Test 1 PASSED: Access granted with consent required for some fields${NC}"
         echo "Reason: person.nic requires consent even when provider is owner (based on field configuration)"
         echo "Consent required fields: $CONSENT_FIELDS"
     else
-        echo -e "${GREEN}✅ Test 1 PASSED: Access approved without consent required${NC}"
+        echo -e "${GREEN}✅ Test 1 PASSED: Access granted without consent required${NC}"
         echo "Reason: All requested fields do not require consent"
     fi
 else
-    echo -e "${RED}❌ Test 1 FAILED: Expected access approved${NC}"
+    echo -e "${RED}❌ Test 1 FAILED: Expected access granted${NC}"
     echo "Consent required: $CONSENT_REQUIRED, Allow: $ALLOW"
 fi
 
@@ -142,7 +142,7 @@ test_pdp_request "Data Owner ≠ Provider" \
   }'
 
 if [ "$CONSENT_REQUIRED" = "true" ] && [ "$ALLOW" = "true" ]; then
-    echo -e "${GREEN}✅ Test 2a PASSED: Consent required, access approved with consent flow${NC}"
+    echo -e "${GREEN}✅ Test 2a PASSED: Consent required, access granted with consent flow${NC}"
     echo "Consent required for fields: $CONSENT_FIELDS"
     echo "Note: Orchestration Engine will determine data owners and call Consent Engine"
     
@@ -191,7 +191,7 @@ CONSENT_UPDATE_RESPONSE=$(curl -s -X PUT "http://localhost:8081/consent/$CONSENT
   -d '{
     "status": "approved",
     "updated_by": "'$DATA_OWNER_ID'",
-            "reason": "User approved consent via SMS OTP",
+            "reason": "User granted consent via SMS OTP",
     "metadata": {
               "consent_method": "sms_otp",
       "user_verified": true
@@ -215,7 +215,7 @@ if [ "$UPDATED_STATUS" = "approved" ]; then
     fi
     
 else
-    echo -e "${RED}❌ Test 2 FAILED: Expected consent required and access approved${NC}"
+    echo -e "${RED}❌ Test 2 FAILED: Expected consent required and access granted${NC}"
     echo "Consent required: $CONSENT_REQUIRED, Allow: $ALLOW"
 fi
 
@@ -249,7 +249,7 @@ if [ "$ALLOW" = "true" ]; then
     fi
     echo "Note: Data ownership is handled by the Orchestration Engine"
 else
-    echo -e "${RED}❌ Test 3 FAILED: Expected access approved${NC}"
+    echo -e "${RED}❌ Test 3 FAILED: Expected access granted${NC}"
     echo "Consent required: $CONSENT_REQUIRED, Allow: $ALLOW"
 fi
 
@@ -259,12 +259,12 @@ echo "---"
 echo -e "${BLUE}=== Test 4: Restricted Field Access ===${NC}"
 echo "Scenario: App requests data that requires consent"
 echo "Fields: person.nic (restricted field, requires consent)"
-echo "Expected: Access approved with consent required"
+echo "Expected: Access granted with consent required"
 echo ""
 
 test_pdp_request "Restricted Field Access" \
   "App requests data that requires consent" \
-  "Access approved with consent required" \
+  "Access granted with consent required" \
   '{
     "consumer_id": "unauthorized-app",
     "app_id": "unauthorized-app",
@@ -273,11 +273,11 @@ test_pdp_request "Restricted Field Access" \
   }'
 
 if [ "$ALLOW" = "true" ] && [ "$CONSENT_REQUIRED" = "true" ]; then
-    echo -e "${GREEN}✅ Test 4 PASSED: Access approved with consent required${NC}"
+    echo -e "${GREEN}✅ Test 4 PASSED: Access granted with consent required${NC}"
     echo "Consent required for fields: $CONSENT_FIELDS"
     echo "Note: person.nic requires consent based on field configuration"
 else
-    echo -e "${RED}❌ Test 4 FAILED: Expected access approved with consent required${NC}"
+    echo -e "${RED}❌ Test 4 FAILED: Expected access granted with consent required${NC}"
     echo "Consent required: $CONSENT_REQUIRED, Allow: $ALLOW"
 fi
 
@@ -286,12 +286,12 @@ echo "---"
 # Test 5: Unknown App Access
 echo -e "${BLUE}=== Test 5: Unknown App Access ===${NC}"
 echo "Scenario: Unknown app requests data"
-echo "Expected: Access approved (unknown apps are allowed by default)"
+echo "Expected: Access granted (unknown apps are allowed by default)"
 echo ""
 
 test_pdp_request "Unknown App Access" \
   "Unknown app requests data" \
-  "Access approved (unknown apps allowed by default)" \
+  "Access granted (unknown apps allowed by default)" \
   '{
     "consumer_id": "unknown-app",
     "app_id": "unknown-app",
@@ -300,10 +300,10 @@ test_pdp_request "Unknown App Access" \
   }'
 
 if [ "$ALLOW" = "true" ]; then
-    echo -e "${GREEN}✅ Test 5 PASSED: Unknown app access approved${NC}"
+    echo -e "${GREEN}✅ Test 5 PASSED: Unknown app access granted${NC}"
     echo "Note: Unknown apps are allowed by default in current configuration"
 else
-    echo -e "${RED}❌ Test 5 FAILED: Expected access approved for unknown app${NC}"
+    echo -e "${RED}❌ Test 5 FAILED: Expected access granted for unknown app${NC}"
     echo "Consent required: $CONSENT_REQUIRED, Allow: $ALLOW"
 fi
 
