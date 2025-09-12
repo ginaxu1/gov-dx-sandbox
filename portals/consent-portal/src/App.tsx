@@ -16,16 +16,29 @@ interface ConsentRecord {
   redirect_url: string;
 }
 
+interface OwnerInfo {
+  owner_id: string;
+  email: string;
+  contact_number: string;
+  name?: string;
+}
+
 interface ConsentGatewayProps {}
 
 const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const [currentStep, setCurrentStep] = useState<'loading' | 'consent' | 'otp' | 'success' | 'error'>('loading');
   const [consentRecord, setConsentRecord] = useState<ConsentRecord | null>(null);
+  const [ownerInfo, setOwnerInfo] = useState<OwnerInfo | null>(null);
   const [userDecision, setUserDecision] = useState<'approved' | 'rejected' | null>(null);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [otpExpiryTime, setOtpExpiryTime] = useState<Date | null>(null);
+  const [deliveryMethod, setDeliveryMethod] = useState<'email' | 'sms'>('email');
+  const [isResendingOtp, setIsResendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   // Base API path from environment variable
   const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000'; 
@@ -66,7 +79,81 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       redirect_url: 'http://localhost:4000/redirect' // Placeholder redirect URL
     };
     setConsentRecord(mockedData);
+    
+    // Fetch owner information after getting consent data
+    await fetchOwnerInfo(mockedData.owner_id);
+    
     setCurrentStep('consent');
+  };
+
+  // Fetch owner information
+  const fetchOwnerInfo = async (ownerId: string) => {
+    try {
+      // const response = await fetch(`${BASE_PATH}/owners/${ownerId}`);
+      // if (!response.ok) {
+      //   throw new Error('Failed to fetch owner information');
+      // }
+      // const data: OwnerInfo = await response.json();
+      // setOwnerInfo(data);
+      
+      // Mocked data for demonstration
+      const mockedOwnerData: OwnerInfo = {
+        owner_id: ownerId,
+        email: 'user@example.com',
+        contact_number: '+1234567890',
+        name: 'John Doe'
+      };
+      setOwnerInfo(mockedOwnerData);
+    } catch (err) {
+      console.error('Failed to fetch owner information:', err);
+      // Continue without owner info - this is optional
+    }
+  };
+
+  // Send OTP
+  const sendOTP = async (method: 'email' | 'sms') => {
+    if (!ownerInfo || !consentRecord) {
+      setError('Missing owner or consent information');
+      return false;
+    }
+
+    try {
+      const payload = {
+        owner_id: ownerInfo.owner_id,
+        consent_uuid: consentRecord.consent_uuid,
+        delivery_method: method,
+        email: method === 'email' ? ownerInfo.email : undefined,
+        contact_number: method === 'sms' ? ownerInfo.contact_number : undefined,
+        decision: userDecision
+      };
+
+      // const response = await fetch(`${BASE_PATH}/otp/send`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify(payload)
+      // });
+
+      // if (!response.ok) {
+      //   throw new Error('Failed to send OTP');
+      // }
+
+      // For demonstration, simulate API call
+      console.log('Sending OTP via', method, 'to', method === 'email' ? ownerInfo.email : ownerInfo.contact_number);
+      
+      // Set OTP expiry time (5 minutes from now)
+      const expiryTime = new Date();
+      expiryTime.setMinutes(expiryTime.getMinutes() + 5);
+      setOtpExpiryTime(expiryTime);
+      setOtpSent(true);
+      
+      return true;
+    } catch (err) {
+      console.error('Failed to send OTP:', err);
+      setError('Failed to send OTP. Please try again.');
+      return false;
+    }
   };
 
   // Initialize component
@@ -81,23 +168,96 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     fetchConsentData(consentUuid);
   }, []);
 
+  // Timer for OTP expiry countdown
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (currentStep === 'otp' && otpExpiryTime) {
+      interval = setInterval(() => {
+        setCurrentTime(new Date()); // Update current time to trigger re-render
+        if (isOtpExpired()) {
+          setOtpError('OTP has expired. Please request a new one.');
+        }
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [currentStep, otpExpiryTime]);
+
   // Handle consent decision
-  const handleConsentDecision = (decision: 'approved' | 'rejected') => {
+  const handleConsentDecision = async (decision: 'approved' | 'rejected') => {
     setUserDecision(decision);
-    setCurrentStep('otp');
     setOtp('');
     setOtpError('');
+    setError('');
+    
+    // Send OTP automatically using the selected delivery method
+    const otpSent = await sendOTP(deliveryMethod);
+    if (otpSent) {
+      setCurrentStep('otp');
+    } else {
+      setCurrentStep('error');
+    }
+  };
+
+  // Resend OTP
+  const resendOTP = async () => {
+    setIsResendingOtp(true);
+    setOtpError('');
+    
+    const otpSent = await sendOTP(deliveryMethod);
+    if (!otpSent) {
+      setOtpError('Failed to resend OTP. Please try again.');
+    }
+    
+    setIsResendingOtp(false);
+  };
+
+  // Check if OTP is expired
+  const isOtpExpired = (): boolean => {
+    if (!otpExpiryTime) return false;
+    return new Date() > otpExpiryTime;
+  };
+
+  // Get remaining time for OTP expiry
+  const getRemainingTime = (): string => {
+    if (!otpExpiryTime) return '';
+    
+    const now = currentTime; // Use currentTime state instead of new Date()
+    const remaining = otpExpiryTime.getTime() - now.getTime();
+    
+    if (remaining <= 0) return 'Expired';
+    
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   // Validate OTP
   const validateOtp = (inputOtp: string): boolean => {
-    return inputOtp === '123456'; // Hardcoded as requested
+    // Check if OTP is expired first
+    if (isOtpExpired()) {
+      setOtpError('OTP has expired. Please request a new one.');
+      return false;
+    }
+    
+    // Check OTP value (hardcoded as requested)
+    if (inputOtp !== '123456') {
+      setOtpError('Invalid OTP. Please enter the correct code.');
+      return false;
+    }
+    
+    return true;
   };
 
   // Submit consent decision
   const submitConsentDecision = async () => {
     if (!validateOtp(otp)) {
-      setOtpError('Invalid OTP. Please enter the correct code.');
       return;
     }
 
@@ -214,19 +374,62 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
             <Lock className="h-12 w-12 text-indigo-600 mx-auto mb-4" />
             <h1 className="text-xl font-bold text-gray-800 mb-2">Verify Your Decision</h1>
             <p className="text-gray-600">
-              Please enter the OTP to confirm your decision to {' '}
+              Please enter the OTP sent to your {deliveryMethod === 'email' ? 'email' : 'phone'} to confirm your decision to {' '}
               <span className={`font-semibold ${userDecision === 'approved' ? 'text-green-600' : 'text-red-600'}`}>
                 {userDecision === 'approved' ? 'approve' : 'deny'}
               </span>
               {' '}the consent request.
             </p>
+            {ownerInfo && (
+              <p className="text-sm text-gray-500 mt-2">
+                OTP sent to: {deliveryMethod === 'email' ? ownerInfo.email : ownerInfo.contact_number}
+              </p>
+            )}
+          </div>
+
+          {/* Delivery Method Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Delivery Method
+            </label>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setDeliveryMethod('email')}
+                className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  deliveryMethod === 'email'
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+                disabled={isSubmitting || isResendingOtp}
+              >
+                Email
+              </button>
+              <button
+                onClick={() => setDeliveryMethod('sms')}
+                className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                  deliveryMethod === 'sms'
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+                disabled={isSubmitting || isResendingOtp}
+              >
+                SMS
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Enter OTP
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Enter OTP
+                </label>
+                {otpExpiryTime && (
+                  <span className={`text-xs ${isOtpExpired() ? 'text-red-600' : 'text-gray-500'}`}>
+                    {isOtpExpired() ? 'Expired' : `Expires in ${getRemainingTime()}`}
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 value={otp}
@@ -237,23 +440,35 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="Enter 6-digit OTP"
                 maxLength={6}
+                disabled={isOtpExpired()}
               />
               {otpError && (
                 <p className="mt-1 text-sm text-red-600">{otpError}</p>
               )}
             </div>
 
+            {/* Resend OTP */}
+            <div className="text-center">
+              <button
+                onClick={resendOTP}
+                disabled={isResendingOtp || isSubmitting}
+                className="text-sm text-indigo-600 hover:text-indigo-700 disabled:text-gray-400 transition-colors"
+              >
+                {isResendingOtp ? 'Resending...' : 'Resend OTP'}
+              </button>
+            </div>
+
             <div className="flex space-x-3">
               <button
                 onClick={() => setCurrentStep('consent')}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isResendingOtp}
               >
                 Back
               </button>
               <button
                 onClick={submitConsentDecision}
-                disabled={!otp || isSubmitting}
+                disabled={!otp || isSubmitting || isResendingOtp || isOtpExpired()}
                 className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors ${
                   userDecision === 'approved' 
                     ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-400' 
@@ -335,6 +550,37 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* OTP Delivery Method Selection */}
+                {ownerInfo && (
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 className="text-sm font-medium text-gray-800 mb-3">OTP Delivery Method</h3>
+                    <div className="space-y-2">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="deliveryMethod"
+                          value="email"
+                          checked={deliveryMethod === 'email'}
+                          onChange={(e) => setDeliveryMethod(e.target.value as 'email' | 'sms')}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-gray-700">Email: {ownerInfo.email}</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="deliveryMethod"
+                          value="sms"
+                          checked={deliveryMethod === 'sms'}
+                          onChange={(e) => setDeliveryMethod(e.target.value as 'email' | 'sms')}
+                          className="mr-2"
+                        />
+                        <span className="text-sm text-gray-700">SMS: {ownerInfo.contact_number}</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex space-x-4">
