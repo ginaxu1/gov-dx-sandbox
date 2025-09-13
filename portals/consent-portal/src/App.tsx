@@ -6,7 +6,7 @@ interface ConsentRecord {
   consent_uuid: string;
   owner_id: string;
   data_consumer: string;
-  status: 'pending' | 'approved' | 'denied' | 'rejected';
+  status: 'pending' | 'approved' | 'denied';
   type?: string;
   created_at: string;
   updated_at: string;
