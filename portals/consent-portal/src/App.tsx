@@ -6,7 +6,7 @@ interface ConsentRecord {
   consent_uuid: string;
   owner_id: string;
   data_consumer: string;
-  status: 'pending' | 'approved' | 'denied';
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
   type?: string;
   created_at: string;
   updated_at: string;
@@ -26,7 +26,7 @@ interface OwnerInfo {
 interface ConsentGatewayProps {}
 
 const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
-  const [currentStep, setCurrentStep] = useState<'loading' | 'consent' | 'otp' | 'success' | 'error'>('loading');
+  const [currentStep, setCurrentStep] = useState<'loading' | 'consent' | 'otp' | 'success' | 'error' | 'statusInfo'>('loading');
   const [consentRecord, setConsentRecord] = useState<ConsentRecord | null>(null);
   const [ownerInfo, setOwnerInfo] = useState<OwnerInfo | null>(null);
   const [userDecision, setUserDecision] = useState<'approved' | 'rejected' | null>(null);
@@ -41,49 +41,59 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Base API path from environment variable
-  const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000'; 
+  const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
+  const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
   // For demonstration, using a placeholder. Replace with actual API base path.
 
   // Get consent_uuid from URL params
   const getConsentUuid = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('consent') ? urlParams.get('consent') : 'consent_abc123'; // Placeholder for testing
+    console.log('URL Params:', urlParams.toString());
+    return urlParams.get('consent') ? urlParams.get('consent') : 'consent_5df473bd'; // Placeholder for testing
   };
 
   // Fetch consent data
   const fetchConsentData = async (consentUuid: string) => {
-    // try {
-    //   const response = await fetch(`${BASE_PATH}/consents/${consentUuid}`);
-    //   if (!response.ok) {
-    //     throw new Error('Failed to fetch consent data');
-    //   }
-    //   const data: ConsentRecord = await response.json();
-    //   setConsentRecord(data);
-    //   setCurrentStep('consent');
-    // } catch (err) {
-    //   setError('Failed to load consent information. Please try again.');
-    //   setCurrentStep('error');
-    // }
+    try {
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentUuid}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch consent data');
+      }
+      const data: ConsentRecord = await response.json();
+      setConsentRecord(data);
+      
+      // Check consent status and set appropriate step
+      if (data.status === 'pending') {
+        setCurrentStep('consent');
+      } else {
+        setCurrentStep('statusInfo');
+      }
+      await fetchOwnerInfo(consentRecord ? consentRecord.owner_id : 'user_12345');
+
+    } catch (err) {
+      setError('Failed to load consent information. Please try again.');
+      setCurrentStep('error');
+    }
     // Mocked data for demonstration
-    const mockedData: ConsentRecord = {
-      consent_uuid: consentUuid,
-      owner_id: 'user_12345',
-      data_consumer: 'Example App',
-      status: 'pending',
-      type: 'Standard',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days later
-      fields: ['profile.name', 'profile.email', 'address.street', 'address.city'],
-      session_id: 'session_67890',
-      redirect_url: 'http://localhost:4000/redirect' // Placeholder redirect URL
-    };
-    setConsentRecord(mockedData);
+    // const mockedData: ConsentRecord = {
+    //   consent_uuid: consentUuid,
+    //   owner_id: 'user_12345',
+    //   data_consumer: 'Example App',
+    //   status: 'pending', // Change this to test different statuses: 'approved', 'rejected', 'expired', 'revoked'
+    //   type: 'Standard',
+    //   created_at: new Date().toISOString(),
+    //   updated_at: new Date().toISOString(),
+    //   expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days later
+    //   fields: ['profile.name', 'profile.email', 'address.street', 'address.city'],
+    //   session_id: 'session_67890',
+    //   redirect_url: 'http://localhost:4000/redirect' // Placeholder redirect URL
+    // };
+    // setConsentRecord(mockedData);
     
     // Fetch owner information after getting consent data
-    await fetchOwnerInfo(mockedData.owner_id);
+    // await fetchOwnerInfo(consentRecord ? consentRecord.owner_id : 'user_12345');
     
-    setCurrentStep('consent');
+    // setCurrentStep('consent');
   };
 
   // Fetch owner information
@@ -275,8 +285,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         status: userDecision
       };
 
-      const response = await fetch(`${BASE_PATH}/consents/${consentRecord.consent_uuid}`, {
-        method: 'POST',
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentRecord.consent_uuid}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -484,24 +494,161 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     );
   }
 
-  // Main consent approval state
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-2xl mx-auto py-8">
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+  // Status information state (for non-pending consents)
+  if (currentStep === 'statusInfo' && consentRecord) {
+    const getStatusIcon = () => {
+      switch (consentRecord.status) {
+        case 'approved':
+          return <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />;
+        case 'rejected':
+          return <X className="h-12 w-12 text-red-500 mx-auto mb-4" />;
+        case 'expired':
+          return <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />;
+        case 'revoked':
+          return <X className="h-12 w-12 text-gray-500 mx-auto mb-4" />;
+        default:
+          return <AlertCircle className="h-12 w-12 text-gray-500 mx-auto mb-4" />;
+      }
+    };
+
+    const getStatusMessage = () => {
+      switch (consentRecord.status) {
+        case 'approved':
+          return {
+            title: 'Consent Already Approved',
+            message: `This consent request has already been approved on ${formatDate(consentRecord.updated_at)}.`,
+            bgColor: 'from-green-50 to-emerald-100'
+          };
+        case 'rejected':
+          return {
+            title: 'Consent Already Rejected',
+            message: `This consent request was rejected on ${formatDate(consentRecord.updated_at)}.`,
+            bgColor: 'from-red-50 to-pink-100'
+          };
+        case 'expired':
+          return {
+            title: 'Consent Expired',
+            message: `This consent request expired on ${formatDate(consentRecord.expires_at)} and is no longer valid.`,
+            bgColor: 'from-orange-50 to-yellow-100'
+          };
+        case 'revoked':
+          return {
+            title: 'Consent Revoked',
+            message: `This consent was revoked on ${formatDate(consentRecord.updated_at)} and is no longer active.`,
+            bgColor: 'from-gray-50 to-slate-100'
+          };
+        default:
+          return {
+            title: 'Consent Status',
+            message: `This consent is currently ${consentRecord.status}.`,
+            bgColor: 'from-gray-50 to-slate-100'
+          };
+      }
+    };
+
+    const statusInfo = getStatusMessage();
+
+    return (
+      <div className={`min-h-screen bg-gradient-to-br ${statusInfo.bgColor} flex items-center justify-center p-4`}>
+        <div className="max-w-2xl w-full bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Header */}
           <div className="bg-indigo-600 text-white p-6">
             <div className="flex items-center">
               <Shield className="h-8 w-8 mr-3" />
               <div>
-                <h1 className="text-2xl font-bold">Consent Request</h1>
-                <p className="text-indigo-100">Please review and approve data access</p>
+                <h1 className="text-2xl font-bold">Consent Status</h1>
+                <p className="text-indigo-100">Information about your consent request</p>
               </div>
             </div>
           </div>
 
-          {/* Content */}
-          <div className="p-6">
+          {/* Status Content */}
+          <div className="p-6 text-center">
+            {getStatusIcon()}
+            <h2 className="text-xl font-bold text-gray-800 mb-2">{statusInfo.title}</h2>
+            <p className="text-gray-600 mb-6">{statusInfo.message}</p>
+
+            {/* Consent Details */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg text-left">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">Consent Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="font-medium text-gray-600">Application:</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Owner ID:</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Status:</span>
+                  <span className={`ml-2 font-medium capitalize ${
+                    consentRecord.status === 'approved' ? 'text-green-600' :
+                    consentRecord.status === 'rejected' ? 'text-red-600' :
+                    consentRecord.status === 'expired' ? 'text-orange-600' :
+                    'text-gray-600'
+                  }`}>
+                    {consentRecord.status}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Last Updated:</span>
+                  <span className="ml-2 text-gray-800">{formatDate(consentRecord.updated_at)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Data Fields */}
+            <div className="mb-6 text-left">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">Data Fields</h3>
+              <div className="space-y-2">
+                {consentRecord.fields.map((field, index) => (
+                  <div key={index} className="flex items-center p-3 bg-blue-50 rounded-lg">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                    <span className="text-gray-800 font-medium">{formatFieldName(field)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Redirect Button */}
+            <button 
+              onClick={() => {
+                if (consentRecord.redirect_url) {
+                  window.location.href = consentRecord.redirect_url;
+                } else {
+                  window.close();
+                }
+              }}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Return to Application
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main consent approval state
+  if (currentStep === 'consent') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-2xl mx-auto py-8">
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            {/* Header */}
+            <div className="bg-indigo-600 text-white p-6">
+              <div className="flex items-center">
+                <Shield className="h-8 w-8 mr-3" />
+                <div>
+                  <h1 className="text-2xl font-bold">Consent Request</h1>
+                  <p className="text-indigo-100">Please review and approve data access</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
             {consentRecord && (
               <>
                 {/* Application Info */}
@@ -601,11 +748,15 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 </div>
               </>
             )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Default fallback (should not reach here)  
+  return null;
 };
 
 export default ConsentGateway;

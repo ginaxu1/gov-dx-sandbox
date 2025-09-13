@@ -1,53 +1,31 @@
-# Portal template
+# Consent Portal Testing Guide
 
-This is a React + TypeScript + TailwindCSS + env File configured template using `vite.dev`.
+This README explains how to test the consent-portal with the ConsentEngine.
 
-This following guide explains how to set up and run a new portal with this template.
+## Start the Consent Engine Backend
 
-Note: Assumed we are in the root directory
+1. `cd exchange/consent-engine`
+2. `go run engine.go main.go`
 
-## Setup
+## Generate Consent ID
 
-1. Go to the `./portals`
-```bash
-cd ./portals
-```
+1. Go to the Postman collection: OpenDIF → Consent Engine → POST (OE) Call Consent Engine
+2. Send the POST request
+3. Copy the `consent_id` from the response
 
-2. Copy the template directory
-```bash
-cp -R ./template-portal ./new-portal-name
-```
+## Start the Consent Portal
 
-3. Go into the `./new-portal-name` directory
-```bash
-cd ./new-portal-name
-```
+1. `cd portals/consent-portal`
+2. `npm install`
+3. `npm run dev`
 
-4. Install dependencies
-```bash
-npm install
-```
+## Test the Portal
 
-5. Set up environment variables
-```bash
-cp .env.template .env
-```
-- set up the port and base_path
+1. Navigate to: `http://localhost:5174/?consent={consent_uuid}`
+    - Note: `consent_uuid` = the ID copied from the Postman response
 
-## Development
+## Testing Scenarios
 
-To run the project in development mode:
-
-```bash
-npm run dev
-```
-
-The application will be available at `http://localhost:5173`
-
-## Code Quality
-
-Before committing changes, run the linting check:
-
-```bash
-npm run lint
-```
+You can test the following:
+1. Approve or deny the consent
+2. Return to the portal - it will show consent already approved or denied

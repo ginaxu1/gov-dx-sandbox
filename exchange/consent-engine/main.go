@@ -21,6 +21,27 @@ var (
 	GitCommit = "unknown"
 )
 
+// CORS middleware to handle cross-origin requests
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*") // In production, specify your frontend domain
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+
+		// Handle preflight OPTIONS request
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
 // apiServer holds dependencies for the HTTP handlers
 type apiServer struct {
 	engine ConsentEngine
@@ -675,7 +696,10 @@ func main() {
 		WriteTimeout: cfg.Service.Timeout,
 		IdleTimeout:  60 * time.Second,
 	}
-	httpServer := utils.CreateServer(serverConfig, mux)
+
+	// Wrap the mux with CORS middleware
+	handler := corsMiddleware(mux)
+	httpServer := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
 	if err := utils.StartServerWithGracefulShutdown(httpServer, "consent-engine"); err != nil {
