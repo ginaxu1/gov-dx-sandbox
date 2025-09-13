@@ -49,7 +49,7 @@ field_authorized(field, app_id) {
 app_in_allow_list(field, app_id) {
     field_metadata := provider_metadata.fields[field]
     allow_list := field_metadata.allow_list[_]
-    allow_list.consumerId == app_id
+    allow_list.consumer_id == app_id
 }
 
 # Function to get fields that require consent
