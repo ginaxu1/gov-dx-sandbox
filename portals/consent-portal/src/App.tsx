@@ -282,7 +282,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     try {
       const payload = {
         ...consentRecord,
-        status: userDecision
+        status: userDecision,
+        updated_by: ownerInfo ? ownerInfo.owner_id : 'self-service',
+        reason: userDecision === 'rejected' ? 'User denied the consent request via self-service portal' : 'User approved the consent request via self-service portal',
+        otp: '000000'
       };
 
       const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentRecord.consent_uuid}`, {
