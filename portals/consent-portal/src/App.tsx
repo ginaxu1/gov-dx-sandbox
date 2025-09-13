@@ -49,7 +49,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const getConsentUuid = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
     console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent') ? urlParams.get('consent') : 'consent_5df473bd'; // Placeholder for testing
+    return urlParams.get('consent'); // Placeholder for testing
   };
 
   // Fetch consent data
@@ -304,7 +304,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         if (consentRecord.redirect_url) {
           window.location.href = consentRecord.redirect_url;
         }
-      }, 3000);
+      }, 10000);
 
     } catch (err) {
       setError('Failed to process your consent decision. Please try again.');
