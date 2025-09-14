@@ -12,7 +12,7 @@ spec:
       buildContext: .
       # Expose multiple ports for different services
       ports:
-        - port: 8080
+        - port: 4000
           name: orchestration-engine
           protocol: TCP
         - port: 8081
@@ -41,7 +41,7 @@ spec:
       displayName: Orchestration Engine API
       service:
         basePath: /
-        port: 8080
+        port: 4000
       type: GraphQL
       networkVisibilities: 
         - Public

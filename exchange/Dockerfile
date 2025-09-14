@@ -82,13 +82,12 @@ echo "Starting Consent Engine on port 8081..."
 CE_PID=$!
 
 # Start Orchestration Engine
-echo "Starting Orchestration Engine on port 8080..."
+echo "Starting Orchestration Engine on port 4000..."
 /app/bin/oe &
 OE_PID=$!
 
 # Function to handle shutdown
 shutdown() {
-    echo "Shutting down services..."
     kill $PDP_PID $CE_PID $OE_PID 2>/dev/null || true
     wait
     exit 0
@@ -110,7 +109,7 @@ RUN chown -R appuser:appuser /app
 USER 10001
 
 # Expose all ports
-EXPOSE 8080 8081 8082
+EXPOSE 4000 8081 8082
 
 # Set environment variables
 ENV CONFIG_DIR=/app/config
@@ -118,9 +117,10 @@ ENV ENVIRONMENT=production
 
 # Health check for all services
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health && \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:4000/health && \
         wget --no-verbose --tries=1 --spider http://localhost:8081/health && \
         wget --no-verbose --tries=1 --spider http://localhost:8082/health || exit 1
 
 # Start all services
 CMD ["/app/start-services.sh"]
+ 
