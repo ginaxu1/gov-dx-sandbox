@@ -6,6 +6,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/shared/types"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/printer"
 )
@@ -31,7 +32,7 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 	})
 
 	if err != nil {
-		logger.Log.Info("PDP request failed: %v", err)
+		logger.Log.Info("PDP request failed", "error", err)
 	}
 
 	if pdpResponse == nil {
@@ -45,7 +46,7 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 	}
 
 	if pdpResponse.ConsentRequired {
-		logger.Log.Info("Consent required for fields: %v", pdpResponse.ConsentRequiredFields)
+		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
 
 		ceResp, err := ceClient.MakeConsentRequest(&consent.CERequest{
 			ConsumerId:  "passport-app",
@@ -54,22 +55,22 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 			Purpose:     "testing",
 			SessionId:   "session_123",
 			RedirectUrl: "http://localhost",
-			RequiredFields: []consent.DataOwnerRecord{
+			RequiredFields: []types.DataField{
 				{
 					OwnerType: "citizen",
-					OwnerId:   "199512345678",
+					OwnerID:   "199512345678",
 					Fields:    pdpResponse.ConsentRequiredFields,
 				},
 			},
 		})
 
 		if err != nil {
-			logger.Log.Info("CE request failed: %v", err)
+			logger.Log.Info("CE request failed", "error", err)
 			return requests, nil
 		}
 
 		// log the consent response
-		logger.Log.Info("Consent Response", ceResp)
+		logger.Log.Info("Consent Response", "response", ceResp)
 
 		if ceResp.Status != "approved" {
 			logger.Log.Info("Consent not approved")

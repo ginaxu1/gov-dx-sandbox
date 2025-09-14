@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/shared/types"
 	"github.com/gov-dx-sandbox/api-server-go/models"
 )
 
@@ -11,7 +12,7 @@ func TestConsentWorkflowRequest(t *testing.T) {
 	// Test ConsentWorkflowRequest model structure
 	req := models.ConsentWorkflowRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []types.DataField{
 			{
 				OwnerType: "citizen",
 				OwnerID:   "199512345678",
@@ -63,7 +64,7 @@ func TestConsentWorkflowRequest(t *testing.T) {
 
 func TestDataField(t *testing.T) {
 	// Test DataField model structure
-	field := models.DataField{
+	field := types.DataField{
 		OwnerType: "citizen",
 		OwnerID:   "199512345678",
 		Fields:    []string{"person.permanentAddress", "person.fullName"},
@@ -94,7 +95,7 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 	// Test JSON serialization/deserialization
 	req := models.ConsentWorkflowRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []types.DataField{
 			{
 				OwnerType: "citizen",
 				OwnerID:   "199512345678",
@@ -151,7 +152,7 @@ func TestConsentWorkflowValidation(t *testing.T) {
 			name: "valid request",
 			req: models.ConsentWorkflowRequest{
 				AppID: "passport-app",
-				DataFields: []models.DataField{
+				DataFields: []types.DataField{
 					{
 						OwnerType: "citizen",
 						OwnerID:   "199512345678",
@@ -168,7 +169,7 @@ func TestConsentWorkflowValidation(t *testing.T) {
 			name: "empty app_id",
 			req: models.ConsentWorkflowRequest{
 				AppID: "",
-				DataFields: []models.DataField{
+				DataFields: []types.DataField{
 					{
 						OwnerType: "citizen",
 						OwnerID:   "199512345678",
@@ -185,7 +186,7 @@ func TestConsentWorkflowValidation(t *testing.T) {
 			name: "empty data_fields",
 			req: models.ConsentWorkflowRequest{
 				AppID:       "passport-app",
-				DataFields:  []models.DataField{},
+				DataFields:  []types.DataField{},
 				Purpose:     "passport_application",
 				SessionID:   "session_123",
 				RedirectURL: "https://passport-app.gov.lk/callback",
@@ -196,7 +197,7 @@ func TestConsentWorkflowValidation(t *testing.T) {
 			name: "empty purpose",
 			req: models.ConsentWorkflowRequest{
 				AppID: "passport-app",
-				DataFields: []models.DataField{
+				DataFields: []types.DataField{
 					{
 						OwnerType: "citizen",
 						OwnerID:   "199512345678",
@@ -239,7 +240,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 	// Test with multiple data fields
 	req := models.ConsentWorkflowRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []types.DataField{
 			{
 				OwnerType: "citizen",
 				OwnerID:   "199512345678",
@@ -263,7 +264,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 	// Test with multiple fields per data owner
 	multiFieldReq := models.ConsentWorkflowRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []types.DataField{
 			{
 				OwnerType: "citizen",
 				OwnerID:   "199512345678",

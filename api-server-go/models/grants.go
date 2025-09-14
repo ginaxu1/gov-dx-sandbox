@@ -32,15 +32,15 @@ type ProviderField struct {
 	AccessControlType string                 `json:"accessControlType" validate:"required,oneof=public restricted"`
 	AllowList         []AllowListEntry       `json:"allowList"`
 	Description       string                 `json:"description,omitempty"`
-	ExpiryTime        string                 `json:"expiryTime,omitempty"`
+	ExpiresAt         int64                  `json:"expiresAt,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // AllowListEntry represents an entry in the allow list for restricted fields
 type AllowListEntry struct {
-	ConsumerID string `json:"consumer_id" validate:"required"`
-	ExpiryTime string `json:"expiry_time" validate:"required"`
-	CreatedAt  string `json:"created_at,omitempty"`
+	ConsumerID    string `json:"consumer_id" validate:"required"`
+	ExpiresAt     int64  `json:"expires_at" validate:"required"`
+	GrantDuration string `json:"grant_duration,omitempty"`
 }
 
 // ProviderMetadataData represents the complete provider metadata structure
@@ -57,7 +57,7 @@ type CreateProviderFieldRequest struct {
 	AccessControlType string                 `json:"accessControlType" validate:"required,oneof=public restricted"`
 	AllowList         []AllowListEntry       `json:"allowList"`
 	Description       string                 `json:"description,omitempty"`
-	ExpiryTime        string                 `json:"expiryTime,omitempty"`
+	ExpiresAt         int64                  `json:"expiresAt,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -69,7 +69,7 @@ type UpdateProviderFieldRequest struct {
 	AccessControlType *string                `json:"accessControlType,omitempty" validate:"omitempty,oneof=public restricted"`
 	AllowList         []AllowListEntry       `json:"allowList,omitempty"`
 	Description       *string                `json:"description,omitempty"`
-	ExpiryTime        *string                `json:"expiryTime,omitempty"`
+	ExpiresAt         *int64                 `json:"expiresAt,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 }
 

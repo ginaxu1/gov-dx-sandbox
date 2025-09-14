@@ -54,7 +54,7 @@ async function startServer() {
   const { url } = await startStandaloneServer(server, {
     listen: { port },
   });
-  console.log(`🚀 Unified Gateway ready at: ${url}`);
+  console.log(`Unified Gateway ready at: ${url}`);
 }
 
 startServer();

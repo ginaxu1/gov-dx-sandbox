@@ -45,18 +45,18 @@ func (p *PdpClient) MakePdpRequest(request *PdpRequest) (*PdpResponse, error) {
 	requestBody, err := json.Marshal(request)
 	if err != nil {
 		// handle error
-		logger.Log.Error("Failed to marshal PDP request: %v\n", err)
+		logger.Log.Error("Failed to marshal PDP request", "error", err)
 		return nil, err
 	}
 
 	// log the json request body
-	logger.Log.Info("PDP Request Body: %s\n", string(requestBody))
+	logger.Log.Info("PDP Request Body", "body", string(requestBody))
 
 	response, err := p.httpClient.Post(p.baseUrl+"/decide", "application/json", bytes.NewReader(requestBody))
 
 	if err != nil {
 		// handle error
-		logger.Log.Error("Failed to make PDP request: %v\n", err)
+		logger.Log.Error("Failed to make PDP request", "error", err)
 		return nil, err
 	}
 	defer response.Body.Close()
@@ -66,7 +66,7 @@ func (p *PdpClient) MakePdpRequest(request *PdpRequest) (*PdpResponse, error) {
 
 	if err != nil {
 		// handle error
-		logger.Log.Error("Failed to decode PDP response: %v\n", err)
+		logger.Log.Error("Failed to decode PDP response", "error", err)
 		return nil, err
 	}
 

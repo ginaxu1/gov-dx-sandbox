@@ -1,6 +1,6 @@
 # Consent Engine (CE)
 
-Service that manages data owner consent workflows for data access requests.
+Service that manages data owner consent workflows for data access requests with OTP verification and retry logic.
 
 ## Overview
 
@@ -13,56 +13,59 @@ Service that manages data owner consent workflows for data access requests.
 
 ```bash
 # Run locally
-cd consent-engine && go run main.go
+cd consent-engine && go run .
 
 # Run tests
 go test -v
 
+# Run specific tests
+go test -v -run TestConsentWorkflowIntegration
+
 # Docker
-docker build -t ce . && docker run -p 8081:8081 ce
+docker build -t consent-engine . && docker run -p 8081:8081 consent-engine
 ```
+
+## Integration with Other Services
+
+- **Orchestration Engine**: Receives consent requests and returns simplified responses
+- **Consent Portal**: Provides consent information and handles user decisions
+- **Policy Decision Point**: May receive notifications about consent status changes
 
 ## Workflow
 
-1. **Consent Request**: Orchestration Engine aggregates data owners and fields, then calls CE
-2. **Consent Creation**: A consent record is created with pending status
-3. **Data Owner Notification**: Data owner is notified via SMS OTP (simplified to "000000" for testing)
-4. **Consent Decision**: Data owner grants or denies consent through consent portal
-5. **OTP Verification**: Data owner verifies identity using OTP "000000"
-6. **Allow List Update**: Approved consent adds consumer to allow_list
-7. **Consent Tracking**: System tracks status, expiry, and revocation
+### 1. Consent Request Flow
 
-### Data Owner Aggregation
+1. **Consent Request**: Orchestration Engine calls `POST /consents` with data owner and field information
+2. **Consent Creation**: A consent record is created with `pending` status
+3. **Response**: Returns simplified response with `status` and `redirect_url` for orchestration engine
 
-The Orchestration Engine handles data ownership aggregation and calls the Consent Engine with:
+### 2. Consent Decision Flow
 
-```json
-{
-  "app_id": "passport-app",
-  "data_fields": [
-    {
-      "owner_type": "citizen",
-      "owner_id": "199512345678",
-      "fields": ["personInfo.address"]
-    }
-  ],
-  "purpose": "passport_application",
-  "session_id": "session_123",
-  "redirect_url": "https://passport-app.gov.lk/callback"
-}
-```
+1. **User Decision**: Data owner visits consent portal and approves/rejects consent
+2. **Status Update**: `PUT /consents/:consentId` updates status to `approved` or `rejected`
+3. **OTP Flow** (if approved):
+   - User receives OTP (hardcoded to "123456" for testing)
+   - User enters OTP via `POST /consents/:consentId/otp`
+   - 3 attempts allowed before automatic rejection
+   - Successful OTP verification finalizes consent as `approved`
+
+### 3. Status Transitions
+
+- `pending` → `approved` (via PUT /consents/:consentId)
+- `approved` → `approved` (via successful OTP verification)
+- `approved` → `rejected` (via failed OTP after 3 attempts)
+- `pending` → `rejected` (via direct rejection)
 
 ## API Endpoints
 
 | Endpoint | Method | Description | Purpose |
 |----------|--------|-------------|---------|
-| `/consent` | POST | Process new consent workflow request | Create consent request from orchestration engine |
-| `/consent/{id}` | GET | Get consent information | Retrieve consent details for website/portal |
-| `/consent/{id}` | POST | Update consent status with OTP | User approves/rejects with OTP verification |
-| `/consent/{id}` | PUT | Update consent status | Admin or system updates consent status |
-| `/consent/{id}` | DELETE | Revoke consent | Revoke existing consent |
-| `/consent/update` | POST | Create/update consent record | Direct consent record management |
-| `/consent-website` | GET | Serve consent website | Display consent form to data owner |
+| `/consents` | POST | Create new consent request | Create consent from orchestration engine |
+| `/consents/{id}` | GET | Get consent information | Retrieve consent details |
+| `/consents/{id}` | PUT | Update consent status | User approves/rejects consent |
+| `/consents/{id}/otp` | POST | Verify OTP | Verify OTP for approved consents |
+| `/consents/{id}` | DELETE | Revoke consent | Revoke existing consent |
+| `/consent-website` | GET | Serve consent website | Display consent form |
 | `/consent-portal/` | GET | Get portal information | Portal data for consent management |
 | `/consent-portal/` | POST | Process portal decisions | Handle consent decisions from portal |
 | `/data-owner/{owner}` | GET | Get consents by data owner | List all consents for a data owner |
@@ -70,12 +73,26 @@ The Orchestration Engine handles data ownership aggregation and calls the Consen
 | `/admin/expiry-check` | POST | Check consent expiry | Admin function to check expired consents |
 | `/health` | GET | Health check | Service health status |
 
-## Detailed API Documentation
+
+
+## Default Test Data
+
+The consent engine includes a default hardcoded ConsentRecord for easier testing:
+
+- **Consent ID**: `consent_03c134ae`
+- **Owner ID**: `199512345678`
+- **Status**: `pending`
+- **Fields**: `["personInfo.permanentAddress"]`
+
+This record is automatically available when the service starts.
+
+
+## API Documentation
 
 ### 1. Create Consent Request
 
-**Endpoint:** `POST /consent`  
-**Description:** Process new consent workflow request from orchestration engine  
+**Endpoint:** `POST /consents`  
+**Description:** Create new consent request from orchestration engine  
 **Purpose:** Create consent records for data access requests
 
 **Request Payload:**
@@ -86,34 +103,26 @@ The Orchestration Engine handles data ownership aggregation and calls the Consen
     {
       "owner_type": "citizen",
       "owner_id": "199512345678",
-      "fields": ["person.permanentAddress", "person.nic"]
+      "fields": ["personInfo.permanentAddress"]
     }
   ],
   "purpose": "passport_application",
   "session_id": "session_123",
-  "redirect_url": "https://passport-app.gov.lk/callback",
-  "expires_at": 1757560679,
-  "grant_duration": "30d"
+  "redirect_url": "https://passport-app.gov.lk/callback"
 }
 ```
 
-**Response:**
+**Response (Simplified for Orchestration Engine):**
 ```json
 {
   "status": "pending",
-  "redirect_url": "http://localhost:8081/consent-website?consent_id=consent_abc123",
-  "fields": ["person.permanentAddress", "person.nic"],
-  "owner_id": "199512345678",
-  "consent_id": "consent_abc123",
-  "session_id": "session_123",
-  "purpose": "passport_application",
-  "message": "Consent required. Please visit the consent portal."
+  "redirect_url": "http://localhost:5173/?consent_id=consent_abc123"
 }
 ```
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:8081/consent \
+curl -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
     "app_id": "passport-app",
@@ -121,279 +130,52 @@ curl -X POST http://localhost:8081/consent \
       {
         "owner_type": "citizen",
         "owner_id": "199512345678",
-        "fields": ["person.permanentAddress"]
+        "fields": ["personInfo.permanentAddress"]
       }
     ],
     "purpose": "passport_application",
     "session_id": "session_123",
-    "redirect_url": "https://passport-app.gov.lk/callback",
-    "expires_at": 1757560679,
-    "grant_duration": "30d"
+    "redirect_url": "https://passport-app.gov.lk/callback"
   }'
 ```
 
 ### 2. Get Consent Information
 
-**Endpoint:** `GET /consent/{id}`  
-**Description:** Retrieve consent details for website/portal  
-**Purpose:** Get consent information to display to data owner
-
-**Response:**
-```json
-{
-  "consent_id": "consent_abc123",
-  "owner_id": "199512345678",
-  "data_consumer": "passport-app",
-  "status": "pending",
-  "type": "realtime",
-  "created_at": "2025-09-10T10:20:00Z",
-  "updated_at": "2025-09-10T10:20:00Z",
-  "expires_at": "2025-10-10T10:20:00Z",
-  "fields": [
-    "person.permanentAddress",
-    "person.nic"
-  ],
-  "session_id": "session_123",
-  "redirect_url": "https://passport-app.gov.lk/?consent_id=consent_abc123"
-}
-```
-
-**cURL Example:**
-```bash
-curl -X GET http://localhost:8081/consent/consent_abc123
-```
-
-### 3. Update Consent Status (User Decision with OTP)
-
-**Endpoint:** `POST /consent/{id}`  
-**Description:** Update consent status when user approves/rejects with OTP verification  
-**Purpose:** Handle user decisions from consent website
-
-**Request Payload (Approve):**
-```json
-{
-  "status": "approved",
-  "otp": "000000"
-}
-```
-
-**Request Payload (Reject):**
-```json
-{
-  "status": "rejected",
-  "otp": "000000"
-}
-```
+**Endpoint:** `GET /consents/{id}`  
+**Description:** Retrieve consent details  
+**Purpose:** Get consent information for portal display
 
 **Response:**
 ```json
 {
   "consent_uuid": "consent_abc123",
-  "status": "approved",
-  "updated_at": "2025-09-10T10:25:00Z",
-  "message": "Consent status updated successfully"
-}
-```
-
-**cURL Examples:**
-```bash
-# User approves consent
-curl -X POST http://localhost:8081/consent/consent_abc123 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "approved",
-    "otp": "000000"
-  }'
-
-# User rejects consent
-curl -X POST http://localhost:8081/consent/consent_abc123 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "rejected",
-    "otp": "000000"
-  }'
-```
-
-### 4. Update Consent Status (Admin/System)
-
-**Endpoint:** `PUT /consent/{id}`  
-**Description:** Update consent status for admin or system operations  
-**Purpose:** Admin updates or system status changes
-
-**Request Payload:**
-```json
-{
-  "status": "approved",
-  "updated_by": "citizen_199512345678",
-  "reason": "Data Owner approved consent via portal",
-  "otp": "000000"
-}
-```
-
-**Response:**
-```json
-{
-  "consent_uuid": "consent_abc123",
-  "status": "approved",
-  "updated_at": "2025-09-10T10:25:00Z",
-  "message": "Consent status updated successfully"
-}
-```
-
-**cURL Example:**
-```bash
-curl -X PUT http://localhost:8081/consent/consent_abc123 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "approved",
-    "updated_by": "citizen_199512345678",
-    "reason": "Data Owner approved consent via portal",
-    "otp": "000000"
-  }'
-```
-
-### 5. Create/Update Consent Record
-
-**Endpoint:** `POST /consent/update`  
-**Description:** Create or update consent record with exact payload structure  
-**Purpose:** Direct consent record management
-
-**Request Payload:**
-```json
-{
-  "consent_id": "consent_abc123",
-  "status": "pending",
-  "type": "realtime",
   "owner_id": "199512345678",
   "data_consumer": "passport-app",
-  "created_at": "2025-09-10T10:20:00Z",
-  "updated_at": "2025-09-10T10:20:00Z",
-  "expires_at": "2025-10-10T10:20:00Z",
-  "fields": [
-    "person.permanentAddress",
-    "person.nic"
-  ],
-  "session_id": "session_123",
-  "redirect_url": "https://passport-app.gov.lk/?consent_id=consent_abc123"
-}
-```
-
-**Response:**
-```json
-{
-  "consent_id": "consent_abc123",
   "status": "pending",
   "type": "realtime",
-  "owner_id": "199512345678",
-  "data_consumer": "passport-app",
-  "created_at": "2025-09-10T10:20:00Z",
-  "updated_at": "2025-09-10T10:20:00Z",
-  "expires_at": "2025-10-10T10:20:00Z",
-  "fields": [
-    "person.permanentAddress",
-    "person.nic"
-  ],
+  "created_at": "2025-09-10T10:20:00+05:30",
+  "updated_at": "2025-09-10T10:20:00+05:30",
+  "expires_at": "2025-10-10T10:20:00+05:30",
+  "fields": ["personInfo.permanentAddress"],
   "session_id": "session_123",
-  "redirect_url": "https://passport-app.gov.lk/?consent_id=consent_abc123"
+  "redirect_url": "https://passport-app.gov.lk/callback",
+  "purpose": "passport_application",
+  "message": "Consent required. Please visit the consent portal."
 }
 ```
 
-**cURL Example:**
-```bash
-curl -X POST http://localhost:8081/consent/update \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consent_id": "consent_abc123",
-    "status": "pending",
-    "type": "realtime",
-    "owner_id": "199512345678",
-    "data_consumer": "passport-app",
-    "created_at": "2025-09-10T10:20:00Z",
-    "updated_at": "2025-09-10T10:20:00Z",
-    "expires_at": "2025-10-10T10:20:00Z",
-    "fields": [
-      "person.permanentAddress",
-      "person.nic"
-    ],
-    "session_id": "session_123",
-    "redirect_url": "https://passport-app.gov.lk/?consent_id=consent_abc123"
-  }'
-```
+### 3. Update Consent Status
 
-### 6. Get Consents by Data Owner
-
-**Endpoint:** `GET /data-owner/{owner}`  
-**Description:** List all consents for a specific data owner  
-**Purpose:** Retrieve all consent records for a data owner
-
-**Response:**
-```json
-{
-  "count": 2,
-  "items": [
-    {
-      "consent_id": "consent_abc123",
-      "owner_id": "199512345678",
-      "data_consumer": "passport-app",
-      "status": "approved",
-      "type": "realtime",
-      "created_at": "2025-09-10T10:20:00Z",
-      "updated_at": "2025-09-10T10:25:00Z",
-      "expires_at": "2025-10-10T10:20:00Z",
-      "fields": ["person.permanentAddress"],
-      "session_id": "session_123"
-    }
-  ]
-}
-```
-
-**cURL Example:**
-```bash
-curl -X GET http://localhost:8081/data-owner/199512345678
-```
-
-### 7. Get Consents by Consumer
-
-**Endpoint:** `GET /consumer/{consumer}`  
-**Description:** List all consents for a specific consumer  
-**Purpose:** Retrieve all consent records for a consumer application
-
-**Response:**
-```json
-{
-  "count": 1,
-  "items": [
-    {
-      "consent_id": "consent_abc123",
-      "owner_id": "199512345678",
-      "data_consumer": "passport-app",
-      "status": "approved",
-      "type": "realtime",
-      "created_at": "2025-09-10T10:20:00Z",
-      "updated_at": "2025-09-10T10:25:00Z",
-      "expires_at": "2025-10-10T10:20:00Z",
-      "fields": ["person.permanentAddress"],
-      "session_id": "session_123"
-    }
-  ]
-}
-```
-
-**cURL Example:**
-```bash
-curl -X GET http://localhost:8081/consumer/passport-app
-```
-
-### 8. Revoke Consent
-
-**Endpoint:** `DELETE /consent/{id}`  
-**Description:** Revoke existing consent  
-**Purpose:** Allow data owner to revoke previously granted consent
+**Endpoint:** `PUT /consents/{id}`  
+**Description:** Update consent status (approve/reject)  
+**Purpose:** Handle user consent decisions
 
 **Request Payload:**
 ```json
 {
-  "reason": "User requested data deletion"
+  "status": "approved",
+  "owner_id": "199512345678",
+  "message": "Approved via consent portal"
 }
 ```
 
@@ -401,201 +183,180 @@ curl -X GET http://localhost:8081/consumer/passport-app
 ```json
 {
   "consent_id": "consent_abc123",
-  "status": "revoked",
-  "updated_at": "2025-09-10T10:30:00Z",
-  "message": "Consent revoked successfully"
+  "owner_id": "199512345678",
+  "app_id": "passport-app",
+  "status": "approved",
+  "type": "realtime",
+  "created_at": "2025-09-10T10:20:00+05:30",
+  "updated_at": "2025-09-10T10:25:00+05:30",
+  "expires_at": "2025-10-10T10:20:00+05:30",
+  "fields": ["personInfo.permanentAddress"],
+  "session_id": "session_123",
+  "redirect_url": "https://passport-app.gov.lk/callback",
+  "purpose": "passport_application",
+  "message": "User approved consent via portal - OTP verification required",
+  "otp_attempts": 0
 }
 ```
 
-**cURL Example:**
-```bash
-curl -X DELETE http://localhost:8081/consent/consent_abc123 \
-  -H "Content-Type: application/json" \
-  -d '{"reason": "User requested data deletion"}'
-```
+### 4. Verify OTP
 
-### 9. Consent Website
+**Endpoint:** `POST /consents/{id}/otp`  
+**Description:** Verify OTP for approved consents  
+**Purpose:** Final step in consent approval process
 
-**Endpoint:** `GET /consent-website`  
-**Description:** Serve consent website with OTP verification  
-**Purpose:** Display consent form to data owner
-
-**Query Parameters:**
-- `consent_id` (required): The consent ID to display
-
-**Response:** HTML page with consent form
-
-**cURL Example:**
-```bash
-curl -X GET "http://localhost:8081/consent-website?consent_id=consent_abc123"
-```
-
-### 10. Consent Portal Information
-
-**Endpoint:** `GET /consent-portal/`  
-**Description:** Get portal information for a consent  
-**Purpose:** Portal data for consent management
-
-**Query Parameters:**
-- `consent_id` (required): The consent ID
-
-**Response:**
+**Request Payload:**
 ```json
 {
-  "consentId": "consent_abc123",
-  "status": "pending",
-  "dataConsumer": "passport-app",
-  "dataOwner": "199512345678",
-  "fields": ["person.permanentAddress"],
-  "consentPortalUrl": "/consent-portal/consent_abc123",
-  "expiresAt": "2025-10-10T10:20:00Z",
-  "createdAt": "2025-09-10T10:20:00Z"
+  "otp_code": "123456"
 }
 ```
 
-**cURL Example:**
-```bash
-curl -X GET "http://localhost:8081/consent-portal/?consent_id=consent_abc123"
-```
-
-### 11. Health Check
-
-**Endpoint:** `GET /health`  
-**Description:** Check service health status  
-**Purpose:** Monitor service availability
-
-**Response:**
+**Success Response:**
 ```json
-{
-  "service": "consent-engine",
-  "status": "healthy",
-  "timestamp": "2025-09-10T10:20:00Z"
-}
-```
-
-**cURL Example:**
-```bash
-curl -X GET http://localhost:8081/health
-```
-
-## Consent States
-
-- **`pending`**: Awaiting data owner decision
-- **`approved`**: Data owner has approved consent (Yes button)
-- **`rejected`**: Data owner has rejected consent (No button)
-- **`expired`**: Consent has expired based on expires_at timestamp
-- **`revoked`**: Consent has been revoked by data owner
-
-## Allow List Integration
-
-The Consent Engine integrates with the Policy Decision Point's allow_list system:
-
-- **Consent Approval**: Automatically adds consumer to allow_list for requested fields
-- **Consent Revocation**: Removes consumer from allow_list
-- **Consent Expiry**: Removes consumer from allow_list when expired
-- **Field-Specific Authorization**: Each field maintains its own allow_list
-
-## Consent Website
-
-The consent website provides a modern web interface for data owners with OTP verification:
-
-### Website Endpoints
-- `GET /consent-website` - Serve the consent website HTML
-- `GET /consent/{id}` - Get consent information for the website
-- `POST /consent/{id}` - Update consent status with OTP verification
-
-### Website Workflow
-1. **Step 1**: Data owner accesses the consent website with `consent_id` parameter
-2. **Step 2**: Website displays consent information (app, fields, purpose)
-3. **Step 3**: Data owner clicks "Approve Consents" or "Deny Consents"
-4. **Step 4**: Website shows OTP verification form (hardcoded OTP: 123456)
-5. **Step 5**: Data owner enters OTP and submits decision
-6. **Step 6**: Website updates consent status and shows success message
-7. **Step 7**: Data owner is redirected back to the consumer application
-
-### Website Features
-- **Modern UI**: Clean, responsive design with step indicators
-- **OTP Verification**: Secure identity verification (simplified for testing)
-- **Real-time Updates**: Live status updates and error handling
-- **Mobile Friendly**: Responsive design for mobile devices
-- **Accessibility**: Clear visual feedback and error messages
-
-## Consent Portal
-
-The consent portal provides a web interface for data owners:
-
-### Portal Endpoints
-- `GET /consent-portal/` - Get portal information for a consent
-- `POST /consent-portal/` - Process consent decisions from the portal
-
-### Portal Workflow
-1. Data owner accesses the portal
-2. Portal displays pending consent requests
-3. Data owner can grant or deny each request
-4. Portal updates consent status via API
-5. Data owner can view and manage existing consents
-
-## Configuration
-
-### Environment Variables
-- `PORT` - Service port (default: 8081)
-- `ENVIRONMENT` - Environment (local/production)
-- `LOG_LEVEL` - Logging level (debug/info/warn/error)
-
-## Integration
-
-The Consent Engine integrates with:
-- **Orchestration Engine**: Receives consent requests and provides consent status
-- **Policy Decision Point**: Provides consent requirements for authorization decisions
-- **Data Owner Portal**: Web interface for consent management
-
-## Simplified OTP for Testing
-
-For testing purposes, the OTP verification is simplified:
-
-### OTP Configuration
-- **OTP Value**: Always "000000"
-- **Verification**: Any request with `"otp": "000000"` is automatically approved
-- **SMS Simulation**: OTP is logged to console instead of sending actual SMS
-
-### OTP Usage
-```bash
-# Send OTP (simplified)
-curl -X POST http://localhost:8081/consent/{consent-id}/otp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "phone_number": "+94771234567"
-  }'
-
-# Response
 {
   "success": true,
-  "message": "OTP sent successfully (simplified for testing)",
   "consent_id": "consent_abc123",
-  "phone_number": "+94771234567",
-  "otp": "000000",
-  "expires_at": "2025-09-10T10:25:00Z"
+  "status": "approved",
+  "message": "OTP verified successfully. Consent has been approved.",
+  "updated_at": "2025-09-10T10:30:00+05:30"
 }
 ```
 
-### OTP Verification
+**Error Response (Wrong OTP):**
+```json
+{
+  "error": "Invalid OTP code. 2 attempts remaining."
+}
+```
+
+**Error Response (After 3 Failed Attempts):**
+```json
+{
+  "error": "OTP verification failed after 3 attempts. Consent has been rejected."
+}
+```
+
+### 5. Revoke Consent
+
+**Endpoint:** `DELETE /consents/{id}`  
+**Description:** Revoke existing consent  
+**Purpose:** Allow data owners to revoke previously granted consent
+
+**Request Payload:**
+```json
+{
+  "reason": "User requested revocation"
+}
+```
+
+## Testing
+
+### Unit Tests
+
 ```bash
-# Update consent with OTP verification
-curl -X PUT http://localhost:8081/consent/{consent-id} \
+# Run all tests
+go test -v
+
+# Run specific test
+go test -v -run TestConsentWorkflowIntegration
+
+# Run with coverage
+go test -v -cover
+```
+
+### Integration Tests
+
+```bash
+# Start the consent engine
+go run . &
+
+# Test the complete workflow
+curl -X POST http://localhost:8081/consents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "passport-app",
+    "data_fields": [
+      {
+        "owner_type": "citizen",
+        "owner_id": "199512345678",
+        "fields": ["personInfo.permanentAddress"]
+      }
+    ],
+    "purpose": "passport_application",
+    "session_id": "session_test",
+    "redirect_url": "https://passport-app.gov.lk"
+  }'
+
+# Get the consent_id from response, then test approval
+curl -X PUT http://localhost:8081/consents/consent_03c134ae \
   -H "Content-Type: application/json" \
   -d '{
     "status": "approved",
-    "updated_by": "citizen_199512345678",
-    "reason": "Data Owner approved consent via portal",
-    "otp": "000000"
+    "owner_id": "199512345678",
+    "message": "Approved via consent portal"
   }'
+
+# Test OTP verification
+curl -X POST http://localhost:8081/consents/consent_03c134ae/otp \
+  -H "Content-Type: application/json" \
+  -d '{"otp_code": "123456"}'
 ```
 
-## Security
+### Scenarios
 
-- Consent records are immutable once created (status can only be updated)
-- Expired consents are automatically flagged
-- Data owners can revoke consent at any time
-- All consent operations are logged for audit purposes
-- Consent records include purpose and expiry information for transparency
-- OTP verification ensures data owner identity (simplified for testing)
+1. **Basic Flow**: Create consent → Approve → Verify OTP → Success
+2. **Rejection Flow**: Create consent → Reject → No OTP needed
+3. **OTP Retry Flow**: Create consent → Approve → Wrong OTP (3 times) → Auto-rejection
+4. **Default Record**: Test with pre-existing `consent_03c134ae`
+
+## OTP Configuration
+
+- **Test OTP**: `123456` (hardcoded for testing)
+- **Max Attempts**: 3
+- **Timeout**: No timeout (manual retry)
+- **Retry Logic**: After 3 failed attempts, consent is automatically rejected
+
+## Data Structures
+
+### ConsentRecord
+
+```go
+type ConsentRecord struct {
+    ConsentID   string        `json:"consent_id"`
+    OwnerID     string        `json:"owner_id"`
+    AppID       string        `json:"app_id"`
+    Status      ConsentStatus `json:"status"`
+    Type        ConsentType   `json:"type"`
+    CreatedAt   time.Time     `json:"created_at"`
+    UpdatedAt   time.Time     `json:"updated_at"`
+    ExpiresAt   time.Time     `json:"expires_at"`
+    Fields      []string      `json:"fields"`
+    SessionID   string        `json:"session_id"`
+    RedirectURL string        `json:"redirect_url"`
+    Purpose     string        `json:"purpose"`
+    Message     string        `json:"message"`
+    OTPAttempts int           `json:"otp_attempts"`
+}
+```
+
+### ConsentStatus Values
+
+- `pending`: Initial state, awaiting user decision
+- `approved`: User approved, may require OTP verification
+- `rejected`: User rejected or OTP verification failed
+
+## Error Handling
+
+- **400 Bad Request**: Invalid JSON, missing required fields, invalid status transitions
+- **404 Not Found**: Consent record not found
+- **500 Internal Server Error**: Server-side errors
+
+## Logging
+
+The service logs all operations with structured logging:
+
+```
+time=2025-09-14T13:00:18.607+05:30 level=INFO msg="OTP verified successfully" consentId=consent_0fc1947b ownerId=1991111111 attempts=1
+time=2025-09-14T12:59:59.676+05:30 level=INFO msg="OTP verification failed after 3 attempts" consentId=consent_03c134ae ownerId=199512345678
+```

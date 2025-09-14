@@ -82,8 +82,22 @@ fi
 
 echo ""
 
-# Test 3: Complete Flow Tests
-echo -e "${BLUE}=== Test 3: Complete Flow Tests ===${NC}"
+# Test 3: Consent Engine Tests
+echo -e "${BLUE}=== Test 3: Consent Engine Tests ===${NC}"
+echo "Running consent engine integration tests..."
+echo ""
+
+if ./test-consent-engine.sh; then
+    echo -e "${GREEN}✅ Consent Engine Tests PASSED${NC}"
+else
+    echo -e "${RED}❌ Consent Engine Tests FAILED${NC}"
+    exit 1
+fi
+
+echo ""
+
+# Test 4: Complete Flow Tests
+echo -e "${BLUE}=== Test 4: Complete Flow Tests ===${NC}"
 echo "Running complete flow integration tests..."
 echo ""
 
@@ -104,7 +118,8 @@ echo ""
 echo "Test Coverage:"
 echo "1. Policy Decision Point (PDP) - Policy logic and authorization"
 echo "2. Consent Flow - Complete consent flow integration with Consent Engine"
-echo "3. Complete Flow - End-to-end flow simulation"
+echo "3. Consent Engine - Comprehensive consent workflow and OTP testing"
+echo "4. Complete Flow - End-to-end flow simulation"
 echo ""
 echo "Services Tested:"
 echo "✅ Policy Decision Point (Port 8082)"

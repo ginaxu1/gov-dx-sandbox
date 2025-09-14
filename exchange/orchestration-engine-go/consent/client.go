@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/shared/types"
 )
 
 type CeConfig struct {
@@ -14,20 +15,15 @@ type CeConfig struct {
 }
 
 type CERequest struct {
-	ConsumerId     string            `json:"consumer_id"`
-	AppId          string            `json:"app_id"`
-	RequestId      string            `json:"request_id"`
-	RequiredFields []DataOwnerRecord `json:"data_fields"`
-	Purpose        string            `json:"purpose"`
-	SessionId      string            `json:"session_id"`
-	RedirectUrl    string            `json:"redirect_url,omitempty"`
+	ConsumerId     string      `json:"consumer_id"`
+	AppId          string      `json:"app_id"`
+	RequestId      string      `json:"request_id"`
+	RequiredFields []types.DataField `json:"data_fields"`
+	Purpose        string      `json:"purpose"`
+	SessionId      string      `json:"session_id"`
+	RedirectUrl    string      `json:"redirect_url,omitempty"`
 }
 
-type DataOwnerRecord struct {
-	OwnerType string   `json:"owner_type"`
-	OwnerId   string   `json:"owner_id"`
-	Fields    []string `json:"fields"`
-}
 
 type CEResponse struct {
 	Status      string `json:"status"`
@@ -53,16 +49,16 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 	requestBody, err := json.Marshal(request)
 	if err != nil {
 		// handle error
-		logger.Log.Error("Failed to marshal Consent request: %v\n", err)
+		logger.Log.Error("Failed to marshal Consent request", "error", err)
 		return nil, err
 	}
 
-	logger.Log.Info("Making Consent Request to Consent Engine", "url", p.baseUrl+"/consent")
-	response, err := p.httpClient.Post(p.baseUrl+"/consent", "application/json", bytes.NewReader(requestBody))
+	logger.Log.Info("Making Consent Request to Consent Engine", "url", p.baseUrl+"/consents")
+	response, err := p.httpClient.Post(p.baseUrl+"/consents", "application/json", bytes.NewReader(requestBody))
 
 	if err != nil {
 		// handle error
-		logger.Log.Error("Consent Request Failed.", err)
+		logger.Log.Error("Consent Request Failed", "error", err)
 		return nil, err
 	}
 	defer response.Body.Close()
@@ -72,7 +68,7 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 
 	if err != nil {
 		// handle error
-		logger.Log.Error("Failed to decode CE response", err)
+		logger.Log.Error("Failed to decode CE response", "error", err)
 		return nil, err
 	}
 

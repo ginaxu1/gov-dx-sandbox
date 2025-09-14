@@ -1,58 +1,30 @@
-# Exchange Services - Environment-based Configuration
-# Usage: docker compose --env-file .env.local up --build
-#       docker compose --env-file .env.production up --build
+# Exchange Services - Monolithic Configuration
+# Single image containing all three services: PDP, CE, and OE
 
 services:
-  policy-decision-point:
+  exchange-services:
     build:
       context: .
-      dockerfile: policy-decision-point/Dockerfile
+      dockerfile: Dockerfile
       args:
-        SERVICE_PATH: policy-decision-point
         BUILD_VERSION: ${BUILD_VERSION:-dev}
-        BUILD_TIME: ${BUILD_TIME:-2025-09-09T16:30:00Z}
+        BUILD_TIME: ${BUILD_TIME:-2025-01-09T16:30:00Z}
         GIT_COMMIT: ${GIT_COMMIT:-local}
-    container_name: pdp-${ENVIRONMENT:-local}
+    container_name: exchange-${ENVIRONMENT:-local}
     ports:
-      - "${PORT_PDP:-8082}:8082"
+      - "${PORT_PDP:-8082}:8082"  # Policy Decision Point
+      - "${PORT_CE:-8081}:8081"   # Consent Engine
+      - "${PORT_OE:-8080}:8080"   # Orchestration Engine
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-local}
-      - PORT=8082
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-text}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health && wget --no-verbose --tries=1 --spider http://localhost:8081/health && wget --no-verbose --tries=1 --spider http://localhost:8082/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - exchange-network
-
-  consent-engine:
-    build:
-      context: .
-      dockerfile: consent-engine/Dockerfile
-      args:
-        SERVICE_PATH: consent-engine
-        BUILD_VERSION: ${BUILD_VERSION:-dev}
-        BUILD_TIME: ${BUILD_TIME:-2025-09-09T16:30:00Z}
-        GIT_COMMIT: ${GIT_COMMIT:-local}
-    container_name: ce-${ENVIRONMENT:-local}
-    ports:
-      - "${PORT_CE:-8081}:8081"
-    environment:
-      - ENVIRONMENT=${ENVIRONMENT:-local}
-      - PORT=8081
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - LOG_FORMAT=${LOG_FORMAT:-text}
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      start_period: 15s
     restart: unless-stopped
     networks:
       - exchange-network

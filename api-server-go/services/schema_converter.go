@@ -40,8 +40,9 @@ type ProviderField struct {
 
 // AllowListEntry represents an entry in the allow list
 type AllowListEntry struct {
-	ConsumerID string `json:"consumer_id"`
-	ExpiryTime string `json:"expiry_time"`
+	ConsumerID    string `json:"consumer_id"`
+	ExpiresAt     int64  `json:"expires_at"`
+	GrantDuration string `json:"grant_duration,omitempty"`
 }
 
 // ConvertSDLToProviderMetadata converts GraphQL SDL to provider metadata format

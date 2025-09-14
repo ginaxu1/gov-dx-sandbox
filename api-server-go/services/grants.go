@@ -138,7 +138,7 @@ func (s *GrantsService) CreateProviderField(req models.CreateProviderFieldReques
 		AccessControlType: req.AccessControlType,
 		AllowList:         req.AllowList,
 		Description:       req.Description,
-		ExpiryTime:        req.ExpiryTime,
+		ExpiresAt:         req.ExpiresAt,
 		Metadata:          req.Metadata,
 	}
 
@@ -177,8 +177,8 @@ func (s *GrantsService) UpdateProviderField(fieldName string, req models.UpdateP
 	if req.Description != nil {
 		field.Description = *req.Description
 	}
-	if req.ExpiryTime != nil {
-		field.ExpiryTime = *req.ExpiryTime
+	if req.ExpiresAt != nil {
+		field.ExpiresAt = *req.ExpiresAt
 	}
 	if req.Metadata != nil {
 		field.Metadata = req.Metadata
@@ -316,9 +316,9 @@ func (s *GrantsService) AddConsumerToAllowList(fieldName string, req models.Allo
 		if entry.ConsumerID == req.ConsumerID {
 			// Update existing entry
 			field.AllowList[i] = models.AllowListEntry{
-				ConsumerID: req.ConsumerID,
-				ExpiryTime: fmt.Sprintf("%d", req.ExpiresAt),
-				CreatedAt:  entry.CreatedAt, // Keep original creation time
+				ConsumerID:    req.ConsumerID,
+				ExpiresAt:     req.ExpiresAt,
+				GrantDuration: entry.GrantDuration, // Keep original grant duration
 			}
 			slog.Info("Updated consumer in allow_list", "fieldName", fieldName, "consumerId", req.ConsumerID)
 			break
@@ -328,9 +328,9 @@ func (s *GrantsService) AddConsumerToAllowList(fieldName string, req models.Allo
 	// If consumer not found, add new entry
 	if !s.consumerExistsInAllowList(field.AllowList, req.ConsumerID) {
 		newEntry := models.AllowListEntry{
-			ConsumerID: req.ConsumerID,
-			ExpiryTime: fmt.Sprintf("%d", req.ExpiresAt),
-			CreatedAt:  time.Now().Format(time.RFC3339),
+			ConsumerID:    req.ConsumerID,
+			ExpiresAt:     req.ExpiresAt,
+			GrantDuration: "30d", // Default grant duration
 		}
 		field.AllowList = append(field.AllowList, newEntry)
 		slog.Info("Added consumer to allow_list", "fieldName", fieldName, "consumerId", req.ConsumerID)
@@ -487,9 +487,9 @@ func (s *GrantsService) UpdateConsumerInAllowList(fieldName, consumerID string, 
 	for i, entry := range field.AllowList {
 		if entry.ConsumerID == consumerID {
 			field.AllowList[i] = models.AllowListEntry{
-				ConsumerID: consumerID,
-				ExpiryTime: fmt.Sprintf("%d", req.ExpiresAt),
-				CreatedAt:  entry.CreatedAt, // Keep original creation time
+				ConsumerID:    consumerID,
+				ExpiresAt:     req.ExpiresAt,
+				GrantDuration: entry.GrantDuration, // Keep original grant duration
 			}
 			found = true
 			break
