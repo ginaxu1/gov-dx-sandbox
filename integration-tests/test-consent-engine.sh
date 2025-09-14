@@ -285,15 +285,25 @@ REVOKE_DATA='{
 
 test_api_call "Revoke Consent" "DELETE" "$CONSENT_ENGINE_URL/consents/$NEW_CONSENT_ID" "$REVOKE_DATA" "200"
 
-# Test 17.5: Approve Previously Revoked Consent
-echo -e "${PURPLE}=== Test 17.5: Approve Previously Revoked Consent ===${NC}"
+# Test 17.5: Move Revoked Consent to Pending
+echo -e "${PURPLE}=== Test 17.5: Move Revoked Consent to Pending ===${NC}"
+MOVE_TO_PENDING_DATA='{
+    "status": "pending",
+    "owner_id": "1991111111",
+    "message": "Moving revoked consent to pending for reconsideration"
+}'
+
+test_api_call "Move Revoked Consent to Pending" "PUT" "$CONSENT_ENGINE_URL/consents/$NEW_CONSENT_ID" "$MOVE_TO_PENDING_DATA" "200"
+
+# Test 17.6: Approve Previously Revoked Consent (now pending)
+echo -e "${PURPLE}=== Test 17.6: Approve Previously Revoked Consent (now pending) ===${NC}"
 APPROVE_REVOKED_DATA='{
     "status": "approved",
     "owner_id": "1991111111",
-    "message": "Approved after revocation"
+    "message": "Approved after revocation reconsideration"
 }'
 
-test_api_call "Approve Previously Revoked Consent" "PUT" "$CONSENT_ENGINE_URL/consents/$NEW_CONSENT_ID" "$APPROVE_REVOKED_DATA" "200"
+test_api_call "Approve Previously Revoked Consent (now pending)" "PUT" "$CONSENT_ENGINE_URL/consents/$NEW_CONSENT_ID" "$APPROVE_REVOKED_DATA" "200"
 
 # Test 18: Test Revoke Non-existent Consent
 echo -e "${PURPLE}=== Test 18: Test Revoke Non-existent Consent ===${NC}"

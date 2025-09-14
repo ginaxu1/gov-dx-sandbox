@@ -267,11 +267,11 @@ func TestConsentEngine_StatusTransitions(t *testing.T) {
 	}{
 		{StatusPending, StatusApproved, true},
 		{StatusPending, StatusRejected, true},
-		{StatusApproved, StatusApproved, true},  // OTP flow
-		{StatusApproved, StatusRejected, true},  // OTP failure
-		{StatusRejected, StatusPending, true},   // Retry
-		{StatusApproved, StatusPending, false},  // Invalid
-		{StatusRejected, StatusApproved, false}, // Invalid
+		{StatusApproved, StatusApproved, true}, // OTP flow
+		{StatusApproved, StatusRejected, true}, // OTP failure
+		{StatusRejected, StatusPending, true},  // Retry
+		{StatusApproved, StatusPending, false}, // Invalid
+		{StatusRejected, StatusApproved, true}, // Valid - allow direct approval from rejected
 	}
 
 	for _, tt := range validTransitions {

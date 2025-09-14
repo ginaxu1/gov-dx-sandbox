@@ -1,40 +1,93 @@
 apiVersion: choreo.io/v1alpha1
 kind: Component
 metadata:
-  name: exchange-services
-  description: Exchange microservices for data sharing
+  name: exchange-services-monolithic
+  description: Monolithic Exchange Services - Data sharing platform with policy enforcement and consent management
 spec:
-  # Define multiple services in a single component
+  # Single monolithic service configuration
   services:
-    - name: consent-engine
+    - name: exchange-platform
       type: web
-      dockerfile: consent-engine/Dockerfile
+      dockerfile: Dockerfile
       buildContext: .
-      port: 8081
+      # Expose multiple ports for different services
+      ports:
+        - port: 8080
+          name: orchestration-engine
+          protocol: TCP
+        - port: 8081
+          name: consent-engine
+          protocol: TCP
+        - port: 8082
+          name: policy-decision-point
+          protocol: TCP
       env:
         - name: ENVIRONMENT
           value: production
-        - name: PORT
-          value: "8081"
+        - name: LOG_LEVEL
+          value: info
+        - name: LOG_FORMAT
+          value: json
+        - name: BUILD_VERSION
+          value: latest
+        - name: BUILD_TIME
+          value: ""
+        - name: GIT_COMMIT
+          value: ""
+
+  # Multiple endpoints for different services
+  endpoints:
+    - name: orchestration-engine-api
+      displayName: Orchestration Engine API
+      service:
+        basePath: /
+        port: 8080
+      type: GraphQL
+      networkVisibilities: 
+        - Public
+        - Organization
     
-    - name: policy-decision-point
-      type: web
-      dockerfile: policy-decision-point/Dockerfile
-      buildContext: .
-      port: 8082
-      env:
-        - name: ENVIRONMENT
-          value: production
-        - name: PORT
-          value: "8082"
+    - name: consent-engine-api
+      displayName: Consent Management Engine API
+      service:
+        basePath: /
+        port: 8081
+      type: REST
+      networkVisibilities: 
+        - Public
+        - Organization
     
-    - name: orchestration-engine-go
-      type: web
-      dockerfile: orchestration-engine-go/Dockerfile
-      buildContext: .
-      port: 8083
-      env:
-        - name: ENVIRONMENT
-          value: production
-        - name: PORT
-          value: "8083"
+    - name: policy-decision-point-api
+      displayName: Policy Decision Point API
+      service:
+        basePath: /
+        port: 8082
+      type: REST
+      networkVisibilities: 
+        - Public
+        - Organization
+
+  # Runtime configurations
+  configurations:
+    env:
+      - name: ENVIRONMENT
+        valueFrom:
+          configForm:
+            displayName: Environment
+            required: true
+            type: string
+            defaultValue: production
+      - name: LOG_LEVEL
+        valueFrom:
+          configForm:
+            displayName: Log Level
+            required: false
+            type: string
+            defaultValue: info
+      - name: LOG_FORMAT
+        valueFrom:
+          configForm:
+            displayName: Log Format
+            required: false
+            type: string
+            defaultValue: json

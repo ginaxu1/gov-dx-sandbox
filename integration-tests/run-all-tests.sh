@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Comprehensive Test Runner for Exchange Services
-# Runs all test suites using DRY principles
 
 set -e  # Exit on any error
 
@@ -10,8 +9,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/test-utils.sh"
 
 echo "=== Exchange Services Test Suite ==="
-echo "Running comprehensive tests using DRY principles"
-echo ""
 
 # Check if services are running
 if ! check_all_services; then

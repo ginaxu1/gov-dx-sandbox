@@ -442,7 +442,7 @@ func isValidStatusTransition(current, new ConsentStatus) bool {
 		StatusApproved: {StatusApproved, StatusRejected, StatusRevoked}, // OTP flow: approved->approved (success), approved->rejected (OTP failure), approved->revoked (user revocation)
 		StatusRejected: {StatusPending, StatusApproved},                 // Allow retry from rejected
 		StatusExpired:  {StatusPending},                                 // Allow renewal
-		StatusRevoked:  {StatusApproved},                                // Allow approval/rejection from revoked
+		StatusRevoked:  {StatusPending},                                 // Allow revocation reconsideration (must go through pending first)
 	}
 
 	allowed, exists := validTransitions[current]

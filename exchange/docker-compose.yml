@@ -14,13 +14,13 @@ services:
     ports:
       - "${PORT_PDP:-8082}:8082"  # Policy Decision Point
       - "${PORT_CE:-8081}:8081"   # Consent Engine
-      - "${PORT_OE:-8080}:8080"   # Orchestration Engine
+      - "${PORT_OE:-4000}:4000"   # Orchestration Engine
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-local}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-text}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health && wget --no-verbose --tries=1 --spider http://localhost:8081/health && wget --no-verbose --tries=1 --spider http://localhost:8082/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/health && wget --no-verbose --tries=1 --spider http://localhost:8081/health && wget --no-verbose --tries=1 --spider http://localhost:8082/health"]
       interval: 30s
       timeout: 10s
       retries: 3

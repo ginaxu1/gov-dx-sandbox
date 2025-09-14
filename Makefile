@@ -40,7 +40,7 @@ help:
 	@echo "  Sri Lanka Passport: http://localhost:3000"
 
 # Main unified commands
-start-all: start-exchange start-passport
+start-all: start-exchange start-passport start-consent-portal
 	@echo ""
 	@echo "All services started!"
 	@echo "========================="
@@ -52,10 +52,13 @@ start-all: start-exchange start-passport
 	@echo "Sri Lanka Passport App:"
 	@echo "  - Application: http://localhost:3000"
 	@echo ""
+	@echo "Consent Portal:"
+	@echo "  - Portal: http://localhost:5173"
+	@echo ""
 	@echo "Use 'make status' to check service health"
 	@echo "Use 'make logs' to view service logs"
 
-stop-all: stop-exchange stop-passport
+stop-all: stop-exchange stop-passport stop-consent-portal
 	@echo "🛑 All services stopped"
 
 restart-all: stop-all start-all
@@ -122,12 +125,23 @@ logs-exchange:
 # Sri Lanka Passport App Management
 start-passport:
 	@echo "Starting Sri Lanka Passport Application..."
-	@cd sri-lanka-passport && npm run dev > /dev/null 2>&1 &
+	@cd passport-app && npm run dev > /dev/null 2>&1 &
 	@sleep 3
 	@if curl -s http://localhost:3000 > /dev/null; then \
 		echo "✅ Passport app started at http://localhost:3000"; \
 	else \
 		echo "⏳ Passport app starting... (may take a moment)"; \
+		echo "Check status with: make status"; \
+	fi
+
+start-consent-portal:
+	@echo "Starting Consent Portal..."
+	@cd portals/consent-portal && npm run dev > /dev/null 2>&1 &
+	@sleep 3
+	@if curl -s http://localhost:5173 > /dev/null; then \
+		echo "✅ Consent portal started at http://localhost:5173"; \
+	else \
+		echo "⏳ Consent portal starting... (may take a moment)"; \
 		echo "Check status with: make status"; \
 	fi
 
@@ -140,9 +154,18 @@ stop-passport:
 		echo "Passport app was not running"; \
 	fi
 
+stop-consent-portal:
+	@echo "Stopping Consent Portal..."
+	@if pgrep -f "vite" > /dev/null; then \
+		pkill -f "vite"; \
+		echo "✅ Consent portal stopped"; \
+	else \
+		echo "Consent portal was not running"; \
+	fi
+
 dev-passport:
 	@echo "Starting Passport App in Development Mode..."
-	@cd sri-lanka-passport && npm run dev
+	@cd passport-app && npm run dev
 
 logs-passport:
 	@echo "Passport App Logs:"
@@ -157,7 +180,7 @@ logs-passport:
 build:
 	@echo "Building all services..."
 	@cd exchange && docker compose build
-	@cd sri-lanka-passport && npm install
+	@cd passport-app && npm install
 	@echo "✅ All services built"
 
 test:
@@ -176,7 +199,7 @@ test-unit:
 # Quick development setup
 dev-setup:
 	@echo "Setting up development environment..."
-	@cd sri-lanka-passport && npm install
+	@cd passport-app && npm install
 	@cd exchange && docker compose build
 	@echo "✅ Development environment ready"
 	@echo "Run 'make start-all' to start all services"
@@ -185,8 +208,8 @@ dev-setup:
 start-prod:
 	@echo "Starting all services in production mode..."
 	@cd exchange && docker compose --env-file .env.production up --build -d
-	@cd sri-lanka-passport && npm run build
-	@cd sri-lanka-passport && npm start > /dev/null 2>&1 &
+	@cd passport-app && npm run build
+	@cd passport-app && npm start > /dev/null 2>&1 &
 	@echo "✅ All services started in production mode"
 
 # Individual service health checks
@@ -201,3 +224,6 @@ health-check:
 	@echo ""
 	@echo "Passport App:"
 	@curl -s http://localhost:3000 > /dev/null && echo " - Passport App healthy" || echo " - Passport App unhealthy"
+	@echo ""
+	@echo "Consent Portal:"
+	@curl -s http://localhost:5173 > /dev/null && echo " - Consent Portal healthy" || echo " - Consent Portal unhealthy"
