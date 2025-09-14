@@ -29,13 +29,14 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  build          - Build all services"
-	@echo "  test           - Run all tests"
+	@echo "  test           - Run integration tests"
+	@echo "  test-unit      - Run unit tests for all services"
 	@echo ""
 	@echo "Service Ports:"
 	@echo "  Exchange Services:"
 	@echo "    - Policy Decision Point (PDP): http://localhost:8082"
 	@echo "    - Consent Engine (CE): http://localhost:8081"
-	@echo "    - Orchestration Engine (OE): http://localhost:8080"
+	@echo "    - Orchestration Engine (OE): http://localhost:4000"
 	@echo "  Sri Lanka Passport: http://localhost:3000"
 
 # Main unified commands
@@ -46,7 +47,7 @@ start-all: start-exchange start-passport
 	@echo "Exchange Services:"
 	@echo "  - Policy Decision Point: http://localhost:8082"
 	@echo "  - Consent Engine: http://localhost:8081"
-	@echo "  - Orchestration Engine: http://localhost:8080"
+	@echo "  - Orchestration Engine: http://localhost:4000"
 	@echo ""
 	@echo "Sri Lanka Passport App:"
 	@echo "  - Application: http://localhost:3000"
@@ -76,7 +77,7 @@ status:
 	@echo "Health Checks:"
 	@curl -s http://localhost:8082/health > /dev/null && echo "✅ PDP (8082)" || echo "❌ PDP (8082)"
 	@curl -s http://localhost:8081/health > /dev/null && echo "✅ CE (8081)" || echo "❌ CE (8081)"
-	@curl -s http://localhost:8080/health > /dev/null && echo "✅ OE (8080)" || echo "❌ OE (8080)"
+	@curl -s http://localhost:4000/health > /dev/null && echo "✅ OE (4000)" || echo "❌ OE (4000)"
 	@curl -s http://localhost:3000 > /dev/null && echo "✅ Passport App (3000)" || echo "❌ Passport App (3000)"
 
 logs:
@@ -106,17 +107,17 @@ clean:
 # Exchange Services Management
 start-exchange:
 	@echo "Starting Exchange Services..."
-	@cd exchange && make start-local
+	@cd exchange && docker compose --env-file .env.local up --build -d
 	@echo "✅ Exchange services started"
 
 stop-exchange:
 	@echo "Stopping Exchange Services..."
-	@cd exchange && make stop
+	@cd exchange && docker compose down
 	@echo "✅ Exchange services stopped"
 
 logs-exchange:
 	@echo "Exchange Services Logs:"
-	@cd exchange && make logs
+	@cd exchange && docker compose logs --tail=20
 
 # Sri Lanka Passport App Management
 start-passport:
@@ -155,27 +156,35 @@ logs-passport:
 # Build and Test Commands
 build:
 	@echo "Building all services..."
-	@cd exchange && make build
+	@cd exchange && docker compose build
 	@cd sri-lanka-passport && npm install
 	@echo "✅ All services built"
 
 test:
-	@echo "Running all tests..."
-	@cd exchange && make test
-	@echo "✅ Tests completed"
+	@echo "Running integration tests..."
+	@cd integration-tests && ./run-all-tests.sh
+	@echo "✅ Integration tests completed"
+
+test-unit:
+	@echo "Running unit tests..."
+	@echo "Exchange Services Unit Tests:"
+	@cd exchange/consent-engine && go test -v ./...
+	@cd exchange/policy-decision-point && go test -v ./...
+	@cd exchange/orchestration-engine-go && go test -v ./...
+	@echo "✅ Unit tests completed"
 
 # Quick development setup
 dev-setup:
 	@echo "Setting up development environment..."
 	@cd sri-lanka-passport && npm install
-	@cd exchange && make build-local
+	@cd exchange && docker compose build
 	@echo "✅ Development environment ready"
 	@echo "Run 'make start-all' to start all services"
 
 # Production commands
 start-prod:
 	@echo "Starting all services in production mode..."
-	@cd exchange && make start-prod
+	@cd exchange && docker compose --env-file .env.production up --build -d
 	@cd sri-lanka-passport && npm run build
 	@cd sri-lanka-passport && npm start > /dev/null 2>&1 &
 	@echo "✅ All services started in production mode"
@@ -188,7 +197,7 @@ health-check:
 	@echo "Exchange Services:"
 	@curl -s http://localhost:8082/health && echo " - PDP healthy" || echo " - PDP unhealthy"
 	@curl -s http://localhost:8081/health && echo " - CE healthy" || echo " - CE unhealthy"
-	@curl -s http://localhost:8080/health && echo " - OE healthy" || echo " - OE unhealthy"
+	@curl -s http://localhost:4000/health && echo " - OE healthy" || echo " - OE unhealthy"
 	@echo ""
 	@echo "Passport App:"
 	@curl -s http://localhost:3000 > /dev/null && echo " - Passport App healthy" || echo " - Passport App unhealthy"

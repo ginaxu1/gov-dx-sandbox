@@ -21,32 +21,6 @@
       "access_control_type": "public",
       "allow_list": []
     },
-    "drp.person.permanentAddress": {
-      "owner": "citizen",
-      "provider": "rgd",
-      "consent_required": true,
-      "access_control_type": "public",
-      "allow_list": [
-        {
-          "consumer_id": "",
-          "expires_at": 1757560679,
-          "grant_duration": "30d"
-        }
-      ]
-    },
-    "drp.person.profession": {
-      "owner": "citizen",
-      "provider": "rgd",
-      "consent_required": true,
-      "access_control_type": "public",
-      "allow_list": [
-        {
-          "consumer_id": "",
-          "expires_at": 1757560679,
-          "grant_duration": "30d"
-        }
-      ]
-    },
     "person.birthDate": {
       "owner": "rgd",
       "provider": "drp",
@@ -75,10 +49,10 @@
       "allow_list": []
     },
     "person.permanentAddress": {
-      "owner": "rgd",
+      "owner": "citizen",
       "provider": "drp",
-      "consent_required": false,
-      "access_control_type": "restricted",
+      "consent_required": true,
+      "access_control_type": "public",
       "allow_list": [
         {
           "consumer_id": "passport-app",
@@ -91,12 +65,12 @@
       "owner": "citizen",
       "provider": "drp",
       "consent_required": true,
-      "access_control_type": "restricted",
+      "access_control_type": "public",
       "allow_list": [
         {
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
-          "grant_duration": "7d"
+          "grant_duration": "30d"
         }
       ]
     },

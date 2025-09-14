@@ -15,11 +15,12 @@ import (
 
 // Cfg defines the configuration structure for the application.
 type Cfg struct {
-	*federator.Options
-	*graphql.MappingAST
-	Schema *ast.Document
-	*policy.PdpConfig
-	*consent.CeConfig
+	Options    *federator.Options     `json:"Options"`
+	MappingAST *graphql.MappingAST    `json:"MappingAST"`
+	ArgMapping map[string]interface{} `json:"argMapping"`
+	Schema     *ast.Document
+	PdpConfig  *policy.PdpConfig `json:"PdpConfig"`
+	CeConfig   *consent.CeConfig `json:"CeConfig"`
 }
 
 const ConfigFilePath = "./config.json"
@@ -61,10 +62,9 @@ func LoadConfig() {
 	}
 
 	err = json.Unmarshal(file, AppConfig)
-
-	AppConfig.Schema = LoadSdlSchema()
-
 	if err != nil {
 		panic(err)
 	}
+
+	AppConfig.Schema = LoadSdlSchema()
 }

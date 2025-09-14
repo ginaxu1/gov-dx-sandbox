@@ -1,6 +1,8 @@
 package federator
 
 import (
+	"fmt"
+
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
@@ -16,23 +18,38 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 	// initialize return variable
 	var requests = make([]*federationServiceRequest, 0)
 
+	if configs.AppConfig == nil {
+		return nil, fmt.Errorf("AppConfig is not initialized")
+	}
 	var schema = configs.AppConfig.Schema
 
 	// Collect the directives from the query
 	var maps, args = ProviderSchemaCollector(schema, doc)
 
-	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
-	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
+	var pdpClient *policy.PdpClient
+	var ceClient *consent.CEClient
 
-	pdpResponse, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
-		ConsumerId:     "passport-app",
-		AppId:          "passport-app",
-		RequestId:      "request_123",
-		RequiredFields: maps,
-	})
+	if configs.AppConfig.PdpConfig != nil {
+		pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
+	}
+	if configs.AppConfig.CeConfig != nil {
+		ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
+	}
 
-	if err != nil {
-		logger.Log.Info("PDP request failed", "error", err)
+	var pdpResponse *policy.PdpResponse
+	var err error
+
+	if pdpClient != nil {
+		pdpResponse, err = pdpClient.MakePdpRequest(&policy.PdpRequest{
+			ConsumerId:     "passport-app",
+			AppId:          "passport-app",
+			RequestId:      "request_123",
+			RequiredFields: maps,
+		})
+
+		if err != nil {
+			logger.Log.Info("PDP request failed", "error", err)
+		}
 	}
 
 	if pdpResponse == nil {
@@ -167,7 +184,12 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]strin
 
 	providerFieldMap = ProviderFieldMap(providerDirectives)
 
-	var requiredArguments = FindRequiredArguments(providerFieldMap, configs.AppConfig.ArgMapping)
+	var argMapping []*graphql.ArgMapping
+	if configs.AppConfig != nil && configs.AppConfig.ArgMapping != nil {
+		// Convert map to slice if needed, or use empty slice for now
+		argMapping = []*graphql.ArgMapping{}
+	}
+	var requiredArguments = FindRequiredArguments(providerFieldMap, argMapping)
 
 	var extractedArgs = ExtractRequiredArguments(requiredArguments, arguments)
 

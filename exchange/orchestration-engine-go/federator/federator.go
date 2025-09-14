@@ -10,6 +10,7 @@ import (
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/provider"
 	"github.com/graphql-go/graphql/language/ast"
@@ -61,7 +62,10 @@ func (f *federationResponse) GetProviderResponse(providerKey string) *providerRe
 
 // Initialize sets up the Federator with providers and an HTTP client.
 func Initialize() *Federator {
-	options := configs.AppConfig.Options
+	var options *federator.Options
+	if configs.AppConfig != nil {
+		options = configs.AppConfig.Options
+	}
 
 	federator := &Federator{}
 	federator.Providers = make(map[string]*provider.Provider)

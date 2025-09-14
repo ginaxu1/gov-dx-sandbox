@@ -43,35 +43,18 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
-	// Handle GET /getData endpoint
-	mux.HandleFunc("/getData", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+	// Handle POST /graphql endpoint - single entry point for all GraphQL queries
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		// Parse query parameters
-		query := r.URL.Query().Get("query")
-		variables := r.URL.Query().Get("variables")
-		ownerID := r.URL.Query().Get("owner_id")
-
-		if query == "" {
-			http.Error(w, "query parameter is required", http.StatusBadRequest)
+		// Parse request body
+		var req graphql.Request
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
-		}
-
-		// Parse variables if provided
-		var variablesMap map[string]interface{}
-		if variables != "" {
-			if err := json.Unmarshal([]byte(variables), &variablesMap); err != nil {
-				http.Error(w, "invalid variables parameter: "+err.Error(), http.StatusBadRequest)
-				return
-			}
-		}
-
-		req := graphql.Request{
-			Query:     query,
-			Variables: variablesMap,
 		}
 
 		// Step 1: Call policy decision point first
@@ -95,10 +78,8 @@ func RunServer(f *federator.Federator) {
 		// Step 3: Consent is required, create consent record
 		logger.Log.Info("Consent required, creating consent record", "fields", policyDecision.ConsentRequiredFields)
 
-		// Use provided owner ID or default
-		if ownerID == "" {
-			ownerID = "199512345678" // Default for testing
-		}
+		// Use default owner ID for testing
+		ownerID := "199512345678"
 
 		consentReq := map[string]interface{}{
 			"app_id": "passport-app",
@@ -124,17 +105,48 @@ func RunServer(f *federator.Federator) {
 
 		logger.Log.Info("Consent engine response", "response", consentResp)
 
-		// Step 4: Return consent workflow response
+		// Step 4: Return consent workflow response with consent record
 		response := map[string]interface{}{
 			"allow":                 policyDecision.Allow,
 			"consentRequired":       true,
 			"consentRequiredFields": policyDecision.ConsentRequiredFields,
 			"message":               "Consent is required to access this data",
-			"consentId":             consentResp["id"],
+			"consentId":             consentResp["consent_id"],
 			"consentPortalUrl":      consentResp["redirect_url"],
+			"consentRecord": map[string]interface{}{
+				"consent_uuid":  consentResp["consent_id"],
+				"owner_id":      ownerID,
+				"data_consumer": "passport-app",
+				"status":        "pending",
+				"fields":        policyDecision.ConsentRequiredFields,
+				"created_at":    time.Now().Format(time.RFC3339),
+				"updated_at":    time.Now().Format(time.RFC3339),
+				"expires_at":    time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+				"session_id":    consentReq["session_id"],
+				"redirect_url":  consentReq["redirect_url"],
+			},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
+	})
+
+	// Handle consent redirect - when user completes consent in portal
+	mux.HandleFunc("/consent-redirect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Extract consent ID from query parameters
+		consentID := r.URL.Query().Get("consent_id")
+		if consentID == "" {
+			http.Error(w, "consent_id parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		// Redirect to passport app with consent status
+		redirectURL := fmt.Sprintf("http://localhost:3000/apply?consent_id=%s&status=completed", consentID)
+		http.Redirect(w, r, redirectURL, http.StatusFound)
 	})
 
 	// Handle consent completion and data fetching
@@ -193,27 +205,13 @@ func RunServer(f *federator.Federator) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	// Handle other GraphQL requests
+	// Handle root path - redirect to /graphql
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/graphql", http.StatusMovedPermanently)
 			return
 		}
-
-		// Parse request body
-		var req graphql.Request
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		response := f.FederateQuery(req)
-
-		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
-		if err != nil {
-			logger.Log.Error("Failed to write response", "error", err)
-			return
-		}
+		http.NotFound(w, r)
 	})
 
 	// Start server
@@ -338,7 +336,7 @@ func callConsentEngine(req map[string]interface{}) (map[string]interface{}, erro
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return nil, fmt.Errorf("consent engine returned status %d", resp.StatusCode)
 	}
 
