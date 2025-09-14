@@ -50,9 +50,10 @@ func RunServer(f *federator.Federator) {
 			return
 		}
 
-		// Parse query parameters for GET request
+		// Parse query parameters
 		query := r.URL.Query().Get("query")
 		variables := r.URL.Query().Get("variables")
+		ownerID := r.URL.Query().Get("owner_id")
 
 		if query == "" {
 			http.Error(w, "query parameter is required", http.StatusBadRequest)
@@ -73,7 +74,7 @@ func RunServer(f *federator.Federator) {
 			Variables: variablesMap,
 		}
 
-		// Call policy decision point first
+		// Step 1: Call policy decision point first
 		policyDecision, err := callPolicyDecisionPoint(req)
 		if err != nil {
 			logger.Log.Error("Failed to call policy decision point", "error", err)
@@ -81,57 +82,59 @@ func RunServer(f *federator.Federator) {
 			return
 		}
 
-		// If consent is required, initiate consent workflow
-		if policyDecision.ConsentRequired {
-			logger.Log.Info("Consent required, initiating consent workflow", "fields", policyDecision.ConsentRequiredFields)
-			// Create consent request
-			consentReq := map[string]interface{}{
-				"app_id": "passport-app",
-				"data_fields": []map[string]interface{}{
-					{
-						"owner_type": "citizen",
-						"owner_id":   "199512345678", // This should come from the request
-						"fields":     policyDecision.ConsentRequiredFields,
-					},
-				},
-				"purpose":      "passport_application",
-				"session_id":   fmt.Sprintf("session_%d", time.Now().Unix()),
-				"redirect_url": "http://localhost:3000/apply", // Redirect back to passport app
-			}
-
-			// Call consent engine to create consent records
-			consentResp, err := callConsentEngine(consentReq)
-			if err != nil {
-				logger.Log.Error("Failed to call consent engine", "error", err)
-				http.Error(w, "Failed to initiate consent workflow", http.StatusInternalServerError)
-				return
-			}
-
-			// Debug: log the consent response
-			logger.Log.Info("Consent engine response", "response", consentResp)
-
-			// Return consent portal URL for redirect
-			response := map[string]interface{}{
-				"allow":                 policyDecision.Allow,
-				"consentRequired":       true,
-				"consentRequiredFields": policyDecision.ConsentRequiredFields,
-				"message":               "Consent is required to access this data",
-				"consentPortalUrl":      consentResp["redirect_url"],
-			}
+		// Step 2: Check if consent is required
+		if !policyDecision.ConsentRequired {
+			// No consent required, proceed with federation
+			logger.Log.Info("No consent required, proceeding with data federation")
+			response := f.FederateQuery(req)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(response)
 			return
 		}
 
-		// If no consent required, proceed with federation
-		response := f.FederateQuery(req)
+		// Step 3: Consent is required, create consent record
+		logger.Log.Info("Consent required, creating consent record", "fields", policyDecision.ConsentRequiredFields)
 
-		w.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(w).Encode(response)
+		// Use provided owner ID or default
+		if ownerID == "" {
+			ownerID = "199512345678" // Default for testing
+		}
+
+		consentReq := map[string]interface{}{
+			"app_id": "passport-app",
+			"data_fields": []map[string]interface{}{
+				{
+					"owner_type": "citizen",
+					"owner_id":   ownerID,
+					"fields":     policyDecision.ConsentRequiredFields,
+				},
+			},
+			"purpose":      "passport_application",
+			"session_id":   fmt.Sprintf("session_%d", time.Now().Unix()),
+			"redirect_url": "http://localhost:3000/apply", // Redirect back to passport app
+		}
+
+		// Call consent engine to create consent records
+		consentResp, err := callConsentEngine(consentReq)
 		if err != nil {
-			logger.Log.Error("Failed to write response", "error", err)
+			logger.Log.Error("Failed to call consent engine", "error", err)
+			http.Error(w, "Failed to initiate consent workflow", http.StatusInternalServerError)
 			return
 		}
+
+		logger.Log.Info("Consent engine response", "response", consentResp)
+
+		// Step 4: Return consent workflow response
+		response := map[string]interface{}{
+			"allow":                 policyDecision.Allow,
+			"consentRequired":       true,
+			"consentRequiredFields": policyDecision.ConsentRequiredFields,
+			"message":               "Consent is required to access this data",
+			"consentId":             consentResp["id"],
+			"consentPortalUrl":      consentResp["redirect_url"],
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
 	})
 
 	// Handle consent completion and data fetching
@@ -143,8 +146,9 @@ func RunServer(f *federator.Federator) {
 
 		// Parse request body
 		var req struct {
-			ConsentID string `json:"consent_id"`
-			Query     string `json:"query"`
+			ConsentID string                 `json:"consent_id"`
+			Query     string                 `json:"query"`
+			Variables map[string]interface{} `json:"variables,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
@@ -178,8 +182,10 @@ func RunServer(f *federator.Federator) {
 		}
 
 		// If approved, proceed with data federation
+		logger.Log.Info("Consent approved, proceeding with data federation")
 		graphqlReq := graphql.Request{
-			Query: req.Query,
+			Query:     req.Query,
+			Variables: req.Variables,
 		}
 		response := f.FederateQuery(graphqlReq)
 

@@ -45,17 +45,17 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
   // For demonstration, using a placeholder. Replace with actual API base path.
 
-  // Get consent_uuid from URL params
-  const getConsentUuid = (): string | null => {
+  // Get consent_id from URL params
+  const getConsentId = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
     console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent') ? urlParams.get('consent') : 'consent_5df473bd'; // Placeholder for testing
+    return urlParams.get('consent_id') || urlParams.get('consent') || 'consent_5df473bd'; // Fallback for testing
   };
 
   // Fetch consent data
   const fetchConsentData = async (consentUuid: string) => {
     try {
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentUuid}`);
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`);
       if (!response.ok) {
         throw new Error('Failed to fetch consent data');
       }
@@ -168,14 +168,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
   // Initialize component
   useEffect(() => {
-    const consentUuid = getConsentUuid();
-    if (!consentUuid) {
+    const consentId = getConsentId();
+    if (!consentId) {
       setError('Invalid consent link. Missing consent ID.');
       setCurrentStep('error');
       return;
     }
-    
-    fetchConsentData(consentUuid);
+
+    fetchConsentData(consentId);
   }, []);
 
   // Timer for OTP expiry countdown
@@ -205,12 +205,17 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     setOtpError('');
     setError('');
     
-    // Send OTP automatically using the selected delivery method
-    const otpSent = await sendOTP(deliveryMethod);
-    if (otpSent) {
-      setCurrentStep('otp');
+    if (decision === 'approved') {
+      // For approved decisions, send OTP and proceed to OTP verification
+      const otpSent = await sendOTP(deliveryMethod);
+      if (otpSent) {
+        setCurrentStep('otp');
+      } else {
+        setCurrentStep('error');
+      }
     } else {
-      setCurrentStep('error');
+      // For rejected decisions, submit immediately without OTP
+      await submitConsentDecision();
     }
   };
 
@@ -267,7 +272,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
   // Submit consent decision
   const submitConsentDecision = async () => {
-    if (!validateOtp(otp)) {
+    // Only validate OTP for approved decisions
+    if (userDecision === 'approved' && !validateOtp(otp)) {
       return;
     }
 
@@ -281,11 +287,12 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
     try {
       const payload = {
-        ...consentRecord,
-        status: userDecision
+        status: userDecision,
+        owner_id: consentRecord.owner_id,
+        message: userDecision === 'approved' ? 'User approved consent via portal' : 'User rejected consent via portal'
       };
 
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentRecord.consent_uuid}`, {
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentRecord.consent_uuid}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -298,6 +305,15 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       }
 
       setCurrentStep('success');
+      
+      // Notify parent window of consent completion
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'consent-complete',
+          status: userDecision,
+          consentId: consentRecord.consent_uuid
+        }, window.location.origin);
+      }
       
       // Redirect after 3 seconds
       setTimeout(() => {
