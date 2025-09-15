@@ -171,34 +171,6 @@ func ExtractIDFromPathString(path string) string {
 	return ""
 }
 
-// ExtractProviderIDFromPath extracts the provider ID from a URL path like /providers/{id}/schemas
-func ExtractProviderIDFromPath(path string) string {
-	path = strings.TrimSuffix(path, "/")
-	parts := strings.Split(path, "/")
-
-	// Look for "providers" and return the next segment
-	for i, part := range parts {
-		if part == "providers" && i+1 < len(parts) {
-			return parts[i+1]
-		}
-	}
-	return ""
-}
-
-// ExtractConsumerIDFromPath extracts the consumer ID from a URL path like /consumers/{id}/applications
-func ExtractConsumerIDFromPath(path string) string {
-	path = strings.TrimSuffix(path, "/")
-	parts := strings.Split(path, "/")
-
-	// Look for "consumers" and return the next segment
-	for i, part := range parts {
-		if part == "consumers" && i+1 < len(parts) {
-			return parts[i+1]
-		}
-	}
-	return ""
-}
-
 // ParseJSONRequest parses a JSON request body into the target struct
 func ParseJSONRequest(r *http.Request, target interface{}) error {
 	defer r.Body.Close()
