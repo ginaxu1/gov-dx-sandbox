@@ -533,7 +533,7 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	// Create expiry time (30 days from now)
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 
-	// check whether already the consent is given, need to iterate through each data field.
+	// Check whether consent is already given; need to iterate through each data field.
 	for _, dataField := range req.DataFields {
 		for _, record := range ce.consentRecords {
 			if record.OwnerID == dataField.OwnerID && record.DataConsumer == req.AppID && record.Status == StatusApproved {
