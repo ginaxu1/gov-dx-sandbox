@@ -307,7 +307,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         if (consentRecord.redirect_url) {
           window.location.href = consentRecord.redirect_url;
         }
-      }, 10000);
+      }, 3000);
 
     } catch (err) {
       setError('Failed to process your consent decision. Please try again.');
