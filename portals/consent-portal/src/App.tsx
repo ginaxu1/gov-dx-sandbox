@@ -37,11 +37,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const [otpExpiryTime, setOtpExpiryTime] = useState<Date | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<'email' | 'sms'>('email');
   const [isResendingOtp, setIsResendingOtp] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
+  // const [otpSent, setOtpSent] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Base API path from environment variable
-  const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
+  // const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
   const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
   // For demonstration, using a placeholder. Replace with actual API base path.
 
@@ -128,14 +128,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     }
 
     try {
-      const payload = {
-        owner_id: ownerInfo.owner_id,
-        consent_uuid: consentRecord.consent_uuid,
-        delivery_method: method,
-        email: method === 'email' ? ownerInfo.email : undefined,
-        contact_number: method === 'sms' ? ownerInfo.contact_number : undefined,
-        decision: userDecision
-      };
+      // const payload = {
+      //   owner_id: ownerInfo.owner_id,
+      //   consent_uuid: consentRecord.consent_uuid,
+      //   delivery_method: method,
+      //   email: method === 'email' ? ownerInfo.email : undefined,
+      //   contact_number: method === 'sms' ? ownerInfo.contact_number : undefined,
+      //   decision: userDecision
+      // };
 
       // const response = await fetch(`${BASE_PATH}/otp/send`, {
       //   method: 'POST',
@@ -156,7 +156,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       const expiryTime = new Date();
       expiryTime.setMinutes(expiryTime.getMinutes() + 5);
       setOtpExpiryTime(expiryTime);
-      setOtpSent(true);
+      // setOtpSent(true);
       
       return true;
     } catch (err) {
