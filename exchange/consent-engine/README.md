@@ -113,7 +113,7 @@ The Orchestration Engine handles data ownership aggregation and calls the Consen
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:8081/consent \
+curl -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
     "app_id": "passport-app",
@@ -160,7 +160,7 @@ curl -X POST http://localhost:8081/consent \
 
 **cURL Example:**
 ```bash
-curl -X GET http://localhost:8081/consent/consent_abc123
+curl -X GET http://localhost:8081/consents/consent_abc123
 ```
 
 ### 3. Update Consent Status (User Decision with OTP)
@@ -198,7 +198,7 @@ curl -X GET http://localhost:8081/consent/consent_abc123
 **cURL Examples:**
 ```bash
 # User approves consent
-curl -X POST http://localhost:8081/consent/consent_abc123 \
+curl -X POST http://localhost:8081/consents/consent_abc123 \
   -H "Content-Type: application/json" \
   -d '{
     "status": "approved",
@@ -206,7 +206,7 @@ curl -X POST http://localhost:8081/consent/consent_abc123 \
   }'
 
 # User rejects consent
-curl -X POST http://localhost:8081/consent/consent_abc123 \
+curl -X POST http://localhost:8081/consents/consent_abc123 \
   -H "Content-Type: application/json" \
   -d '{
     "status": "rejected",
@@ -242,7 +242,7 @@ curl -X POST http://localhost:8081/consent/consent_abc123 \
 
 **cURL Example:**
 ```bash
-curl -X PUT http://localhost:8081/consent/consent_abc123 \
+curl -X PUT http://localhost:8081/consents/consent_abc123 \
   -H "Content-Type: application/json" \
   -d '{
     "status": "approved",
@@ -300,7 +300,7 @@ curl -X PUT http://localhost:8081/consent/consent_abc123 \
 
 **cURL Example:**
 ```bash
-curl -X POST http://localhost:8081/consent/update \
+curl -X POST http://localhost:8081/consents/update \
   -H "Content-Type: application/json" \
   -d '{
     "consent_id": "consent_abc123",
@@ -409,7 +409,7 @@ curl -X GET http://localhost:8081/consumer/passport-app
 
 **cURL Example:**
 ```bash
-curl -X DELETE http://localhost:8081/consent/consent_abc123 \
+curl -X DELETE http://localhost:8081/consents/consent_abc123 \
   -H "Content-Type: application/json" \
   -d '{"reason": "User requested data deletion"}'
 ```
@@ -561,7 +561,7 @@ For testing purposes, the OTP verification is simplified:
 ### OTP Usage
 ```bash
 # Send OTP (simplified)
-curl -X POST http://localhost:8081/consent/{consent-id}/otp \
+curl -X POST http://localhost:8081/consents/{consent-id}/otp \
   -H "Content-Type: application/json" \
   -d '{
     "phone_number": "+94771234567"
@@ -581,7 +581,7 @@ curl -X POST http://localhost:8081/consent/{consent-id}/otp \
 ### OTP Verification
 ```bash
 # Update consent with OTP verification
-curl -X PUT http://localhost:8081/consent/{consent-id} \
+curl -X PUT http://localhost:8081/consents/{consent-id} \
   -H "Content-Type: application/json" \
   -d '{
     "status": "approved",

@@ -97,11 +97,14 @@ type UpdateConsentRequest struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// DataField represents a data field request for consent
+// DataField represents a data owner and their fields
 type DataField struct {
-	OwnerType string   `json:"owner_type"` // "citizen", "government", "business"
-	OwnerID   string   `json:"owner_id"`   // ID of the data owner
-	Fields    []string `json:"fields"`     // List of field names
+	// OwnerType indicates the type of data owner (e.g., "citizen", "organization")
+	OwnerType string `json:"owner_type"`
+	// OwnerID is the unique identifier for the data owner
+	OwnerID string `json:"owner_id"`
+	// Fields is the list of specific data fields for this owner
+	Fields []string `json:"fields"`
 }
 
 // ConsentRequest defines the structure for the new consent workflow

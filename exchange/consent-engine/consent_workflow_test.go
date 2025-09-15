@@ -10,14 +10,19 @@ import (
 	"time"
 )
 
+// Helper function to create a fresh server for each test
+func createTestServer() *apiServer {
+	engine := NewConsentEngine("http://localhost:5173")
+	return &apiServer{engine: engine}
+}
+
 // TestConsentWorkflowIntegration tests the complete consent management workflow via HTTP API
 func TestConsentWorkflowIntegration(t *testing.T) {
-	// Initialize the consent engine
-	engine := NewConsentEngine()
-	server := &apiServer{engine: engine}
 
 	// Test 1: Process Consent Request - Basic Flow
 	t.Run("ProcessConsentRequest_BasicFlow", func(t *testing.T) {
+		server := createTestServer()
+
 		reqBody := ConsentRequest{
 			AppID: "passport-app",
 			DataFields: []DataField{
@@ -35,7 +40,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -84,6 +89,8 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 2: Process Consent Request - Multiple Data Fields
 	t.Run("ProcessConsentRequest_MultipleFields", func(t *testing.T) {
+		server := createTestServer()
+
 		reqBody := ConsentRequest{
 			AppID: "passport-app",
 			DataFields: []DataField{
@@ -101,7 +108,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -139,6 +146,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 3: Process Consent Request - Multiple Data Owners
 	t.Run("ProcessConsentRequest_MultipleDataOwners", func(t *testing.T) {
+		server := createTestServer()
 		reqBody := ConsentRequest{
 			AppID: "passport-app",
 			DataFields: []DataField{
@@ -161,7 +169,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -205,6 +213,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 4: Process Consent Request - Invalid Input
 	t.Run("ProcessConsentRequest_InvalidInput", func(t *testing.T) {
+		server := createTestServer()
 		// Test with empty data fields
 		reqBody := ConsentRequest{
 			AppID:      "passport-app",
@@ -214,7 +223,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -231,6 +240,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 5: Process Consent Request - Missing Required Fields
 	t.Run("ProcessConsentRequest_MissingRequiredFields", func(t *testing.T) {
+		server := createTestServer()
 		// Test with missing app_id
 		reqBody := map[string]interface{}{
 			"data_fields": []map[string]interface{}{
@@ -244,7 +254,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -261,6 +271,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 6: Get Consent Status
 	t.Run("GetConsentStatus", func(t *testing.T) {
+		server := createTestServer()
 		// First create a consent record
 		createReq := ConsentRequest{
 			AppID: "passport-app",
@@ -277,7 +288,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(createReq)
-		createReqHTTP := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		createReqHTTP := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
@@ -296,7 +307,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		// Now get the consent status
-		getReq := httptest.NewRequest("GET", fmt.Sprintf("/consent/%s", createResponse.ConsentID), nil)
+		getReq := httptest.NewRequest("GET", fmt.Sprintf("/consents/%s", createResponse.ConsentID), nil)
 		getW := httptest.NewRecorder()
 
 		server.getConsentStatus(getW, getReq)
@@ -320,6 +331,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 7: Update Consent Status
 	t.Run("UpdateConsentStatus", func(t *testing.T) {
+		server := createTestServer()
 		// First create a consent record
 		createReq := ConsentRequest{
 			AppID: "passport-app",
@@ -336,7 +348,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(createReq)
-		createReqHTTP := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		createReqHTTP := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
@@ -362,7 +374,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		updateJsonBody, _ := json.Marshal(updateReq)
-		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(updateJsonBody))
+		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consents/%s", createResponse.ConsentID), bytes.NewBuffer(updateJsonBody))
 		updateReqHTTP.Header.Set("Content-Type", "application/json")
 		updateW := httptest.NewRecorder()
 
@@ -384,6 +396,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 8: Revoke Consent
 	t.Run("RevokeConsent", func(t *testing.T) {
+		server := createTestServer()
 		// First create a consent record
 		createReq := ConsentRequest{
 			AppID: "passport-app",
@@ -400,7 +413,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(createReq)
-		createReqHTTP := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		createReqHTTP := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
@@ -426,7 +439,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		updateJsonBody, _ := json.Marshal(updateReq)
-		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(updateJsonBody))
+		updateReqHTTP := httptest.NewRequest("PUT", fmt.Sprintf("/consents/%s", createResponse.ConsentID), bytes.NewBuffer(updateJsonBody))
 		updateReqHTTP.Header.Set("Content-Type", "application/json")
 		updateW := httptest.NewRecorder()
 
@@ -442,7 +455,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		revokeJsonBody, _ := json.Marshal(revokeReq)
-		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(revokeJsonBody))
+		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consents/%s", createResponse.ConsentID), bytes.NewBuffer(revokeJsonBody))
 		revokeReqHTTP.Header.Set("Content-Type", "application/json")
 		revokeW := httptest.NewRecorder()
 
@@ -464,6 +477,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 9: Get Consents by Data Owner
 	t.Run("GetConsentsByDataOwner", func(t *testing.T) {
+		server := createTestServer()
 		// Create multiple consent records for the same data owner
 		dataOwner := "199512345678"
 
@@ -483,7 +497,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 			}
 
 			jsonBody, _ := json.Marshal(createReq)
-			createReqHTTP := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+			createReqHTTP := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 			createReqHTTP.Header.Set("Content-Type", "application/json")
 			createW := httptest.NewRecorder()
 
@@ -524,6 +538,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 10: Get Consents by Consumer
 	t.Run("GetConsentsByConsumer", func(t *testing.T) {
+		server := createTestServer()
 		// Create multiple consent records for the same consumer
 		consumer := "passport-app"
 
@@ -543,7 +558,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 			}
 
 			jsonBody, _ := json.Marshal(createReq)
-			createReqHTTP := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+			createReqHTTP := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 			createReqHTTP.Header.Set("Content-Type", "application/json")
 			createW := httptest.NewRecorder()
 
@@ -584,6 +599,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 	// Test 11: Send Consent OTP
 	t.Run("SendConsentOTP", func(t *testing.T) {
+		server := createTestServer()
 		// First create a consent record
 		createReq := ConsentRequest{
 			AppID: "passport-app",
@@ -600,7 +616,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(createReq)
-		createReqHTTP := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		createReqHTTP := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
@@ -619,7 +635,7 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 		}
 
 		// Test sending OTP
-		otpReq := httptest.NewRequest("POST", fmt.Sprintf("/consent/%s/otp", createResponse.ConsentID), bytes.NewBufferString(`{"phone_number": "+1234567890"}`))
+		otpReq := httptest.NewRequest("POST", fmt.Sprintf("/consents/%s/otp", createResponse.ConsentID), bytes.NewBufferString(`{"phone_number": "+1234567890"}`))
 		otpReq.Header.Set("Content-Type", "application/json")
 		otpW := httptest.NewRecorder()
 
@@ -646,12 +662,11 @@ func TestConsentWorkflowIntegration(t *testing.T) {
 
 // TestConsentWorkflowErrorCases tests various error scenarios
 func TestConsentWorkflowErrorCases(t *testing.T) {
-	engine := NewConsentEngine()
-	server := &apiServer{engine: engine}
 
 	// Test 1: Get non-existent consent
 	t.Run("GetNonExistentConsent", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/consent/non-existent-id", nil)
+		server := createTestServer()
+		req := httptest.NewRequest("GET", "/consents/non-existent-id", nil)
 		w := httptest.NewRecorder()
 
 		server.getConsentStatus(w, req)
@@ -663,6 +678,7 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 
 	// Test 2: Update non-existent consent
 	t.Run("UpdateNonExistentConsent", func(t *testing.T) {
+		server := createTestServer()
 		updateReq := UpdateConsentRequest{
 			Status:    StatusApproved,
 			UpdatedBy: "data_owner",
@@ -670,7 +686,7 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(updateReq)
-		req := httptest.NewRequest("PUT", "/consent/non-existent-id", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("PUT", "/consents/non-existent-id", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -683,12 +699,13 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 
 	// Test 3: Revoke non-existent consent
 	t.Run("RevokeNonExistentConsent", func(t *testing.T) {
+		server := createTestServer()
 		revokeReq := map[string]string{
 			"reason": "User requested revocation",
 		}
 
 		jsonBody, _ := json.Marshal(revokeReq)
-		req := httptest.NewRequest("DELETE", "/consent/non-existent-id", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("DELETE", "/consents/non-existent-id", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -701,6 +718,7 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 
 	// Test 4: Invalid status transition
 	t.Run("InvalidStatusTransition", func(t *testing.T) {
+		server := createTestServer()
 		// First create a consent record
 		createReq := ConsentRequest{
 			AppID: "passport-app",
@@ -717,7 +735,7 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(createReq)
-		createReqHTTP := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		createReqHTTP := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		createReqHTTP.Header.Set("Content-Type", "application/json")
 		createW := httptest.NewRecorder()
 
@@ -741,7 +759,7 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 		}
 
 		revokeJsonBody, _ := json.Marshal(revokeReq)
-		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consent/%s", createResponse.ConsentID), bytes.NewBuffer(revokeJsonBody))
+		revokeReqHTTP := httptest.NewRequest("DELETE", fmt.Sprintf("/consents/%s", createResponse.ConsentID), bytes.NewBuffer(revokeJsonBody))
 		revokeReqHTTP.Header.Set("Content-Type", "application/json")
 		revokeW := httptest.NewRecorder()
 
@@ -756,11 +774,9 @@ func TestConsentWorkflowErrorCases(t *testing.T) {
 
 // TestConsentWorkflowEdgeCases tests edge cases and boundary conditions
 func TestConsentWorkflowEdgeCases(t *testing.T) {
-	engine := NewConsentEngine()
-	server := &apiServer{engine: engine}
-
 	// Test 1: Very long field names
 	t.Run("LongFieldNames", func(t *testing.T) {
+		server := createTestServer()
 		longFieldName := "very.long.field.name.that.might.cause.issues.in.the.system.and.should.be.handled.properly"
 
 		reqBody := ConsentRequest{
@@ -778,7 +794,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -803,6 +819,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 
 	// Test 2: Special characters in field names
 	t.Run("SpecialCharactersInFieldNames", func(t *testing.T) {
+		server := createTestServer()
 		specialFields := []string{
 			"personInfo.name-with-dashes",
 			"personInfo.name_with_underscores",
@@ -825,7 +842,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -850,6 +867,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 
 	// Test 3: Empty strings in required fields
 	t.Run("EmptyStringsInRequiredFields", func(t *testing.T) {
+		server := createTestServer()
 		reqBody := ConsentRequest{
 			AppID: "", // Empty app_id
 			DataFields: []DataField{
@@ -865,7 +883,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
@@ -882,6 +900,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 
 	// Test 4: Very large number of fields
 	t.Run("LargeNumberOfFields", func(t *testing.T) {
+		server := createTestServer()
 		var fields []string
 		for i := 0; i < 1000; i++ {
 			fields = append(fields, fmt.Sprintf("personInfo.field%d", i))
@@ -902,7 +921,7 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/consent", bytes.NewBuffer(jsonBody))
+		req := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 

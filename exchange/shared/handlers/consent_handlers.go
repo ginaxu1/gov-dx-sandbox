@@ -48,7 +48,7 @@ func (h *ConsentHandler) CreateConsent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ConsentHandler) GetConsentStatus(w http.ResponseWriter, r *http.Request) {
-	utils.PathHandler(w, r, "/consent/", func(id string) (interface{}, int, error) {
+	utils.PathHandler(w, r, "/consents/", func(id string) (interface{}, int, error) {
 		record, err := h.engine.GetConsentStatus(id)
 		if err != nil {
 			return nil, http.StatusNotFound, fmt.Errorf(constants.ErrConsentNotFound+": %w", err)
@@ -60,7 +60,7 @@ func (h *ConsentHandler) GetConsentStatus(w http.ResponseWriter, r *http.Request
 func (h *ConsentHandler) UpdateConsent(w http.ResponseWriter, r *http.Request) {
 	var req UpdateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id, err := utils.ExtractIDFromPath(r, "/consent/")
+		id, err := utils.ExtractIDFromPath(r, "/consents/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -79,7 +79,7 @@ func (h *ConsentHandler) UpdateConsent(w http.ResponseWriter, r *http.Request) {
 func (h *ConsentHandler) RevokeConsent(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Reason string }
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id, err := utils.ExtractIDFromPath(r, "/consent/")
+		id, err := utils.ExtractIDFromPath(r, "/consents/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -186,7 +186,7 @@ func (h *ConsentHandler) CheckConsentExpiry(w http.ResponseWriter, r *http.Reque
 
 // Route handlers
 func (h *ConsentHandler) ConsentHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/consent")
+	path := strings.TrimPrefix(r.URL.Path, "/consents")
 	switch {
 	case path == "" && r.Method == http.MethodPost:
 		h.CreateConsent(w, r)

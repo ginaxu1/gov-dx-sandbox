@@ -57,8 +57,8 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 		return nil, err
 	}
 
-	logger.Log.Info("Making Consent Request to Consent Engine", "url", p.baseUrl+"/consent")
-	response, err := p.httpClient.Post(p.baseUrl+"/consent", "application/json", bytes.NewReader(requestBody))
+	logger.Log.Info("Making Consent Request to Consent Engine", "url", p.baseUrl+"/consents")
+	response, err := p.httpClient.Post(p.baseUrl+"/consents", "application/json", bytes.NewReader(requestBody))
 
 	if err != nil {
 		// handle error
