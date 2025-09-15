@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Check, X, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 
+// Extend Window interface to include config
+declare global {
+  interface Window {
+    config: {
+      CONSENT_ENGINE_PATH: string;
+    };
+  }
+}
+
 // Types
 interface ConsentRecord {
   consent_uuid: string;
@@ -42,7 +51,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
   // Base API path from environment variable
   // const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
-  const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
+  // const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
+  const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || window.config.CONSENT_ENGINE_PATH;
   // For demonstration, using a placeholder. Replace with actual API base path.
 
   // Get consent_uuid from URL params
