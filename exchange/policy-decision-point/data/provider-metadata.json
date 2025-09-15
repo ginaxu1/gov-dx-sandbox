@@ -34,19 +34,18 @@
         }
       ]
     },
-    "person.fullName": {
-      "owner": "citizen",
-      "provider": "drp",
-      "consent_required": false,
-      "access_control_type": "public",
-      "allow_list": []
-    },
     "person.nic": {
       "owner": "citizen",
       "provider": "drp",
       "consent_required": true,
       "access_control_type": "public",
-      "allow_list": []
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
     },
     "person.permanentAddress": {
       "owner": "rgd",
@@ -147,6 +146,71 @@
       "provider": "rgd",
       "consent_required": true,
       "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "rgd.getPersonInfo.birthDate": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "rgd.getPersonInfo.sex": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "drp.person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "drp.person.otherNames": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "rgd.getPersonInfo.district": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "restricted",
       "allow_list": [
         {
           "consumerId": "passport-app",
