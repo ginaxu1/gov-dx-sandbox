@@ -156,7 +156,7 @@ func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
 	// Build redirect URL with consent_id for pending status
 	var redirectURL string
 	if cr.Status == StatusPending {
-		redirectURL = fmt.Sprintf("https://consent-portal.gov.lk/consent_%s", cr.ConsentID)
+		redirectURL = fmt.Sprintf("%s?consent=%s", cr.RedirectURL, cr.ConsentID)
 	}
 
 	// Extract purpose from metadata safely
@@ -236,14 +236,16 @@ type ConsentEngine interface {
 
 // consentEngineImpl is the private, in-memory implementation of the ConsentEngine interface
 type consentEngineImpl struct {
-	consentRecords map[string]*ConsentRecord
-	lock           sync.RWMutex
+	consentRecords   map[string]*ConsentRecord
+	lock             sync.RWMutex
+	consentPortalUrl string
 }
 
 // NewConsentEngine creates a new in-memory instance of the ConsentEngine
-func NewConsentEngine() ConsentEngine {
+func NewConsentEngine(consentPortalUrl string) ConsentEngine {
 	return &consentEngineImpl{
-		consentRecords: make(map[string]*ConsentRecord),
+		consentRecords:   make(map[string]*ConsentRecord),
+		consentPortalUrl: consentPortalUrl,
 	}
 }
 
@@ -264,7 +266,7 @@ func (ce *consentEngineImpl) CreateConsent(req CreateConsentRequest) (*ConsentRe
 		OwnerID:      req.DataOwner,
 		Fields:       req.Fields,
 		SessionID:    req.SessionID,
-		RedirectURL:  req.RedirectURL,
+		RedirectURL:  ce.consentPortalUrl,
 		Metadata:     req.Metadata,
 	}
 
@@ -531,6 +533,44 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	// Create expiry time (30 days from now)
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 
+	// Check whether consent is already given; need to iterate through each data field.
+	for _, dataField := range req.DataFields {
+		for _, record := range ce.consentRecords {
+			if record.OwnerID == dataField.OwnerID && record.DataConsumer == req.AppID && record.Status == StatusApproved {
+				// Check if all requested fields are already approved
+				allFieldsApproved := true
+				fieldSet := make(map[string]struct{})
+				for _, field := range record.Fields {
+					fieldSet[field] = struct{}{}
+				}
+				for _, requestedField := range dataField.Fields {
+					if _, exists := fieldSet[requestedField]; !exists {
+						allFieldsApproved = false
+						break
+					}
+				}
+				if allFieldsApproved {
+					// Return existing consent response
+					return &ConsentResponse{
+						ConsentID:    record.ConsentID,
+						OwnerID:      record.OwnerID,
+						DataConsumer: record.DataConsumer,
+						Status:       string(record.Status),
+						Type:         string(record.Type),
+						CreatedAt:    record.CreatedAt,
+						UpdatedAt:    record.UpdatedAt,
+						ExpiresAt:    record.ExpiresAt,
+						Fields:       record.Fields,
+						SessionID:    record.SessionID,
+						RedirectURL:  record.RedirectURL,
+						Purpose:      req.Purpose,
+						Message:      "Consent already granted.",
+					}, nil
+				}
+			}
+		}
+	}
+
 	// Create ConsentRecord for each Data Owner
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
@@ -577,7 +617,7 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 		ExpiresAt:    primaryRecord.ExpiresAt,
 		Fields:       primaryRecord.Fields,
 		SessionID:    primaryRecord.SessionID,
-		RedirectURL:  fmt.Sprintf("https://consent-portal.gov.lk/consent_%s", primaryRecord.ConsentID),
+		RedirectURL:  fmt.Sprintf("%s?consent=%s", ce.consentPortalUrl, primaryRecord.ConsentID),
 		Purpose:      req.Purpose,
 		Message:      "Consent required. Please visit the consent portal.",
 	}
