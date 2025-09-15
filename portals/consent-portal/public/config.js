@@ -1,3 +1,3 @@
 window.config = {
-    CONSENT_ENGINE_PATH:"http://localhost:8081"
+    CONSENT_ENGINE_PATH:"/choreo-apis/opendif-ndx/consent-engine/v1"
 }
