@@ -319,9 +319,19 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
   // Format field names for display
   const formatFieldName = (field: string): string => {
-    return field.split('.').map(part => 
-      part.charAt(0).toUpperCase() + part.slice(1)
-    ).join(' - ');
+    const lastField = field ? field.split('.').at(-1) : '';
+    if (!lastField) return field;
+
+    // Split by camelCase or underscores
+    const words = lastField
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // Split camelCase
+      .split(/[_\s]+/) // Split by underscores or spaces
+      .filter(word => word.length > 0); // Remove empty strings
+
+    // Convert each word to title case
+    return words
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   };
 
   // Format date for display
