@@ -49,7 +49,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const getConsentUuid = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
     console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent') ? urlParams.get('consent') : 'consent_5df473bd'; // Placeholder for testing
+    return urlParams.get('consent'); // Placeholder for testing
   };
 
   // Fetch consent data
@@ -282,7 +282,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     try {
       const payload = {
         ...consentRecord,
-        status: userDecision
+        status: userDecision,
+        updated_by: ownerInfo ? ownerInfo.owner_id : 'self-service',
+        reason: userDecision === 'rejected' ? 'User denied the consent request via self-service portal' : 'User approved the consent request via self-service portal',
+        otp: '000000'
       };
 
       const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentRecord.consent_uuid}`, {
@@ -316,9 +319,19 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
   // Format field names for display
   const formatFieldName = (field: string): string => {
-    return field.split('.').map(part => 
-      part.charAt(0).toUpperCase() + part.slice(1)
-    ).join(' - ');
+    const lastField = field ? field.split('.').at(-1) : '';
+    if (!lastField) return field;
+
+    // Split by camelCase or underscores
+    const words = lastField
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // Split camelCase
+      .split(/[_\s]+/) // Split by underscores or spaces
+      .filter(word => word.length > 0); // Remove empty strings
+
+    // Convert each word to title case
+    return words
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   };
 
   // Format date for display
