@@ -13,8 +13,8 @@ ARG GIT_COMMIT
 RUN apk add --no-cache git ca-certificates tzdata
 
 # Copy go mod files and source code
-COPY policy-decision-point/go.mod policy-decision-point/go.sum ./
-COPY policy-decision-point/ ./
+COPY go.mod go.sum ./
+COPY . ./
 
 # Copy shared packages - for Choreo builds, shared packages should be copied into the service directory
 COPY shared/ /app/shared/

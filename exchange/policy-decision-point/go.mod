@@ -51,6 +51,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
 replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
+
+replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constants
 
 replace github.com/gov-dx-sandbox/exchange/shared/utils => ./shared/utils
