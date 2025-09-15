@@ -17,7 +17,8 @@ This README explains how to test the consent-portal with the ConsentEngine.
 
 1. `cd portals/consent-portal`
 2. `npm install`
-3. `npm run dev`
+3. `cp .env.template .env`
+4. `npm run dev`
 
 ## Test the Portal
 
