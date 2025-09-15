@@ -128,7 +128,7 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) getConsentStatus(w http.ResponseWriter, r *http.Request) {
-	utils.PathHandler(w, r, "/consent/", func(id string) (interface{}, int, error) {
+	utils.PathHandler(w, r, "/consents/", func(id string) (interface{}, int, error) {
 		record, err := s.engine.GetConsentStatus(id)
 		if err != nil {
 			return nil, http.StatusNotFound, fmt.Errorf(constants.ErrConsentNotFound+": %w", err)
@@ -140,7 +140,7 @@ func (s *apiServer) getConsentStatus(w http.ResponseWriter, r *http.Request) {
 func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 	var req UpdateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id, err := utils.ExtractIDFromPath(r, "/consent/")
+		id, err := utils.ExtractIDFromPath(r, "/consents/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -156,7 +156,7 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Reason string }
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id, err := utils.ExtractIDFromPath(r, "/consent/")
+		id, err := utils.ExtractIDFromPath(r, "/consents/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -318,7 +318,7 @@ func (s *apiServer) sendConsentOTP(w http.ResponseWriter, r *http.Request) {
 		PhoneNumber string `json:"phone_number"`
 	}
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		consentID, err := utils.ExtractIDFromPath(r, "/consent/")
+		consentID, err := utils.ExtractIDFromPath(r, "/consents/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -438,7 +438,7 @@ func (s *apiServer) updateConsentWithOTP(w http.ResponseWriter, r *http.Request)
 
 // Route handlers - organized for better readability
 func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/consent")
+	path := strings.TrimPrefix(r.URL.Path, "/consents")
 	fmt.Printf("DEBUG: Path=%s, Method=%s\n", path, r.Method)
 	switch {
 	case path == "" && r.Method == http.MethodPost:
@@ -679,9 +679,8 @@ func main() {
 
 	// Setup routes using utils
 	mux := http.NewServeMux()
-	mux.Handle("/consent", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
-	mux.Handle("/consent/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
-	mux.Handle("/consent/update", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentUpdateHandler)))
+	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
+	mux.Handle("/consents/update", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentUpdateHandler)))
 	mux.Handle("/consent-portal/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentPortalHandler)))
 	mux.Handle("/consent-website", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentWebsiteHandler)))
 	mux.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))

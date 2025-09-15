@@ -49,14 +49,14 @@ test_consent_request() {
     echo -e "${BLUE}Test: $test_name${NC}"
     echo ""
     
-    CONSENT_RESPONSE=$(curl -s -X POST http://localhost:8081/consent \
+    CONSENT_RESPONSE=$(curl -s -X POST http://localhost:8081/consents \
       -H "Content-Type: application/json" \
       -d "$data")
     
     echo "Consent Engine Response:"
     echo "$CONSENT_RESPONSE" | jq '.'
     
-    CONSENT_ID=$(echo "$CONSENT_RESPONSE" | jq -r '.id // ""')
+    CONSENT_ID=$(echo "$CONSENT_RESPONSE" | jq -r '.consent_id // ""')
     CONSENT_STATUS=$(echo "$CONSENT_RESPONSE" | jq -r '.status // ""')
     DATA_CONSUMER=$(echo "$CONSENT_RESPONSE" | jq -r '.data_consumer // ""')
     DATA_OWNER=$(echo "$CONSENT_RESPONSE" | jq -r '.data_owner // ""')
@@ -186,7 +186,7 @@ if [ "$CONSENT_ID" != "" ] && [ "$CONSENT_ID" != "null" ]; then
 echo ""
         echo -e "${PURPLE}Testing consent approval...${NC}"
 
-CONSENT_UPDATE_RESPONSE=$(curl -s -X PUT "http://localhost:8081/consent/$CONSENT_ID" \
+CONSENT_UPDATE_RESPONSE=$(curl -s -X PUT "http://localhost:8081/consents/$CONSENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "approved",
@@ -323,7 +323,7 @@ echo "Health response: $HEALTH_RESPONSE"
 if [ "$CONSENT_ID" != "" ] && [ "$CONSENT_ID" != "null" ]; then
 echo ""
     echo "Testing consent retrieval..."
-CONSENT_GET_RESPONSE=$(curl -s -X GET "http://localhost:8081/consent/$CONSENT_ID")
+CONSENT_GET_RESPONSE=$(curl -s -X GET "http://localhost:8081/consents/$CONSENT_ID")
 echo "Consent retrieval response:"
 echo "$CONSENT_GET_RESPONSE" | jq '.'
 

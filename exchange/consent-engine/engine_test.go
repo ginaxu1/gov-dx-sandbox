@@ -6,7 +6,7 @@ import (
 )
 
 func TestConsentEngine_CreateConsent(t *testing.T) {
-	engine := NewConsentEngine()
+	engine := NewConsentEngine("http://localhost:5173")
 
 	req := CreateConsentRequest{
 		DataConsumer: "passport-app",
@@ -40,7 +40,7 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 }
 
 func TestConsentEngine_GetConsentStatus(t *testing.T) {
-	engine := NewConsentEngine()
+	engine := NewConsentEngine("http://localhost:5173")
 
 	// Create a consent record first
 	req := CreateConsentRequest{
@@ -71,7 +71,7 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 }
 
 func TestConsentEngine_UpdateConsent(t *testing.T) {
-	engine := NewConsentEngine()
+	engine := NewConsentEngine("http://localhost:5173")
 
 	// Create a consent record first
 	req := CreateConsentRequest{
@@ -108,7 +108,7 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 }
 
 func TestConsentEngine_RevokeConsent(t *testing.T) {
-	engine := NewConsentEngine()
+	engine := NewConsentEngine("http://localhost:5173")
 
 	// Create a consent record first
 	req := CreateConsentRequest{
@@ -147,7 +147,7 @@ func TestConsentEngine_RevokeConsent(t *testing.T) {
 }
 
 func TestConsentEngine_GetConsentsByDataOwner(t *testing.T) {
-	engine := NewConsentEngine()
+	engine := NewConsentEngine("http://localhost:5173")
 
 	// Create multiple consent records for the same data owner
 	req1 := CreateConsentRequest{
@@ -186,7 +186,7 @@ func TestConsentEngine_GetConsentsByDataOwner(t *testing.T) {
 }
 
 func TestConsentEngine_GetConsentsByConsumer(t *testing.T) {
-	engine := NewConsentEngine()
+	engine := NewConsentEngine("http://localhost:5173")
 
 	// Create multiple consent records for the same consumer
 	req1 := CreateConsentRequest{
@@ -225,7 +225,7 @@ func TestConsentEngine_GetConsentsByConsumer(t *testing.T) {
 }
 
 func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
-	engine := NewConsentEngine()
+	engine := NewConsentEngine("http://localhost:5173")
 
 	// Create a consent record with short expiry
 	req := CreateConsentRequest{
