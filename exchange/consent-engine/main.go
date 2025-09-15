@@ -674,7 +674,7 @@ func main() {
 		"git_commit", GitCommit)
 
 	// Initialize consent engine
-	engine := NewConsentEngine()
+	engine := NewConsentEngine(cfg.ConsentPortalUrl)
 	server := &apiServer{engine: engine}
 
 	// Setup routes using utils
