@@ -143,7 +143,7 @@ curl -X POST http://localhost:8082/decide \
   }'
 
 # Consent Management
-curl -X POST http://localhost:8081/consent \
+curl -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
     "app_id": "passport-app",
