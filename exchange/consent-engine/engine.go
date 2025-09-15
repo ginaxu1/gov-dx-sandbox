@@ -617,7 +617,7 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 		ExpiresAt:    primaryRecord.ExpiresAt,
 		Fields:       primaryRecord.Fields,
 		SessionID:    primaryRecord.SessionID,
-		RedirectURL:  fmt.Sprintf(ce.consentPortalUrl+"?consent=%s", primaryRecord.ConsentID),
+		RedirectURL:  fmt.Sprintf("%s?consent=%s", ce.consentPortalUrl, primaryRecord.ConsentID),
 		Purpose:      req.Purpose,
 		Message:      "Consent required. Please visit the consent portal.",
 	}
