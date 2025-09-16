@@ -223,24 +223,6 @@ func NewConsentEngine(consentPortalUrl string) ConsentEngine {
 		consentPortalUrl: consentPortalUrl,
 	}
 
-	// Create a default hardcoded ConsentRecord for testing
-	defaultRecord := &ConsentRecord{
-		ConsentID:        "consent_03c134ae",
-		OwnerID:          "199512345678",
-		AppID:            "passport-app",
-		Status:           string(StatusPending),
-		Type:             string(ConsentTypeRealTime),
-		CreatedAt:        time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
-		UpdatedAt:        time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
-		ExpiresAt:        time.Date(2025, 10, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)), // 2025-10-14T12:58:34+05:30
-		GrantDuration:    "30d",
-		Fields:           []string{"personInfo.permanentAddress"},
-		SessionID:        "session_123",
-		ConsentPortalURL: "http://localhost:5173/?consent_id=consent_03c134ae",
-	}
-
-	ce.consentRecords[defaultRecord.ConsentID] = defaultRecord
-
 	return ce
 }
 
