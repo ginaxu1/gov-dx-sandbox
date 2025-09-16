@@ -66,7 +66,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // Fetch consent data
   const fetchConsentData = async (consentUuid: string) => {
     try {
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentUuid}`);
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`);
       if (!response.ok) {
         throw new Error('Failed to fetch consent data');
       }
@@ -299,7 +299,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         otp: '000000'
       };
 
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentRecord.consent_uuid}`, {
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentRecord.consent_uuid}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
