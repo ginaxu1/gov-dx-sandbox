@@ -12,7 +12,7 @@ declare global {
 
 // Types
 interface ConsentRecord {
-  consent_uuid: string;
+  consent_id: string;
   owner_id: string;
   data_consumer: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
@@ -71,7 +71,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         throw new Error('Failed to fetch consent data');
       }
       const data: ConsentRecord = await response.json();
-      setConsentRecord(data);
+      setConsentRecord({
+          ...data,
+          consent_id: consentUuid,
+      });
       
       // Check consent status and set appropriate step
       if (data.status === 'pending') {
@@ -299,7 +302,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         otp: '000000'
       };
 
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentRecord.consent_uuid}`, {
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentRecord.consent_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
