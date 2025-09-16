@@ -30,8 +30,8 @@ type DataOwnerRecord struct {
 }
 
 type CEResponse struct {
-	Status      string `json:"status"`
-	RedirectUrl string `json:"redirect_url,omitempty"`
+	Status           string `json:"status"`
+	ConsentPortalUrl string `json:"consent_portal_url,omitempty"`
 }
 
 type CEClient struct {

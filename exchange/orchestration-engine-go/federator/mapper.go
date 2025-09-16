@@ -76,7 +76,7 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 			return requests, &graphql.JSONError{
 				Message: "Consent not approved",
 				Extensions: map[string]interface{}{
-					"redirectUrl": ceResp.RedirectUrl,
+					"consentPortalUrl": ceResp.ConsentPortalUrl,
 				},
 			}
 		}
