@@ -73,6 +73,13 @@
         }
       ]
     },
+    "person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
     "user.birthInfo": {
       "owner": "prov_947c7b7992fbf6e7",
       "provider": "prov_947c7b7992fbf6e7",
