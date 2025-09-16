@@ -585,11 +585,6 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	// Store the record
 	ce.consentRecords[consentID] = record
 
-	// Build redirect URL with consent_id for pending status
-	if record.Status == string(StatusPending) {
-		record.ConsentPortalURL = fmt.Sprintf("http://localhost:5173/?consent_id=%s", record.ConsentID)
-	}
-
 	return record, nil
 }
 
