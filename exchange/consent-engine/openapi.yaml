@@ -6,8 +6,7 @@ info:
     This service handles consent creation, approval, tracking, and management for data access requests.
   version: 1.0.0
   contact:
-    name: Gov DX Sandbox Team
-    email: support@gov-dx-sandbox.com
+    name: OpenDIF Team
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -110,11 +109,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-    
+
     put:
-      summary: Update Consent Status
-      description: Update the status of an existing consent (approve/deny)
-      operationId: updateConsentStatus
+      summary: Update Consent
+      description: Update a specific consent record by its ID
+      operationId: updateConsent
       tags:
         - Consents
       parameters:
@@ -353,33 +352,34 @@ components:
     UpdateConsentRequest:
       type: object
       required:
-        - consent_id
-        - action
+        - status
+        - updated_by
+        - reason
       properties:
-        consent_id:
+        status:
           type: string
-          description: ID of the consent to update
-          example: consent_8d255282
-        action:
+          enum: [pending, approved, rejected, expired, revoked]
+          description: New status of the consent
+          example: approved
+        updated_by:
           type: string
-          enum: [approve, deny]
-          description: Action to take on the consent
-          example: approve
-        otp:
+          description: ID of the user who updated the consent
+          example: citizen_199512345678
+        reason:
           type: string
-          description: One-time password for verification (if required)
-          example: 123456
+          description: Reason for the status update
+          example: User approved consent via portal
 
     ConsentPortalAction:
       type: object
       required:
-        - action
+        - status
       properties:
-        action:
+        status:
           type: string
-          enum: [approve, deny]
+          enum: [approved, rejected, revoked]
           description: Action to take on the consent
-          example: approve
+          example: approved
 
     ConsentResponse:
       type: object
@@ -398,7 +398,7 @@ components:
           example: passport-app
         status:
           type: string
-          enum: [pending, approved, denied, expired]
+          enum: [pending, approved, rejected, expired]
           description: Current status of the consent
           example: pending
         type:
