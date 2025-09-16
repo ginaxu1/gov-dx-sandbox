@@ -6,6 +6,7 @@ interface ConsentRecord {
   consent_id: string;
   owner_id: string;
   data_consumer: string;
+  app_display_name: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
   type?: string;
   created_at: string;
@@ -78,7 +79,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     // const mockedData: ConsentRecord = {
     //   consent_id: consentId,
     //   owner_id: 'user_12345',
-    //   data_consumer: 'Example App',
+    //   data_consumer: 'passport-app',
+    //   app_display_name: 'Passport App',
     //   status: 'pending', // Change this to test different statuses: 'approved', 'rejected', 'expired', 'revoked'
     //   type: 'Standard',
     //   created_at: new Date().toISOString(),
@@ -587,7 +589,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="font-medium text-gray-600">Application:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.app_display_name}</span>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Owner ID:</span>
@@ -670,7 +672,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div>
                       <span className="font-medium text-gray-600">Application:</span>
-                      <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
+                      <span className="ml-2 text-gray-800">{consentRecord.app_display_name}</span>
                     </div>
                     <div>
                       <span className="font-medium text-gray-600">Owner ID:</span>
@@ -706,7 +708,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                     <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
                     <div className="text-sm text-yellow-800">
                       <p className="font-medium mb-1">Important:</p>
-                      <p>By approving this request, you are granting {consentRecord.data_consumer} access to the specified data fields. This access will remain valid until {formatDate(consentRecord.expires_at)}.</p>
+                      <p>By approving this request, you are granting {consentRecord.app_display_name} access to the specified data fields. This access will remain valid until {formatDate(consentRecord.expires_at)}.</p>
                     </div>
                   </div>
                 </div>
