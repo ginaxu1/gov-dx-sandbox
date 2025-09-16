@@ -307,7 +307,12 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       // Redirect after 3 seconds
       setTimeout(() => {
         if (consentRecord.redirect_url) {
-          window.location.href = consentRecord.redirect_url;
+            // Notify the opener window
+            if (window.opener) {
+                window.opener.postMessage("consent_granted", "*");
+            }
+            // Close this popup
+            window.close();        
         }
       }, 3000);
 
