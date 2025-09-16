@@ -24,9 +24,9 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 					Fields:    []string{"person.permanentAddress", "person.birthDate"},
 				},
 			},
-			Purpose:     "passport_application",
-			SessionID:   "session_123",
-			RedirectURL: "https://passport-app.gov.lk/callback",
+			Purpose:          "passport_application",
+			SessionID:        "session_123",
+			ConsentPortalURL: "https://passport-app.gov.lk/callback",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -58,11 +58,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 	t.Run("CreateConsent_InvalidRequest", func(t *testing.T) {
 		// Test with empty data fields
 		reqBody := ConsentRequest{
-			AppID:       "passport-app",
-			DataFields:  []DataField{},
-			Purpose:     "passport_application",
-			SessionID:   "session_123",
-			RedirectURL: "https://passport-app.gov.lk/callback",
+			AppID:            "passport-app",
+			DataFields:       []DataField{},
+			Purpose:          "passport_application",
+			SessionID:        "session_123",
+			ConsentPortalURL: "https://passport-app.gov.lk/callback",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)

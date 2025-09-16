@@ -110,14 +110,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
-  /consents/update:
-    post:
+    
+    put:
       summary: Update Consent Status
       description: Update the status of an existing consent (approve/deny)
       operationId: updateConsentStatus
       tags:
         - Consents
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: Unique identifier for the consent
+          schema:
+            type: string
+            example: consent_8d255282
       requestBody:
         required: true
         content:
@@ -244,7 +251,7 @@ paths:
   /consent-portal/{consentId}:
     post:
       summary: Handle Consent Portal Actions
-      description: Process actions from the consent portal (approve/deny with OTP)
+      description: Process actions from the consent portal (approve/deny)
       operationId: handleConsentPortalAction
       tags:
         - Portal
@@ -270,7 +277,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
         '400':
-          description: Bad request - invalid action or OTP
+          description: Bad request - invalid action
           content:
             application/json:
               schema:
@@ -297,7 +304,7 @@ components:
         - data_fields
         - purpose
         - session_id
-        - redirect_url
+        - consent_portal_url
       properties:
         app_id:
           type: string
@@ -316,7 +323,7 @@ components:
           type: string
           description: Session identifier for tracking
           example: test-session-123
-        redirect_url:
+        consent_portal_url:
           type: string
           description: URL to redirect after consent approval/denial
           example: https://example.com/callback
@@ -373,10 +380,6 @@ components:
           enum: [approve, deny]
           description: Action to take on the consent
           example: approve
-        otp:
-          type: string
-          description: One-time password for verification
-          example: 123456
 
     ConsentResponse:
       type: object
@@ -432,14 +435,10 @@ components:
           type: string
           description: Session identifier for tracking
           example: test-session-123
-        redirect_url:
+        consent_portal_url:
           type: string
           description: URL to redirect after consent approval/denial
           example: "http://localhost:5173/?consent_id=consent_8d255282"
-        otp_attempts:
-          type: integer
-          description: Number of OTP verification attempts
-          example: 0
 
     ErrorResponse:
       type: object

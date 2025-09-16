@@ -1,10 +1,10 @@
-package tests
+package main
 
 import (
 	"encoding/json"
 	"testing"
 
-	"github.com/gov-dx-sandbox/api-server-go/models"
+	"github.com/gov-dx-sandbox/exchange/consent-engine/models"
 )
 
 func TestConsentWorkflowRequest(t *testing.T) {
@@ -18,9 +18,9 @@ func TestConsentWorkflowRequest(t *testing.T) {
 				Fields:    []string{"person.permanentAddress"},
 			},
 		},
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk/callback",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	// Verify the request structure
@@ -56,8 +56,8 @@ func TestConsentWorkflowRequest(t *testing.T) {
 		t.Errorf("Expected SessionID to be 'session_123', got '%s'", req.SessionID)
 	}
 
-	if req.RedirectURL != "https://passport-app.gov.lk/callback" {
-		t.Errorf("Expected RedirectURL to be 'https://passport-app.gov.lk/callback', got '%s'", req.RedirectURL)
+	if req.ConsentPortalURL != "https://passport-app.gov.lk/callback" {
+		t.Errorf("Expected ConsentPortalURL to be 'https://passport-app.gov.lk/callback', got '%s'", req.ConsentPortalURL)
 	}
 }
 
@@ -101,9 +101,9 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 				Fields:    []string{"person.permanentAddress"},
 			},
 		},
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk/callback",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	// Test JSON marshaling
@@ -136,8 +136,8 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 		t.Errorf("Expected SessionID to be '%s', got '%s'", req.SessionID, unmarshaledReq.SessionID)
 	}
 
-	if unmarshaledReq.RedirectURL != req.RedirectURL {
-		t.Errorf("Expected RedirectURL to be '%s', got '%s'", req.RedirectURL, unmarshaledReq.RedirectURL)
+	if unmarshaledReq.ConsentPortalURL != req.ConsentPortalURL {
+		t.Errorf("Expected ConsentPortalURL to be '%s', got '%s'", req.ConsentPortalURL, unmarshaledReq.ConsentPortalURL)
 	}
 }
 
@@ -158,9 +158,9 @@ func TestConsentWorkflowValidation(t *testing.T) {
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:     "passport_application",
-				SessionID:   "session_123",
-				RedirectURL: "https://passport-app.gov.lk/callback",
+				Purpose:          "passport_application",
+				SessionID:        "session_123",
+				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: false,
 		},
@@ -175,20 +175,20 @@ func TestConsentWorkflowValidation(t *testing.T) {
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:     "passport_application",
-				SessionID:   "session_123",
-				RedirectURL: "https://passport-app.gov.lk/callback",
+				Purpose:          "passport_application",
+				SessionID:        "session_123",
+				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty data_fields",
 			req: models.ConsentWorkflowRequest{
-				AppID:       "passport-app",
-				DataFields:  []models.DataField{},
-				Purpose:     "passport_application",
-				SessionID:   "session_123",
-				RedirectURL: "https://passport-app.gov.lk/callback",
+				AppID:            "passport-app",
+				DataFields:       []models.DataField{},
+				Purpose:          "passport_application",
+				SessionID:        "session_123",
+				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: true,
 		},
@@ -203,9 +203,9 @@ func TestConsentWorkflowValidation(t *testing.T) {
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:     "",
-				SessionID:   "session_123",
-				RedirectURL: "https://passport-app.gov.lk/callback",
+				Purpose:          "",
+				SessionID:        "session_123",
+				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: true,
 		},
@@ -251,9 +251,9 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 				Fields:    []string{"person.fullName"},
 			},
 		},
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk/callback",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	if len(req.DataFields) != 2 {
@@ -270,9 +270,9 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 				Fields:    []string{"person.permanentAddress", "person.fullName", "person.email"},
 			},
 		},
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk/callback",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	if len(multiFieldReq.DataFields[0].Fields) != 3 {
