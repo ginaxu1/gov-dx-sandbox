@@ -60,7 +60,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const getConsentUuid = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
     console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent'); // Placeholder for testing
+    return urlParams.get('consent_id'); // Placeholder for testing
   };
 
   // Fetch consent data
