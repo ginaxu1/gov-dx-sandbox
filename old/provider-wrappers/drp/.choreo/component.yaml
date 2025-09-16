@@ -4,8 +4,8 @@ schemaVersion: 1.2
 # +optional Incoming connection details for the component
 endpoints:
   # GraphQL Endpoint for DRP Subgraph
-  - name: drp-adapter-service
-    displayName: DRP Provider Wrapper
+  - name: drp-adapter
+    displayName: DRP Adapter
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
