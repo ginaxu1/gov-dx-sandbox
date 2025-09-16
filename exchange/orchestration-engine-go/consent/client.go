@@ -14,13 +14,10 @@ type CeConfig struct {
 }
 
 type CERequest struct {
-	ConsumerId     string            `json:"consumer_id"`
-	AppId          string            `json:"app_id"`
-	RequestId      string            `json:"request_id"`
-	RequiredFields []DataOwnerRecord `json:"data_fields"`
-	Purpose        string            `json:"purpose"`
-	SessionId      string            `json:"session_id"`
-	RedirectUrl    string            `json:"redirect_url,omitempty"`
+	AppId      string            `json:"app_id"`
+	DataFields []DataOwnerRecord `json:"data_fields"`
+	Purpose    string            `json:"purpose"`
+	SessionId  string            `json:"session_id"`
 }
 
 type DataOwnerRecord struct {
@@ -30,8 +27,7 @@ type DataOwnerRecord struct {
 }
 
 type CEResponse struct {
-	Status           string `json:"status"`
-	ConsentPortalUrl string `json:"consent_portal_url,omitempty"`
+	Status string `json:"status"`
 }
 
 type CEClient struct {

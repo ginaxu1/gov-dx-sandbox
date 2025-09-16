@@ -48,13 +48,10 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 		logger.Log.Info("Consent required for fields: %v", pdpResponse.ConsentRequiredFields)
 
 		ceResp, err := ceClient.MakeConsentRequest(&consent.CERequest{
-			ConsumerId:  "passport-app",
-			AppId:       "passport-app",
-			RequestId:   "request_123",
-			Purpose:     "testing",
-			SessionId:   "session_123",
-			RedirectUrl: "http://localhost",
-			RequiredFields: []consent.DataOwnerRecord{
+			AppId:     "passport-app",
+			Purpose:   "testing",
+			SessionId: "session_123",
+			DataFields: []consent.DataOwnerRecord{
 				{
 					OwnerType: "citizen",
 					OwnerId:   "199512345678",

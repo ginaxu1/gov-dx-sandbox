@@ -59,11 +59,10 @@ type apiServer struct {
 
 // ConsentPortalCreateRequest represents the request format for creating consent via portal
 type ConsentPortalCreateRequest struct {
-	AppID            string      `json:"app_id"`
-	DataFields       []DataField `json:"data_fields"`
-	Purpose          string      `json:"purpose"`
-	SessionID        string      `json:"session_id"`
-	ConsentPortalURL string      `json:"consent_portal_url"`
+	AppID      string      `json:"app_id"`
+	DataFields []DataField `json:"data_fields"`
+	Purpose    string      `json:"purpose"`
+	SessionID  string      `json:"session_id"`
 }
 
 // ConsentPortalUpdateRequest represents the request format for updating consent via portal
@@ -140,10 +139,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.SessionID == "" {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
-		return
-	}
-	if req.ConsentPortalURL == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "consent_portal_url is required and cannot be empty"})
 		return
 	}
 	if len(req.DataFields) == 0 {
@@ -345,16 +340,22 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentExpiryFailed+": %w", err)
 		}
-		utils.HandleSuccess(w, map[string]interface{}{
-			"expired_records": expiredRecords,
-			"count":           len(expiredRecords),
-			"checked_at":      time.Now(),
-		}, http.StatusOK, OpCheckConsentExpiry, map[string]interface{}{
-			"expired_count": len(expiredRecords),
-		})
+
+		// Log the operation
+		slog.Info("Operation successful",
+			"operation", OpCheckConsentExpiry,
+			"expired_count", len(expiredRecords),
+		)
+
+		// Ensure expired_records is always an array, never null
+		expiredRecordsList := make([]*ConsentRecord, 0)
+		if expiredRecords != nil {
+			expiredRecordsList = expiredRecords
+		}
+
 		return map[string]interface{}{
-			"expired_records": expiredRecords,
-			"count":           len(expiredRecords),
+			"expired_records": expiredRecordsList,
+			"count":           len(expiredRecordsList),
 			"checked_at":      time.Now(),
 		}, http.StatusOK, nil
 	})
@@ -426,10 +427,6 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
 		return
 	}
-	if req.ConsentPortalURL == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "consent_portal_url is required and cannot be empty"})
-		return
-	}
 	if len(req.DataFields) == 0 {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "data_fields is required and cannot be empty"})
 		return
@@ -460,11 +457,10 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 
 	// Convert to ConsentRequest format
 	consentReq := ConsentRequest{
-		AppID:            req.AppID,
-		DataFields:       req.DataFields,
-		Purpose:          req.Purpose,
-		SessionID:        req.SessionID,
-		ConsentPortalURL: req.ConsentPortalURL,
+		AppID:      req.AppID,
+		DataFields: req.DataFields,
+		Purpose:    req.Purpose,
+		SessionID:  req.SessionID,
 	}
 
 	// Process consent request using the engine
