@@ -53,13 +53,13 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
   // const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
   const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : 'http://localhost:8081';
-  console.log('CONSENT_ENGINE_PATH:', CONSENT_ENGINE_PATH);
+  // console.log('CONSENT_ENGINE_PATH:', CONSENT_ENGINE_PATH);
   // For demonstration, using a placeholder. Replace with actual API base path.
 
   // Get consent_uuid from URL params
   const getConsentUuid = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
-    console.log('URL Params:', urlParams.toString());
+    // console.log('URL Params:', urlParams.toString());
     return urlParams.get('consent'); // Placeholder for testing
   };
 
