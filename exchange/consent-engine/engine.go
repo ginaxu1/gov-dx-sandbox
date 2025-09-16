@@ -18,14 +18,14 @@ type DataField struct {
 
 // ConsentResponse defines the structure for consent API responses
 type ConsentResponse struct {
-	ConsentID   string   `json:"consent_id"`
-	Status      string   `json:"status"`
-	OwnerID     string   `json:"owner_id"`
-	Fields      []string `json:"fields"`
-	SessionID   string   `json:"session_id"`
-	RedirectURL string   `json:"redirect_url"`
-	Purpose     string   `json:"purpose"`
-	Message     string   `json:"message"`
+	ConsentID        string   `json:"consent_id"`
+	Status           string   `json:"status"`
+	OwnerID          string   `json:"owner_id"`
+	Fields           []string `json:"fields"`
+	SessionID        string   `json:"session_id"`
+	ConsentPortalURL string   `json:"consent_portal_url"`
+	Purpose          string   `json:"purpose"`
+	Message          string   `json:"message"`
 }
 
 // Consent-engine error messages
@@ -99,10 +99,8 @@ type ConsentRecord struct {
 	Fields []string `json:"fields"`
 	// SessionID is the session identifier for tracking the consent flow
 	SessionID string `json:"session_id"`
-	// RedirectURL is the URL to redirect to after consent is provided
-	RedirectURL string `json:"redirect_url"`
-	// OTPAttempts tracks the number of OTP verification attempts
-	OTPAttempts int `json:"otp_attempts"`
+	// ConsentPortalURL is the URL to redirect to for consent portal
+	ConsentPortalURL string `json:"consent_portal_url"`
 }
 
 // ConsentPortalView represents the user-facing consent object for the UI.
@@ -110,6 +108,7 @@ type ConsentPortalView struct {
 	AppDisplayName string    `json:"app_display_name"`
 	CreatedAt      time.Time `json:"created_at"`
 	Fields         []string  `json:"fields"`
+	OwnerName      string    `json:"owner_name"`
 	Status         string    `json:"status"`
 	Type           string    `json:"type"`
 }
@@ -121,10 +120,16 @@ func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
 	appDisplayName := strings.ReplaceAll(cr.AppID, "-", " ")
 	appDisplayName = strings.Title(appDisplayName)
 
+	// Simple mapping for owner_id to a human-readable name.
+	// In a real application, this would be a database lookup or API call.
+	ownerName := strings.ReplaceAll(cr.OwnerID, "-", " ")
+	ownerName = strings.Title(ownerName)
+
 	return &ConsentPortalView{
 		AppDisplayName: appDisplayName,
 		CreatedAt:      cr.CreatedAt,
 		Fields:         cr.Fields,
+		OwnerName:      ownerName,
 		Status:         cr.Status,
 		Type:           cr.Type,
 	}
@@ -140,8 +145,8 @@ type ConsentRequest struct {
 	Purpose string `json:"purpose"`
 	// SessionID is the session identifier for tracking the consent flow
 	SessionID string `json:"session_id"`
-	// RedirectURL is the URL to redirect to after consent is provided
-	RedirectURL string `json:"redirect_url"`
+	// ConsentPortalURL is the URL to redirect to after consent is provided
+	ConsentPortalURL string `json:"consent_portal_url"`
 	// ExpiresAt is the expiry time as epoch timestamp (optional)
 	ExpiresAt int64 `json:"expires_at,omitempty"`
 	// GrantDuration is the duration of consent grant (e.g., "30d", "1h") (optional)
@@ -160,25 +165,6 @@ type UpdateConsentRequest struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// SMSOTPRequest represents an SMS OTP request
-type SMSOTPRequest struct {
-	PhoneNumber string `json:"phone_number"`
-	Message     string `json:"message"`
-	OTPCode     string `json:"otp_code"`
-}
-
-// SMSOTPResponse represents an SMS OTP response
-type SMSOTPResponse struct {
-	Success     bool   `json:"success"`
-	Message     string `json:"message,omitempty"`
-	ConsentID   string `json:"consent_id,omitempty"`
-	PhoneNumber string `json:"phone_number,omitempty"`
-	OTP         string `json:"otp,omitempty"`
-	ExpiresAt   string `json:"expires_at,omitempty"`
-	MessageID   string `json:"message_id,omitempty"`
-	Error       string `json:"error,omitempty"`
-}
-
 // ConsentPortalRequest defines the structure for consent portal interactions
 type ConsentPortalRequest struct {
 	// ConsentID is the ID of the consent record
@@ -191,14 +177,6 @@ type ConsentPortalRequest struct {
 	SessionID string `json:"session_id,omitempty"`
 	// Reason provides context for the action
 	Reason string `json:"reason,omitempty"`
-}
-
-// SMSOTPService defines the interface for SMS OTP operations
-type SMSOTPService interface {
-	// SendOTP sends an OTP via SMS
-	SendOTP(req SMSOTPRequest) (*SMSOTPResponse, error)
-	// VerifyOTP verifies an OTP code
-	VerifyOTP(phoneNumber, otpCode string) (bool, error)
 }
 
 // ConsentEngine defines the interface for managing consent records
@@ -223,8 +201,6 @@ type ConsentEngine interface {
 	RevokeConsent(id string, reason string) (*ConsentRecord, error)
 	// ProcessConsentRequest processes the new consent workflow request
 	ProcessConsentRequest(req ConsentRequest) (*ConsentRecord, error)
-	// SendConsentOTP sends an OTP for consent verification
-	SendConsentOTP(consentID, phoneNumber string) (*SMSOTPResponse, error)
 	// CreateOrUpdateConsentRecord creates a new consent record or updates an existing one
 	CreateOrUpdateConsentRecord(req ConsentRecord) (*ConsentRecord, error)
 	// UpdateConsentRecord updates an existing consent record directly
@@ -247,19 +223,18 @@ func NewConsentEngine(consentPortalUrl string) ConsentEngine {
 
 	// Create a default hardcoded ConsentRecord for testing
 	defaultRecord := &ConsentRecord{
-		ConsentID:     "consent_03c134ae",
-		OwnerID:       "199512345678",
-		AppID:         "passport-app",
-		Status:        string(StatusPending),
-		Type:          string(ConsentTypeRealTime),
-		CreatedAt:     time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
-		UpdatedAt:     time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
-		ExpiresAt:     time.Date(2025, 10, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)), // 2025-10-14T12:58:34+05:30
-		GrantDuration: "30d",
-		Fields:        []string{"personInfo.permanentAddress"},
-		SessionID:     "session_123",
-		RedirectURL:   "http://localhost:5173/?consent_id=consent_03c134ae",
-		OTPAttempts:   0,
+		ConsentID:        "consent_03c134ae",
+		OwnerID:          "199512345678",
+		AppID:            "passport-app",
+		Status:           string(StatusPending),
+		Type:             string(ConsentTypeRealTime),
+		CreatedAt:        time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
+		UpdatedAt:        time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
+		ExpiresAt:        time.Date(2025, 10, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)), // 2025-10-14T12:58:34+05:30
+		GrantDuration:    "30d",
+		Fields:           []string{"personInfo.permanentAddress"},
+		SessionID:        "session_123",
+		ConsentPortalURL: "http://localhost:5173/?consent_id=consent_03c134ae",
 	}
 
 	ce.consentRecords[defaultRecord.ConsentID] = defaultRecord
@@ -306,19 +281,18 @@ func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, 
 	}
 
 	record := &ConsentRecord{
-		ConsentID:     consentID,
-		OwnerID:       req.DataFields[0].OwnerID, // Use the first owner ID
-		AppID:         req.AppID,
-		Status:        string(StatusPending),
-		Type:          string(ConsentTypeRealTime),
-		CreatedAt:     now,
-		UpdatedAt:     now,
-		ExpiresAt:     expiresAt,
-		GrantDuration: grantDuration,
-		Fields:        allFields,
-		SessionID:     req.SessionID,
-		RedirectURL:   req.RedirectURL,
-		OTPAttempts:   0,
+		ConsentID:        consentID,
+		OwnerID:          req.DataFields[0].OwnerID, // Use the first owner ID
+		AppID:            req.AppID,
+		Status:           string(StatusPending),
+		Type:             string(ConsentTypeRealTime),
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		ExpiresAt:        expiresAt,
+		GrantDuration:    grantDuration,
+		Fields:           allFields,
+		SessionID:        req.SessionID,
+		ConsentPortalURL: req.ConsentPortalURL,
 	}
 
 	ce.consentRecords[record.ConsentID] = record
@@ -508,7 +482,7 @@ func (ce *consentEngineImpl) RevokeConsent(id string, reason string) (*ConsentRe
 func isValidStatusTransition(current, new ConsentStatus) bool {
 	validTransitions := map[ConsentStatus][]ConsentStatus{
 		StatusPending:  {StatusApproved, StatusRejected, StatusExpired}, // Initial decision
-		StatusApproved: {StatusApproved, StatusRejected, StatusRevoked}, // OTP flow: approved->approved (success), approved->rejected (OTP failure), approved->revoked (user revocation)
+		StatusApproved: {StatusApproved, StatusRejected, StatusRevoked}, // Direct approval flow: approved->approved (success), approved->rejected (direct rejection), approved->revoked (user revocation)
 		StatusRejected: {StatusPending, StatusApproved},                 // Allow retry from rejected
 		StatusExpired:  {StatusPending},                                 // Allow renewal
 		StatusRevoked:  {StatusPending},                                 // Allow revocation reconsideration (must go through pending first)
@@ -580,19 +554,18 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	}
 
 	record := &ConsentRecord{
-		ConsentID:     consentID,
-		OwnerID:       req.DataFields[0].OwnerID, // Use the first owner ID
-		AppID:         req.AppID,
-		Status:        string(StatusPending),
-		Type:          string(ConsentTypeRealTime),
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-		ExpiresAt:     expiresAt,
-		GrantDuration: grantDuration,
-		Fields:        allFields,
-		SessionID:     req.SessionID,
-		RedirectURL:   req.RedirectURL,
-		OTPAttempts:   0,
+		ConsentID:        consentID,
+		OwnerID:          req.DataFields[0].OwnerID, // Use the first owner ID
+		AppID:            req.AppID,
+		Status:           string(StatusPending),
+		Type:             string(ConsentTypeRealTime),
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+		ExpiresAt:        expiresAt,
+		GrantDuration:    grantDuration,
+		Fields:           allFields,
+		SessionID:        req.SessionID,
+		ConsentPortalURL: req.ConsentPortalURL,
 	}
 
 	// Store the record
@@ -600,7 +573,7 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 
 	// Build redirect URL with consent_id for pending status
 	if record.Status == string(StatusPending) {
-		record.RedirectURL = fmt.Sprintf("http://localhost:5173/?consent_id=%s", record.ConsentID)
+		record.ConsentPortalURL = fmt.Sprintf("http://localhost:5173/?consent_id=%s", record.ConsentID)
 	}
 
 	return record, nil
@@ -638,37 +611,6 @@ func parseExpiryTime(expiryStr string) (time.Duration, error) {
 	return time.Duration(multiplier) * duration, nil
 }
 
-// SendConsentOTP sends an OTP for consent verification
-func (ce *consentEngineImpl) SendConsentOTP(consentID, phoneNumber string) (*SMSOTPResponse, error) {
-	ce.lock.RLock()
-	defer ce.lock.RUnlock()
-
-	// Check if consent record exists
-	_, exists := ce.consentRecords[consentID]
-	if !exists {
-		return nil, fmt.Errorf("consent record with ID '%s' not found", consentID)
-	}
-
-	// Simplified OTP - always return "000000" for testing
-	otp := "000000"
-
-	// In a real implementation, this would send an actual SMS
-	// For now, we'll just log it and return a mock response
-	fmt.Printf("Sending OTP for consent verification - consentID: %s, phoneNumber: %s, otp: %s\n",
-		consentID, phoneNumber, otp)
-
-	response := &SMSOTPResponse{
-		Success:     true,
-		Message:     "OTP sent successfully (simplified for testing)",
-		ConsentID:   consentID,
-		PhoneNumber: phoneNumber,
-		OTP:         otp, // In production, this would not be returned
-		ExpiresAt:   time.Now().Add(5 * time.Minute).Format(time.RFC3339),
-	}
-
-	return response, nil
-}
-
 // CreateOrUpdateConsentRecord creates a new consent record or updates an existing one
 func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*ConsentRecord, error) {
 	ce.lock.Lock()
@@ -684,7 +626,7 @@ func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*Co
 		existingRecord.UpdatedAt = time.Now()
 		existingRecord.Fields = req.Fields
 		existingRecord.SessionID = req.SessionID
-		existingRecord.RedirectURL = req.RedirectURL
+		existingRecord.ConsentPortalURL = req.ConsentPortalURL
 		existingRecord.ExpiresAt = req.ExpiresAt
 		existingRecord.GrantDuration = req.GrantDuration
 
@@ -699,19 +641,18 @@ func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*Co
 
 	// Create new record
 	record := &ConsentRecord{
-		ConsentID:     req.ConsentID,
-		OwnerID:       req.OwnerID,
-		AppID:         req.AppID,
-		Status:        req.Status,
-		Type:          req.Type,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-		ExpiresAt:     req.ExpiresAt,
-		GrantDuration: grantDuration,
-		Fields:        req.Fields,
-		SessionID:     req.SessionID,
-		RedirectURL:   req.RedirectURL,
-		OTPAttempts:   0,
+		ConsentID:        req.ConsentID,
+		OwnerID:          req.OwnerID,
+		AppID:            req.AppID,
+		Status:           req.Status,
+		Type:             req.Type,
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+		ExpiresAt:        req.ExpiresAt,
+		GrantDuration:    grantDuration,
+		Fields:           req.Fields,
+		SessionID:        req.SessionID,
+		ConsentPortalURL: req.ConsentPortalURL,
 	}
 
 	// Store the record

@@ -10,10 +10,10 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 	engine := NewConsentEngine("http://localhost:5173")
 
 	req := ConsentRequest{
-		AppID:       "passport-app",
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk",
+		AppID:            "passport-app",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -44,9 +44,6 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 		t.Errorf("Expected OwnerID=%s, got %s", req.DataFields[0].OwnerID, record.OwnerID)
 	}
 
-	if record.OTPAttempts != 0 {
-		t.Errorf("Expected OTPAttempts=0, got %d", record.OTPAttempts)
-	}
 }
 
 // TestConsentEngine_GetConsentStatus tests retrieving consent status
@@ -55,10 +52,10 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:       "passport-app",
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk",
+		AppID:            "passport-app",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -96,10 +93,10 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:       "passport-app",
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk",
+		AppID:            "passport-app",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -149,10 +146,10 @@ func TestConsentEngine_FindExistingConsent(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:       "passport-app",
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk",
+		AppID:            "passport-app",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -190,10 +187,10 @@ func TestConsentEngine_UpdateConsentRecord(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:       "passport-app",
-		Purpose:     "passport_application",
-		SessionID:   "session_123",
-		RedirectURL: "https://passport-app.gov.lk",
+		AppID:            "passport-app",
+		Purpose:          "passport_application",
+		SessionID:        "session_123",
+		ConsentPortalURL: "https://passport-app.gov.lk",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -209,7 +206,6 @@ func TestConsentEngine_UpdateConsentRecord(t *testing.T) {
 	}
 
 	// Update the record directly
-	createdRecord.OTPAttempts = 2
 	createdRecord.UpdatedAt = time.Now()
 
 	err = engine.UpdateConsentRecord(createdRecord)
@@ -218,14 +214,11 @@ func TestConsentEngine_UpdateConsentRecord(t *testing.T) {
 	}
 
 	// Verify the update
-	updatedRecord, err := engine.GetConsentStatus(createdRecord.ConsentID)
+	_, err = engine.GetConsentStatus(createdRecord.ConsentID)
 	if err != nil {
 		t.Fatalf("GetConsentStatus failed: %v", err)
 	}
 
-	if updatedRecord.OTPAttempts != 2 {
-		t.Errorf("Expected OTPAttempts=2, got %d", updatedRecord.OTPAttempts)
-	}
 }
 
 // TestConsentEngine_DefaultRecord tests the default record functionality
@@ -250,9 +243,6 @@ func TestConsentEngine_DefaultRecord(t *testing.T) {
 		t.Errorf("Expected Status=%s, got %s", string(StatusPending), defaultRecord.Status)
 	}
 
-	if defaultRecord.OTPAttempts != 0 {
-		t.Errorf("Expected OTPAttempts=0, got %d", defaultRecord.OTPAttempts)
-	}
 }
 
 // TestConsentEngine_StatusTransitions tests status transition validation
@@ -265,8 +255,8 @@ func TestConsentEngine_StatusTransitions(t *testing.T) {
 	}{
 		{StatusPending, StatusApproved, true},
 		{StatusPending, StatusRejected, true},
-		{StatusApproved, StatusApproved, true}, // OTP flow
-		{StatusApproved, StatusRejected, true}, // OTP failure
+		{StatusApproved, StatusApproved, true}, // Direct approval
+		{StatusApproved, StatusRejected, true}, // Direct rejection
 		{StatusRejected, StatusPending, true},  // Retry
 		{StatusApproved, StatusPending, false}, // Invalid
 		{StatusRejected, StatusApproved, true}, // Valid - allow direct approval from rejected
