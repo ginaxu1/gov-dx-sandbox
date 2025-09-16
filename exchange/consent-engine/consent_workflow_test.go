@@ -20,7 +20,6 @@ func TestConsentWorkflowRequest(t *testing.T) {
 		},
 		Purpose:          "passport_application",
 		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	// Verify the request structure
@@ -56,9 +55,6 @@ func TestConsentWorkflowRequest(t *testing.T) {
 		t.Errorf("Expected SessionID to be 'session_123', got '%s'", req.SessionID)
 	}
 
-	if req.ConsentPortalURL != "https://passport-app.gov.lk/callback" {
-		t.Errorf("Expected ConsentPortalURL to be 'https://passport-app.gov.lk/callback', got '%s'", req.ConsentPortalURL)
-	}
 }
 
 func TestDataField(t *testing.T) {
@@ -103,7 +99,6 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 		},
 		Purpose:          "passport_application",
 		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	// Test JSON marshaling
@@ -136,9 +131,6 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 		t.Errorf("Expected SessionID to be '%s', got '%s'", req.SessionID, unmarshaledReq.SessionID)
 	}
 
-	if unmarshaledReq.ConsentPortalURL != req.ConsentPortalURL {
-		t.Errorf("Expected ConsentPortalURL to be '%s', got '%s'", req.ConsentPortalURL, unmarshaledReq.ConsentPortalURL)
-	}
 }
 
 func TestConsentWorkflowValidation(t *testing.T) {
@@ -160,7 +152,6 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				},
 				Purpose:          "passport_application",
 				SessionID:        "session_123",
-				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: false,
 		},
@@ -177,7 +168,6 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				},
 				Purpose:          "passport_application",
 				SessionID:        "session_123",
-				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: true,
 		},
@@ -188,7 +178,6 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				DataFields:       []models.DataField{},
 				Purpose:          "passport_application",
 				SessionID:        "session_123",
-				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: true,
 		},
@@ -205,7 +194,6 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				},
 				Purpose:          "",
 				SessionID:        "session_123",
-				ConsentPortalURL: "https://passport-app.gov.lk/callback",
 			},
 			wantErr: true,
 		},
@@ -253,7 +241,6 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		},
 		Purpose:          "passport_application",
 		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	if len(req.DataFields) != 2 {
@@ -272,7 +259,6 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		},
 		Purpose:          "passport_application",
 		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk/callback",
 	}
 
 	if len(multiFieldReq.DataFields[0].Fields) != 3 {

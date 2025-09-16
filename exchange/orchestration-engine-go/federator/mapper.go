@@ -31,7 +31,7 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 	})
 
 	if err != nil {
-		logger.Log.Info("PDP request failed: %v", err)
+		logger.Log.Info("PDP request failed", "error", err)
 	}
 
 	if pdpResponse == nil {
@@ -45,16 +45,13 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 	}
 
 	if pdpResponse.ConsentRequired {
-		logger.Log.Info("Consent required for fields: %v", pdpResponse.ConsentRequiredFields)
+		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
 
 		ceResp, err := ceClient.MakeConsentRequest(&consent.CERequest{
-			ConsumerId:  "passport-app",
-			AppId:       "passport-app",
-			RequestId:   "request_123",
-			Purpose:     "testing",
-			SessionId:   "session_123",
-			RedirectUrl: "http://localhost",
-			RequiredFields: []consent.DataOwnerRecord{
+			AppId:     "passport-app",
+			Purpose:   "testing",
+			SessionId: "session_123",
+			DataFields: []consent.DataOwnerRecord{
 				{
 					OwnerType: "citizen",
 					OwnerId:   "199512345678",
@@ -64,12 +61,12 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 		})
 
 		if err != nil {
-			logger.Log.Info("CE request failed: %v", err)
+			logger.Log.Info("CE request failed", "error", err)
 			return requests, nil
 		}
 
 		// log the consent response
-		logger.Log.Info("Consent Response", ceResp)
+		logger.Log.Info("Consent Response", "response", ceResp)
 
 		if ceResp.Status != "approved" {
 			logger.Log.Info("Consent not approved")

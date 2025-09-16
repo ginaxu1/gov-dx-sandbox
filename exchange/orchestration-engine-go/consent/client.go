@@ -14,13 +14,10 @@ type CeConfig struct {
 }
 
 type CERequest struct {
-	ConsumerId     string            `json:"consumer_id"`
-	AppId          string            `json:"app_id"`
-	RequestId      string            `json:"request_id"`
-	RequiredFields []DataOwnerRecord `json:"data_fields"`
-	Purpose        string            `json:"purpose"`
-	SessionId      string            `json:"session_id"`
-	RedirectUrl    string            `json:"redirect_url,omitempty"`
+	AppId      string            `json:"app_id"`
+	DataFields []DataOwnerRecord `json:"data_fields"`
+	Purpose    string            `json:"purpose"`
+	SessionId  string            `json:"session_id"`
 }
 
 type DataOwnerRecord struct {
@@ -31,7 +28,7 @@ type DataOwnerRecord struct {
 
 type CEResponse struct {
 	Status           string `json:"status"`
-	ConsentPortalUrl string `json:"consent_portal_url,omitempty"`
+	ConsentPortalUrl string `json:"consent_portal_url"`
 }
 
 type CEClient struct {
@@ -53,7 +50,7 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 	requestBody, err := json.Marshal(request)
 	if err != nil {
 		// handle error
-		logger.Log.Error("Failed to marshal Consent request: %v\n", err)
+		logger.Log.Error("Failed to marshal Consent request", "error", err)
 		return nil, err
 	}
 
@@ -62,7 +59,7 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 
 	if err != nil {
 		// handle error
-		logger.Log.Error("Consent Request Failed.", err)
+		logger.Log.Error("Consent Request Failed", "error", err)
 		return nil, err
 	}
 	defer response.Body.Close()
@@ -72,7 +69,7 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 
 	if err != nil {
 		// handle error
-		logger.Log.Error("Failed to decode CE response", err)
+		logger.Log.Error("Failed to decode CE response", "error", err)
 		return nil, err
 	}
 

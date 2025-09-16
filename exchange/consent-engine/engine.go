@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
+
 	"github.com/google/uuid"
 )
 
@@ -145,8 +147,6 @@ type ConsentRequest struct {
 	Purpose string `json:"purpose"`
 	// SessionID is the session identifier for tracking the consent flow
 	SessionID string `json:"session_id"`
-	// ConsentPortalURL is the URL to redirect to after consent is provided
-	ConsentPortalURL string `json:"consent_portal_url"`
 	// ExpiresAt is the expiry time as epoch timestamp (optional)
 	ExpiresAt int64 `json:"expires_at,omitempty"`
 	// GrantDuration is the duration of consent grant (e.g., "30d", "1h") (optional)
@@ -157,6 +157,8 @@ type ConsentRequest struct {
 type UpdateConsentRequest struct {
 	// Status is the new status for the consent record
 	Status ConsentStatus `json:"status"`
+	// GrantDuration is the duration of consent grant (e.g., "30d", "1h") (optional)
+	GrantDuration string `json:"grant_duration,omitempty"`
 	// UpdatedBy identifies who is updating the consent (data owner, system, etc.)
 	UpdatedBy string `json:"updated_by"`
 	// Reason provides context for the status change
@@ -292,7 +294,7 @@ func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, 
 		GrantDuration:    grantDuration,
 		Fields:           allFields,
 		SessionID:        req.SessionID,
-		ConsentPortalURL: req.ConsentPortalURL,
+		ConsentPortalURL: fmt.Sprintf("%s/?consent_id=%s", ce.consentPortalUrl, consentID),
 	}
 
 	ce.consentRecords[record.ConsentID] = record
@@ -350,6 +352,18 @@ func (ce *consentEngineImpl) UpdateConsent(id string, req UpdateConsentRequest) 
 	// Update the record
 	record.Status = string(req.Status)
 	record.UpdatedAt = time.Now()
+
+	// Update grant duration if provided
+	if req.GrantDuration != "" {
+		record.GrantDuration = req.GrantDuration
+
+		// Recalculate expires_at if grant duration is provided
+		duration, err := utils.ParseExpiryTime(req.GrantDuration)
+		if err != nil {
+			return nil, fmt.Errorf("invalid grant duration format: %w", err)
+		}
+		record.ExpiresAt = time.Now().Add(duration)
+	}
 
 	ce.consentRecords[id] = record
 	return record, nil
@@ -565,7 +579,7 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 		GrantDuration:    grantDuration,
 		Fields:           allFields,
 		SessionID:        req.SessionID,
-		ConsentPortalURL: req.ConsentPortalURL,
+		ConsentPortalURL: fmt.Sprintf("%s/?consent_id=%s", ce.consentPortalUrl, consentID),
 	}
 
 	// Store the record
@@ -626,7 +640,7 @@ func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*Co
 		existingRecord.UpdatedAt = time.Now()
 		existingRecord.Fields = req.Fields
 		existingRecord.SessionID = req.SessionID
-		existingRecord.ConsentPortalURL = req.ConsentPortalURL
+		existingRecord.ConsentPortalURL = fmt.Sprintf("%s/?consent_id=%s", ce.consentPortalUrl, existingRecord.ConsentID)
 		existingRecord.ExpiresAt = req.ExpiresAt
 		existingRecord.GrantDuration = req.GrantDuration
 
@@ -652,7 +666,7 @@ func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*Co
 		GrantDuration:    grantDuration,
 		Fields:           req.Fields,
 		SessionID:        req.SessionID,
-		ConsentPortalURL: req.ConsentPortalURL,
+		ConsentPortalURL: fmt.Sprintf("%s/?consent_id=%s", ce.consentPortalUrl, req.ConsentID),
 	}
 
 	// Store the record
