@@ -1,18 +1,12 @@
 #!/bin/bash
-
-# End-to-end flow tests
+# End-to-end flow tests using DRY principles
 # Tests the exact flow: AppUser -> App -> DataCustodian -> PDP -> ConsentEngine
+
+# Source common utilities
+source "$(dirname "$0")/test-utils.sh"
 
 echo "=== Complete Consent Flow Test (Following Diagram) ==="
 echo ""
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-NC='\033[0m' # No Color
 
 # Test the complete flow as described in the diagram
 echo -e "${BLUE}=== Simulating Complete Consent Flow ===${NC}"
@@ -52,8 +46,7 @@ echo "$PDP_RESPONSE" | jq '.'
 CONSENT_REQUIRED=$(echo "$PDP_RESPONSE" | jq -r '.consent_required // false')
 ALLOW=$(echo "$PDP_RESPONSE" | jq -r '.allow // false')
 CONSENT_FIELDS=$(echo "$PDP_RESPONSE" | jq -r '.consent_required_fields // []')
-# PDP doesn't provide data_owner, so we'll use a default for testing
-DATA_OWNER="199512345678"
+DATA_OWNER=$(echo "$PDP_RESPONSE" | jq -r '.data_owner // ""')
 
 if [ "$CONSENT_REQUIRED" = "true" ] && [ "$ALLOW" = "true" ]; then
     echo -e "${GREEN}✅ DataCustodian -> PDP: consent needed${NC}"
@@ -93,28 +86,22 @@ echo "DataOwner: $DATA_OWNER"
 echo ""
 echo "Testing Consent Engine functionality..."
 
-# Test consent engine health
-echo "Testing consent engine health..."
-CE_HEALTH_RESPONSE=$(curl -s -X GET "http://localhost:8081/health" 2>/dev/null)
-echo "Consent engine health response: $CE_HEALTH_RESPONSE"
+# Test consent check endpoint
+echo "Testing /consent/check endpoint..."
+CE_CHECK_RESPONSE=$(curl -s -X GET "http://localhost:8081/consent/check" 2>/dev/null)
+echo "Consent check response: $CE_CHECK_RESPONSE"
 
 # Test consent creation (simulate user granting consent)
 echo ""
 echo "Testing consent creation (simulating user granting consent)..."
-CE_CREATE_RESPONSE=$(curl -s -X POST "http://localhost:8081/consents" \
+CE_CREATE_RESPONSE=$(curl -s -X POST "http://localhost:8081/consent" \
   -H "Content-Type: application/json" \
   -d '{
-    "app_id": "passport-app",
-    "data_fields": [
-      {
-        "owner_type": "citizen",
-        "owner_id": "'$DATA_OWNER'",
-        "fields": ["person.permanentAddress", "person.birthDate"]
-      }
-    ],
+    "user_id": "user123",
+    "data_owner": "'$DATA_OWNER'",
+    "fields": ["person.permanentAddress", "person.birthDate"],
     "purpose": "passport_application",
-    "session_id": "session_123",
-    "redirect_url": "https://passport-app.gov.lk/callback"
+    "expiry": "30d"
   }' 2>/dev/null)
 
 echo "Consent creation response: $CE_CREATE_RESPONSE"

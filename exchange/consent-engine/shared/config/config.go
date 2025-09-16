@@ -9,11 +9,10 @@ import (
 
 // Config holds all configuration for a service
 type Config struct {
-	Environment      string
-	Service          ServiceConfig
-	Logging          LoggingConfig
-	Security         SecurityConfig
-	ConsentPortalUrl string
+	Environment string
+	Service     ServiceConfig
+	Logging     LoggingConfig
+	Security    SecurityConfig
 }
 
 // ServiceConfig holds service-specific configuration
@@ -52,8 +51,6 @@ func LoadConfig(serviceName string) *Config {
 	jwtSecret := flag.String("jwt-secret", getDefaultJWTSecret(env), "JWT secret")
 	enableCORS := flag.Bool("cors", getDefaultCORS(env), "Enable CORS")
 	rateLimit := flag.Int("rate-limit", getDefaultRateLimit(env), "Rate limit per minute")
-	consentPortalUrl := flag.String("consent-portal-url", getEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173"), "Consent Portal URL")
-
 	// Parse flags
 	flag.Parse()
 
@@ -77,7 +74,6 @@ func LoadConfig(serviceName string) *Config {
 			EnableCORS: *enableCORS,
 			RateLimit:  *rateLimit,
 		},
-		ConsentPortalUrl: *consentPortalUrl,
 	}
 
 	// Validate configuration
@@ -98,6 +94,7 @@ func getDefaultPort(serviceName string) string {
 	ports := map[string]string{
 		"consent-engine":        "8081",
 		"policy-decision-point": "8082",
+		"orchestration-engine":  "4000",
 	}
 	if port, exists := ports[serviceName]; exists {
 		return port

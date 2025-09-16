@@ -1,69 +1,33 @@
 #!/bin/bash
 # Comprehensive Consent Flow Test Script
 
+# Source common utilities
+source "$(dirname "$0")/test-utils.sh"
+
 echo "=== Comprehensive Consent Flow Test Suite ==="
 echo "Testing consent scenarios: data owner is provider vs data owner is NOT provider"
 echo ""
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-NC='\033[0m'
-
-# Test function for PDP requests
+# Test function for PDP requests (using standardized function)
 test_pdp_request() {
     local test_name="$1"
     local scenario="$2"
-    local expected="$3"
-    local data="$4"
+    local expected_allow="$3"
+    local expected_consent="$4"
+    local data="$5"
     
-    echo -e "${BLUE}Test: $test_name${NC}"
-    echo "Scenario: $scenario"
-    echo "Expected: $expected"
-    echo ""
-    
-    PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
-      -H "Content-Type: application/json" \
-      -d "$data")
-    
-    echo "PDP Decision:"
-    echo "$PDP_RESPONSE" | jq '.'
-    
-    CONSENT_REQUIRED=$(echo "$PDP_RESPONSE" | jq -r '.consent_required // false')
-    ALLOW=$(echo "$PDP_RESPONSE" | jq -r '.allow // false')
-    CONSENT_FIELDS=$(echo "$PDP_RESPONSE" | jq -r '.consent_required_fields // []')
-    # Note: Data ownership is handled by the Orchestration Engine, not the PDP
-    
-    echo ""
-    return 0
+    log_info "Test: $test_name"
+    log_info "Scenario: $scenario"
+    test_pdp_decision "$test_name" "$expected_allow" "$expected_consent" "$data"
 }
 
-# Test function for Consent Engine requests
+# Test function for Consent Engine requests (using standardized function)
 test_consent_request() {
     local test_name="$1"
     local data="$2"
+    local expected_status="${3:-201}"
     
-    echo -e "${BLUE}Test: $test_name${NC}"
-    echo ""
-    
-    CONSENT_RESPONSE=$(curl -s -X POST http://localhost:8081/consents \
-      -H "Content-Type: application/json" \
-      -d "$data")
-    
-    echo "Consent Engine Response:"
-    echo "$CONSENT_RESPONSE" | jq '.'
-    
-    CONSENT_ID=$(echo "$CONSENT_RESPONSE" | jq -r '.consent_id // ""')
-    CONSENT_STATUS=$(echo "$CONSENT_RESPONSE" | jq -r '.status // ""')
-    DATA_CONSUMER=$(echo "$CONSENT_RESPONSE" | jq -r '.data_consumer // ""')
-    DATA_OWNER=$(echo "$CONSENT_RESPONSE" | jq -r '.data_owner // ""')
-    FIELDS=$(echo "$CONSENT_RESPONSE" | jq -r '.fields // []')
-    
-    echo ""
-    return 0
+    test_consent_creation "$test_name" "$data" "$expected_status"
 }
 
 # Check if services are running
@@ -186,7 +150,7 @@ if [ "$CONSENT_ID" != "" ] && [ "$CONSENT_ID" != "null" ]; then
 echo ""
         echo -e "${PURPLE}Testing consent approval...${NC}"
 
-CONSENT_UPDATE_RESPONSE=$(curl -s -X PUT "http://localhost:8081/consents/$CONSENT_ID" \
+CONSENT_UPDATE_RESPONSE=$(curl -s -X PUT "http://localhost:8081/consent/$CONSENT_ID" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "approved",
@@ -323,7 +287,7 @@ echo "Health response: $HEALTH_RESPONSE"
 if [ "$CONSENT_ID" != "" ] && [ "$CONSENT_ID" != "null" ]; then
 echo ""
     echo "Testing consent retrieval..."
-CONSENT_GET_RESPONSE=$(curl -s -X GET "http://localhost:8081/consents/$CONSENT_ID")
+CONSENT_GET_RESPONSE=$(curl -s -X GET "http://localhost:8081/consent/$CONSENT_ID")
 echo "Consent retrieval response:"
 echo "$CONSENT_GET_RESPONSE" | jq '.'
 

@@ -48,10 +48,10 @@
       ]
     },
     "person.permanentAddress": {
-      "owner": "rgd",
+      "owner": "citizen",
       "provider": "drp",
-      "consent_required": false,
-      "access_control_type": "restricted",
+      "consent_required": true,
+      "access_control_type": "public",
       "allow_list": [
         {
           "consumer_id": "passport-app",
@@ -64,14 +64,21 @@
       "owner": "citizen",
       "provider": "drp",
       "consent_required": true,
-      "access_control_type": "restricted",
+      "access_control_type": "public",
       "allow_list": [
         {
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
-          "grant_duration": "7d"
+          "grant_duration": "30d"
         }
       ]
+    },
+    "person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
     },
     "user.birthInfo": {
       "owner": "prov_947c7b7992fbf6e7",
@@ -102,19 +109,6 @@
       "access_control_type": "public",
       "allow_list": []
     },
-    "rgd.getPersonInfo.name": {
-      "owner": "citizen",
-      "provider": "rgd",
-      "consent_required": false,
-      "access_control_type": "public",
-      "allow_list": [
-        {
-          "consumerId": "passport-app",
-          "expires_at": 1757560679,
-          "grant_duration": "30d"
-        }
-      ]
-    },
     "drp.person.permanentAddress": {
       "owner": "citizen",
       "provider": "rgd",
@@ -129,19 +123,6 @@
       ]
     },
     "drp.person.profession": {
-      "owner": "citizen",
-      "provider": "rgd",
-      "consent_required": true,
-      "access_control_type": "public",
-      "allow_list": [
-        {
-          "consumerId": "passport-app",
-          "expires_at": 1757560679,
-          "grant_duration": "30d"
-        }
-      ]
-    },
-    "rgd.getPersonInfo.brNo": {
       "owner": "citizen",
       "provider": "rgd",
       "consent_required": true,
