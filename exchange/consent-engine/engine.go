@@ -8,6 +8,48 @@ import (
 	"github.com/google/uuid"
 )
 
+// DataField represents a request for specific data fields from a data owner
+type DataField struct {
+	OwnerType string   `json:"owner_type"`
+	OwnerID   string   `json:"owner_id"`
+	Fields    []string `json:"fields"`
+}
+
+// ConsentResponse defines the structure for consent API responses
+type ConsentResponse struct {
+	ConsentID   string   `json:"consent_id"`
+	Status      string   `json:"status"`
+	OwnerID     string   `json:"owner_id"`
+	Fields      []string `json:"fields"`
+	SessionID   string   `json:"session_id"`
+	RedirectURL string   `json:"redirect_url"`
+	Purpose     string   `json:"purpose"`
+	Message     string   `json:"message"`
+}
+
+// Consent-engine error messages
+const (
+	ErrConsentNotFound     = "consent record not found"
+	ErrConsentCreateFailed = "failed to create consent record"
+	ErrConsentUpdateFailed = "failed to update consent record"
+	ErrConsentRevokeFailed = "failed to revoke consent record"
+	ErrConsentGetFailed    = "failed to get consent records"
+	ErrConsentExpiryFailed = "failed to check consent expiry"
+	ErrPortalRequestFailed = "failed to process consent portal request"
+)
+
+// Consent-engine log operations
+const (
+	OpCreateConsent         = "create consent"
+	OpUpdateConsent         = "update consent"
+	OpRevokeConsent         = "revoke consent"
+	OpGetConsentStatus      = "get consent status"
+	OpGetConsentsByOwner    = "get consents by data owner"
+	OpGetConsentsByConsumer = "get consents by consumer"
+	OpCheckConsentExpiry    = "check consent expiry"
+	OpProcessPortalRequest  = "process consent portal"
+)
+
 // ConsentStatus defines the possible states of a consent record
 type ConsentStatus string
 
@@ -39,48 +81,45 @@ const (
 type ConsentRecord struct {
 	// ConsentID is the unique identifier for the consent record
 	ConsentID string `json:"consent_id"`
-	// OwnerID identifies the user or entity that owns the data and can grant consent
+	// OwnerID is the unique identifier for the data owner
 	OwnerID string `json:"owner_id"`
-	// DataConsumer identifies the entity requesting access to the data
-	DataConsumer string `json:"data_consumer"`
-	// Status indicates the current state of the consent
-	Status ConsentStatus `json:"status"`
-	// Type indicates whether this is real-time or offline consent
-	Type ConsentType `json:"type"`
-	// CreatedAt is the timestamp when the consent record was initially created
+	// AppID is the unique identifier for the consumer application
+	AppID string `json:"app_id"`
+	// Status is the status of the consent record: pending, approved, rejected, expired, revoked
+	Status string `json:"status"`
+	// Type is the type of consent mechanism "realtime" or "offline"
+	Type      string    `json:"type"`
 	CreatedAt time.Time `json:"created_at"`
-	// UpdatedAt is the timestamp when the consent record was last updated
 	UpdatedAt time.Time `json:"updated_at"`
-	// ExpiresAt is the timestamp when the consent expires (optional)
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	// Fields is a list of specific data fields the consent applies to
+	ExpiresAt time.Time `json:"expires_at"`
+	// GrantDuration is the duration of consent grant (e.g., "30d", "1h")
+	GrantDuration string `json:"grant_duration"`
+	// Fields is the list of data fields that require consent
 	Fields []string `json:"fields"`
 	// SessionID is the session identifier for tracking the consent flow
-	SessionID string `json:"session_id,omitempty"`
+	SessionID string `json:"session_id"`
 	// RedirectURL is the URL to redirect to after consent is provided
-	RedirectURL string `json:"redirect_url,omitempty"`
-	// Metadata contains additional information about the consent request
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	RedirectURL string `json:"redirect_url"`
+	// OTPAttempts tracks the number of OTP verification attempts
+	OTPAttempts int `json:"otp_attempts"`
 }
 
-// CreateConsentRequest defines the structure for creating a consent record
-type CreateConsentRequest struct {
-	// DataConsumer identifies the entity requesting access to the data
-	DataConsumer string `json:"data_consumer"`
-	// DataOwner identifies the user or entity that owns the data and can grant consent
-	DataOwner string `json:"data_owner"`
-	// Fields is the list of specific data fields for which access is being requested
-	Fields []string `json:"fields"`
-	// Type indicates whether this is real-time or offline consent
-	Type ConsentType `json:"type"`
+// ConsentRequest defines the structure for creating a consent record
+type ConsentRequest struct {
+	// AppID identifies the application requesting access to the data
+	AppID string `json:"app_id"`
+	// DataFields contains the data owner information and fields
+	DataFields []DataField `json:"data_fields"`
+	// Purpose describes the purpose for which consent is being requested
+	Purpose string `json:"purpose"`
 	// SessionID is the session identifier for tracking the consent flow
-	SessionID string `json:"session_id,omitempty"`
+	SessionID string `json:"session_id"`
 	// RedirectURL is the URL to redirect to after consent is provided
-	RedirectURL string `json:"redirect_url,omitempty"`
-	// ExpiryTime is the duration for which consent is valid (e.g., "30d", "1h")
-	ExpiryTime string `json:"expiry_time,omitempty"`
-	// Metadata contains additional information about the consent request
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	RedirectURL string `json:"redirect_url"`
+	// ExpiresAt is the expiry time as epoch timestamp (optional)
+	ExpiresAt int64 `json:"expires_at,omitempty"`
+	// GrantDuration is the duration of consent grant (e.g., "30d", "1h") (optional)
+	GrantDuration string `json:"grant_duration,omitempty"`
 }
 
 // UpdateConsentRequest defines the structure for updating a consent record
@@ -91,48 +130,8 @@ type UpdateConsentRequest struct {
 	UpdatedBy string `json:"updated_by"`
 	// Reason provides context for the status change
 	Reason string `json:"reason,omitempty"`
-	// OTP is the one-time password for verification (simplified to "000000")
-	OTP string `json:"otp,omitempty"`
 	// Metadata contains additional information about the update
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// DataField represents a data owner and their fields
-type DataField struct {
-	// OwnerType indicates the type of data owner (e.g., "citizen", "organization")
-	OwnerType string `json:"owner_type"`
-	// OwnerID is the unique identifier for the data owner
-	OwnerID string `json:"owner_id"`
-	// Fields is the list of specific data fields for this owner
-	Fields []string `json:"fields"`
-}
-
-// ConsentRequest defines the structure for the new consent workflow
-type ConsentRequest struct {
-	AppID         string      `json:"app_id"`         // Application requesting consent
-	DataFields    []DataField `json:"data_fields"`    // List of data field requests
-	Purpose       string      `json:"purpose"`        // Purpose of data access
-	SessionID     string      `json:"session_id"`     // Session identifier
-	RedirectURL   string      `json:"redirect_url"`   // Callback URL after consent
-	ExpiresAt     int64       `json:"expires_at"`     // Expiry time as epoch timestamp
-	GrantDuration string      `json:"grant_duration"` // Duration of consent grant (e.g., "30d", "1h")
-}
-
-// ConsentResponse defines the structure for consent API responses
-type ConsentResponse struct {
-	ConsentID    string     `json:"consent_id"`
-	OwnerID      string     `json:"owner_id"`
-	DataConsumer string     `json:"data_consumer"`
-	Status       string     `json:"status"`
-	Type         string     `json:"type"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	Fields       []string   `json:"fields"`
-	SessionID    string     `json:"session_id"`
-	RedirectURL  string     `json:"redirect_url"`
-	Purpose      string     `json:"purpose,omitempty"`
-	Message      string     `json:"message,omitempty"`
 }
 
 // SMSOTPRequest represents an SMS OTP request
@@ -152,41 +151,6 @@ type SMSOTPResponse struct {
 	ExpiresAt   string `json:"expires_at,omitempty"`
 	MessageID   string `json:"message_id,omitempty"`
 	Error       string `json:"error,omitempty"`
-}
-
-// ToConsentResponse converts a ConsentRecord to ConsentResponse
-func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
-	// Build redirect URL with consent_id for pending status
-	var redirectURL string
-	if cr.Status == StatusPending {
-		redirectURL = fmt.Sprintf("%s?consent=%s", cr.RedirectURL, cr.ConsentID)
-	}
-
-	// Extract purpose from metadata safely
-	var purpose string
-	if cr.Metadata != nil {
-		if purposeVal, exists := cr.Metadata["purpose"]; exists {
-			if purposeStr, ok := purposeVal.(string); ok {
-				purpose = purposeStr
-			}
-		}
-	}
-
-	return ConsentResponse{
-		ConsentID:    cr.ConsentID,
-		OwnerID:      cr.OwnerID,
-		DataConsumer: cr.DataConsumer,
-		Status:       string(cr.Status),
-		Type:         string(cr.Type),
-		CreatedAt:    cr.CreatedAt,
-		UpdatedAt:    cr.UpdatedAt,
-		ExpiresAt:    cr.ExpiresAt,
-		Fields:       cr.Fields,
-		SessionID:    cr.SessionID,
-		RedirectURL:  redirectURL,
-		Purpose:      purpose,
-		Message:      "Consent required. Please visit the consent portal.",
-	}
 }
 
 // ConsentPortalRequest defines the structure for consent portal interactions
@@ -214,7 +178,9 @@ type SMSOTPService interface {
 // ConsentEngine defines the interface for managing consent records
 type ConsentEngine interface {
 	// CreateConsent creates a new consent record and stores it
-	CreateConsent(req CreateConsentRequest) (*ConsentRecord, error)
+	CreateConsent(req ConsentRequest) (*ConsentRecord, error)
+	// FindExistingConsent finds an existing consent record by consumer app ID and owner ID
+	FindExistingConsent(consumerAppID, ownerID string) *ConsentRecord
 	// GetConsentStatus retrieves a consent record by its ID
 	GetConsentStatus(id string) (*ConsentRecord, error)
 	// UpdateConsent updates the status of a consent record
@@ -230,59 +196,128 @@ type ConsentEngine interface {
 	// RevokeConsent revokes a consent record
 	RevokeConsent(id string, reason string) (*ConsentRecord, error)
 	// ProcessConsentRequest processes the new consent workflow request
-	ProcessConsentRequest(req ConsentRequest) (*ConsentResponse, error)
+	ProcessConsentRequest(req ConsentRequest) (*ConsentRecord, error)
 	// SendConsentOTP sends an OTP for consent verification
 	SendConsentOTP(consentID, phoneNumber string) (*SMSOTPResponse, error)
 	// CreateOrUpdateConsentRecord creates a new consent record or updates an existing one
 	CreateOrUpdateConsentRecord(req ConsentRecord) (*ConsentRecord, error)
+	// UpdateConsentRecord updates an existing consent record directly
+	UpdateConsentRecord(record *ConsentRecord) error
 }
 
 // consentEngineImpl is the private, in-memory implementation of the ConsentEngine interface
 type consentEngineImpl struct {
 	consentRecords   map[string]*ConsentRecord
-	lock             sync.RWMutex
 	consentPortalUrl string
+	lock             sync.RWMutex
 }
 
 // NewConsentEngine creates a new in-memory instance of the ConsentEngine
 func NewConsentEngine(consentPortalUrl string) ConsentEngine {
-	return &consentEngineImpl{
+	ce := &consentEngineImpl{
 		consentRecords:   make(map[string]*ConsentRecord),
 		consentPortalUrl: consentPortalUrl,
 	}
+
+	// Create a default hardcoded ConsentRecord for testing
+	defaultRecord := &ConsentRecord{
+		ConsentID:     "consent_03c134ae",
+		OwnerID:       "199512345678",
+		AppID:         "passport-app",
+		Status:        string(StatusPending),
+		Type:          string(ConsentTypeRealTime),
+		CreatedAt:     time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
+		UpdatedAt:     time.Date(2025, 9, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)),  // 2025-09-14T12:58:34+05:30
+		ExpiresAt:     time.Date(2025, 10, 14, 7, 28, 34, 0, time.FixedZone("+05:30", 5*60*60+30*60)), // 2025-10-14T12:58:34+05:30
+		GrantDuration: "30d",
+		Fields:        []string{"personInfo.permanentAddress"},
+		SessionID:     "session_123",
+		RedirectURL:   "http://localhost:5173/?consent_id=consent_03c134ae",
+		OTPAttempts:   0,
+	}
+
+	ce.consentRecords[defaultRecord.ConsentID] = defaultRecord
+
+	return ce
 }
 
 // CreateConsent creates a new consent record and saves it in the in-memory store
-func (ce *consentEngineImpl) CreateConsent(req CreateConsentRequest) (*ConsentRecord, error) {
+func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, error) {
+	// Create ONE consent record for EACH data field
+	if len(req.DataFields) == 0 {
+		return nil, fmt.Errorf("at least one data field is required")
+	}
+
+	now := time.Now()
+
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
 
-	now := time.Now()
-	consentID := uuid.New().String()
-	record := &ConsentRecord{
-		ConsentID:    consentID,
-		Status:       StatusPending,
-		Type:         req.Type,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		DataConsumer: req.DataConsumer,
-		OwnerID:      req.DataOwner,
-		Fields:       req.Fields,
-		SessionID:    req.SessionID,
-		RedirectURL:  ce.consentPortalUrl,
-		Metadata:     req.Metadata,
-	}
-
-	// Set expiry time if provided
-	if req.ExpiryTime != "" {
-		if expiry, err := parseExpiryTime(req.ExpiryTime); err == nil {
-			expiryTime := now.Add(expiry)
-			record.ExpiresAt = &expiryTime
+	// Check if there's already an existing consent for this (app_id, owner_id) pair
+	// We only need to check the first data field since all should have the same owner
+	if len(req.DataFields) > 0 {
+		existingRecord := ce.findExistingConsentUnsafe(req.AppID, req.DataFields[0].OwnerID)
+		if existingRecord != nil {
+			// Return the existing record instead of creating a new one
+			return existingRecord, nil
 		}
 	}
 
+	// Create new consent record for this owner
+	consentID := fmt.Sprintf("consent_%s", uuid.New().String()[:8])
+	expiresAt := now.Add(30 * 24 * time.Hour)
+
+	// Set default grant duration if not provided
+	grantDuration := req.GrantDuration
+	if grantDuration == "" {
+		grantDuration = "30d"
+	}
+
+	// Combine all fields from all data fields
+	var allFields []string
+	for _, dataField := range req.DataFields {
+		allFields = append(allFields, dataField.Fields...)
+	}
+
+	record := &ConsentRecord{
+		ConsentID:     consentID,
+		OwnerID:       req.DataFields[0].OwnerID, // Use the first owner ID
+		AppID:         req.AppID,
+		Status:        string(StatusPending),
+		Type:          string(ConsentTypeRealTime),
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		ExpiresAt:     expiresAt,
+		GrantDuration: grantDuration,
+		Fields:        allFields,
+		SessionID:     req.SessionID,
+		RedirectURL:   req.RedirectURL,
+		OTPAttempts:   0,
+	}
+
 	ce.consentRecords[record.ConsentID] = record
+
+	// Return the created record
 	return record, nil
+}
+
+// FindExistingConsent finds an existing consent record by consumer app ID and owner ID
+func (ce *consentEngineImpl) FindExistingConsent(consumerAppID, ownerID string) *ConsentRecord {
+	ce.lock.RLock()
+	defer ce.lock.RUnlock()
+
+	return ce.findExistingConsentUnsafe(consumerAppID, ownerID)
+}
+
+// findExistingConsentUnsafe finds an existing consent record without acquiring a lock
+// This should only be called when the caller already holds the appropriate lock
+func (ce *consentEngineImpl) findExistingConsentUnsafe(consumerAppID, ownerID string) *ConsentRecord {
+	for _, record := range ce.consentRecords {
+		if record.AppID == consumerAppID && record.OwnerID == ownerID {
+			return record
+		}
+	}
+	return nil
 }
 
 // GetConsentStatus retrieves a specific consent record from the in-memory store
@@ -308,37 +343,13 @@ func (ce *consentEngineImpl) UpdateConsent(id string, req UpdateConsentRequest) 
 	}
 
 	// Validate status transition
-	if !isValidStatusTransition(record.Status, req.Status) {
-		return nil, fmt.Errorf("invalid status transition from %s to %s", record.Status, req.Status)
-	}
-
-	// Verify OTP if provided (simplified to accept "000000")
-	if req.OTP != "" {
-		if req.OTP != "000000" {
-			return nil, fmt.Errorf("invalid OTP provided")
-		}
-		// OTP is valid, proceed with update
+	if !isValidStatusTransition(ConsentStatus(record.Status), req.Status) {
+		return nil, fmt.Errorf("invalid status transition from %s to %s", record.Status, string(req.Status))
 	}
 
 	// Update the record
-	record.Status = req.Status
+	record.Status = string(req.Status)
 	record.UpdatedAt = time.Now()
-
-	// Update metadata
-	if record.Metadata == nil {
-		record.Metadata = make(map[string]interface{})
-	}
-	record.Metadata["updated_by"] = req.UpdatedBy
-	record.Metadata["update_reason"] = req.Reason
-	record.Metadata["last_updated"] = record.UpdatedAt
-	if req.OTP != "" {
-		record.Metadata["otp_verified"] = true
-	}
-
-	// Merge additional metadata
-	for k, v := range req.Metadata {
-		record.Metadata[k] = v
-	}
 
 	ce.consentRecords[id] = record
 	return record, nil
@@ -360,35 +371,26 @@ func (ce *consentEngineImpl) ProcessConsentPortalRequest(req ConsentPortalReques
 	}
 
 	// Process the action
-	var newStatus ConsentStatus
+	var newStatus string
 	switch req.Action {
 	case "approve", "grant":
-		newStatus = StatusApproved
+		newStatus = string(StatusApproved)
 	case "deny", "reject":
-		newStatus = StatusRejected
+		newStatus = string(StatusRejected)
 	case "revoke":
-		newStatus = StatusRevoked
+		newStatus = string(StatusRevoked)
 	default:
 		return nil, fmt.Errorf("invalid action: %s", req.Action)
 	}
 
 	// Validate status transition
-	if !isValidStatusTransition(record.Status, newStatus) {
+	if !isValidStatusTransition(ConsentStatus(record.Status), ConsentStatus(newStatus)) {
 		return nil, fmt.Errorf("invalid status transition from %s to %s", record.Status, newStatus)
 	}
 
 	// Update the record
 	record.Status = newStatus
 	record.UpdatedAt = time.Now()
-
-	// Update metadata
-	if record.Metadata == nil {
-		record.Metadata = make(map[string]interface{})
-	}
-	record.Metadata["portal_action"] = req.Action
-	record.Metadata["action_reason"] = req.Reason
-	record.Metadata["session_id"] = req.SessionID
-	record.Metadata["last_updated"] = record.UpdatedAt
 
 	ce.consentRecords[req.ConsentID] = record
 	return record, nil
@@ -415,7 +417,7 @@ func (ce *consentEngineImpl) GetConsentsByConsumer(consumer string) ([]*ConsentR
 
 	var records []*ConsentRecord
 	for _, record := range ce.consentRecords {
-		if record.DataConsumer == consumer {
+		if record.AppID == consumer {
 			records = append(records, record)
 		}
 	}
@@ -444,16 +446,9 @@ func (ce *consentEngineImpl) CheckConsentExpiry() ([]*ConsentRecord, error) {
 	var expiredRecords []*ConsentRecord
 
 	for _, record := range ce.consentRecords {
-		if record.ExpiresAt != nil && record.ExpiresAt.Before(now) && record.Status == StatusApproved {
-			record.Status = StatusExpired
+		if record.ExpiresAt.Before(now) && record.Status == string(StatusApproved) {
+			record.Status = string(StatusExpired)
 			record.UpdatedAt = now
-
-			if record.Metadata == nil {
-				record.Metadata = make(map[string]interface{})
-			}
-			record.Metadata["expired_at"] = now
-			record.Metadata["expiry_reason"] = "automatic_expiry"
-
 			expiredRecords = append(expiredRecords, record)
 		}
 	}
@@ -472,18 +467,12 @@ func (ce *consentEngineImpl) RevokeConsent(id string, reason string) (*ConsentRe
 	}
 
 	// Validate status transition
-	if !isValidStatusTransition(record.Status, StatusRevoked) {
-		return nil, fmt.Errorf("invalid status transition from %s to %s", record.Status, StatusRevoked)
+	if !isValidStatusTransition(ConsentStatus(record.Status), StatusRevoked) {
+		return nil, fmt.Errorf("invalid status transition from %s to %s", record.Status, string(StatusRevoked))
 	}
 
-	record.Status = StatusRevoked
+	record.Status = string(StatusRevoked)
 	record.UpdatedAt = time.Now()
-
-	if record.Metadata == nil {
-		record.Metadata = make(map[string]interface{})
-	}
-	record.Metadata["revoked_at"] = record.UpdatedAt
-	record.Metadata["revocation_reason"] = reason
 
 	ce.consentRecords[id] = record
 	return record, nil
@@ -492,11 +481,11 @@ func (ce *consentEngineImpl) RevokeConsent(id string, reason string) (*ConsentRe
 // Helper function to validate status transitions
 func isValidStatusTransition(current, new ConsentStatus) bool {
 	validTransitions := map[ConsentStatus][]ConsentStatus{
-		StatusPending:  {StatusApproved, StatusRejected, StatusExpired},
-		StatusApproved: {StatusRevoked, StatusExpired},
-		StatusRejected: {StatusPending}, // Allow retry
-		StatusExpired:  {StatusPending}, // Allow renewal
-		StatusRevoked:  {},              // No transitions from revoked
+		StatusPending:  {StatusApproved, StatusRejected, StatusExpired}, // Initial decision
+		StatusApproved: {StatusApproved, StatusRejected, StatusRevoked}, // OTP flow: approved->approved (success), approved->rejected (OTP failure), approved->revoked (user revocation)
+		StatusRejected: {StatusPending, StatusApproved},                 // Allow retry from rejected
+		StatusExpired:  {StatusPending},                                 // Allow renewal
+		StatusRevoked:  {StatusPending},                                 // Allow revocation reconsideration (must go through pending first)
 	}
 
 	allowed, exists := validTransitions[current]
@@ -513,7 +502,7 @@ func isValidStatusTransition(current, new ConsentStatus) bool {
 }
 
 // ProcessConsentRequest processes the new consent workflow request
-func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*ConsentResponse, error) {
+func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*ConsentRecord, error) {
 	// Validate required fields
 	if req.AppID == "" {
 		return nil, fmt.Errorf("app_id is required")
@@ -536,96 +525,59 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	// Create expiry time (30 days from now)
 	expiresAt := time.Now().Add(30 * 24 * time.Hour)
 
-	// Check whether consent is already given; need to iterate through each data field.
-	for _, dataField := range req.DataFields {
-		for _, record := range ce.consentRecords {
-			if record.OwnerID == dataField.OwnerID && record.DataConsumer == req.AppID && record.Status == StatusApproved {
-				// Check if all requested fields are already approved
-				allFieldsApproved := true
-				fieldSet := make(map[string]struct{})
-				for _, field := range record.Fields {
-					fieldSet[field] = struct{}{}
-				}
-				for _, requestedField := range dataField.Fields {
-					if _, exists := fieldSet[requestedField]; !exists {
-						allFieldsApproved = false
-						break
-					}
-				}
-				if allFieldsApproved {
-					// Return existing consent response
-					return &ConsentResponse{
-						ConsentID:    record.ConsentID,
-						OwnerID:      record.OwnerID,
-						DataConsumer: record.DataConsumer,
-						Status:       string(record.Status),
-						Type:         string(record.Type),
-						CreatedAt:    record.CreatedAt,
-						UpdatedAt:    record.UpdatedAt,
-						ExpiresAt:    record.ExpiresAt,
-						Fields:       record.Fields,
-						SessionID:    record.SessionID,
-						RedirectURL:  record.RedirectURL,
-						Purpose:      req.Purpose,
-						Message:      "Consent already granted.",
-					}, nil
-				}
-			}
-		}
-	}
-
-	// Create ConsentRecord for each Data Owner
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
 
-	var createdRecords []*ConsentRecord
-
-	for _, dataField := range req.DataFields {
-		// Generate unique consent ID for each data owner
-		consentID := fmt.Sprintf("consent_%s", uuid.New().String()[:8])
-
-		// Create ConsentRecord for this data owner
-		record := &ConsentRecord{
-			ConsentID:    consentID,
-			OwnerID:      dataField.OwnerID,
-			DataConsumer: req.AppID,
-			Status:       StatusPending,
-			Type:         ConsentTypeRealTime,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
-			ExpiresAt:    &expiresAt,
-			Fields:       dataField.Fields,
-			SessionID:    req.SessionID,
-			RedirectURL:  req.RedirectURL,
-			Metadata: map[string]interface{}{
-				"purpose": req.Purpose,
-			},
+	// Check if there's already an existing consent for this (app_id, owner_id) pair
+	// We only need to check the first data field since all should have the same owner
+	if len(req.DataFields) > 0 {
+		existingRecord := ce.findExistingConsentUnsafe(req.AppID, req.DataFields[0].OwnerID)
+		if existingRecord != nil {
+			// Return the existing record instead of creating a new one
+			return existingRecord, nil
 		}
-
-		// Store the record
-		ce.consentRecords[consentID] = record
-		createdRecords = append(createdRecords, record)
 	}
 
-	// Create response using the primary consent record
-	primaryRecord := createdRecords[0]
-	response := &ConsentResponse{
-		ConsentID:    primaryRecord.ConsentID,
-		OwnerID:      primaryRecord.OwnerID,
-		DataConsumer: primaryRecord.DataConsumer,
-		Status:       string(primaryRecord.Status),
-		Type:         string(primaryRecord.Type),
-		CreatedAt:    primaryRecord.CreatedAt,
-		UpdatedAt:    primaryRecord.UpdatedAt,
-		ExpiresAt:    primaryRecord.ExpiresAt,
-		Fields:       primaryRecord.Fields,
-		SessionID:    primaryRecord.SessionID,
-		RedirectURL:  fmt.Sprintf("%s?consent=%s", ce.consentPortalUrl, primaryRecord.ConsentID),
-		Purpose:      req.Purpose,
-		Message:      "Consent required. Please visit the consent portal.",
+	// Create new consent record for this owner
+	consentID := fmt.Sprintf("consent_%s", uuid.New().String()[:8])
+
+	// Set default grant duration if not provided
+	grantDuration := req.GrantDuration
+	if grantDuration == "" {
+		grantDuration = "30d"
 	}
 
-	return response, nil
+	// Combine all fields from all data fields
+	var allFields []string
+	for _, dataField := range req.DataFields {
+		allFields = append(allFields, dataField.Fields...)
+	}
+
+	record := &ConsentRecord{
+		ConsentID:     consentID,
+		OwnerID:       req.DataFields[0].OwnerID, // Use the first owner ID
+		AppID:         req.AppID,
+		Status:        string(StatusPending),
+		Type:          string(ConsentTypeRealTime),
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+		ExpiresAt:     expiresAt,
+		GrantDuration: grantDuration,
+		Fields:        allFields,
+		SessionID:     req.SessionID,
+		RedirectURL:   req.RedirectURL,
+		OTPAttempts:   0,
+	}
+
+	// Store the record
+	ce.consentRecords[consentID] = record
+
+	// Build redirect URL with consent_id for pending status
+	if record.Status == string(StatusPending) {
+		record.RedirectURL = fmt.Sprintf("http://localhost:5173/?consent_id=%s", record.ConsentID)
+	}
+
+	return record, nil
 }
 
 // Helper function to parse expiry time strings like "30d", "1h", "7d"
@@ -702,35 +654,58 @@ func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*Co
 		existingRecord.Status = req.Status
 		existingRecord.Type = req.Type
 		existingRecord.OwnerID = req.OwnerID
-		existingRecord.DataConsumer = req.DataConsumer
+		existingRecord.AppID = req.AppID
 		existingRecord.UpdatedAt = time.Now()
 		existingRecord.Fields = req.Fields
 		existingRecord.SessionID = req.SessionID
 		existingRecord.RedirectURL = req.RedirectURL
 		existingRecord.ExpiresAt = req.ExpiresAt
-		existingRecord.Metadata = req.Metadata
+		existingRecord.GrantDuration = req.GrantDuration
 
 		return existingRecord, nil
 	}
 
+	// Set default grant duration if not provided
+	grantDuration := req.GrantDuration
+	if grantDuration == "" {
+		grantDuration = "30d"
+	}
+
 	// Create new record
 	record := &ConsentRecord{
-		ConsentID:    req.ConsentID,
-		OwnerID:      req.OwnerID,
-		DataConsumer: req.DataConsumer,
-		Status:       req.Status,
-		Type:         req.Type,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-		ExpiresAt:    req.ExpiresAt,
-		Fields:       req.Fields,
-		SessionID:    req.SessionID,
-		RedirectURL:  req.RedirectURL,
-		Metadata:     req.Metadata,
+		ConsentID:     req.ConsentID,
+		OwnerID:       req.OwnerID,
+		AppID:         req.AppID,
+		Status:        req.Status,
+		Type:          req.Type,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+		ExpiresAt:     req.ExpiresAt,
+		GrantDuration: grantDuration,
+		Fields:        req.Fields,
+		SessionID:     req.SessionID,
+		RedirectURL:   req.RedirectURL,
+		OTPAttempts:   0,
 	}
 
 	// Store the record
 	ce.consentRecords[req.ConsentID] = record
 
 	return record, nil
+}
+
+// UpdateConsentRecord updates an existing consent record directly
+func (ce *consentEngineImpl) UpdateConsentRecord(record *ConsentRecord) error {
+	ce.lock.Lock()
+	defer ce.lock.Unlock()
+
+	// Check if the record exists
+	if _, exists := ce.consentRecords[record.ConsentID]; !exists {
+		return fmt.Errorf("consent record with ID '%s' not found", record.ConsentID)
+	}
+
+	// Update the record
+	ce.consentRecords[record.ConsentID] = record
+
+	return nil
 }

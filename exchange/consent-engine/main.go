@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +15,14 @@ import (
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
+
+// getEnvOrDefault returns the environment variable value or a default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
 // Build information - set during build
 var (
@@ -47,6 +57,22 @@ type apiServer struct {
 	engine ConsentEngine
 }
 
+// ConsentPortalCreateRequest represents the request format for creating consent via portal
+type ConsentPortalCreateRequest struct {
+	AppID       string      `json:"app_id"`
+	DataFields  []DataField `json:"data_fields"`
+	Purpose     string      `json:"purpose"`
+	SessionID   string      `json:"session_id"`
+	RedirectURL string      `json:"redirect_url"`
+}
+
+// ConsentPortalUpdateRequest represents the request format for updating consent via portal
+type ConsentPortalUpdateRequest struct {
+	Status    string `json:"status"`
+	UpdatedBy string `json:"updated_by"`
+	Reason    string `json:"reason,omitempty"`
+}
+
 // Consent handlers - organized for better readability
 func (s *apiServer) handleConsentPost(w http.ResponseWriter, r *http.Request) {
 	// First, try to parse as a consent update (has consent_id field)
@@ -69,15 +95,9 @@ func (s *apiServer) handleConsentPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Otherwise, treat as new consent request
-	var req ConsentRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
-		return
-	}
-
-	// Process new consent request
-	s.processConsentRequest(w, r, req)
+	// Otherwise, treat as new consent request - reset the body for createConsent to read
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+	s.createConsent(w, r)
 }
 
 func (s *apiServer) processConsentRequest(w http.ResponseWriter, r *http.Request, req ConsentRequest) {
@@ -88,50 +108,91 @@ func (s *apiServer) processConsentRequest(w http.ResponseWriter, r *http.Request
 	}
 
 	// Log the operation
-	slog.Info("Operation successful", "operation", constants.OpCreateConsent, "consentId", response.ConsentID, "status", response.Status)
+	slog.Info("Operation successful", "operation", OpCreateConsent, "consentId", response.ConsentID, "status", response.Status)
 
-	// Return the ConsentResponse directly as it already has the correct format
+	// Return the ConsentRecord directly as it already has the correct format
 	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
 func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
-	var req CreateConsentRequest
-	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		record, err := s.engine.CreateConsent(req)
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentCreateFailed+": %w", err)
-		}
+	var req ConsentRequest
 
-		// Format timestamps as ISO strings
-		var expiresAtStr string
-		if record.ExpiresAt != nil {
-			expiresAtStr = record.ExpiresAt.Format(time.RFC3339)
-		}
-		createdAtStr := record.CreatedAt.Format(time.RFC3339)
+	// Parse request body
+	body, err := utils.ReadRequestBody(r)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Failed to read request body"})
+		return
+	}
 
-		response := map[string]interface{}{
-			"consentId":        record.ConsentID,
-			"status":           record.Status,
-			"dataConsumer":     record.DataConsumer,
-			"dataOwner":        record.OwnerID,
-			"fields":           record.Fields,
-			"consentPortalUrl": fmt.Sprintf("/consent-portal/%s", record.ConsentID),
-			"expiresAt":        expiresAtStr,
-			"createdAt":        createdAtStr,
-		}
+	if err := json.Unmarshal(body, &req); err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
+		return
+	}
 
-		utils.HandleSuccess(w, response, http.StatusCreated, constants.OpCreateConsent, map[string]interface{}{
-			"id": record.ConsentID, "owner": record.OwnerID,
-		})
-		return response, http.StatusCreated, nil
-	})
+	// Validate that all required fields are present and not empty
+	if req.AppID == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "app_id is required and cannot be empty"})
+		return
+	}
+	if req.Purpose == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "purpose is required and cannot be empty"})
+		return
+	}
+	if req.SessionID == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
+		return
+	}
+	if req.RedirectURL == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "redirect_url is required and cannot be empty"})
+		return
+	}
+	if len(req.DataFields) == 0 {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "data_fields is required and cannot be empty"})
+		return
+	}
+
+	// Validate each data field
+	for i, dataField := range req.DataFields {
+		if dataField.OwnerType == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_type is required and cannot be empty", i)})
+			return
+		}
+		if dataField.OwnerID == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
+			return
+		}
+		if len(dataField.Fields) == 0 {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields is required and cannot be empty", i)})
+			return
+		}
+		// Validate that no field is empty
+		for j, field := range dataField.Fields {
+			if field == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields[%d] cannot be empty", i, j)})
+				return
+			}
+		}
+	}
+
+	// Process consent request using the engine
+	response, err := s.engine.ProcessConsentRequest(req)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to process consent request: " + err.Error()})
+		return
+	}
+
+	// Log the operation
+	slog.Info("Operation successful", "operation", "create consent", "id", response.ConsentID, "owner", response.OwnerID, "existing", false)
+
+	// Return the ConsentRecord
+	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
 func (s *apiServer) getConsentStatus(w http.ResponseWriter, r *http.Request) {
 	utils.PathHandler(w, r, "/consents/", func(id string) (interface{}, int, error) {
 		record, err := s.engine.GetConsentStatus(id)
 		if err != nil {
-			return nil, http.StatusNotFound, fmt.Errorf(constants.ErrConsentNotFound+": %w", err)
+			return nil, http.StatusNotFound, fmt.Errorf(ErrConsentNotFound+": %w", err)
 		}
 		return record, http.StatusOK, nil
 	})
@@ -147,8 +208,13 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 
 		record, err := s.engine.UpdateConsent(id, req)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentUpdateFailed+": %w", err)
+			if strings.Contains(err.Error(), "not found") {
+				return nil, http.StatusNotFound, err
+			}
+			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentUpdateFailed+": %w", err)
 		}
+
+		// Return the ConsentRecord directly
 		return record, http.StatusOK, nil
 	})
 }
@@ -163,23 +229,11 @@ func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 
 		record, err := s.engine.RevokeConsent(id, req.Reason)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentRevokeFailed+": %w", err)
+			if strings.Contains(err.Error(), "not found") {
+				return nil, http.StatusNotFound, err
+			}
+			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentRevokeFailed+": %w", err)
 		}
-		return record, http.StatusOK, nil
-	})
-}
-
-// Portal and admin handlers
-func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.Request) {
-	var req ConsentPortalRequest
-	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		record, err := s.engine.ProcessConsentPortalRequest(req)
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrPortalRequestFailed+": %w", err)
-		}
-		utils.HandleSuccess(w, record, http.StatusOK, constants.OpProcessPortalRequest, map[string]interface{}{
-			"id": record.ConsentID, "action": req.Action, "status": record.Status,
-		})
 		return record, http.StatusOK, nil
 	})
 }
@@ -207,11 +261,11 @@ func (s *apiServer) updateConsentStatus(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// Update the status
-	var newStatus ConsentStatus
+	var newStatus string
 	if req.Status == "approved" {
-		newStatus = StatusApproved
+		newStatus = string(StatusApproved)
 	} else {
-		newStatus = StatusRejected
+		newStatus = string(StatusRejected)
 	}
 
 	record.Status = newStatus
@@ -228,6 +282,13 @@ func (s *apiServer) updateConsentStatus(w http.ResponseWriter, r *http.Request, 
 		"data_owner_confirmation": true,
 	}
 
+	// If approved, redirect to orchestration engine's redirect endpoint
+	if req.Status == "approved" {
+		redirectURL := fmt.Sprintf("http://localhost:4000/consent-redirect?consent_id=%s", req.ConsentID)
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		return
+	}
+
 	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
@@ -240,20 +301,17 @@ func (s *apiServer) getConsentPortalInfo(w http.ResponseWriter, r *http.Request)
 
 		record, err := s.engine.GetConsentStatus(consentID)
 		if err != nil {
-			return nil, http.StatusNotFound, fmt.Errorf(constants.ErrConsentNotFound+": %w", err)
+			return nil, http.StatusNotFound, fmt.Errorf(ErrConsentNotFound+": %w", err)
 		}
 
 		// Format timestamps as ISO strings
-		var expiresAtStr string
-		if record.ExpiresAt != nil {
-			expiresAtStr = record.ExpiresAt.Format(time.RFC3339)
-		}
+		expiresAtStr := record.ExpiresAt.Format(time.RFC3339)
 		createdAtStr := record.CreatedAt.Format(time.RFC3339)
 
 		return map[string]interface{}{
 			"consentId":        record.ConsentID,
 			"status":           record.Status,
-			"dataConsumer":     record.DataConsumer,
+			"dataConsumer":     record.AppID,
 			"dataOwner":        record.OwnerID,
 			"fields":           record.Fields,
 			"consentPortalUrl": fmt.Sprintf("/consent-portal/%s", record.ConsentID),
@@ -267,7 +325,7 @@ func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Reques
 	utils.PathHandler(w, r, "/data-owner/", func(dataOwner string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByDataOwner(dataOwner)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentGetFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentGetFailed+": %w", err)
 		}
 		return map[string]interface{}{
 			"data_owner": dataOwner,
@@ -281,7 +339,7 @@ func (s *apiServer) getConsentsByConsumer(w http.ResponseWriter, r *http.Request
 	utils.PathHandler(w, r, "/consumer/", func(consumer string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByConsumer(consumer)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentGetFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentGetFailed+": %w", err)
 		}
 		return map[string]interface{}{
 			"consumer": consumer,
@@ -295,13 +353,13 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 	utils.GenericHandler(w, r, func() (interface{}, int, error) {
 		expiredRecords, err := s.engine.CheckConsentExpiry()
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(constants.ErrConsentExpiryFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentExpiryFailed+": %w", err)
 		}
 		utils.HandleSuccess(w, map[string]interface{}{
 			"expired_records": expiredRecords,
 			"count":           len(expiredRecords),
 			"checked_at":      time.Now(),
-		}, http.StatusOK, constants.OpCheckConsentExpiry, map[string]interface{}{
+		}, http.StatusOK, OpCheckConsentExpiry, map[string]interface{}{
 			"expired_count": len(expiredRecords),
 		})
 		return map[string]interface{}{
@@ -335,7 +393,7 @@ func (s *apiServer) sendConsentOTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// updateConsentWithOTP handles POST /consent/update with OTP verification
+// updateConsentWithOTP handles POST /consents/update with OTP verification
 func (s *apiServer) updateConsentWithOTP(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ConsentID string `json:"consent_id"`
@@ -402,11 +460,11 @@ func (s *apiServer) updateConsentWithOTP(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Update the status
-	var newStatus ConsentStatus
+	var newStatus string
 	if req.Status == "approved" {
-		newStatus = StatusApproved
+		newStatus = string(StatusApproved)
 	} else {
-		newStatus = StatusRejected
+		newStatus = string(StatusRejected)
 	}
 
 	record.Status = newStatus
@@ -415,7 +473,7 @@ func (s *apiServer) updateConsentWithOTP(w http.ResponseWriter, r *http.Request)
 	// Store the updated record
 
 	updateReq := UpdateConsentRequest{
-		Status: newStatus,
+		Status: ConsentStatus(newStatus),
 	}
 	_, err = s.engine.UpdateConsent(record.ConsentID, updateReq)
 	if err != nil {
@@ -431,7 +489,7 @@ func (s *apiServer) updateConsentWithOTP(w http.ResponseWriter, r *http.Request)
 		"message":    "Consent status updated successfully",
 	}
 
-	utils.HandleSuccess(w, response, http.StatusOK, constants.OpUpdateConsent, map[string]interface{}{
+	utils.HandleSuccess(w, response, http.StatusOK, OpUpdateConsent, map[string]interface{}{
 		"consentId": record.ConsentID, "status": string(record.Status),
 	})
 }
@@ -439,29 +497,29 @@ func (s *apiServer) updateConsentWithOTP(w http.ResponseWriter, r *http.Request)
 // Route handlers - organized for better readability
 func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/consents")
-	fmt.Printf("DEBUG: Path=%s, Method=%s\n", path, r.Method)
 	switch {
 	case path == "" && r.Method == http.MethodPost:
 		// Check if this is a consent update (has consent_id) or new consent request
 		s.handleConsentPost(w, r)
 	case path == "/update" && r.Method == http.MethodPost:
 		s.updateConsentWithOTP(w, r)
+	case strings.HasSuffix(path, "/otp") && r.Method == http.MethodPost:
+		consentID := strings.TrimSuffix(path, "/otp")
+		consentID = strings.TrimPrefix(consentID, "/")
+		s.verifyConsentOTP(w, r, consentID)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodGet:
-		// Handle GET /consent/{id} - get consent by ID
+		// Handle GET /consents/{id} - get consent by ID
 		consentID := strings.TrimPrefix(path, "/")
 		s.getConsentByID(w, r, consentID)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodPost:
-		// Handle POST /consent/{id} - update consent by ID with OTP
+		// Handle POST /consents/{id} - update consent by ID with OTP
 		consentID := strings.TrimPrefix(path, "/")
 		s.updateConsentByID(w, r, consentID)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodPut:
 		s.updateConsent(w, r)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodDelete:
 		s.revokeConsent(w, r)
-	case strings.HasSuffix(path, "/otp") && r.Method == http.MethodPost:
-		s.sendConsentOTP(w, r)
 	default:
-		fmt.Printf("DEBUG: No match found for path=%s, method=%s\n", path, r.Method)
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
@@ -470,11 +528,151 @@ func (s *apiServer) consentPortalHandler(w http.ResponseWriter, r *http.Request)
 	switch r.Method {
 	case http.MethodPost:
 		s.processConsentPortalRequest(w, r)
+	case http.MethodPut:
+		s.processConsentPortalUpdate(w, r)
 	case http.MethodGet:
 		s.getConsentPortalInfo(w, r)
 	default:
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
+}
+
+// processConsentPortalRequest handles POST requests to the consent portal
+func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.Request) {
+	var req ConsentPortalCreateRequest
+
+	// Parse request body
+	body, err := utils.ReadRequestBody(r)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Failed to read request body"})
+		return
+	}
+
+	if err := json.Unmarshal(body, &req); err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
+		return
+	}
+
+	// Validate required fields
+	if req.AppID == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "app_id is required and cannot be empty"})
+		return
+	}
+	if req.Purpose == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "purpose is required and cannot be empty"})
+		return
+	}
+	if req.SessionID == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
+		return
+	}
+	if req.RedirectURL == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "redirect_url is required and cannot be empty"})
+		return
+	}
+	if len(req.DataFields) == 0 {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "data_fields is required and cannot be empty"})
+		return
+	}
+
+	// Validate each data field
+	for i, dataField := range req.DataFields {
+		if dataField.OwnerType == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_type is required and cannot be empty", i)})
+			return
+		}
+		if dataField.OwnerID == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
+			return
+		}
+		if len(dataField.Fields) == 0 {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields is required and cannot be empty", i)})
+			return
+		}
+		// Validate that no field is empty
+		for j, field := range dataField.Fields {
+			if field == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields[%d] cannot be empty", i, j)})
+				return
+			}
+		}
+	}
+
+	// Convert to ConsentRequest format
+	consentReq := ConsentRequest{
+		AppID:       req.AppID,
+		DataFields:  req.DataFields,
+		Purpose:     req.Purpose,
+		SessionID:   req.SessionID,
+		RedirectURL: req.RedirectURL,
+	}
+
+	// Process consent request using the engine
+	response, err := s.engine.ProcessConsentRequest(consentReq)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to process consent request: " + err.Error()})
+		return
+	}
+
+	// Log the operation
+	slog.Info("Operation successful", "operation", "create consent via portal", "id", response.ConsentID, "owner", response.OwnerID, "existing", false)
+
+	// Return the ConsentRecord
+	utils.RespondWithJSON(w, http.StatusCreated, response)
+}
+
+// processConsentPortalUpdate handles PUT requests to the consent portal
+func (s *apiServer) processConsentPortalUpdate(w http.ResponseWriter, r *http.Request) {
+	// Extract consent ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/consent-portal/")
+	if path == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
+		return
+	}
+
+	var req ConsentPortalUpdateRequest
+
+	// Parse request body
+	body, err := utils.ReadRequestBody(r)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Failed to read request body"})
+		return
+	}
+
+	if err := json.Unmarshal(body, &req); err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
+		return
+	}
+
+	// Validate required fields for update
+	if req.Status == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status is required and cannot be empty"})
+		return
+	}
+	if req.UpdatedBy == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "updated_by is required and cannot be empty"})
+		return
+	}
+
+	// Convert to UpdateConsentRequest format
+	updateReq := UpdateConsentRequest{
+		Status:    ConsentStatus(req.Status),
+		UpdatedBy: req.UpdatedBy,
+		Reason:    req.Reason,
+	}
+
+	// Process consent update using the engine
+	response, err := s.engine.UpdateConsent(path, updateReq)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent: " + err.Error()})
+		return
+	}
+
+	// Log the operation
+	slog.Info("Operation successful", "operation", "update consent via portal", "id", response.ConsentID, "status", response.Status, "updated_by", req.UpdatedBy)
+
+	// Return the updated ConsentRecord
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (s *apiServer) dataOwnerHandler(w http.ResponseWriter, r *http.Request) {
@@ -562,9 +760,9 @@ func (s *apiServer) getConsentByID(w http.ResponseWriter, r *http.Request, conse
 	response := map[string]interface{}{
 		"consent_uuid":  record.ConsentID,
 		"owner_id":      record.OwnerID,
-		"data_consumer": record.DataConsumer,
-		"status":        string(record.Status),
-		"type":          string(record.Type),
+		"data_consumer": record.AppID,
+		"status":        record.Status,
+		"type":          record.Type,
 		"created_at":    record.CreatedAt.Format(time.RFC3339),
 		"updated_at":    record.UpdatedAt.Format(time.RFC3339),
 		"fields":        record.Fields,
@@ -572,17 +770,16 @@ func (s *apiServer) getConsentByID(w http.ResponseWriter, r *http.Request, conse
 		"redirect_url":  record.RedirectURL,
 	}
 
-	if record.ExpiresAt != nil {
-		response["expires_at"] = record.ExpiresAt.Format(time.RFC3339)
-	}
+	response["expires_at"] = record.ExpiresAt.Format(time.RFC3339)
 
 	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, consentID string) {
 	var req struct {
-		Status string `json:"status"`
-		OTP    string `json:"otp"`
+		Status  string `json:"status"`
+		OwnerID string `json:"owner_id"`
+		Message string `json:"message"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -596,50 +793,147 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 		return
 	}
 
-	// Validate OTP (hardcoded to 000000 for testing)
-	if req.OTP != "000000" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid OTP"})
+	// Validate required fields
+	if req.OwnerID == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "owner_id is required"})
 		return
 	}
 
-	// Get existing record
-	_, err := s.engine.GetConsentStatus(consentID)
+	// Note: We don't need to check if the record exists here since UpdateConsent will handle it
+
+	// Convert status and set message based on status
+	var newStatus string
+	var message string
+	if req.Status == "approved" {
+		// For approved consents, set to approved (OTP verification will happen next)
+		newStatus = string(StatusApproved)
+		message = "User approved consent via portal - OTP verification required"
+		slog.Info("DEBUG: Setting status to approved for consent", "consentId", consentID, "requestStatus", req.Status, "newStatus", newStatus)
+	} else {
+		newStatus = string(StatusRejected)
+		message = "User rejected consent via portal"
+		slog.Info("DEBUG: Setting status to rejected", "consentId", consentID, "requestStatus", req.Status, "newStatus", newStatus)
+	}
+
+	// Update the record
+	updateReq := UpdateConsentRequest{
+		Status:    ConsentStatus(newStatus),
+		UpdatedBy: req.OwnerID,
+		Reason:    message,
+	}
+
+	updatedRecord, err := s.engine.UpdateConsent(consentID, updateReq)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		} else {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent record: " + err.Error()})
+		}
+		return
+	}
+
+	// Log the operation
+	slog.Info("Consent status updated", "consentId", consentID, "status", req.Status, "ownerId", req.OwnerID)
+
+	// Build redirect URL with consent_id for pending status
+	if updatedRecord.Status == string(StatusPending) {
+		updatedRecord.RedirectURL = fmt.Sprintf("http://localhost:5173/?consent_id=%s", updatedRecord.ConsentID)
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
+}
+
+// verifyConsentOTP handles POST /consents/:consentId/otp for OTP verification
+func (s *apiServer) verifyConsentOTP(w http.ResponseWriter, r *http.Request, consentID string) {
+	var req struct {
+		OTPCode string `json:"otp_code"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
+		return
+	}
+
+	// Validate OTP code
+	if req.OTPCode == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "otp_code is required"})
+		return
+	}
+
+	// Get the consent record
+	record, err := s.engine.GetConsentStatus(consentID)
 	if err != nil {
 		utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
 		return
 	}
 
-	// Convert status
-	var newStatus ConsentStatus
-	if req.Status == "approved" {
-		newStatus = StatusApproved
-	} else {
-		newStatus = StatusRejected
+	// Check if consent is in approved status (after initial approval)
+	if record.Status != string(StatusApproved) {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent is not in approved status for OTP verification"})
+		return
 	}
 
-	// Update the record
+	// Increment OTP attempts
+	record.OTPAttempts++
+
+	// Verify OTP (hardcoded to "123456" for testing)
+	if req.OTPCode != "123456" {
+		// Check if we've exceeded max attempts (3)
+		if record.OTPAttempts >= 3 {
+			// Update consent status to rejected after 3 failed attempts
+			updateReq := UpdateConsentRequest{
+				Status:    StatusRejected,
+				UpdatedBy: record.OwnerID,
+				Reason:    "OTP verification failed after 3 attempts",
+			}
+
+			_, err := s.engine.UpdateConsent(consentID, updateReq)
+			if err != nil {
+				utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent record: " + err.Error()})
+				return
+			}
+
+			slog.Info("OTP verification failed after 3 attempts", "consentId", consentID, "ownerId", record.OwnerID)
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "OTP verification failed after 3 attempts. Consent has been rejected."})
+			return
+		}
+
+		// Update the record with incremented attempts
+		record.UpdatedAt = time.Now()
+		s.engine.UpdateConsentRecord(record)
+
+		remainingAttempts := 3 - record.OTPAttempts
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("Invalid OTP code. %d attempts remaining.", remainingAttempts)})
+		return
+	}
+
+	// OTP is correct - update consent status to approved (final approval)
 	updateReq := UpdateConsentRequest{
-		Status:    newStatus,
-		UpdatedBy: "data_owner",
-		Reason:    "User decision with OTP verification",
-		OTP:       req.OTP,
+		Status:    StatusApproved,
+		UpdatedBy: record.OwnerID,
+		Reason:    "OTP verified successfully",
 	}
 
 	updatedRecord, err := s.engine.UpdateConsent(consentID, updateReq)
 	if err != nil {
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent record: " + err.Error()})
+		if strings.Contains(err.Error(), "not found") {
+			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		} else {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent record: " + err.Error()})
+		}
 		return
 	}
 
 	// Log the operation
-	slog.Info("Consent status updated with OTP", "consentId", consentID, "status", req.Status)
+	slog.Info("OTP verified successfully", "consentId", consentID, "ownerId", record.OwnerID, "attempts", record.OTPAttempts)
 
 	// Return success response
 	response := map[string]interface{}{
-		"consent_uuid": updatedRecord.ConsentID,
-		"status":       string(updatedRecord.Status),
-		"updated_at":   updatedRecord.UpdatedAt.Format(time.RFC3339),
-		"message":      "Consent status updated successfully",
+		"success":    true,
+		"consent_id": updatedRecord.ConsentID,
+		"status":     updatedRecord.Status,
+		"message":    "OTP verified successfully. Consent has been approved.",
+		"updated_at": updatedRecord.UpdatedAt.Format(time.RFC3339),
 	}
 
 	utils.RespondWithJSON(w, http.StatusOK, response)
@@ -674,12 +968,14 @@ func main() {
 		"git_commit", GitCommit)
 
 	// Initialize consent engine
-	engine := NewConsentEngine(cfg.ConsentPortalUrl)
+	consentPortalUrl := getEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalUrl)
 	server := &apiServer{engine: engine}
 
 	// Setup routes using utils
 	mux := http.NewServeMux()
 	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
+	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	mux.Handle("/consents/update", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentUpdateHandler)))
 	mux.Handle("/consent-portal/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentPortalHandler)))
 	mux.Handle("/consent-website", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentWebsiteHandler)))
