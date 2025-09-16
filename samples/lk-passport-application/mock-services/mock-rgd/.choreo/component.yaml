@@ -3,7 +3,7 @@ schemaVersion: 1.2
 
 # +optional Incoming connection details for the component
 endpoints:
-  - name: rgd-mock-provider-graphql-subgraph
+  - name: rgd-mock-provider
     displayName: RGD Mock Provider GraphQL API
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
@@ -17,25 +17,6 @@ endpoints:
     # that are consumed internally by your supergraph.
     networkVisibilities:
       - Public
-  - name: rgd-mock-provider-rest-api
-    displayName: RGD Mock Provider REST API
-    service:
-      # Base path for the REST endpoint. Typically '/', but could be /api if explicitly designed.
-      basePath: /
-      port: 8080
-    # +required Type of traffic that the endpoint is accepting.
-    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
-    type: REST
-    # Network visibility: Organization is generally recommended for backend services
-    # that are consumed internally by your supergraph.
-    schemaFilePath: ./openapi.json
-    networkVisibilities:
-      - Public
-# +optional Defines runtime configurations
-dependencies:
-    connectionReferences:
-    - name: MOCK RGD DB CONNECTION
-      resourceRef: database:dot-mock-db/mock-rgd-db
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
