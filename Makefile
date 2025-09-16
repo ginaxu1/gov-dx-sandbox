@@ -29,25 +29,25 @@ start-all:
 	@echo "========================="
 	@echo ""
 	
-	# Start Exchange Services
-	@echo "Starting Exchange Services..."
+	# Start Exchange Services (Docker)
+	@echo "Starting Exchange Services (Docker)..."
 	@cd exchange && docker compose --env-file .env.local up --build -d
 	@echo "✅ Exchange services started"
 	@echo ""
 	
-	# Start API Server
-	@echo "Starting API Server..."
+	# Start API Server (Go)
+	@echo "Starting API Server (Go)..."
 	@cd api-server-go && go run main.go &
 	@echo "✅ API Server started"
 	@echo ""
 	
 	@echo "All services started!"
 	@echo "====================="
-	@echo "Exchange Services:"
+	@echo "Exchange Services (Docker):"
 	@echo "  - Policy Decision Point: http://localhost:8082"
 	@echo "  - Consent Engine: http://localhost:8081"
 	@echo "  - Orchestration Engine: http://localhost:4000"
-	@echo "API Server: http://localhost:3000"
+	@echo "API Server (Go): http://localhost:3000"
 	@echo ""
 	@echo "To view logs: make logs"
 	@echo "To stop all: make stop-all"
@@ -58,14 +58,14 @@ stop-all:
 	@echo "========================"
 	@echo ""
 	
-	# Stop Exchange Services
-	@echo "Stopping Exchange Services..."
+	# Stop Exchange Services (Docker)
+	@echo "Stopping Exchange Services (Docker)..."
 	@cd exchange && docker compose down
 	@echo "✅ Exchange services stopped"
 	@echo ""
 	
-	# Stop API Server
-	@echo "Stopping API Server..."
+	# Stop API Server (Go)
+	@echo "Stopping API Server (Go)..."
 	@pkill -f "go run main.go" || true
 	@pkill -f "api-server-go" || true
 	@echo "✅ API Server stopped"
@@ -79,15 +79,15 @@ status:
 	@echo "=============="
 	@echo ""
 	
-	# Check Exchange Services
-	@echo "Exchange Services:"
+	# Check Exchange Services (Docker)
+	@echo "Exchange Services (Docker):"
 	@echo "  Policy Decision Point: $$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8082/health 2>/dev/null || echo 'DOWN')"
 	@echo "  Consent Engine: $$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/health 2>/dev/null || echo 'DOWN')"
 	@echo "  Orchestration Engine: $$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/health 2>/dev/null || echo 'DOWN')"
 	@echo ""
 	
-	# Check API Server
-	@echo "API Server:"
+	# Check API Server (Go)
+	@echo "API Server (Go):"
 	@echo "  API Server: $$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/health 2>/dev/null || echo 'DOWN')"
 	@echo ""
 	
@@ -100,10 +100,10 @@ logs:
 	@echo "Service Logs"
 	@echo "============"
 	@echo ""
-	@echo "Exchange Services logs:"
+	@echo "Exchange Services logs (Docker):"
 	@cd exchange && docker compose logs --tail=50
 	@echo ""
-	@echo "API Server logs (if running):"
+	@echo "API Server logs (Go - if running):"
 	@ps aux | grep -E "go run main.go|api-server" | grep -v grep || echo "API Server not running"
 
 # Clean up all services and containers
@@ -112,14 +112,14 @@ clean:
 	@echo "==========================="
 	@echo ""
 	
-	# Clean Exchange Services
-	@echo "Cleaning Exchange Services..."
+	# Clean Exchange Services (Docker)
+	@echo "Cleaning Exchange Services (Docker)..."
 	@cd exchange && docker compose down -v --remove-orphans
 	@echo "✅ Exchange services cleaned"
 	@echo ""
 	
-	# Clean API Server
-	@echo "Cleaning API Server..."
+	# Clean API Server (Go)
+	@echo "Cleaning API Server (Go)..."
 	@pkill -f "go run main.go" || true
 	@pkill -f "api-server-go" || true
 	@echo "✅ API Server cleaned"
@@ -139,14 +139,14 @@ build:
 	@echo "========================"
 	@echo ""
 	
-	# Build Exchange Services
-	@echo "Building Exchange Services..."
+	# Build Exchange Services (Docker)
+	@echo "Building Exchange Services (Docker)..."
 	@cd exchange && docker compose build
 	@echo "✅ Exchange services built"
 	@echo ""
 	
-	# Build API Server (if needed)
-	@echo "Building API Server..."
+	# Build API Server (Go)
+	@echo "Building API Server (Go)..."
 	@cd api-server-go && go mod tidy
 	@echo "✅ API Server built"
 	@echo ""
