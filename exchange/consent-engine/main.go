@@ -659,6 +659,9 @@ func main() {
 
 	// Initialize consent engine
 	consentPortalUrl := getEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
+
+	slog.Info("Using consent portal URL", "url", consentPortalUrl)
+
 	engine := NewConsentEngine(consentPortalUrl)
 	server := &apiServer{engine: engine}
 
