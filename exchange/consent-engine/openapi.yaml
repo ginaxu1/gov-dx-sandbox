@@ -110,14 +110,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
-  /consents/update:
-    post:
+    
+    put:
       summary: Update Consent Status
       description: Update the status of an existing consent (approve/deny)
       operationId: updateConsentStatus
       tags:
         - Consents
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: Unique identifier for the consent
+          schema:
+            type: string
+            example: consent_8d255282
       requestBody:
         required: true
         content:

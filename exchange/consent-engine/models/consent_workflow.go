@@ -2,11 +2,11 @@ package models
 
 // ConsentWorkflowRequest represents a request to initiate a consent workflow
 type ConsentWorkflowRequest struct {
-	AppID       string      `json:"app_id"`
-	DataFields  []DataField `json:"data_fields"`
-	Purpose     string      `json:"purpose"`
-	SessionID   string      `json:"session_id"`
-	RedirectURL string      `json:"redirect_url"`
+	AppID            string      `json:"app_id"`
+	DataFields       []DataField `json:"data_fields"`
+	Purpose          string      `json:"purpose"`
+	SessionID        string      `json:"session_id"`
+	ConsentPortalURL string      `json:"consent_portal_url"`
 }
 
 // DataField represents a data field request in the consent workflow

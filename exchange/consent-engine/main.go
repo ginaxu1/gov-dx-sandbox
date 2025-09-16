@@ -551,64 +551,6 @@ func (s *apiServer) consumerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *apiServer) consentUpdateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
-		return
-	}
-
-	var req ConsentRecord
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
-		return
-	}
-
-	// Validate required fields
-	if req.ConsentID == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "consent_id is required"})
-		return
-	}
-
-	if req.Status == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status is required"})
-		return
-	}
-
-	// Validate status values
-	validStatuses := map[string]bool{
-		"pending":  true,
-		"approved": true,
-		"rejected": true,
-	}
-	if !validStatuses[string(req.Status)] {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be 'pending', 'approved', or 'rejected'"})
-		return
-	}
-
-	// Validate type values
-	validTypes := map[string]bool{
-		"realtime": true,
-		"offline":  true,
-	}
-	if !validTypes[string(req.Type)] {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "type must be 'realtime' or 'offline'"})
-		return
-	}
-
-	// Create or update the consent record
-	record, err := s.engine.CreateOrUpdateConsentRecord(req)
-	if err != nil {
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to create/update consent record: " + err.Error()})
-		return
-	}
-
-	// Log the operation
-	slog.Info("Consent record created/updated", "consentId", record.ConsentID, "status", record.Status)
-
-	// Return the created/updated record
-	utils.RespondWithJSON(w, http.StatusOK, record)
-}
-
 func (s *apiServer) getConsentByID(w http.ResponseWriter, r *http.Request, consentID string) {
 	record, err := s.engine.GetConsentStatus(consentID)
 	if err != nil {
@@ -728,7 +670,6 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
-	mux.Handle("/consents/update", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentUpdateHandler)))
 	mux.Handle("/consent-portal/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentPortalHandler)))
 	mux.Handle("/consent-website", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentWebsiteHandler)))
 	mux.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))
