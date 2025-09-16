@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -102,6 +103,31 @@ type ConsentRecord struct {
 	RedirectURL string `json:"redirect_url"`
 	// OTPAttempts tracks the number of OTP verification attempts
 	OTPAttempts int `json:"otp_attempts"`
+}
+
+// ConsentPortalView represents the user-facing consent object for the UI.
+type ConsentPortalView struct {
+	AppDisplayName string    `json:"app_display_name"`
+	CreatedAt      time.Time `json:"created_at"`
+	Fields         []string  `json:"fields"`
+	Status         string    `json:"status"`
+	Type           string    `json:"type"`
+}
+
+// ToConsentPortalView converts an internal ConsentRecord to a user-facing view.
+func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
+	// Simple mapping for app_id to a human-readable name.
+	// You may need a more robust mapping or database lookup for this in a real application.
+	appDisplayName := strings.ReplaceAll(cr.AppID, "-", " ")
+	appDisplayName = strings.Title(appDisplayName)
+
+	return &ConsentPortalView{
+		AppDisplayName: appDisplayName,
+		CreatedAt:      cr.CreatedAt,
+		Fields:         cr.Fields,
+		Status:         cr.Status,
+		Type:           cr.Type,
+	}
 }
 
 // ConsentRequest defines the structure for creating a consent record

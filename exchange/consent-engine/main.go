@@ -756,21 +756,24 @@ func (s *apiServer) getConsentByID(w http.ResponseWriter, r *http.Request, conse
 		return
 	}
 
-	// Convert to the expected response format with consent_uuid field
-	response := map[string]interface{}{
-		"consent_uuid":  record.ConsentID,
-		"owner_id":      record.OwnerID,
-		"data_consumer": record.AppID,
-		"status":        record.Status,
-		"type":          record.Type,
-		"created_at":    record.CreatedAt.Format(time.RFC3339),
-		"updated_at":    record.UpdatedAt.Format(time.RFC3339),
-		"fields":        record.Fields,
-		"session_id":    record.SessionID,
-		"redirect_url":  record.RedirectURL,
-	}
+	// Convert to the user-facing ConsentPortalView
+	consentView := record.ToConsentPortalView()
 
-	response["expires_at"] = record.ExpiresAt.Format(time.RFC3339)
+	// Include additional fields needed for the portal
+	response := map[string]interface{}{
+		"consent_id":       record.ConsentID,
+		"owner_id":         record.OwnerID,
+		"data_consumer":    record.AppID,
+		"app_display_name": consentView.AppDisplayName,
+		"status":           consentView.Status,
+		"type":             consentView.Type,
+		"created_at":       consentView.CreatedAt.Format(time.RFC3339),
+		"updated_at":       record.UpdatedAt.Format(time.RFC3339),
+		"expires_at":       record.ExpiresAt.Format(time.RFC3339),
+		"fields":           consentView.Fields,
+		"session_id":       record.SessionID,
+		"redirect_url":     record.RedirectURL,
+	}
 
 	utils.RespondWithJSON(w, http.StatusOK, response)
 }
