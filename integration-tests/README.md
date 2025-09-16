@@ -21,27 +21,27 @@ integration-tests/
 
 Before running integration tests, ensure all services are running:
 
-1. **API Server** (Port 8080)
-2. **Consent Engine** (Port 8081) 
-3. **Policy Decision Point** (Port 8082)
-4. **Orchestration Engine** (Port 8083)
+1. **Consent Engine** (Port 8081) 
+2. **Policy Decision Point** (Port 8082)
+3. **Orchestration Engine** (Port 4000)
 
 ### Starting Services
 
 ```bash
-# Terminal 1 - API Server
-cd /Users/tmp/gov-dx-sandbox/api-server-go
-go run main.go
+# Start all services using Docker Compose
+cd /Users/tmp/gov-dx-sandbox
+make start-exchange
 
-# Terminal 2 - Consent Engine
+# Or start individual services:
+# Terminal 1 - Consent Engine
 cd /Users/tmp/gov-dx-sandbox/exchange/consent-engine
 go run main.go
 
-# Terminal 3 - Policy Decision Point
+# Terminal 2 - Policy Decision Point
 cd /Users/tmp/gov-dx-sandbox/exchange/policy-decision-point
 go run main.go
 
-# Terminal 4 - Orchestration Engine
+# Terminal 3 - Orchestration Engine
 cd /Users/tmp/gov-dx-sandbox/exchange/orchestration-engine-go
 go run main.go
 ```
@@ -135,7 +135,7 @@ Tests authorization decisions and consent requirements.
 
 ### Run All Tests
 ```bash
-cd /Users/tmp/gov-dx-sandbox/exchange/integration-tests
+cd /Users/tmp/gov-dx-sandbox/integration-tests
 ./run-all-tests.sh
 ```
 
@@ -251,9 +251,9 @@ Before running tests, ensure the following data is set up:
 
 #### Service Not Running
 ```
-❌ Error: API Server not responding on port 8080
+❌ Error: Orchestration Engine not responding on port 4000
 ```
-**Solution**: Start the API Server: `cd api-server-go && go run main.go`
+**Solution**: Start the services: `make start-exchange`
 
 #### Consent Engine Error
 ```
@@ -309,8 +309,8 @@ tail -f /tmp/pdp.log
 
 ### Manual Testing
 ```bash
-# Test API Server health
-curl http://localhost:8080/health
+# Test Orchestration Engine health
+curl http://localhost:4000/health
 
 # Test Consent Engine health
 curl http://localhost:8081/health
@@ -334,10 +334,9 @@ When adding new integration tests:
 ### Port Conflicts
 If you get port conflicts, check what's running:
 ```bash
-lsof -i :8080  # API Server
+lsof -i :4000  # Orchestration Engine
 lsof -i :8081  # Consent Engine
 lsof -i :8082  # Policy Decision Point
-lsof -i :8083  # Orchestration Engine
 ```
 
 ### Permission Issues
