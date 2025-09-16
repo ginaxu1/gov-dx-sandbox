@@ -156,6 +156,98 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+    post:
+      summary: Update Consent (Alternative)
+      description: Alternative endpoint to update a specific consent record by its ID
+      operationId: updateConsentById
+      tags:
+        - Consents
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: Unique identifier for the consent
+          schema:
+            type: string
+            example: consent_8d255282
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentPortalUpdateRequest'
+      responses:
+        '200':
+          description: Consent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Revoke Consent
+      description: Revoke a specific consent record by its ID
+      operationId: revokeConsent
+      tags:
+        - Consents
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: Unique identifier for the consent
+          schema:
+            type: string
+            example: consent_8d255282
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeConsentRequest'
+      responses:
+        '200':
+          description: Consent revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /data-owner/{ownerId}:
     get:
       summary: Get Consents by Data Owner
@@ -294,6 +386,42 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /admin/expiry-check:
+    post:
+      summary: Check Expired Consents
+      description: Check for and update expired consent records
+      operationId: checkConsentExpiry
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: Expiry check completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expired_records:
+                    type: array
+                    description: List of expired consent records
+                    items:
+                      $ref: '#/components/schemas/ConsentResponse'
+                  count:
+                    type: integer
+                    description: Number of expired records found
+                    example: 0
+                  checked_at:
+                    type: string
+                    format: date-time
+                    description: When the expiry check was performed
+                    example: "2025-09-16T16:22:12.38733+05:30"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   schemas:
     CreateConsentRequest:
@@ -303,7 +431,6 @@ components:
         - data_fields
         - purpose
         - session_id
-        - consent_portal_url
       properties:
         app_id:
           type: string
@@ -322,10 +449,6 @@ components:
           type: string
           description: Session identifier for tracking
           example: test-session-123
-        consent_portal_url:
-          type: string
-          description: URL to redirect after consent approval/denial
-          example: https://example.com/callback
 
     DataFieldGroup:
       type: object
@@ -361,6 +484,10 @@ components:
           enum: [pending, approved, rejected, expired, revoked]
           description: New status of the consent
           example: approved
+        grant_duration:
+          type: string
+          description: Duration of the granted access (e.g., "1h", "1d", "30d")
+          example: "1d"
         updated_by:
           type: string
           description: ID of the user who updated the consent
@@ -440,6 +567,37 @@ components:
           description: URL to redirect after consent approval/denial
           example: "http://localhost:5173/?consent_id=consent_8d255282"
 
+    ConsentPortalUpdateRequest:
+      type: object
+      required:
+        - status
+        - owner_id
+        - message
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+          description: New status of the consent
+          example: approved
+        owner_id:
+          type: string
+          description: ID of the data owner
+          example: citizen_199512345678
+        message:
+          type: string
+          description: Message for the status update
+          example: User approved consent via portal
+
+    RevokeConsentRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          description: Reason for revoking the consent
+          example: User requested revocation
+
     ErrorResponse:
       type: object
       properties:
@@ -468,3 +626,5 @@ tags:
     description: Consumer application related operations
   - name: Portal
     description: Consent portal operations
+  - name: Admin
+    description: Administrative operations

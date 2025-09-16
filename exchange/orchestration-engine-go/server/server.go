@@ -50,7 +50,7 @@ func RunServer(f *federator.Federator) {
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(response)
 		if err != nil {
-			logger.Log.Error("Failed to write response: %v\n", err)
+			logger.Log.Error("Failed to write response", "error", err)
 			return
 		}
 	})
@@ -73,7 +73,7 @@ func RunServer(f *federator.Federator) {
 	logger.Log.Info("Server is Listening", "port", port)
 
 	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
-		logger.Log.Error("Failed to start server: ", err.Error())
+		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
 	}

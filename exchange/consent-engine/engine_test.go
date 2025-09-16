@@ -10,10 +10,9 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 	engine := NewConsentEngine("http://localhost:5173")
 
 	req := ConsentRequest{
-		AppID:            "passport-app",
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk",
+		AppID:     "passport-app",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -52,10 +51,9 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:            "passport-app",
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk",
+		AppID:     "passport-app",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -93,10 +91,9 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:            "passport-app",
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk",
+		AppID:     "passport-app",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -146,10 +143,9 @@ func TestConsentEngine_FindExistingConsent(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:            "passport-app",
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk",
+		AppID:     "passport-app",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -187,10 +183,9 @@ func TestConsentEngine_UpdateConsentRecord(t *testing.T) {
 
 	// Create a consent record first
 	req := ConsentRequest{
-		AppID:            "passport-app",
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
-		ConsentPortalURL: "https://passport-app.gov.lk",
+		AppID:     "passport-app",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
@@ -267,5 +262,275 @@ func TestConsentEngine_StatusTransitions(t *testing.T) {
 		if result != tt.valid {
 			t.Errorf("isValidStatusTransition(%v, %v) = %v, want %v", tt.from, tt.to, result, tt.valid)
 		}
+	}
+}
+
+// TestConsentEngine_CheckConsentExpiry tests the CheckConsentExpiry functionality
+func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
+	engine := NewConsentEngine("http://localhost:5173")
+
+	t.Run("NoExpiredRecords", func(t *testing.T) {
+		// Create a consent that won't expire soon
+		req := ConsentRequest{
+			AppID:     "passport-app",
+			Purpose:   "passport_application",
+			SessionID: "session_123",
+			DataFields: []DataField{
+				{
+					OwnerType: "citizen",
+					OwnerID:   "user123",
+					Fields:    []string{"person.permanentAddress"},
+				},
+			},
+		}
+
+		record, err := engine.CreateConsent(req)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
+
+		// Approve the consent
+		updateReq := UpdateConsentRequest{
+			Status:    StatusApproved,
+			UpdatedBy: "citizen_123",
+			Reason:    "User approved",
+		}
+		_, err = engine.UpdateConsent(record.ConsentID, updateReq)
+		if err != nil {
+			t.Fatalf("UpdateConsent failed: %v", err)
+		}
+
+		// Check expiry - should return empty list
+		expiredRecords, err := engine.CheckConsentExpiry()
+		if err != nil {
+			t.Fatalf("CheckConsentExpiry failed: %v", err)
+		}
+
+		if len(expiredRecords) != 0 {
+			t.Errorf("Expected 0 expired records, got %d", len(expiredRecords))
+		}
+	})
+
+	t.Run("HasExpiredRecords", func(t *testing.T) {
+		// Create a new engine to avoid interference
+		engine := NewConsentEngine("http://localhost:5173")
+
+		// Create a consent
+		req := ConsentRequest{
+			AppID:     "passport-app",
+			Purpose:   "passport_application",
+			SessionID: "session_456",
+			DataFields: []DataField{
+				{
+					OwnerType: "citizen",
+					OwnerID:   "user456",
+					Fields:    []string{"person.permanentAddress"},
+				},
+			},
+		}
+
+		record, err := engine.CreateConsent(req)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
+
+		// Approve the consent
+		updateReq := UpdateConsentRequest{
+			Status:    StatusApproved,
+			UpdatedBy: "citizen_456",
+			Reason:    "User approved",
+		}
+		_, err = engine.UpdateConsent(record.ConsentID, updateReq)
+		if err != nil {
+			t.Fatalf("UpdateConsent failed: %v", err)
+		}
+
+		// Manually set the expiry time to the past
+		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
+		engineImpl := engine.(*consentEngineImpl)
+		engineImpl.consentRecords[record.ConsentID] = record
+
+		// Check expiry - should return the expired record
+		expiredRecords, err := engine.CheckConsentExpiry()
+		if err != nil {
+			t.Fatalf("CheckConsentExpiry failed: %v", err)
+		}
+
+		if len(expiredRecords) != 1 {
+			t.Errorf("Expected 1 expired record, got %d", len(expiredRecords))
+		}
+
+		if expiredRecords[0].ConsentID != record.ConsentID {
+			t.Errorf("Expected expired record ID %s, got %s", record.ConsentID, expiredRecords[0].ConsentID)
+		}
+
+		if expiredRecords[0].Status != string(StatusExpired) {
+			t.Errorf("Expected expired record status %s, got %s", string(StatusExpired), expiredRecords[0].Status)
+		}
+	})
+
+	t.Run("OnlyApprovedRecordsExpire", func(t *testing.T) {
+		// Create a new engine to avoid interference
+		engine := NewConsentEngine("http://localhost:5173")
+
+		// Create a consent
+		req := ConsentRequest{
+			AppID:     "passport-app",
+			Purpose:   "passport_application",
+			SessionID: "session_789",
+			DataFields: []DataField{
+				{
+					OwnerType: "citizen",
+					OwnerID:   "user789",
+					Fields:    []string{"person.permanentAddress"},
+				},
+			},
+		}
+
+		record, err := engine.CreateConsent(req)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
+
+		// Reject the consent (not approved)
+		updateReq := UpdateConsentRequest{
+			Status:    StatusRejected,
+			UpdatedBy: "citizen_789",
+			Reason:    "User rejected",
+		}
+		_, err = engine.UpdateConsent(record.ConsentID, updateReq)
+		if err != nil {
+			t.Fatalf("UpdateConsent failed: %v", err)
+		}
+
+		// Manually set the expiry time to the past
+		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
+		engineImpl := engine.(*consentEngineImpl)
+		engineImpl.consentRecords[record.ConsentID] = record
+
+		// Check expiry - should return empty list (rejected records don't expire)
+		expiredRecords, err := engine.CheckConsentExpiry()
+		if err != nil {
+			t.Fatalf("CheckConsentExpiry failed: %v", err)
+		}
+
+		if len(expiredRecords) != 0 {
+			t.Errorf("Expected 0 expired records (rejected records don't expire), got %d", len(expiredRecords))
+		}
+	})
+
+	t.Run("MultipleExpiredRecords", func(t *testing.T) {
+		// Create a new engine to avoid interference
+		engine := NewConsentEngine("http://localhost:5173")
+
+		// Create multiple consents
+		consentIDs := make([]string, 3)
+		for i := 0; i < 3; i++ {
+			req := ConsentRequest{
+				AppID:     "passport-app",
+				Purpose:   "passport_application",
+				SessionID: "session_" + string(rune('0'+i)),
+				DataFields: []DataField{
+					{
+						OwnerType: "citizen",
+						OwnerID:   "user" + string(rune('0'+i)),
+						Fields:    []string{"person.permanentAddress"},
+					},
+				},
+			}
+
+			record, err := engine.CreateConsent(req)
+			if err != nil {
+				t.Fatalf("CreateConsent failed: %v", err)
+			}
+
+			// Approve the consent
+			updateReq := UpdateConsentRequest{
+				Status:    StatusApproved,
+				UpdatedBy: "citizen_" + string(rune('0'+i)),
+				Reason:    "User approved",
+			}
+			_, err = engine.UpdateConsent(record.ConsentID, updateReq)
+			if err != nil {
+				t.Fatalf("UpdateConsent failed: %v", err)
+			}
+
+			// Manually set the expiry time to the past
+			record.ExpiresAt = time.Now().Add(-1 * time.Hour)
+			engineImpl := engine.(*consentEngineImpl)
+			engineImpl.consentRecords[record.ConsentID] = record
+			consentIDs[i] = record.ConsentID
+		}
+
+		// Check expiry - should return all 3 expired records
+		expiredRecords, err := engine.CheckConsentExpiry()
+		if err != nil {
+			t.Fatalf("CheckConsentExpiry failed: %v", err)
+		}
+
+		if len(expiredRecords) != 3 {
+			t.Errorf("Expected 3 expired records, got %d", len(expiredRecords))
+		}
+
+		// Verify all records are marked as expired
+		for _, record := range expiredRecords {
+			if record.Status != string(StatusExpired) {
+				t.Errorf("Expected expired record status %s, got %s", string(StatusExpired), record.Status)
+			}
+		}
+	})
+}
+
+// TestConsentEngine_UpdateConsentWithGrantDuration tests updating consent with grant_duration
+func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
+	engine := NewConsentEngine("http://localhost:5173")
+
+	// Create a consent
+	req := ConsentRequest{
+		AppID:     "passport-app",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
+		DataFields: []DataField{
+			{
+				OwnerType: "citizen",
+				OwnerID:   "user123",
+				Fields:    []string{"person.permanentAddress"},
+			},
+		},
+	}
+
+	record, err := engine.CreateConsent(req)
+	if err != nil {
+		t.Fatalf("CreateConsent failed: %v", err)
+	}
+
+	// Update consent with grant_duration
+	updateReq := UpdateConsentRequest{
+		Status:        StatusApproved,
+		GrantDuration: "1m",
+		UpdatedBy:     "citizen_123",
+		Reason:        "User approved with custom duration",
+	}
+
+	updatedRecord, err := engine.UpdateConsent(record.ConsentID, updateReq)
+	if err != nil {
+		t.Fatalf("UpdateConsent failed: %v", err)
+	}
+
+	// Verify grant_duration was updated
+	if updatedRecord.GrantDuration != "1m" {
+		t.Errorf("Expected grant_duration '1m', got %s", updatedRecord.GrantDuration)
+	}
+
+	// Verify expires_at was recalculated (should be approximately 1 minute from now)
+	expectedExpiry := time.Now().Add(1 * time.Minute)
+	timeDiff := updatedRecord.ExpiresAt.Sub(expectedExpiry)
+	if timeDiff < -5*time.Second || timeDiff > 5*time.Second {
+		t.Errorf("Expected expires_at to be approximately 1 minute from now, got %v", updatedRecord.ExpiresAt)
+	}
+
+	// Verify status was updated
+	if updatedRecord.Status != string(StatusApproved) {
+		t.Errorf("Expected status %s, got %s", string(StatusApproved), updatedRecord.Status)
 	}
 }
