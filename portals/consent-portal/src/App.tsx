@@ -3,7 +3,7 @@ import { Shield, Check, X, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 
 // Types
 interface ConsentRecord {
-  consent_uuid: string;
+  consent_id: string;
   owner_id: string;
   data_consumer: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
@@ -45,17 +45,17 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
   // For demonstration, using a placeholder. Replace with actual API base path.
 
-  // Get consent_uuid from URL params
-  const getConsentUuid = (): string | null => {
+  // Get consent_id from URL params
+  const getConsentId = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
     console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent'); // Placeholder for testing
+    return urlParams.get('consent_id'); // Use consent_id to match API naming
   };
 
   // Fetch consent data
-  const fetchConsentData = async (consentUuid: string) => {
+  const fetchConsentData = async (consentId: string) => {
     try {
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentUuid}`);
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch consent data');
       }
@@ -76,7 +76,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     }
     // Mocked data for demonstration
     // const mockedData: ConsentRecord = {
-    //   consent_uuid: consentUuid,
+    //   consent_id: consentId,
     //   owner_id: 'user_12345',
     //   data_consumer: 'Example App',
     //   status: 'pending', // Change this to test different statuses: 'approved', 'rejected', 'expired', 'revoked'
@@ -130,7 +130,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     try {
       const payload = {
         owner_id: ownerInfo.owner_id,
-        consent_uuid: consentRecord.consent_uuid,
+        consent_id: consentRecord.consent_id,
         delivery_method: method,
         email: method === 'email' ? ownerInfo.email : undefined,
         contact_number: method === 'sms' ? ownerInfo.contact_number : undefined,
@@ -168,14 +168,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
   // Initialize component
   useEffect(() => {
-    const consentUuid = getConsentUuid();
-    if (!consentUuid) {
+    const consentId = getConsentId();
+    if (!consentId) {
       setError('Invalid consent link. Missing consent ID.');
       setCurrentStep('error');
       return;
     }
     
-    fetchConsentData(consentUuid);
+    fetchConsentData(consentId);
   }, []);
 
   // Timer for OTP expiry countdown
@@ -288,7 +288,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         otp: '000000'
       };
 
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consent/${consentRecord.consent_uuid}`, {
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentRecord.consent_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
