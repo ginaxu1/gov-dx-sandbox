@@ -621,11 +621,6 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	// Log the operation
 	slog.Info("Consent status updated", "consentId", consentID, "status", req.Status, "ownerId", req.OwnerID)
 
-	// Build redirect URL with consent_id for pending status
-	if updatedRecord.Status == string(StatusPending) {
-		updatedRecord.ConsentPortalURL = fmt.Sprintf("http://localhost:5173/?consent_id=%s", updatedRecord.ConsentID)
-	}
-
 	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
 }
 
