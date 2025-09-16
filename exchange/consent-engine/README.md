@@ -67,7 +67,6 @@ docker build -t ce . && docker run -p 8081:8081 ce
   "fields": ["person.permanentAddress", "person.photo"],
   "session_id": "session_123",
   "redirect_url": "http://localhost:5173/?consent_id=consent_122af00e",
-  "otp_attempts": 0
 }
 ```
 
