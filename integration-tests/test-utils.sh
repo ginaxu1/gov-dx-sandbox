@@ -233,18 +233,30 @@ test_pdp_request() {
     echo "Expected: $expected"
     echo ""
     
+    # Create a temporary file for the JSON data
+    local temp_file=$(mktemp)
+    echo "$data" > "$temp_file"
+    
     RESPONSE=$(curl -s -X POST "$PDP_URL/decide" \
         -H "Content-Type: application/json" \
-        -d "$data")
+        -d @"$temp_file")
     
-    echo "PDP Decision:"
+    # Clean up temp file
+    rm "$temp_file"
+    
+    echo "PDP Response:"
     echo "$RESPONSE" | jq '.'
     echo "---"
     
+    # Parse response into global variables
+    ALLOW=$(echo "$RESPONSE" | jq -r '.allow // false')
+    CONSENT_REQUIRED=$(echo "$RESPONSE" | jq -r '.consent_required // false')
+    CONSENT_FIELDS=$(echo "$RESPONSE" | jq -r '.consent_required_fields // []')
+    
     # Check if response matches expected
-    if echo "$RESPONSE" | jq -e ".allowed == true" > /dev/null 2>&1; then
+    if echo "$RESPONSE" | jq -e ".allow == true" > /dev/null 2>&1; then
         log_success "PDP Decision: ALLOWED"
-    elif echo "$RESPONSE" | jq -e ".allowed == false" > /dev/null 2>&1; then
+    elif echo "$RESPONSE" | jq -e ".allow == false" > /dev/null 2>&1; then
         log_warning "PDP Decision: DENIED"
     else
         log_error "PDP Decision: UNKNOWN"
@@ -295,9 +307,16 @@ test_pdp_decision() {
     log_info "Expected: allow=$expected_allow, consent_required=$expected_consent"
     echo ""
     
+    # Create a temporary file for the JSON data
+    local temp_file=$(mktemp)
+    echo "$test_data" > "$temp_file"
+    
     local response=$(curl -s -X POST "$PDP_URL/decide" \
         -H "Content-Type: application/json" \
-        -d "$test_data")
+        -d @"$temp_file")
+    
+    # Clean up temp file
+    rm "$temp_file"
     
     echo "PDP Response:"
     echo "$response" | jq '.'
