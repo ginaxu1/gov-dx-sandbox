@@ -1,0 +1,274 @@
+openapi: 3.0.3
+info:
+  title: Policy Decision Point API
+  description: |
+    Policy Decision Point API for making authorization decisions in the Data Exchange Platform.
+    This service evaluates data access requests against policies and determines if consent is required.
+  version: 1.0.0
+  contact:
+    name: Gov DX Sandbox Team
+    email: support@gov-dx-sandbox.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://policy-decision-point.choreo.dev
+    description: Choreo Production Environment
+  - url: https://policy-decision-point-dev.choreo.dev
+    description: Choreo Development Environment
+  - url: http://localhost:8082
+    description: Local Development Environment
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check if the policy decision point service is running and healthy
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: policy-decision-point
+                  status:
+                    type: string
+                    example: healthy
+
+  /decide:
+    post:
+      summary: Make Policy Decision
+      description: |
+        Evaluate a data access request against policies and determine if access should be allowed
+        and whether consent is required. This is the main endpoint for authorization decisions.
+      operationId: makePolicyDecision
+      tags:
+        - Policy Decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyDecisionRequest'
+      responses:
+        '200':
+          description: Policy decision made successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyDecisionResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /debug:
+    get:
+      summary: Debug Information
+      description: Get debug information about the policy decision point service
+      operationId: getDebugInfo
+      tags:
+        - Debug
+      responses:
+        '200':
+          description: Debug information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebugResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    PolicyDecisionRequest:
+      type: object
+      required:
+        - consumer_id
+        - app_id
+        - request_id
+        - required_fields
+      properties:
+        consumer_id:
+          type: string
+          description: ID of the consumer application making the request
+          example: passport-app
+        app_id:
+          type: string
+          description: ID of the application (usually same as consumer_id)
+          example: passport-app
+        request_id:
+          type: string
+          description: Unique identifier for this request
+          example: request_123
+        required_fields:
+          type: array
+          description: List of data fields being requested
+          items:
+            type: string
+          example: ["person.fullName", "person.birthDate", "person.permanentAddress"]
+        context:
+          type: object
+          description: Additional context for the decision
+          properties:
+            purpose:
+              type: string
+              description: Purpose of the data access
+              example: passport_application
+            data_owner:
+              type: string
+              description: ID of the data owner
+              example: test-owner-123
+            session_id:
+              type: string
+              description: Session identifier
+              example: session_456
+
+    PolicyDecisionResponse:
+      type: object
+      properties:
+        allow:
+          type: boolean
+          description: Whether the request is allowed
+          example: true
+        consent_required:
+          type: boolean
+          description: Whether consent is required for this request
+          example: true
+        consent_required_fields:
+          type: array
+          description: List of fields that require consent
+          items:
+            type: string
+          example: ["person.permanentAddress", "person.photo"]
+        reason:
+          type: string
+          description: Reason for the decision
+          example: "Access allowed but consent required for restricted fields"
+        policy_evaluation:
+          type: object
+          description: Details about the policy evaluation
+          properties:
+            evaluated_policies:
+              type: array
+              items:
+                type: string
+              example: ["field_access_policy", "consent_requirement_policy"]
+            decision_factors:
+              type: array
+              items:
+                type: string
+              example: ["consumer_authorized", "fields_restricted"]
+        metadata:
+          type: object
+          description: Additional metadata about the decision
+          properties:
+            evaluation_time:
+              type: string
+              format: date-time
+              description: When the evaluation was performed
+              example: "2025-09-15T09:58:34.05668193Z"
+            policy_version:
+              type: string
+              description: Version of policies used for evaluation
+              example: "1.0.0"
+
+    DebugResponse:
+      type: object
+      properties:
+        service:
+          type: string
+          description: Name of the service
+          example: policy-decision-point
+        version:
+          type: string
+          description: Service version
+          example: "1.0.0"
+        uptime:
+          type: string
+          description: Service uptime
+          example: "2h 15m 30s"
+        policies_loaded:
+          type: integer
+          description: Number of policies loaded
+          example: 5
+        policy_files:
+          type: array
+          description: List of loaded policy files
+          items:
+            type: string
+          example: ["main.rego", "field_access.rego"]
+        configuration:
+          type: object
+          description: Service configuration
+          properties:
+            environment:
+              type: string
+              example: local
+            log_level:
+              type: string
+              example: debug
+            port:
+              type: integer
+              example: 8082
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request format"
+        code:
+          type: string
+          description: Error code
+          example: "INVALID_REQUEST"
+        details:
+          type: object
+          description: Additional error details
+          properties:
+            field:
+              type: string
+              description: Field that caused the error
+              example: "consumer_id"
+            message:
+              type: string
+              description: Detailed error message
+              example: "consumer_id is required"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Policy Decision
+    description: Policy decision and authorization operations
+  - name: Debug
+    description: Debug and diagnostic operations

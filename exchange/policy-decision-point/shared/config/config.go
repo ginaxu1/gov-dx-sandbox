@@ -51,7 +51,6 @@ func LoadConfig(serviceName string) *Config {
 	jwtSecret := flag.String("jwt-secret", getDefaultJWTSecret(env), "JWT secret")
 	enableCORS := flag.Bool("cors", getDefaultCORS(env), "Enable CORS")
 	rateLimit := flag.Int("rate-limit", getDefaultRateLimit(env), "Rate limit per minute")
-
 	// Parse flags
 	flag.Parse()
 
@@ -95,6 +94,7 @@ func getDefaultPort(serviceName string) string {
 	ports := map[string]string{
 		"consent-engine":        "8081",
 		"policy-decision-point": "8082",
+		"orchestration-engine":  "4000",
 	}
 	if port, exists := ports[serviceName]; exists {
 		return port

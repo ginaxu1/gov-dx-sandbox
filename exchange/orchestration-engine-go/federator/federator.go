@@ -105,7 +105,17 @@ func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 		logger.Log.Error("Failed to parse query", "Error", err)
 	}
 
-	splitRequests := QueryBuilder(doc)
+	splitRequests, err := QueryBuilder(doc)
+
+	if err != nil {
+		logger.Log.Error("Failed to build queries", "Error", err)
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				err.(*graphql.JSONError),
+			},
+		}
+	}
 
 	if len(splitRequests) == 0 {
 		logger.Log.Info("No valid service queries found in the request")

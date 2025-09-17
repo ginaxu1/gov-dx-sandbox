@@ -9,9 +9,33 @@ import (
 	"os"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/open-policy-agent/opa/rego"
+)
+
+// Policy Decision Point specific constants
+const (
+	StatusInvalidJSON  = "Invalid JSON input"
+	StatusPolicyFailed = "Failed to evaluate policy"
+	StatusDebugFailed  = "Failed to check debug data"
+)
+
+// Policy Decision Point specific error messages
+const (
+	ErrConsumerIDRequired     = "consumer ID is required"
+	ErrResourceRequired       = "request resource is required"
+	ErrActionRequired         = "request action is required"
+	ErrDataFieldsRequired     = "data fields are required"
+	ErrNoPolicyRulesMatched   = "No policy rules matched the request"
+	ErrPolicyEvaluationFailed = "policy evaluation failed"
+	ErrInvalidInput           = "Invalid input"
+)
+
+// Policy Decision Point specific log operations
+const (
+	OpPolicyEvaluation = "policy evaluation"
+	OpDebugData        = "debug data check"
+	OpDecisionSent     = "decision sent"
 )
 
 // PolicyEvaluator holds the prepared OPA query, ready for evaluation.
@@ -249,7 +273,7 @@ func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.R
 	// Delegate the core logic to the Authorize method
 	decision, err := p.Authorize(r.Context(), input)
 	if err != nil {
-		utils.HandleError(w, err, http.StatusInternalServerError, constants.OpPolicyEvaluation)
+		utils.HandleError(w, err, http.StatusInternalServerError, OpPolicyEvaluation)
 		return
 	}
 
@@ -259,7 +283,7 @@ func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.R
 		status = http.StatusForbidden
 	}
 
-	utils.HandleSuccess(w, decision, status, constants.OpDecisionSent, map[string]interface{}{
+	utils.HandleSuccess(w, decision, status, OpDecisionSent, map[string]interface{}{
 		"method":           r.Method,
 		"path":             r.URL.Path,
 		"allow":            decision.Allow,
@@ -276,11 +300,11 @@ func (p *PolicyEvaluator) debugHandler(w http.ResponseWriter, r *http.Request) {
 
 	debugResult, err := p.DebugData(r.Context())
 	if err != nil {
-		utils.HandleError(w, err, http.StatusInternalServerError, constants.OpDebugData)
+		utils.HandleError(w, err, http.StatusInternalServerError, OpDebugData)
 		return
 	}
 
-	utils.HandleSuccess(w, debugResult, http.StatusOK, constants.OpDebugData, map[string]interface{}{
+	utils.HandleSuccess(w, debugResult, http.StatusOK, OpDebugData, map[string]interface{}{
 		"result": debugResult,
 	})
 }
