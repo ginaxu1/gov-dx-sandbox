@@ -5,11 +5,13 @@ import { useAuthContext } from '@asgardeo/auth-react';
 // Extend Window interface to include config
 declare global {
   interface Window {
-    configs?: {
+    configs: {
       apiUrl: string;
       VITE_CLIENT_ID: string;
       VITE_BASE_URL: string;
       VITE_SCOPE: string;
+      signInRedirectURL: string;
+      signOutRedirectURL: string;
     };
   }
 }
