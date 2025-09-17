@@ -317,11 +317,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
       setCurrentStep('success');
       
-      // Redirect after 3 seconds
+      // Closing the tab after a short delay to allow user to see success message
       setTimeout(() => {
-        if (consentRecord.redirect_url) {
-          window.location.href = consentRecord.redirect_url;
-        }
+              // Notify the opener window
+              if (window.opener) {
+                  window.opener.postMessage("consent_granted", "*");
+              }
+              // Close this popup
+              window.close();
       }, 3000);
 
     } catch (err) {
