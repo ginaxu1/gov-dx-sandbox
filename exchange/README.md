@@ -118,9 +118,9 @@ Once authorized (and consented if required), the Orchestration Engine proceeds t
 
 ### Consent Engine (Port 8081)
 - `POST /consent` - Process consent workflow request
-- `GET /consent/{id}` - Get consent status
-- `PUT /consent/{id}` - Update consent status
-- `DELETE /consent/{id}` - Revoke consent
+- `GET /consents/{id}` - Get consent status
+- `PUT /consents/{id}` - Update consent status
+- `DELETE /consents/{id}` - Revoke consent
 - `GET /data-owner/{owner}` - Get consents by data owner
 - `GET /consumer/{consumer}` - Get consents by consumer
 - `GET /health` - Health check
@@ -143,7 +143,7 @@ curl -X POST http://localhost:8082/decide \
   }'
 
 # Consent Management
-curl -X POST http://localhost:8081/consent \
+curl -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
     "app_id": "passport-app",

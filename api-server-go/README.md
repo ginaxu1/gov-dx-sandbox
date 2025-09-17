@@ -578,7 +578,7 @@ The API server integrates with the Consent Management Workflow through the **Con
 ### Consent Engine Endpoints
 The consent workflow is handled by the **Consent Engine service** (port 8081), not this API server:
 
-#### `POST http://localhost:8081/consent`
+#### `POST http://localhost:8081/consents`
 **Description:** Initiate a consent workflow request
 
 **Payload:**
@@ -612,7 +612,7 @@ The consent workflow is handled by the **Consent Engine service** (port 8081), n
 }
 ```
 
-#### `GET http://localhost:8081/consent/{id}`
+#### `GET http://localhost:8081/consents/{id}`
 **Description:** Get consent workflow status
 
 **Response:**
@@ -632,7 +632,7 @@ The consent workflow is handled by the **Consent Engine service** (port 8081), n
 }
 ```
 
-#### `POST http://localhost:8081/consent` (Update Status)
+#### `POST http://localhost:8081/consents` (Update Status)
 **Description:** Update consent workflow status when user clicks Yes/No
 
 **Payload:**

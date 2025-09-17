@@ -1,18 +1,12 @@
 #!/bin/bash
-
-# End-to-end flow tests
+# End-to-end flow tests using DRY principles
 # Tests the exact flow: AppUser -> App -> DataCustodian -> PDP -> ConsentEngine
+
+# Source common utilities
+source "$(dirname "$0")/test-utils.sh"
 
 echo "=== Complete Consent Flow Test (Following Diagram) ==="
 echo ""
-
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-NC='\033[0m' # No Color
 
 # Test the complete flow as described in the diagram
 echo -e "${BLUE}=== Simulating Complete Consent Flow ===${NC}"
