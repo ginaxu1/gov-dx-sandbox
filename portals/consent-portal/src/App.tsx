@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Check, X, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { useAuthContext } from '@asgardeo/auth-react';
 
 // Extend Window interface to include config
 declare global {
   interface Window {
-    configs: {
+    configs?: {
       apiUrl: string;
+      VITE_CLIENT_ID: string;
+      VITE_BASE_URL: string;
+      VITE_SCOPE: string;
     };
   }
 }
@@ -48,20 +52,162 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const [isResendingOtp, setIsResendingOtp] = useState(false);
   // const [otpSent, setOtpSent] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [name, setName] = useState<string>('');
+
+  const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
+  // console.log('Auth State:', state);
 
   // Base API path from environment variable
-  // const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
-  // const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
-  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : 'http://localhost:8081';
-  // console.log('CONSENT_ENGINE_PATH:', CONSENT_ENGINE_PATH);
-  // For demonstration, using a placeholder. Replace with actual API base path.
+  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
 
-  // Get consent_uuid from URL params
-  const getConsentUuid = (): string | null => {
+  // Get consent_uuid from URL params - this should be done first
+  const consentId = (() => {
     const urlParams = new URLSearchParams(window.location.search);
-    // console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent_id'); // Placeholder for testing
+    return urlParams.get('consent_id');
+  })();
 
+  // Helper function to get user display name
+  const getUserDisplayName = () => {
+    getBasicUserInfo().then(userBasicInfo => {
+      console.log('User Basic Info:', userBasicInfo);
+
+      if (state.isAuthenticated && userBasicInfo) {
+        setName(userBasicInfo.name);
+      }
+    });
+  };
+
+  useEffect(() => {
+    getUserDisplayName();
+  }, [state.isAuthenticated]);
+
+  // User header component for authenticated users
+  const UserHeader = () => {
+    if (!state.isAuthenticated) {
+      return(
+        <div className="absolute top-4 right-4 flex items-center space-x-4 bg-white rounded-lg shadow-md px-4 py-2">
+          <div className="text-sm text-gray-600">
+            Please sign in to continue.
+          </div>
+          <button
+            onClick={() => signIn()}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+          >
+            Sign In
+          </button>
+        </div>
+      )
+    }
+    
+    return (
+      <div className="absolute top-4 right-4 flex items-center space-x-4 bg-white rounded-lg shadow-md px-4 py-2">
+        <div className="text-sm text-gray-600">
+          Welcome, <span className="font-medium text-gray-800">{name}</span>
+        </div>
+        <button
+          onClick={() => signOut()}
+          className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors"
+        >
+          Sign Out
+        </button>
+      </div>
+    );
+  };
+
+  // If user is not authenticated, require login (only if consent_id exists)
+  if (!state.isAuthenticated) {
+    if (!consentId) {
+      // No consent_id and not authenticated - show generic error
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+            <div className="h-12 w-12 text-red-500 mx-auto mb-4">❌</div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">Invalid Consent Link</h1>
+            <p className="text-gray-600 mb-6">
+              This link is missing the required consent ID parameter. Please check the URL and try again.
+            </p>
+            <p className="text-sm text-gray-500">
+              Expected format: {window.location.origin}?consent_id=YOUR_CONSENT_ID
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Has consent_id but not authenticated
+    console.log('User is not authenticated, consent_id found:', consentId);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">Consent Portal</h1>
+            <p className="text-gray-600 mb-4">
+              You need to sign in to process your consent request.
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              Consent ID: <span className="font-mono text-blue-600">{consentId}</span>
+            </p>
+            <button 
+              onClick={() => signIn()} 
+              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              Sign In to Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If authenticated but no consent_id, show friendly message
+  if (!consentId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-4 relative">
+        <UserHeader />
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+          <div className="h-12 w-12 text-yellow-500 mx-auto mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Hi {name}!</h1>
+          <p className="text-gray-600 mb-6">
+            You are missing the consent_id parameter. Please use a valid consent link to process your request.
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            Expected format: {window.location.origin}?consent_id=YOUR_CONSENT_ID
+          </p>
+          <div className="flex justify-center">
+            <button
+              onClick={() => window.location.href = window.location.origin}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fetch owner information
+  const fetchOwnerInfo = async (ownerId: string) => {
+    try {
+      // const response = await fetch(`${BASE_PATH}/owners/${ownerId}`);
+      // if (!response.ok) {
+      //   throw new Error('Failed to fetch owner information');
+      // }
+      // const data: OwnerInfo = await response.json();
+      // setOwnerInfo(data);
+      
+      // Mocked data for demonstration
+      const mockedOwnerData: OwnerInfo = {
+        owner_id: ownerId,
+        email: 'user@example.com',
+        contact_number: '+1234567890',
+        name: 'John Doe'
+      };
+      setOwnerInfo(mockedOwnerData);
+    } catch (err) {
+      console.error('Failed to fetch owner information:', err);
+      // Continue without owner info - this is optional
+    }
   };
 
   // Fetch consent data
@@ -89,51 +235,42 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       setError('Failed to load consent information. Please try again.');
       setCurrentStep('error');
     }
-    // Mocked data for demonstration
-    // const mockedData: ConsentRecord = {
-    //   consent_uuid: consentUuid,
-    //   owner_id: 'user_12345',
-    //   data_consumer: 'Example App',
-    //   status: 'pending', // Change this to test different statuses: 'approved', 'rejected', 'expired', 'revoked'
-    //   type: 'Standard',
-    //   created_at: new Date().toISOString(),
-    //   updated_at: new Date().toISOString(),
-    //   expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days later
-    //   fields: ['profile.name', 'profile.email', 'address.street', 'address.city'],
-    //   session_id: 'session_67890',
-    //   redirect_url: 'http://localhost:4000/redirect' // Placeholder redirect URL
-    // };
-    // setConsentRecord(mockedData);
-    
-    // Fetch owner information after getting consent data
-    // await fetchOwnerInfo(consentRecord ? consentRecord.owner_id : 'user_12345');
-    
-    // setCurrentStep('consent');
   };
 
-  // Fetch owner information
-  const fetchOwnerInfo = async (ownerId: string) => {
-    try {
-      // const response = await fetch(`${BASE_PATH}/owners/${ownerId}`);
-      // if (!response.ok) {
-      //   throw new Error('Failed to fetch owner information');
-      // }
-      // const data: OwnerInfo = await response.json();
-      // setOwnerInfo(data);
-      
-      // Mocked data for demonstration
-      const mockedOwnerData: OwnerInfo = {
-        owner_id: ownerId,
-        email: 'user@example.com',
-        contact_number: '+1234567890',
-        name: 'John Doe'
-      };
-      setOwnerInfo(mockedOwnerData);
-    } catch (err) {
-      console.error('Failed to fetch owner information:', err);
-      // Continue without owner info - this is optional
-    }
+  // Check if OTP is expired
+  const isOtpExpired = (): boolean => {
+    if (!otpExpiryTime) return false;
+    return new Date() > otpExpiryTime;
   };
+
+  // Initialize component
+  useEffect(() => {
+    // Only run if user is authenticated and we have a consent ID
+    if (!state.isAuthenticated || !consentId) return;
+    
+    console.log('Authenticated user processing consent:', consentId);
+    fetchConsentData(consentId);
+  }, [state.isAuthenticated]);
+
+  // Timer for OTP expiry countdown
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (currentStep === 'otp' && otpExpiryTime) {
+      interval = setInterval(() => {
+        setCurrentTime(new Date()); // Update current time to trigger re-render
+        if (isOtpExpired()) {
+          setOtpError('OTP has expired. Please request a new one.');
+        }
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [currentStep, otpExpiryTime]);
 
   // Send OTP
   const sendOTP = async (method: 'email' | 'sms') => {
@@ -181,38 +318,6 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     }
   };
 
-  // Initialize component
-  useEffect(() => {
-    const consentUuid = getConsentUuid();
-    if (!consentUuid) {
-      setError('Invalid consent link. Missing consent ID.');
-      setCurrentStep('error');
-      return;
-    }
-    
-    fetchConsentData(consentUuid);
-  }, []);
-
-  // Timer for OTP expiry countdown
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (currentStep === 'otp' && otpExpiryTime) {
-      interval = setInterval(() => {
-        setCurrentTime(new Date()); // Update current time to trigger re-render
-        if (isOtpExpired()) {
-          setOtpError('OTP has expired. Please request a new one.');
-        }
-      }, 1000);
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [currentStep, otpExpiryTime]);
-
   // Handle consent decision
   const handleConsentDecision = async (decision: 'approved' | 'rejected') => {
     setUserDecision(decision);
@@ -240,12 +345,6 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     }
     
     setIsResendingOtp(false);
-  };
-
-  // Check if OTP is expired
-  const isOtpExpired = (): boolean => {
-    if (!otpExpiryTime) return false;
-    return new Date() > otpExpiryTime;
   };
 
   // Get remaining time for OTP expiry
@@ -360,7 +459,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // Loading state
   if (currentStep === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center relative">
+        <UserHeader />
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading consent information...</p>
@@ -372,7 +472,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // Error state
   if (currentStep === 'error') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4 relative">
+        <UserHeader />
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-gray-800 mb-2">Error</h1>
@@ -391,7 +492,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // Success state
   if (currentStep === 'success') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4 relative">
+        <UserHeader />
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-gray-800 mb-2">Success!</h1>
@@ -409,7 +511,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // OTP verification state
   if (currentStep === 'otp') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
+        <UserHeader />
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
           <div className="text-center mb-6">
             <Lock className="h-12 w-12 text-indigo-600 mx-auto mb-4" />
@@ -580,7 +683,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     const statusInfo = getStatusMessage();
 
     return (
-      <div className={`min-h-screen bg-gradient-to-br ${statusInfo.bgColor} flex items-center justify-center p-4`}>
+      <div className={`min-h-screen bg-gradient-to-br ${statusInfo.bgColor} flex items-center justify-center p-4 relative`}>
+        <UserHeader />
         <div className="max-w-2xl w-full bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Header */}
           <div className="bg-indigo-600 text-white p-6">
@@ -664,7 +768,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // Main consent approval state
   if (currentStep === 'consent') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 relative">
+        <UserHeader />
         <div className="max-w-2xl mx-auto py-8">
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             {/* Header */}
