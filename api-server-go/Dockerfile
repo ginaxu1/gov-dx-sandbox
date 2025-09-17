@@ -4,14 +4,8 @@ FROM golang:1.25-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy shared modules to the correct structure
-COPY exchange/shared/ ./exchange/shared/
-
-# Copy API server source code
-COPY api-server-go/ ./api-server-go/
-
-# Set working directory to API server
-WORKDIR /app/api-server-go
+# Copy source code (including shared modules)
+COPY . .
 
 # Build the application
 RUN go mod tidy
@@ -23,17 +17,27 @@ FROM alpine:latest
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates wget
 
+# Create non-root user
+RUN addgroup -g 10014 -S appgroup && \
+    adduser -u 10014 -S appuser -G appgroup
+
 # Create app directory
 WORKDIR /app
 
 # Copy the binary from builder stage
-COPY --from=builder /app/api-server-go/service_binary .
+COPY --from=builder /app/service_binary .
 
 # Copy OpenAPI specification
-COPY --from=builder /app/api-server-go/openapi.yaml .
+COPY --from=builder /app/openapi.yaml .
 
 # Make binary executable
 RUN chmod +x service_binary
+
+# Change ownership of app directory to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 3000

@@ -1,0 +1,55 @@
+# Choreo ignore file - exclude files from build context
+# This file works similar to .gitignore but for Choreo builds
+
+# Test files
+*_test.go
+tests/
+test_*
+
+# Documentation files
+*.md
+!README.md
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Coverage files
+*.cover
+coverage.out
+
+# Dependency directories
+vendor/
+
+# Keep shared modules for build
+!shared/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Local configuration
+.env
+.env.local
+.env.*.local
+
+# Deployment scripts (not needed in container)
+deploy-*.sh
+*.sh
+
+# Other config files
+choreo-config.yaml
