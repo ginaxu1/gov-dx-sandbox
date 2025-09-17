@@ -163,7 +163,12 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]strin
 
 	providerFieldMap = ProviderFieldMap(providerDirectives)
 
-	var requiredArguments = FindRequiredArguments(providerFieldMap, configs.AppConfig.ArgMapping)
+	var requiredArguments []*graphql.ArgMapping
+	if configs.AppConfig != nil && configs.AppConfig.ArgMapping != nil {
+		requiredArguments = FindRequiredArguments(providerFieldMap, configs.AppConfig.ArgMapping)
+	} else {
+		requiredArguments = make([]*graphql.ArgMapping, 0)
+	}
 
 	var extractedArgs = ExtractRequiredArguments(requiredArguments, arguments)
 
