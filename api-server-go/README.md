@@ -1,6 +1,6 @@
 # API Server (Go)
 
-A API server for government data exchange portal management. Built with Go and runs on port 3000.
+A API server for OpenDIF portal management. Built with Go and runs on port 3000.
 
 ## Overview
 
