@@ -17,6 +17,7 @@ type APIServer struct {
 	providerService *services.ProviderService
 	adminService    *services.AdminService
 	grantsService   *services.GrantsService
+	authService     *services.AuthService
 }
 
 // NewAPIServer creates a new API server instance
@@ -24,11 +25,13 @@ func NewAPIServer() *APIServer {
 	consumerService := services.NewConsumerService()
 	providerService := services.NewProviderService()
 	grantsService := services.NewGrantsService()
+	authService := services.NewAuthService(consumerService)
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
 		grantsService:   grantsService,
+		authService:     authService,
 	}
 }
 
@@ -65,6 +68,10 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 
 	// Allow List Management routes
 	mux.Handle("/admin/fields/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAllowListRoutes)))
+
+	// Authentication routes
+	mux.Handle("/auth/token", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAuthToken)))
+	mux.Handle("/auth/validate", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAuthValidate)))
 }
 
 // Generic handler for collection endpoints (GET all, POST create)
@@ -722,4 +729,64 @@ func (s *APIServer) handleAllowListRoutes(w http.ResponseWriter, r *http.Request
 
 	// If no pattern matches, return 404
 	utils.RespondWithError(w, http.StatusNotFound, "Allow list endpoint not found")
+}
+
+// Authentication handlers
+
+// handleAuthToken handles POST /auth/token - Authenticate consumer and get access token
+func (s *APIServer) handleAuthToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req models.AuthRequest
+	if err := utils.ParseJSONRequest(r, &req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate required fields
+	if req.ConsumerID == "" || req.Secret == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "consumerId and secret are required")
+		return
+	}
+
+	// Authenticate consumer
+	response, err := s.authService.AuthenticateConsumer(req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+// handleAuthValidate handles POST /auth/validate - Validate access token
+func (s *APIServer) handleAuthValidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req models.ValidateTokenRequest
+	if err := utils.ParseJSONRequest(r, &req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate required fields
+	if req.Token == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "token is required")
+		return
+	}
+
+	// Validate token
+	response, err := s.authService.ValidateToken(req.Token)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to validate token")
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }

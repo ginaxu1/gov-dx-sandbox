@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
@@ -16,8 +17,11 @@ type Response struct {
 
 const DefaultPort = "4000"
 
-// RunServer starts a simple HTTP server with a health check endpoint.
+// Start a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
+	// Initialize authentication client
+	authClient := auth.NewClient()
+
 	mux := http.NewServeMux()
 	// /health route
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +37,7 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
+	// GraphQL endpoint with authentication
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -61,10 +66,8 @@ func RunServer(f *federator.Federator) {
 		port = DefaultPort
 	}
 
-	// Convert port to string with colon prefix
+	// Convert port to string with colon prefix for http.ListenAndServe
 	// e.g., "8000" -> ":8000"
-	// This is needed for http.ListenAndServe
-	// which expects the port in the format ":port"
 	// If the port already has a colon, we don't add another one
 	if port[0] != ':' {
 		port = ":" + port
@@ -72,7 +75,10 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
+	// Apply authentication middleware to all routes except health
+	handler := auth.AuthMiddleware(authClient, mux)
+
+	if err := http.ListenAndServe(port, corsMiddleware(handler)); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
