@@ -20,9 +20,10 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "199512345678",
-					Fields:    []string{"person.permanentAddress", "person.birthDate"},
+					OwnerType:  "citizen",
+					OwnerID:    "199512345678",
+					OwnerEmail: "199512345678@example.com",
+					Fields:     []string{"person.permanentAddress", "person.birthDate"},
 				},
 			},
 			Purpose:   "passport_application",
@@ -49,6 +50,9 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		// Validate response fields
 		if response["status"] != "pending" {
 			t.Errorf("Expected status 'pending', got '%s'", response["status"])
+		}
+		if response["owner_email"] != "199512345678@example.com" {
+			t.Errorf("Expected owner_email '199512345678@example.com', got '%s'", response["owner_email"])
 		}
 		if response["redirect_url"] == "" {
 			t.Error("Expected non-empty redirect_url")
@@ -210,9 +214,10 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "user123",
-					Fields:    []string{"person.permanentAddress"},
+					OwnerType:  "citizen",
+					OwnerID:    "user123",
+					OwnerEmail: "user123@example.com",
+					Fields:     []string{"person.permanentAddress"},
 				},
 			},
 			Purpose:   "passport_application",
@@ -313,9 +318,10 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "33333",
-				Fields:    []string{"personInfo.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "33333",
+				OwnerEmail: "33333@example.com",
+				Fields:     []string{"personInfo.permanentAddress"},
 			},
 		},
 		Purpose:   "passport_application",
@@ -380,6 +386,10 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 
 	if response["owner_id"] != "33333" {
 		t.Errorf("Expected owner_id '33333', got %s", response["owner_id"])
+	}
+
+	if response["owner_email"] != "33333@example.com" {
+		t.Errorf("Expected owner_email '33333@example.com', got %s", response["owner_email"])
 	}
 
 	if response["app_id"] != "passport-app" {
