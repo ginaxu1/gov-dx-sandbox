@@ -55,6 +55,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // const [otpSent, setOtpSent] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [name, setName] = useState<string>('');
+  const [consentId, setConsentId] = useState<string | null>(null);
 
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
   // console.log('Auth State:', state);
@@ -63,10 +64,12 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
 
   // Get consent_uuid from URL params - this should be done first
-  const consentId = (() => {
+  const updateConsentId = () => {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('consent_id');
-  })();
+    if (urlParams.get('consent_id')) {
+      setConsentId(urlParams.get('consent_id'));
+    }
+  };
 
   // Helper function to get user display name
   const getUserDisplayName = () => {
@@ -78,6 +81,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       }
     });
   };
+
+  useEffect(() => {
+    updateConsentId();
+  }, []);
 
   useEffect(() => {
     getUserDisplayName();
@@ -201,7 +208,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       // Mocked data for demonstration
       const mockedOwnerData: OwnerInfo = {
         owner_id: ownerId,
-        email: 'user@example.com',
+        email: 'thanikan@opensource.lk',
         contact_number: '+1234567890',
         name: 'John Doe'
       };
