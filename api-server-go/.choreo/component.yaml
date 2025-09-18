@@ -1,0 +1,80 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  # REST API Endpoint for Government Data Exchange API Server
+  - name: api-server-go
+    displayName: Government Data Exchange API Server
+    service:
+      # Base path for the REST API endpoint
+      basePath: /
+      port: 3000
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: REST
+    # Network visibility: Public for external API access
+    networkVisibilities:
+      - Public
+
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    # Application Configuration
+    - name: PORT
+      valueFrom:
+        configForm:
+          displayName: Server Port
+          required: true
+          type: number
+          defaultValue: 3000
+    
+    - name: ENVIRONMENT
+      valueFrom:
+        configForm:
+          displayName: Environment
+          required: true
+          type: string
+          defaultValue: production
+    
+    - name: LOG_LEVEL
+      valueFrom:
+        configForm:
+          displayName: Log Level
+          required: false
+          type: string
+          defaultValue: info
+    
+    # Asgardeo Configuration
+    - name: ASGARDEO_BASE_URL
+      valueFrom:
+        configForm:
+          displayName: Asgardeo Base URL
+          required: true
+          type: string
+          defaultValue: https://api.asgardeo.io/t/lankasoftwarefoundation
+    
+    - name: ASGARDEO_CLIENT_ID
+      valueFrom:
+        configForm:
+          displayName: Asgardeo Client ID
+          required: true
+          type: secret
+          defaultValue: ""
+    
+    - name: ASGARDEO_CLIENT_SECRET
+      valueFrom:
+        configForm:
+          displayName: Asgardeo Client Secret
+          required: true
+          type: secret
+          defaultValue: ""
+    
+    # JWT Configuration
+    - name: JWT_SECRET_KEY
+      valueFrom:
+        configForm:
+          displayName: JWT Secret Key
+          required: true
+          type: secret
+          defaultValue: ""

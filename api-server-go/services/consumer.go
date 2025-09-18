@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -12,15 +13,30 @@ import (
 )
 
 type ConsumerService struct {
-	consumers    map[string]*models.Consumer
-	applications map[string]*models.ConsumerApp
-	mutex        sync.RWMutex
+	consumers          map[string]*models.Consumer
+	applications       map[string]*models.ConsumerApp
+	clientMappings     map[string]*models.ClientMapping     // Maps clientId -> ClientMapping
+	consumerMappings   map[string]*models.ClientMapping     // Maps consumerId -> ClientMapping
+	credentialMappings map[string]*models.CredentialMapping // Maps apiKey -> CredentialMapping
+	asgardeoService    *AsgardeoService
+	mutex              sync.RWMutex
 }
 
 func NewConsumerService() *ConsumerService {
 	return &ConsumerService{
-		consumers:    make(map[string]*models.Consumer),
-		applications: make(map[string]*models.ConsumerApp),
+		consumers:          make(map[string]*models.Consumer),
+		applications:       make(map[string]*models.ConsumerApp),
+		credentialMappings: make(map[string]*models.CredentialMapping),
+	}
+}
+
+// NewConsumerServiceWithAsgardeo creates a new consumer service with Asgardeo integration
+func NewConsumerServiceWithAsgardeo(asgardeoService *AsgardeoService) *ConsumerService {
+	return &ConsumerService{
+		consumers:          make(map[string]*models.Consumer),
+		applications:       make(map[string]*models.ConsumerApp),
+		credentialMappings: make(map[string]*models.CredentialMapping),
+		asgardeoService:    asgardeoService,
 	}
 }
 
@@ -192,6 +208,29 @@ func (s *ConsumerService) UpdateConsumerApp(id string, req models.UpdateConsumer
 			return nil, fmt.Errorf("failed to generate credentials: %w", err)
 		}
 		application.Credentials = credentials
+
+		// Create credential mapping to platform's Asgardeo client
+		// Get platform's Asgardeo client credentials (these should be configured)
+		platformClientID := s.getPlatformAsgardeoClientID()
+		platformClientSecret := s.getPlatformAsgardeoClientSecret()
+
+		// Create credential mapping directly
+		mapping := &models.CredentialMapping{
+			APIKey:               credentials.APIKey,
+			APISecret:            credentials.APISecret,
+			AsgardeoClientID:     platformClientID,
+			AsgardeoClientSecret: platformClientSecret,
+			ConsumerID:           application.ConsumerID,
+		}
+		s.credentialMappings[credentials.APIKey] = mapping
+		slog.Info("Created credential mapping for approved consumer",
+			"consumerId", application.ConsumerID,
+			"apiKey", credentials.APIKey,
+			"asgardeoServiceConfigured", s.asgardeoService != nil)
+
+		// For now, assign a default provider ID when approved
+		// In a real system, this would be based on business logic
+		response.ProviderID = "default_provider"
 	}
 
 	slog.Info("Updated consumer application", "submissionId", id, "status", application.Status)
@@ -323,6 +362,25 @@ func (s *ConsumerService) UpdateApplication(id string, req models.UpdateApplicat
 		}
 		application.Credentials = credentials
 
+		// Create credential mapping to platform's Asgardeo client
+		// Get platform's Asgardeo client credentials (these should be configured)
+		platformClientID := s.getPlatformAsgardeoClientID()
+		platformClientSecret := s.getPlatformAsgardeoClientSecret()
+
+		// Create credential mapping directly (we already hold the lock)
+		mapping := &models.CredentialMapping{
+			APIKey:               credentials.APIKey,
+			APISecret:            credentials.APISecret,
+			AsgardeoClientID:     platformClientID,
+			AsgardeoClientSecret: platformClientSecret,
+			ConsumerID:           application.ConsumerID,
+		}
+		s.credentialMappings[credentials.APIKey] = mapping
+		slog.Info("Created credential mapping for approved consumer",
+			"consumerId", application.ConsumerID,
+			"apiKey", credentials.APIKey,
+			"asgardeoServiceConfigured", s.asgardeoService != nil)
+
 		// For now, assign a default provider ID when approved
 		// In a real system, this would be based on business logic
 		response.ProviderID = "default_provider"
@@ -356,6 +414,28 @@ func (s *ConsumerService) generateConsumerID() (string, error) {
 		return "", err
 	}
 	return "consumer_" + hex.EncodeToString(bytes), nil
+}
+
+// getPlatformAsgardeoClientID returns the platform's Asgardeo client ID
+func (s *ConsumerService) getPlatformAsgardeoClientID() string {
+	// Get from environment variable
+	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
+	if clientID == "" {
+		slog.Warn("ASGARDEO_CLIENT_ID not set, using default")
+		return "platform_asgardeo_client_id"
+	}
+	return clientID
+}
+
+// getPlatformAsgardeoClientSecret returns the platform's Asgardeo client secret
+func (s *ConsumerService) getPlatformAsgardeoClientSecret() string {
+	// Get from environment variable
+	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
+	if clientSecret == "" {
+		slog.Warn("ASGARDEO_CLIENT_SECRET not set, using default")
+		return "platform_asgardeo_client_secret"
+	}
+	return clientSecret
 }
 
 // generateSubmissionID generates a unique submission ID
@@ -392,4 +472,202 @@ func (s *ConsumerService) generateCredentials() (*models.Credentials, error) {
 		APIKey:    hex.EncodeToString(apiKeyBytes),
 		APISecret: hex.EncodeToString(apiSecretBytes),
 	}, nil
+}
+
+// Token exchange methods
+
+// ExchangeCredentialsForToken exchanges API credentials for Asgardeo access token
+func (s *ConsumerService) ExchangeCredentialsForToken(req models.TokenExchangeRequest) (*models.TokenExchangeResponse, error) {
+	// 1. Validate input
+	if req.APIKey == "" {
+		return nil, fmt.Errorf("API key is required")
+	}
+	if req.APISecret == "" {
+		return nil, fmt.Errorf("API secret is required")
+	}
+
+	// 2. Validate API credentials and get mapping
+	mapping, err := s.ValidateAndGetMapping(req.APIKey, req.APISecret)
+	if err != nil {
+		return nil, fmt.Errorf("invalid credentials: %w", err)
+	}
+
+	// 3. Check if Asgardeo service is configured
+	if s.asgardeoService == nil {
+		// For local testing without Asgardeo, return a mock token
+		slog.Warn("Asgardeo service not configured, returning mock token for local testing")
+		response := &models.TokenExchangeResponse{
+			AccessToken: "mock_access_token_" + mapping.ConsumerID,
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+			Scope:       "read write",
+			ConsumerID:  mapping.ConsumerID,
+		}
+		return response, nil
+	}
+
+	// 4. Use mapped Asgardeo credentials
+	tokenResp, err := s.asgardeoService.ExchangeCredentialsForToken(
+		mapping.AsgardeoClientID,
+		mapping.AsgardeoClientSecret,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange credentials for token: %w", err)
+	}
+
+	// Create response
+	response := &models.TokenExchangeResponse{
+		AccessToken: tokenResp.AccessToken,
+		TokenType:   tokenResp.TokenType,
+		ExpiresIn:   tokenResp.ExpiresIn,
+		Scope:       tokenResp.Scope,
+		ConsumerID:  mapping.ConsumerID,
+	}
+
+	slog.Info("Successfully exchanged credentials for Asgardeo token",
+		"consumerId", mapping.ConsumerID,
+		"apiKey", req.APIKey)
+
+	return response, nil
+}
+
+// ValidateAsgardeoToken validates an Asgardeo access token
+func (s *ConsumerService) ValidateAsgardeoToken(accessToken string) (*models.ValidateTokenResponse, error) {
+	slog.Info("Validating Asgardeo token", "asgardeoService", s.asgardeoService != nil)
+
+	if s.asgardeoService == nil {
+		slog.Warn("Asgardeo service not configured")
+		return &models.ValidateTokenResponse{
+			Valid: false,
+			Error: "Asgardeo service not configured. Please set ASGARDEO_BASE_URL environment variable.",
+		}, nil
+	}
+
+	slog.Info("Calling Asgardeo service to validate token")
+	return s.asgardeoService.ValidateToken(accessToken)
+}
+
+// validateAndGetMapping validates API credentials and returns the credential mapping
+func (s *ConsumerService) ValidateAndGetMapping(apiKey, apiSecret string) (*models.CredentialMapping, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Debug: Log all available credential mappings
+	slog.Info("Available credential mappings", "count", len(s.credentialMappings))
+	for key, mapping := range s.credentialMappings {
+		slog.Info("Credential mapping", "apiKey", key[:8]+"...", "consumerId", mapping.ConsumerID)
+	}
+
+	// Find credential mapping
+	mapping, exists := s.credentialMappings[apiKey]
+	if !exists {
+		slog.Warn("Invalid API key provided", "apiKey", apiKey[:8]+"...", "totalMappings", len(s.credentialMappings))
+		return nil, fmt.Errorf("invalid API key")
+	}
+
+	// Validate API secret
+	if mapping.APISecret != apiSecret {
+		slog.Warn("Invalid API secret provided", "apiKey", apiKey[:8]+"...")
+		return nil, fmt.Errorf("invalid API secret")
+	}
+
+	// Validate mapping has required fields
+	if mapping.AsgardeoClientID == "" || mapping.AsgardeoClientSecret == "" {
+		slog.Error("Credential mapping missing Asgardeo credentials", "consumerId", mapping.ConsumerID)
+		return nil, fmt.Errorf("credential mapping is incomplete")
+	}
+
+	return mapping, nil
+}
+
+// IsCredentialMappingConfigured checks if the credential mapping system is properly configured
+func (s *ConsumerService) IsCredentialMappingConfigured() bool {
+	clientID := s.getPlatformAsgardeoClientID()
+	clientSecret := s.getPlatformAsgardeoClientSecret()
+
+	// Check if we have valid Asgardeo credentials (not the default placeholders)
+	return clientID != "platform_asgardeo_client_id" && clientSecret != "platform_asgardeo_client_secret"
+}
+
+// validateCredentials validates API credentials against stored applications (legacy)
+func (s *ConsumerService) validateCredentials(apiKey, apiSecret string) (*models.ConsumerApp, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Find application with matching credentials
+	for _, app := range s.applications {
+		if app.Credentials != nil &&
+			app.Credentials.APIKey == apiKey &&
+			app.Credentials.APISecret == apiSecret {
+			return app, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid credentials")
+}
+
+// CreateCredentialMapping creates a new credential mapping
+func (s *ConsumerService) CreateCredentialMapping(consumerID, asgardeoClientID, asgardeoClientSecret string) (*models.CredentialMapping, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Generate API credentials
+	apiKeyBytes := make([]byte, 16)
+	if _, err := rand.Read(apiKeyBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate API key: %w", err)
+	}
+
+	apiSecretBytes := make([]byte, 32)
+	if _, err := rand.Read(apiSecretBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate API secret: %w", err)
+	}
+
+	apiKey := hex.EncodeToString(apiKeyBytes)
+	apiSecret := hex.EncodeToString(apiSecretBytes)
+
+	mapping := &models.CredentialMapping{
+		APIKey:               apiKey,
+		APISecret:            apiSecret,
+		AsgardeoClientID:     asgardeoClientID,
+		AsgardeoClientSecret: asgardeoClientSecret,
+		ConsumerID:           consumerID,
+	}
+
+	s.credentialMappings[apiKey] = mapping
+
+	slog.Info("Created credential mapping",
+		"consumerId", consumerID,
+		"asgardeoClientId", asgardeoClientID,
+		"apiKey", apiKey)
+
+	return mapping, nil
+}
+
+// CreateCredentialMappingWithCredentials creates a credential mapping using existing API credentials
+func (s *ConsumerService) CreateCredentialMappingWithCredentials(apiKey, apiSecret, consumerID, asgardeoClientID, asgardeoClientSecret string) (*models.CredentialMapping, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	slog.Info("Creating credential mapping",
+		"consumerId", consumerID,
+		"apiKey", apiKey[:8]+"...",
+		"asgardeoClientId", asgardeoClientID)
+
+	mapping := &models.CredentialMapping{
+		APIKey:               apiKey,
+		APISecret:            apiSecret,
+		AsgardeoClientID:     asgardeoClientID,
+		AsgardeoClientSecret: asgardeoClientSecret,
+		ConsumerID:           consumerID,
+	}
+
+	s.credentialMappings[apiKey] = mapping
+
+	slog.Info("Created credential mapping with existing credentials",
+		"consumerId", consumerID,
+		"asgardeoClientId", asgardeoClientID,
+		"apiKey", apiKey,
+		"totalMappings", len(s.credentialMappings))
+
+	return mapping, nil
 }

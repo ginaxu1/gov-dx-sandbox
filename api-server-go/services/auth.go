@@ -2,12 +2,12 @@ package services
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -21,15 +21,31 @@ type AuthService struct {
 }
 
 func NewAuthService(consumerService *ConsumerService) *AuthService {
-	// Generate a secret key for JWT signing (in production, this should be from config)
-	secretKey := make([]byte, 32)
-	rand.Read(secretKey)
+	// Use a consistent secret key for JWT signing
+	// In production, this should be from environment variable or config
+	secretKey := getJWTSecretKey()
 
 	return &AuthService{
 		consumerService: consumerService,
 		secretKey:       secretKey,
 		tokenExpiry:     24 * time.Hour, // 24 hours
 	}
+}
+
+// getJWTSecretKey returns a consistent JWT secret key
+func getJWTSecretKey() []byte {
+	// Check if secret key is provided via environment variable
+	if secretKeyStr := os.Getenv("JWT_SECRET_KEY"); secretKeyStr != "" {
+		// Use provided secret key (base64 encoded)
+		if decoded, err := base64.StdEncoding.DecodeString(secretKeyStr); err == nil && len(decoded) >= 32 {
+			return decoded[:32] // Use first 32 bytes
+		}
+	}
+
+	// Use a consistent default secret key for development
+	// In production, this should be set via JWT_SECRET_KEY environment variable
+	defaultKey := []byte("gov-dx-sandbox-jwt-secret-key-32-bytes-long")
+	return defaultKey
 }
 
 // AuthenticateConsumer authenticates a consumer using consumer_id and secret

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
@@ -22,10 +23,26 @@ type APIServer struct {
 
 // NewAPIServer creates a new API server instance
 func NewAPIServer() *APIServer {
-	consumerService := services.NewConsumerService()
 	providerService := services.NewProviderService()
 	grantsService := services.NewGrantsService()
+
+	// Initialize Asgardeo service
+	var asgardeoService *services.AsgardeoService
+	asgardeoBaseURL := os.Getenv("ASGARDEO_BASE_URL")
+	if asgardeoBaseURL != "" {
+		asgardeoService = services.NewAsgardeoService(asgardeoBaseURL)
+	}
+
+	// Initialize consumer service with Asgardeo integration
+	var consumerService *services.ConsumerService
+	if asgardeoService != nil {
+		consumerService = services.NewConsumerServiceWithAsgardeo(asgardeoService)
+	} else {
+		consumerService = services.NewConsumerService()
+	}
+
 	authService := services.NewAuthService(consumerService)
+
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
@@ -71,7 +88,8 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 
 	// Authentication routes
 	mux.Handle("/auth/token", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAuthToken)))
-	mux.Handle("/auth/validate", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAuthValidate)))
+	mux.Handle("/auth/validate", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAsgardeoTokenValidate)))
+	mux.Handle("/auth/exchange", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleTokenExchange)))
 }
 
 // Generic handler for collection endpoints (GET all, POST create)
@@ -85,6 +103,10 @@ func (s *APIServer) handleCollection(w http.ResponseWriter, r *http.Request, get
 		}
 		utils.RespondWithSuccess(w, http.StatusOK, items)
 	case http.MethodPost:
+		if creator == nil {
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
 		var req interface{}
 		if err := utils.ParseJSONRequest(r, &req); err != nil {
 			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
@@ -752,6 +774,12 @@ func (s *APIServer) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate input length and format
+	if len(req.ConsumerID) > 100 || len(req.Secret) > 200 {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid input length")
+		return
+	}
+
 	// Authenticate consumer
 	response, err := s.authService.AuthenticateConsumer(req)
 	if err != nil {
@@ -762,8 +790,37 @@ func (s *APIServer) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-// handleAuthValidate handles POST /auth/validate - Validate access token
-func (s *APIServer) handleAuthValidate(w http.ResponseWriter, r *http.Request) {
+// handleTokenExchange handles POST /auth/exchange - Exchange API credentials for Asgardeo token
+func (s *APIServer) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req models.TokenExchangeRequest
+	if err := utils.ParseJSONRequest(r, &req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate required fields
+	if req.APIKey == "" || req.APISecret == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "apiKey and apiSecret are required")
+		return
+	}
+
+	// Exchange credentials for Asgardeo token
+	response, err := s.consumerService.ExchangeCredentialsForToken(req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+// handleAsgardeoTokenValidate handles POST /auth/validate - Validate Asgardeo access token
+func (s *APIServer) handleAsgardeoTokenValidate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
@@ -781,10 +838,21 @@ func (s *APIServer) handleAuthValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate token
-	response, err := s.authService.ValidateToken(req.Token)
+	// Validate Asgardeo token
+	response, err := s.consumerService.ValidateAsgardeoToken(req.Token)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to validate token")
+		// Check if the error is due to service not being configured
+		if strings.Contains(err.Error(), "not configured") {
+			utils.RespondWithError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to validate Asgardeo token")
+		return
+	}
+
+	// If validation failed due to service not being configured, return 503
+	if !response.Valid && response.Error != "" && strings.Contains(response.Error, "not configured") {
+		utils.RespondWithError(w, http.StatusServiceUnavailable, response.Error)
 		return
 	}
 

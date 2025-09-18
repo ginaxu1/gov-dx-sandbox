@@ -22,18 +22,36 @@ type Consumer struct {
 
 // ConsumerApp represents a consumer's application to access specific data fields
 type ConsumerApp struct {
-	SubmissionID   string            `json:"submissionId"`
-	ConsumerID     string            `json:"consumerId"`
-	Status         ApplicationStatus `json:"status"`
-	RequiredFields map[string]bool   `json:"requiredFields"`
-	CreatedAt      time.Time         `json:"createdAt"`
-	Credentials    *Credentials      `json:"credentials,omitempty"`
+	SubmissionID   string              `json:"submissionId"`
+	ConsumerID     string              `json:"consumerId"`
+	Status         ApplicationStatus   `json:"status"`
+	RequiredFields map[string]bool     `json:"requiredFields"`
+	CreatedAt      time.Time           `json:"createdAt"`
+	Credentials    *Credentials        `json:"credentials,omitempty"`
+	AsgardeoClient *AsgardeoClientInfo `json:"asgardeoClient,omitempty"`
 }
 
 // Credentials represents API credentials for a consumer
 type Credentials struct {
 	APIKey    string `json:"apiKey"`
 	APISecret string `json:"apiSecret"`
+}
+
+// AsgardeoClientInfo represents Asgardeo client information for a consumer app
+type AsgardeoClientInfo struct {
+	ClientID     string    `json:"client_id"`
+	ClientSecret string    `json:"client_secret,omitempty"` // Omitted in responses for security
+	ClientName   string    `json:"client_name"`
+	CreatedAt    time.Time `json:"created_at"`
+	Status       string    `json:"status"`
+	Scopes       []string  `json:"scopes"`
+}
+
+// ClientMapping represents the mapping between consumer ID and Asgardeo client ID
+type ClientMapping struct {
+	ConsumerID string    `json:"consumerId"`
+	ClientID   string    `json:"clientId"`
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 // CreateConsumerRequest represents the request to create a new consumer
@@ -66,6 +84,33 @@ type UpdateConsumerAppRequest struct {
 type UpdateConsumerAppResponse struct {
 	*ConsumerApp
 	ProviderID string `json:"providerId,omitempty"` // Only present when status is approved
+}
+
+// Token exchange models
+
+// CredentialMapping represents the mapping between API credentials and Asgardeo credentials
+type CredentialMapping struct {
+	APIKey               string `json:"apiKey"`
+	APISecret            string `json:"apiSecret"`
+	AsgardeoClientID     string `json:"asgardeoClientId"`
+	AsgardeoClientSecret string `json:"asgardeoClientSecret"`
+	ConsumerID           string `json:"consumerId"`
+}
+
+// TokenExchangeRequest represents the request to exchange API credentials for Asgardeo token
+type TokenExchangeRequest struct {
+	APIKey    string `json:"apiKey"`
+	APISecret string `json:"apiSecret"`
+	Scope     string `json:"scope,omitempty"`
+}
+
+// TokenExchangeResponse represents the response from token exchange
+type TokenExchangeResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+	Scope       string `json:"scope,omitempty"`
+	ConsumerID  string `json:"consumerId"`
 }
 
 // Legacy models for backward compatibility
