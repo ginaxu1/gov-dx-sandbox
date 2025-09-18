@@ -156,6 +156,10 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
 			return
 		}
+		if dataField.OwnerEmail == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_email is required and cannot be empty", i)})
+			return
+		}
 		if len(dataField.Fields) == 0 {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields is required and cannot be empty", i)})
 			return
@@ -313,9 +317,9 @@ func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Reques
 			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentGetFailed+": %w", err)
 		}
 		return map[string]interface{}{
-			"data_owner": dataOwner,
-			"consents":   records,
-			"count":      len(records),
+			"owner_id": dataOwner,
+			"consents": records,
+			"count":    len(records),
 		}, http.StatusOK, nil
 	})
 }
@@ -440,6 +444,10 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 		}
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
+			return
+		}
+		if dataField.OwnerEmail == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_email is required and cannot be empty", i)})
 			return
 		}
 		if len(dataField.Fields) == 0 {
