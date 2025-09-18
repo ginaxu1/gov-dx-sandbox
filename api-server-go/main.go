@@ -9,9 +9,19 @@ import (
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
+// Build information - set via ldflags during build
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
 	slog.SetDefault(logger)
+
+	// Log build information
+	slog.Info("Starting API Server", "version", Version, "buildTime", BuildTime, "gitCommit", GitCommit)
 
 	// Initialize API server
 	apiServer := handlers.NewAPIServer()

@@ -1,50 +1,64 @@
-# Build stage
-FROM golang:1.25-alpine AS builder
+# Multi-stage Dockerfile for API Server
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Build arguments
+ARG BUILD_VERSION=latest
+ARG BUILD_TIME
+ARG GIT_COMMIT
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Copy go mod files and source code
+COPY go.mod ./
+COPY shared/ /app/shared/
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . ./
+
+# Build the application with build info
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
+    -o /app/service_binary .
+
+# Final stage
+FROM alpine:3.17
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata wget
+
+# Create non-root user with specific UID for WSO2 Choreo compliance
+RUN adduser -D -s /bin/sh -u 10001 appuser
 
 # Set working directory
 WORKDIR /app
 
-# Copy source code (including shared modules)
-COPY . .
-
-# Build the application
-RUN go mod tidy
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o service_binary .
-
-# Final stage
-FROM alpine:latest
-
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates wget
-
-# Create non-root user
-RUN addgroup -g 10014 -S appgroup && \
-    adduser -u 10014 -S appuser -G appgroup
-
-# Create app directory
-WORKDIR /app
-
-# Copy the binary from builder stage
-COPY --from=builder /app/service_binary .
+# Copy binary from builder stage
+COPY --from=builder /app/service_binary /app/
 
 # Copy OpenAPI specification
-COPY --from=builder /app/openapi.yaml .
+COPY --from=builder /app/openapi.yaml /app/
 
-# Make binary executable
-RUN chmod +x service_binary
+# Change ownership to appuser
+RUN chown -R appuser:appuser /app
 
-# Change ownership of app directory to non-root user
-RUN chown -R appuser:appgroup /app
-
-# Switch to non-root user
-USER appuser
+# Switch to non-root user with specific UID
+USER 10001
 
 # Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+# Set environment variables
+ENV ENVIRONMENT=production
 
-# Run the binary
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+# Run the application
 CMD ["./service_binary"]

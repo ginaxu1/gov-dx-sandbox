@@ -42,6 +42,10 @@ vendor/
 go.work
 go.work.sum
 
+# Compiled binaries
+api-server-go
+service_binary
+
 # Local configuration
 .env
 .env.local
@@ -49,7 +53,8 @@ go.work.sum
 
 # Deployment scripts (not needed in container)
 deploy-*.sh
-*.sh
+# Keep health check script for Dockerfile
+!health-check.sh
 
 # Other config files
 choreo-config.yaml
