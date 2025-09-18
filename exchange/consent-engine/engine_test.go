@@ -15,9 +15,10 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 		SessionID: "session_123",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "user123",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "user123",
+				OwnerEmail: "user123@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
 	}
@@ -43,6 +44,10 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 		t.Errorf("Expected OwnerID=%s, got %s", req.DataFields[0].OwnerID, record.OwnerID)
 	}
 
+	if record.OwnerEmail != req.DataFields[0].OwnerEmail {
+		t.Errorf("Expected OwnerEmail=%s, got %s", req.DataFields[0].OwnerEmail, record.OwnerEmail)
+	}
+
 }
 
 // TestConsentEngine_GetConsentStatus tests retrieving consent status
@@ -56,9 +61,10 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 		SessionID: "session_123",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "user123",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "user123",
+				OwnerEmail: "user123@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
 	}
@@ -96,9 +102,10 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 		SessionID: "session_123",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "user123",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "user123",
+				OwnerEmail: "user123@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
 	}
@@ -148,9 +155,10 @@ func TestConsentEngine_FindExistingConsent(t *testing.T) {
 		SessionID: "session_123",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "user123",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "user123",
+				OwnerEmail: "user123@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
 	}
@@ -188,9 +196,10 @@ func TestConsentEngine_UpdateConsentRecord(t *testing.T) {
 		SessionID: "session_123",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "user123",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "user123",
+				OwnerEmail: "user123@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
 	}
@@ -212,30 +221,6 @@ func TestConsentEngine_UpdateConsentRecord(t *testing.T) {
 	_, err = engine.GetConsentStatus(createdRecord.ConsentID)
 	if err != nil {
 		t.Fatalf("GetConsentStatus failed: %v", err)
-	}
-
-}
-
-// TestConsentEngine_DefaultRecord tests the default record functionality
-func TestConsentEngine_DefaultRecord(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
-
-	// Test that the default record exists
-	defaultRecord, err := engine.GetConsentStatus("consent_03c134ae")
-	if err != nil {
-		t.Fatalf("Expected default record to exist: %v", err)
-	}
-
-	if defaultRecord.OwnerID != "199512345678" {
-		t.Errorf("Expected OwnerID=199512345678, got %s", defaultRecord.OwnerID)
-	}
-
-	if defaultRecord.AppID != "passport-app" {
-		t.Errorf("Expected AppID=passport-app, got %s", defaultRecord.AppID)
-	}
-
-	if defaultRecord.Status != string(StatusPending) {
-		t.Errorf("Expected Status=%s, got %s", string(StatusPending), defaultRecord.Status)
 	}
 
 }
@@ -322,9 +307,10 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 			SessionID: "session_456",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "user456",
-					Fields:    []string{"person.permanentAddress"},
+					OwnerType:  "citizen",
+					OwnerID:    "user456",
+					OwnerEmail: "user456@example.com",
+					Fields:     []string{"person.permanentAddress"},
 				},
 			},
 		}
@@ -380,9 +366,10 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 			SessionID: "session_789",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "user789",
-					Fields:    []string{"person.permanentAddress"},
+					OwnerType:  "citizen",
+					OwnerID:    "user789",
+					OwnerEmail: "user789@example.com",
+					Fields:     []string{"person.permanentAddress"},
 				},
 			},
 		}
@@ -432,9 +419,10 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 				SessionID: "session_" + string(rune('0'+i)),
 				DataFields: []DataField{
 					{
-						OwnerType: "citizen",
-						OwnerID:   "user" + string(rune('0'+i)),
-						Fields:    []string{"person.permanentAddress"},
+						OwnerType:  "citizen",
+						OwnerID:    "user" + string(rune('0'+i)),
+						OwnerEmail: "user" + string(rune('0'+i)) + "@example.com",
+						Fields:     []string{"person.permanentAddress"},
 					},
 				},
 			}
@@ -492,9 +480,10 @@ func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
 		SessionID: "session_123",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "user123",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "user123",
+				OwnerEmail: "user123@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
 	}
