@@ -1,0 +1,38 @@
+{
+  "ceUrl": "http://localhost:8081",
+  "pdpUrl": "http://localhost:8082",
+  "providers": [
+    {
+      "providerKey": "drp",
+      "providerUrl": "http://localhost:9091"
+    },
+    {
+      "providerKey": "dmt",
+      "providerUrl": "http://localhost:9090"
+    },
+    {
+      "providerKey": "rgd",
+      "providerUrl": "http://localhost:8080/graphql"
+    }
+  ],
+  "argMappings": [
+    {
+      "providerKey": "drp",
+      "targetArgName": "nic",
+      "sourceArgPath": "personInfo-nic",
+      "targetArgPath": "drp.person"
+    },
+    {
+      "providerKey": "rgd",
+      "targetArgName": "nic",
+      "sourceArgPath": "personInfo-nic",
+      "targetArgPath": "rgd.getPersonInfo"
+    },
+    {
+      "providerKey": "dmt",
+      "targetArgName": "ownerNic",
+      "sourceArgPath": "personInfo-nic",
+      "targetArgPath": "dmt.vehicle.getVehicleInfos"
+    }
+  ]
+}
