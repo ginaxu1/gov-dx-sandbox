@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Check, X, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 
+// Extend Window interface to include config
+declare global {
+  interface Window {
+    configs: {
+      apiUrl: string;
+    };
+  }
+}
+
 // Types
 interface ConsentRecord {
   consent_id: string;
   owner_id: string;
   data_consumer: string;
-  app_display_name: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
   type?: string;
   created_at: string;
@@ -38,30 +46,36 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const [otpExpiryTime, setOtpExpiryTime] = useState<Date | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<'email' | 'sms'>('email');
   const [isResendingOtp, setIsResendingOtp] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
+  // const [otpSent, setOtpSent] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Base API path from environment variable
-  const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
-  const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
+  // const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
+  // const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
+  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : 'http://localhost:8081';
+  // console.log('CONSENT_ENGINE_PATH:', CONSENT_ENGINE_PATH);
   // For demonstration, using a placeholder. Replace with actual API base path.
 
-  // Get consent_id from URL params
-  const getConsentId = (): string | null => {
+  // Get consent_uuid from URL params
+  const getConsentUuid = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
-    console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent_id'); // Use consent_id to match API naming
+    // console.log('URL Params:', urlParams.toString());
+    return urlParams.get('consent_id'); // Placeholder for testing
+
   };
 
   // Fetch consent data
-  const fetchConsentData = async (consentId: string) => {
+  const fetchConsentData = async (consentUuid: string) => {
     try {
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentId}`);
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`);
       if (!response.ok) {
         throw new Error('Failed to fetch consent data');
       }
       const data: ConsentRecord = await response.json();
-      setConsentRecord(data);
+      setConsentRecord({
+          ...data,
+          consent_id: consentUuid,
+      });
       
       // Check consent status and set appropriate step
       if (data.status === 'pending') {
@@ -77,10 +91,9 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     }
     // Mocked data for demonstration
     // const mockedData: ConsentRecord = {
-    //   consent_id: consentId,
+    //   consent_uuid: consentUuid,
     //   owner_id: 'user_12345',
-    //   data_consumer: 'passport-app',
-    //   app_display_name: 'Passport App',
+    //   data_consumer: 'Example App',
     //   status: 'pending', // Change this to test different statuses: 'approved', 'rejected', 'expired', 'revoked'
     //   type: 'Standard',
     //   created_at: new Date().toISOString(),
@@ -130,14 +143,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     }
 
     try {
-      const payload = {
-        owner_id: ownerInfo.owner_id,
-        consent_id: consentRecord.consent_id,
-        delivery_method: method,
-        email: method === 'email' ? ownerInfo.email : undefined,
-        contact_number: method === 'sms' ? ownerInfo.contact_number : undefined,
-        decision: userDecision
-      };
+      // const payload = {
+      //   owner_id: ownerInfo.owner_id,
+      //   consent_uuid: consentRecord.consent_uuid,
+      //   delivery_method: method,
+      //   email: method === 'email' ? ownerInfo.email : undefined,
+      //   contact_number: method === 'sms' ? ownerInfo.contact_number : undefined,
+      //   decision: userDecision
+      // };
 
       // const response = await fetch(`${BASE_PATH}/otp/send`, {
       //   method: 'POST',
@@ -158,7 +171,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       const expiryTime = new Date();
       expiryTime.setMinutes(expiryTime.getMinutes() + 5);
       setOtpExpiryTime(expiryTime);
-      setOtpSent(true);
+      // setOtpSent(true);
       
       return true;
     } catch (err) {
@@ -170,14 +183,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
   // Initialize component
   useEffect(() => {
-    const consentId = getConsentId();
-    if (!consentId) {
+    const consentUuid = getConsentUuid();
+    if (!consentUuid) {
       setError('Invalid consent link. Missing consent ID.');
       setCurrentStep('error');
       return;
     }
     
-    fetchConsentData(consentId);
+    fetchConsentData(consentUuid);
   }, []);
 
   // Timer for OTP expiry countdown
@@ -304,16 +317,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
       setCurrentStep('success');
       
-      // Redirect after 3 seconds
+      // Closing the tab after a short delay to allow user to see success message
       setTimeout(() => {
-        if (consentRecord.redirect_url) {
-            // Notify the opener window
-            if (window.opener) {
-                window.opener.postMessage("consent_granted", "*");
-            }
-            // Close this popup
-            window.close();        
-        }
+              // Notify the opener window
+              if (window.opener) {
+                  window.opener.postMessage("consent_granted", "*");
+              }
+              // Close this popup
+              window.close();
       }, 3000);
 
     } catch (err) {
@@ -594,7 +605,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="font-medium text-gray-600">Application:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.app_display_name}</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Owner ID:</span>
@@ -677,7 +688,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div>
                       <span className="font-medium text-gray-600">Application:</span>
-                      <span className="ml-2 text-gray-800">{consentRecord.app_display_name}</span>
+                      <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
                     </div>
                     <div>
                       <span className="font-medium text-gray-600">Owner ID:</span>
@@ -713,7 +724,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                     <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
                     <div className="text-sm text-yellow-800">
                       <p className="font-medium mb-1">Important:</p>
-                      <p>By approving this request, you are granting {consentRecord.app_display_name} access to the specified data fields. This access will remain valid until {formatDate(consentRecord.expires_at)}.</p>
+                      <p>By approving this request, you are granting {consentRecord.data_consumer} access to the specified data fields. This access will remain valid until {formatDate(consentRecord.expires_at)}.</p>
                     </div>
                   </div>
                 </div>
