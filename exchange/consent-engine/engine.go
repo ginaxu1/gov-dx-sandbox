@@ -13,9 +13,10 @@ import (
 
 // DataField represents a request for specific data fields from a data owner
 type DataField struct {
-	OwnerType string   `json:"owner_type"`
-	OwnerID   string   `json:"owner_id"`
-	Fields    []string `json:"fields"`
+	OwnerType  string   `json:"owner_type"`
+	OwnerID    string   `json:"owner_id"`
+	OwnerEmail string   `json:"owner_email"`
+	Fields     []string `json:"fields"`
 }
 
 // ConsentResponse defines the structure for consent API responses
@@ -23,6 +24,7 @@ type ConsentResponse struct {
 	ConsentID        string   `json:"consent_id"`
 	Status           string   `json:"status"`
 	OwnerID          string   `json:"owner_id"`
+	OwnerEmail       string   `json:"owner_email"`
 	Fields           []string `json:"fields"`
 	SessionID        string   `json:"session_id"`
 	ConsentPortalURL string   `json:"consent_portal_url"`
@@ -86,6 +88,8 @@ type ConsentRecord struct {
 	ConsentID string `json:"consent_id"`
 	// OwnerID is the unique identifier for the data owner
 	OwnerID string `json:"owner_id"`
+	// OwnerEmail is the email address of the data owner
+	OwnerEmail string `json:"owner_email"`
 	// AppID is the unique identifier for the consumer application
 	AppID string `json:"app_id"`
 	// Status is the status of the consent record: pending, approved, rejected, expired, revoked
@@ -111,6 +115,7 @@ type ConsentPortalView struct {
 	CreatedAt      time.Time `json:"created_at"`
 	Fields         []string  `json:"fields"`
 	OwnerName      string    `json:"owner_name"`
+	OwnerEmail     string    `json:"owner_email"`
 	Status         string    `json:"status"`
 	Type           string    `json:"type"`
 }
@@ -132,6 +137,7 @@ func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
 		CreatedAt:      cr.CreatedAt,
 		Fields:         cr.Fields,
 		OwnerName:      ownerName,
+		OwnerEmail:     cr.OwnerEmail,
 		Status:         cr.Status,
 		Type:           cr.Type,
 	}
@@ -266,7 +272,8 @@ func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, 
 
 	record := &ConsentRecord{
 		ConsentID:        consentID,
-		OwnerID:          req.DataFields[0].OwnerID, // Use the first owner ID
+		OwnerID:          req.DataFields[0].OwnerID,    // Use the first owner ID
+		OwnerEmail:       req.DataFields[0].OwnerEmail, // Use the first owner email
 		AppID:            req.AppID,
 		Status:           string(StatusPending),
 		Type:             string(ConsentTypeRealTime),
@@ -551,7 +558,8 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 
 	record := &ConsentRecord{
 		ConsentID:        consentID,
-		OwnerID:          req.DataFields[0].OwnerID, // Use the first owner ID
+		OwnerID:          req.DataFields[0].OwnerID,    // Use the first owner ID
+		OwnerEmail:       req.DataFields[0].OwnerEmail, // Use the first owner email
 		AppID:            req.AppID,
 		Status:           string(StatusPending),
 		Type:             string(ConsentTypeRealTime),
@@ -613,6 +621,7 @@ func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*Co
 		existingRecord.Status = req.Status
 		existingRecord.Type = req.Type
 		existingRecord.OwnerID = req.OwnerID
+		existingRecord.OwnerEmail = req.OwnerEmail
 		existingRecord.AppID = req.AppID
 		existingRecord.UpdatedAt = time.Now()
 		existingRecord.Fields = req.Fields
@@ -634,6 +643,7 @@ func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*Co
 	record := &ConsentRecord{
 		ConsentID:        req.ConsentID,
 		OwnerID:          req.OwnerID,
+		OwnerEmail:       req.OwnerEmail,
 		AppID:            req.AppID,
 		Status:           req.Status,
 		Type:             req.Type,
