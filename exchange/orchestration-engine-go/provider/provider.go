@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
@@ -22,30 +23,52 @@ type Provider struct {
 	Auth       *auth.AuthConfig `json:"auth,omitempty"`
 	Auth2Token *auth.Auth2TokenResponse
 	Headers    map[string]string `json:"headers,omitempty"`
+	tokenMu    sync.RWMutex
 }
 
 // StartTokenRefresh starts a goroutine to refresh the OAuth2 token periodically.
 func (p *Provider) StartTokenRefresh() {
 	go func(prov *Provider) {
+		maxRetries := 3
 		for {
-			// If no token or expired, fetch a new one
-			if prov.Auth2Token == nil || time.Now().After(prov.Auth2Token.ExpiresAt) {
+			prov.tokenMu.Lock()
+			needsTokenRefresh := prov.Auth2Token == nil || time.Now().After(prov.Auth2Token.ExpiresAt)
+			prov.tokenMu.Unlock()
+
+			if needsTokenRefresh {
 				logger.Log.Info("Refreshing Token", "service", prov.ServiceKey)
 				if err := prov.fetchToken(); err != nil {
+					maxRetries--
 					logger.Log.Error("Failed to refresh token", "service", prov.ServiceKey, "error", err)
-					// Wait a bit before retrying on failure
+
+					if maxRetries == 0 {
+						logger.Log.Error("Max retries reached, stopping token refresh", "service", prov.ServiceKey)
+						return // exit goroutine
+					}
+
 					time.Sleep(10 * time.Second)
 					continue
 				}
-				// print the token response
+
 				logger.Log.Info("Token Refreshed", "Token Expires At:", prov.Auth2Token.ExpiresAt)
+				maxRetries = 3 // reset retries on success
 			}
 
-			// Sleep until just before expiry (or re-check every 30s if very long expiry)
-			sleepFor := time.Until(prov.Auth2Token.ExpiresAt.Add(-1 * time.Minute))
+			// Defensive check: don’t sleep on nil token
+			prov.tokenMu.Lock()
+			if prov.Auth2Token == nil {
+				prov.tokenMu.Unlock()
+				logger.Log.Warn("No valid token available, stopping refresh loop", "service", prov.ServiceKey)
+				return
+			}
+			expiry := prov.Auth2Token.ExpiresAt
+			prov.tokenMu.Unlock()
+
+			sleepFor := time.Until(expiry.Add(-1 * time.Minute))
 			if sleepFor < 30*time.Second {
 				sleepFor = 30 * time.Second
 			}
+
 			time.Sleep(sleepFor)
 		}
 	}(p)
@@ -67,9 +90,7 @@ func (p *Provider) fetchToken() error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := p.Client.Do(req)
 	if err != nil {
 		logger.Log.Error("Failed to fetch token", "service", p.ServiceKey, "error", err)
 		return err
