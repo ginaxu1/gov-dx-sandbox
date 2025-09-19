@@ -1,7 +1,6 @@
 package federator
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,7 +10,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/provider"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -19,9 +18,9 @@ import (
 
 // Federator struct that includes all the context needed for federation.
 type Federator struct {
-	Providers map[string]*provider.Provider
-	Client    *http.Client
-	Schema    *ast.Document
+	ProviderHandler *provider.Handler
+	Client          *http.Client
+	Schema          *ast.Document
 }
 
 type federationServiceAST struct {
@@ -60,18 +59,20 @@ func (f *federationResponse) GetProviderResponse(providerKey string) *providerRe
 }
 
 // Initialize sets up the Federator with providers and an HTTP client.
-func Initialize() *Federator {
+func Initialize(providerHandler *provider.Handler) *Federator {
 	options := configs.AppConfig.Options
 
-	federator := &Federator{}
-	federator.Providers = make(map[string]*provider.Provider)
+	federator := &Federator{
+		ProviderHandler: providerHandler,
+	}
+
 	// Initialize with options if provided
 
 	if options != nil {
 		for _, p := range options.Providers {
 			// print service url
 			logger.Log.Info("Adding Provider from the Config File", "Provider Key", p.ServiceKey, "Provider Url", p.ServiceUrl)
-			federator.Providers[p.ServiceKey] = p
+			providerHandler.AddProvider(p.ServiceKey, p)
 		}
 	} else {
 		logger.Log.Info("No Providers found in the Config File")
@@ -152,7 +153,7 @@ func (f *Federator) performFederation(r *federationRequest) *federationResponse 
 	var mu sync.Mutex // to safely append to federationResponse.Responses
 
 	for _, request := range r.FederationServiceRequest {
-		p, exists := f.Providers[request.ServiceKey]
+		p, exists := f.ProviderHandler.GetProvider(request.ServiceKey)
 		if !exists {
 			logger.Log.Info("Provider not found", "Provider Key", request.ServiceKey)
 			continue
@@ -168,7 +169,7 @@ func (f *Federator) performFederation(r *federationRequest) *federationResponse 
 				return
 			}
 
-			response, err := f.Client.Post(prov.ServiceUrl, "application/json", bytes.NewBuffer(reqBody))
+			response, err := prov.PerformRequest(reqBody)
 			if err != nil {
 				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
 				return
