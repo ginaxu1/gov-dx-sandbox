@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -29,8 +30,19 @@ func NewAPIServer() *APIServer {
 	// Initialize Asgardeo service
 	var asgardeoService *services.AsgardeoService
 	asgardeoBaseURL := os.Getenv("ASGARDEO_BASE_URL")
-	if asgardeoBaseURL != "" {
+	asgardeoClientID := os.Getenv("ASGARDEO_CLIENT_ID")
+	asgardeoClientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
+
+	if asgardeoBaseURL != "" && asgardeoClientID != "" && asgardeoClientSecret != "" {
 		asgardeoService = services.NewAsgardeoService(asgardeoBaseURL)
+		slog.Info("Asgardeo service initialized",
+			"baseURL", asgardeoBaseURL,
+			"clientID", asgardeoClientID)
+	} else {
+		slog.Warn("Asgardeo service not configured - missing required environment variables",
+			"ASGARDEO_BASE_URL", asgardeoBaseURL != "",
+			"ASGARDEO_CLIENT_ID", asgardeoClientID != "",
+			"ASGARDEO_CLIENT_SECRET", asgardeoClientSecret != "")
 	}
 
 	// Initialize consumer service with Asgardeo integration
@@ -165,6 +177,11 @@ func (s *APIServer) handleItem(w http.ResponseWriter, r *http.Request, getter fu
 // Helper functions for parsing requests
 
 // Service method wrappers for use with generic handlers
+// GetConsumerService returns the consumer service instance
+func (s *APIServer) GetConsumerService() *services.ConsumerService {
+	return s.consumerService
+}
+
 func (s *APIServer) createConsumerServiceMethod(req interface{}) (interface{}, error) {
 	createReq := req.(models.CreateConsumerRequest)
 	return s.consumerService.CreateConsumer(createReq)

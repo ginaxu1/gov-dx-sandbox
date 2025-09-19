@@ -9,9 +9,15 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
 	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load environment variables from .env.local file if it exists
+	if err := godotenv.Load(".env.local"); err != nil {
+		slog.Info("No .env.local file found, using system environment variables")
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
 	slog.SetDefault(logger)
 

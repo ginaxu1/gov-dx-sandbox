@@ -8,6 +8,8 @@ services:
     environment:
       - PORT=3000
       - ASGARDEO_BASE_URL=${ASGARDEO_BASE_URL:-https://api.asgardeo.io/t/lankasoftwarefoundation}
+      - ASGARDEO_CLIENT_ID=${ASGARDEO_CLIENT_ID}
+      - ASGARDEO_CLIENT_SECRET=${ASGARDEO_CLIENT_SECRET}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     restart: unless-stopped
     healthcheck:

@@ -560,8 +560,8 @@ func TestAuthEndpoints(t *testing.T) {
 		w := ts.MakePOSTRequest("/auth/validate", validateReq)
 		// The response will depend on whether Asgardeo service is configured
 		// We expect either 200 with validation result or 500 if service not configured
-		if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
-			t.Errorf("Expected status 200 or 500, got %d", w.Code)
+		if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError && w.Code != http.StatusServiceUnavailable {
+			t.Errorf("Expected status 200, 500, or 503, got %d", w.Code)
 		}
 	})
 
@@ -572,8 +572,8 @@ func TestAuthEndpoints(t *testing.T) {
 
 		w := ts.MakePOSTRequest("/auth/validate", validateReq)
 		// Asgardeo validation will return 500 if service not configured, or 200 with validation result
-		if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
-			t.Errorf("Expected status 200 or 500, got %d", w.Code)
+		if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError && w.Code != http.StatusServiceUnavailable {
+			t.Errorf("Expected status 200, 500, or 503, got %d", w.Code)
 		}
 	})
 

@@ -14,18 +14,29 @@ SCRIPT_DESCRIPTION="Runs all test workflows once in the correct order"
 # Set default values
 API_BASE_URL=${API_BASE_URL:-$DEFAULT_API_BASE_URL}
 ASGARDEO_BASE_URL=${ASGARDEO_BASE_URL:-$DEFAULT_ASGARDEO_BASE_URL}
+VERBOSE=false
+QUIET=false
 
 # Show script info
 print_header "$SCRIPT_NAME" $GREEN
 print_info "$SCRIPT_DESCRIPTION"
+print_info "API Server URL: $API_BASE_URL"
+print_info "Asgardeo URL: $ASGARDEO_BASE_URL"
+if [ "$VERBOSE" = true ]; then
+    print_info "Verbose mode: enabled"
+fi
+if [ "$QUIET" = true ]; then
+    print_info "Quiet mode: enabled"
+fi
 echo ""
 
 # Test execution order
 TESTS=(
-    "basic:Basic Functionality Tests"
-    "security:Security Control Tests"
-    "asgardeo:Asgardeo Integration Tests"
-    "workflow:Complete Workflow Tests"
+    "unit:Unit Tests"
+    "auth:Authentication Integration Tests"
+    "workflow:Complete Authentication Workflow Tests"
+    "verification:Workflow Verification Tests"
+    "example:Asgardeo Authentication Example"
 )
 
 # Test results
@@ -42,17 +53,43 @@ run_test_category() {
     print_header "$test_name"
     
     case $test_type in
-        "basic")
-            ./scripts/test.sh --basic --quiet
+        "unit")
+            # Run unit tests using go test
+            if [ "$VERBOSE" = true ]; then
+                go test ./tests -v
+            elif [ "$QUIET" = true ]; then
+                go test ./tests > /dev/null 2>&1
+            else
+                go test ./tests
+            fi
             ;;
-        "security")
-            ./scripts/test.sh --security --quiet
-            ;;
-        "asgardeo")
-            ./scripts/test.sh --asgardeo --quiet
+        "auth")
+            if [ "$QUIET" = true ]; then
+                ./scripts/test-auth-integration.sh > /dev/null 2>&1
+            else
+                ./scripts/test-auth-integration.sh
+            fi
             ;;
         "workflow")
-            ./scripts/test.sh --workflow --quiet
+            if [ "$QUIET" = true ]; then
+                ./scripts/test-complete-auth-workflow.sh > /dev/null 2>&1
+            else
+                ./scripts/test-complete-auth-workflow.sh
+            fi
+            ;;
+        "verification")
+            if [ "$QUIET" = true ]; then
+                ./scripts/test-workflow-verification.sh > /dev/null 2>&1
+            else
+                ./scripts/test-workflow-verification.sh
+            fi
+            ;;
+        "example")
+            if [ "$QUIET" = true ]; then
+                ./scripts/asgardeo_auth_example-refactored.sh > /dev/null 2>&1
+            else
+                ./scripts/asgardeo_auth_example-refactored.sh
+            fi
             ;;
         *)
             print_error "Unknown test type: $test_type"
@@ -127,10 +164,11 @@ show_help() {
     echo "  -q, --quiet             Suppress output except errors"
     echo ""
     echo "Test Categories:"
-    echo "  1. Basic Functionality Tests"
-    echo "  2. Security Control Tests"
-    echo "  3. Asgardeo Integration Tests"
-    echo "  4. Complete Workflow Tests"
+    echo "  1. Unit Tests (go test ./tests -v)"
+    echo "  2. Authentication Integration Tests"
+    echo "  3. Complete Authentication Workflow Tests"
+    echo "  4. Workflow Verification Tests"
+    echo "  5. Asgardeo Authentication Example"
     echo ""
     echo "Examples:"
     echo "  $0                      # Run all tests"
@@ -139,11 +177,36 @@ show_help() {
     echo ""
 }
 
-# Handle help
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    show_help
-    exit 0
-fi
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -u|--url)
+            API_BASE_URL="$2"
+            shift 2
+            ;;
+        -a|--asgardeo)
+            ASGARDEO_BASE_URL="$2"
+            shift 2
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            shift
+            ;;
+        -q|--quiet)
+            QUIET=true
+            shift
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
 
 # Run all tests
 run_all_tests
