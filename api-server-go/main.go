@@ -4,12 +4,20 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
+	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load environment variables from .env.local file if it exists
+	if err := godotenv.Load(".env.local"); err != nil {
+		slog.Info("No .env.local file found, using system environment variables")
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
 	slog.SetDefault(logger)
 
@@ -30,6 +38,15 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, map[string]string{"path": r.URL.Path, "method": r.Method})
 	})))
 
+	// Apply security middleware
+	securityHandler := middleware.SecurityHeaders(
+		middleware.InputValidation(
+			middleware.SecurityLogging(
+				middleware.RateLimitMiddleware(100, time.Minute)(mux),
+			),
+		),
+	)
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -38,7 +55,7 @@ func main() {
 
 	addr := ":" + port
 	slog.Info("API Server starting", "port", port)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, securityHandler); err != nil {
 		slog.Error("Failed to start API server", "error", err)
 		os.Exit(1)
 	}

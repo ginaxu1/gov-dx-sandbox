@@ -18,6 +18,12 @@ endpoints:
     # that are consumed internally by your supergraph.
     networkVisibilities:
       - Public # Can also be 'Project' for more restricted internal visibility
+    # JWT validation configuration for M2M authentication
+    security:
+      - type: JWT
+        issuer: https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/token
+        audience: gov-dx-api
+        # Consumer ID will be extracted from the 'client_id' claim and passed as X-Consumer-ID header
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:

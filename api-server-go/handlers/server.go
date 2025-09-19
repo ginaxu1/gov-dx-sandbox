@@ -21,9 +21,12 @@ type APIServer struct {
 
 // NewAPIServer creates a new API server instance
 func NewAPIServer() *APIServer {
-	consumerService := services.NewConsumerService()
 	providerService := services.NewProviderService()
 	grantsService := services.NewGrantsService()
+
+	// Initialize consumer service
+	consumerService := services.NewConsumerService()
+
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
@@ -78,6 +81,10 @@ func (s *APIServer) handleCollection(w http.ResponseWriter, r *http.Request, get
 		}
 		utils.RespondWithSuccess(w, http.StatusOK, items)
 	case http.MethodPost:
+		if creator == nil {
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
 		var req interface{}
 		if err := utils.ParseJSONRequest(r, &req); err != nil {
 			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
@@ -136,6 +143,11 @@ func (s *APIServer) handleItem(w http.ResponseWriter, r *http.Request, getter fu
 // Helper functions for parsing requests
 
 // Service method wrappers for use with generic handlers
+// GetConsumerService returns the consumer service instance
+func (s *APIServer) GetConsumerService() *services.ConsumerService {
+	return s.consumerService
+}
+
 func (s *APIServer) createConsumerServiceMethod(req interface{}) (interface{}, error) {
 	createReq := req.(models.CreateConsumerRequest)
 	return s.consumerService.CreateConsumer(createReq)

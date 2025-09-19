@@ -1,40 +1,48 @@
 # API Server (Go)
 
-A API server for government data exchange portal management. Built with Go and runs on port 3000.
+A REST API server for government data exchange portal management. Built with Go and runs on port 3000.
 
 ## Overview
 
 The API server provides endpoints for managing:
-- Consumer applications
+- Consumer applications and authentication
 - Provider submissions and profiles
 - Provider schemas (with SDL support)
-- Admin functions
+- Admin functions and allow list management
 - Consent Management Workflow integration
 
 ## Architecture
 
+### Single Asgardeo Client Pattern
+
+This API server implements the **Single Asgardeo Client Pattern**:
+
+- **One Asgardeo OAuth2 application** for the entire platform
+- **Each consumer gets unique API credentials** from your system
+- **All consumers use the same Asgardeo client** for token exchange
+- **No per-consumer Asgardeo applications** needed
+
 ```
-api-server-go/
-├── main.go              # Server entry point
-├── handlers/
-│   └── server.go        # HTTP handlers and routing
-├── models/              # Data structures
-│   ├── consumer.go      # Consumer types
-│   ├── provider.go      # Provider types
-│   └── grants.go        # Grant/application types
-├── services/            # Business logic
-│   ├── consumer.go      # Consumer operations
-│   ├── provider.go      # Provider operations
-│   ├── admin.go         # Admin dashboard
-│   ├── grants.go        # Grant management
-│   └── schema_converter.go # SDL to provider metadata conversion
-├── tests/               # Comprehensive test suite
-│   ├── admin_test.go    # Admin service and endpoint tests
-│   ├── consumer_test.go # Consumer service and endpoint tests
-│   ├── provider_test.go # Provider service and endpoint tests
-│   ├── schema_sdl_test.go # Schema SDL and utility endpoint tests
-│   └── test_utils.go    # Reusable test utilities
-└── go.mod              # Dependencies
+Consumer A (API Key: A123) ──┐
+Consumer B (API Key: B456) ──┼──► API Server ──► Single Asgardeo Client ──► Asgardeo
+Consumer C (API Key: C789) ──┘
+```
+
+## Quick Start
+
+### Running the Server
+
+```bash
+# Start the API server
+go run main.go
+
+# Server starts on http://localhost:3000
+```
+
+### Health Check
+
+```bash
+curl http://localhost:3000/health
 ```
 
 ## API Endpoints
@@ -74,6 +82,10 @@ api-server-go/
 - `GET /providers/{providerId}/schema-submissions/{schemaId}` - Get specific schema submission
 - `PUT /providers/{providerId}/schema-submissions/{schemaId}` - Update schema submission (submit for review or admin approval/rejection)
 
+### Authentication
+- `POST /auth/exchange` - Exchange API credentials for Asgardeo access token
+- `POST /auth/validate` - Validate Asgardeo access token
+
 ### Admin
 - `GET /admin/metrics` - Get system metrics
 - `GET /admin/recent-activity` - Get recent system activity
@@ -88,7 +100,17 @@ api-server-go/
 ## Detailed API Documentation
 
 ### Health Check
-- `GET /health` - Check server health
+
+#### `GET /health`
+**Description:** Check server health
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00Z"
+}
+```
 
 ### Consumer Management
 
@@ -459,6 +481,48 @@ api-server-go/
 }
 ```
 
+### Authentication
+
+#### `POST /auth/exchange`
+**Description:** Exchange API credentials for Asgardeo access token
+
+**Payload:**
+```json
+{
+  "apiKey": "string",
+  "apiSecret": "string",
+  "scope": "gov-dx-api"
+}
+```
+
+**Response:**
+```json
+{
+  "access_token": "string",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "gov-dx-api",
+  "consumerId": "string"
+}
+```
+
+#### `POST /auth/validate`
+**Description:** Validate Asgardeo access token
+
+**Payload:**
+```json
+{
+  "token": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "consumerId": "string"
+}
+```
 
 ### Admin
 
@@ -518,6 +582,59 @@ api-server-go/
 }
 ```
 
+### Allow List Management
+
+#### `GET /admin/fields/{fieldName}/allow-list`
+**Description:** List consumers in allow_list for a field
+
+**Response:**
+```json
+{
+  "fieldName": "person.permanentAddress",
+  "allowList": [
+    {
+      "consumerId": "string",
+      "expires_at": 1757560679,
+      "grant_duration": "30d",
+      "reason": "Consent approved by data owner",
+      "updated_by": "admin",
+      "created_at": "datetime"
+    }
+  ]
+}
+```
+
+#### `POST /admin/fields/{fieldName}/allow-list`
+**Description:** Add consumer to allow_list for a field
+
+**Payload:**
+```json
+{
+  "consumerId": "string",
+  "expires_at": 1757560679,
+  "grant_duration": "30d",
+  "reason": "Consent approved by data owner",
+  "updated_by": "admin"
+}
+```
+
+#### `PUT /admin/fields/{fieldName}/allow-list/{consumerId}`
+**Description:** Update consumer in allow_list
+
+**Payload:**
+```json
+{
+  "consumerId": "string",
+  "expires_at": 1757560679,
+  "grant_duration": "60d",
+  "reason": "Extended access period",
+  "updated_by": "admin"
+}
+```
+
+#### `DELETE /admin/fields/{fieldName}/allow-list/{consumerId}`
+**Description:** Remove consumer from allow_list
+
 ## Schema Status Workflow
 
 1. **Draft**: Initial status when schema is created
@@ -532,8 +649,6 @@ The `/consumer-applications/{id}` endpoint handles both consumer IDs and submiss
 - IDs starting with `consumer_` are treated as consumer IDs
 - IDs starting with `sub_` are treated as submission IDs
 - For other formats, the HTTP method determines the behavior (POST/GET = consumer, PUT = submission)
-
-This design allows for flexible access patterns but may cause confusion. Consider using separate endpoints for better design.
 
 ### Provider Profile Creation
 Provider profiles are created automatically when a provider submission is approved. There is no direct endpoint to create provider profiles - they are generated through the approval workflow.
@@ -554,26 +669,6 @@ The API server integrates with the Consent Management Workflow through the **Con
 5. **Consent Decision**: The data owner grants or denies consent through the consent portal
 6. **Allow List Update**: Approved consent adds the consumer to the allow list for the requested fields
 7. **Data Access**: Once consent is approved, the data consumer can access the requested data
-
-### Consent Record Structure
-
-```json
-{
-  "consent_id": "consent_abc123",
-  "owner_id": "199512345678",
-  "data_consumer": "passport-app",
-  "status": "pending",
-  "type": "realtime",
-  "created_at": "2025-09-10T10:20:00Z",
-  "updated_at": "2025-09-10T10:20:00Z",
-  "expires_at": "2025-10-10T10:20:00Z",
-  "fields": [
-    "person.permanentAddress"
-  ],
-  "session_id": "session_123",
-  "redirect_url": "https://passport-app.gov.lk/callback"
-}
-```
 
 ### Consent Engine Endpoints
 The consent workflow is handled by the **Consent Engine service** (port 8081), not this API server:
@@ -632,34 +727,6 @@ The consent workflow is handled by the **Consent Engine service** (port 8081), n
 }
 ```
 
-#### `POST http://localhost:8081/consents` (Update Status)
-**Description:** Update consent workflow status when user clicks Yes/No
-
-**Payload:**
-```json
-{
-  "consent_id": "consent_abc123",
-  "status": "approved"
-}
-```
-
-#### `GET http://localhost:8081/consent-portal/?consent_id={id}`
-**Description:** Get consent information for the consent portal
-
-**Response:**
-```json
-{
-  "consentId": "consent_abc123",
-  "status": "pending",
-  "dataConsumer": "passport-app",
-  "dataOwner": "199512345678",
-  "fields": ["person.permanentAddress"],
-  "consentPortalUrl": "/consent-portal/consent_abc123",
-  "expiresAt": "2025-10-10T10:20:00Z",
-  "createdAt": "2025-09-10T10:20:00Z"
-}
-```
-
 ### Service Integration
 
 The API server works in conjunction with:
@@ -676,31 +743,6 @@ For testing purposes, the OTP verification is simplified:
 - **SMS Simulation**: OTP is logged to console instead of sending actual SMS
 
 ## Example Usage
-
-### Provider Schema Submission with SDL
-```bash
-# Create a provider profile first (done via admin approval of provider submission)
-# Then submit a schema with GraphQL SDL
-curl -X POST http://localhost:3000/providers/{providerId}/schema-submissions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sdl": "directive @accessControl(type: String!) on FIELD_DEFINITION\n\ndirective @source(value: String!) on FIELD_DEFINITION\n\ndirective @isOwner(value: Boolean!) on FIELD_DEFINITION\n\ndirective @description(value: String!) on FIELD_DEFINITION\n\ntype BirthInfo {\n  birthCertificateID: ID! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  birthPlace: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  birthDate: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n}\n\ntype User {\n  id: ID! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  name: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  email: String! @accessControl(type: \"public\") @source(value: \"authoritative\") @isOwner(value: false)\n  birthInfo: BirthInfo @accessControl(type: \"public\") @source(value: \"authoritative\") @description(value: \"Default Description\")\n}\n\ntype Query {\n  getUser(id: ID!): User @description(value: \"Default Description\")\n  listUsers: [User!]! @description(value: \"Default Description\")\n  getBirthInfo(userId: ID!): BirthInfo @description(value: \"Default Description\")\n  listUsersByBirthPlace(birthPlace: String!): [User!]! @description(value: \"Default Description\")\n  searchUsersByName(name: String!): [User!]! @description(value: \"Default Description\")\n}"
-  }'
-
-# Submit schema for review (draft -> pending)
-curl -X PUT http://localhost:3000/providers/{providerId}/schema-submissions/{schemaId} \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "pending"
-  }'
-
-# Approve schema (pending -> approved) - this automatically updates provider-metadata.json
-curl -X PUT http://localhost:3000/providers/{providerId}/schema-submissions/{schemaId} \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status": "approved"
-  }'
-```
 
 ### Consumer Management
 ```bash
@@ -811,3 +853,7 @@ go test -v ./tests -run TestConsumerService
 ### Dependencies
 - Uses shared utils from `github.com/gov-dx-sandbox/exchange/utils`
 - Standard Go modules for HTTP, JSON, and logging
+
+## Authentication Setup
+
+For detailed authentication setup, token exchange, and Asgardeo integration, see [AUTH_SETUP.md](AUTH_SETUP.md).

@@ -12,13 +12,42 @@ echo ""
 test_pdp_request() {
     local test_name="$1"
     local scenario="$2"
-    local expected_allow="$3"
-    local expected_consent="$4"
-    local data="$5"
+    local expected="$3"
+    local data="$4"
     
     log_info "Test: $test_name"
     log_info "Scenario: $scenario"
-    test_pdp_decision "$test_name" "$expected_allow" "$expected_consent" "$data"
+    log_info "Expected: $expected"
+    echo ""
+    
+    # Create a temporary file for the JSON data
+    local temp_file=$(mktemp)
+    echo "$data" > "$temp_file"
+    
+    local response=$(curl -s -X POST "$PDP_URL/decide" \
+        -H "Content-Type: application/json" \
+        -d @"$temp_file")
+    
+    # Clean up temp file
+    rm "$temp_file"
+    
+    echo "PDP Response:"
+    echo "$response" | jq '.'
+    echo "---"
+    
+    # Parse response into global variables
+    ALLOW=$(echo "$response" | jq -r '.allow // false')
+    CONSENT_REQUIRED=$(echo "$response" | jq -r '.consent_required // false')
+    CONSENT_FIELDS=$(echo "$response" | jq -r '.consent_required_fields // []')
+    
+    # Check if response matches expected
+    if echo "$response" | jq -e ".allow == true" > /dev/null 2>&1; then
+        log_success "PDP Decision: ALLOWED"
+    elif echo "$response" | jq -e ".allow == false" > /dev/null 2>&1; then
+        log_warning "PDP Decision: DENIED"
+    else
+        log_error "PDP Decision: UNKNOWN"
+    fi
 }
 
 # Test function for Consent Engine requests (using standardized function)

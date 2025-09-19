@@ -110,7 +110,7 @@ RESPONSE=$(curl -s -X POST "$CONSENT_ENGINE_URL/consents" \
     -d "$CONSENT_DATA" 2>/dev/null)
 
 if [ $? -eq 0 ]; then
-    CONSENT_ID=$(echo "$RESPONSE" | jq -r '.redirect_url' | sed 's/.*consent_id=\([^&]*\).*/\1/')
+    CONSENT_ID=$(echo "$RESPONSE" | jq -r '.consent_id')
     echo -e "${GREEN}✅ Created consent record: $CONSENT_ID${NC}"
     echo "Response: $RESPONSE"
 else
@@ -180,7 +180,7 @@ REJECT_RESPONSE=$(curl -s -X POST "$CONSENT_ENGINE_URL/consents" \
     -d "$REJECT_CONSENT_DATA" 2>/dev/null)
 
 if [ $? -eq 0 ]; then
-    REJECT_CONSENT_ID=$(echo "$REJECT_RESPONSE" | jq -r '.redirect_url' | sed 's/.*consent_id=\([^&]*\).*/\1/')
+    REJECT_CONSENT_ID=$(echo "$REJECT_RESPONSE" | jq -r '.consent_id')
     echo -e "${GREEN}✅ Created consent for rejection test: $REJECT_CONSENT_ID${NC}"
     
     # Reject the consent
