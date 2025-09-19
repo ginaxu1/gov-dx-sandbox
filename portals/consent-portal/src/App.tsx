@@ -77,6 +77,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       const accessToken = getAccessToken();
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        'Test-Key':'your-test-key' // Example of adding a custom header
       };
       
       if (accessToken) {
@@ -263,7 +264,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         // Step 4: Check owner email authorization
         console.log('Consent Owner Email:', consent.owner_email);
         console.log('Authenticated User Email:', userEmail);
-        if (consent.owner_email !== userEmail && userEmail !== 'thanikan@opensource.lk') {
+        if (consent.owner_email !== userEmail) {
           setError('Unauthorized access: You are not the data owner for this consent request');
           setCurrentStep('unauthorized');
           return;
