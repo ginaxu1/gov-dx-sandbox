@@ -13,7 +13,9 @@ RUN apk add --no-cache git ca-certificates tzdata
 
 # Copy go mod files and source code
 COPY go.mod ./
-COPY shared/ /app/shared/
+
+# Copy shared directory first (required for go.mod replace directive)
+COPY shared/ ./shared/
 
 # Download dependencies
 RUN go mod download

@@ -8,4 +8,4 @@ require github.com/joho/godotenv v1.5.1 // indirect
 
 replace github.com/gov-dx-sandbox/exchange/consent-engine => ../exchange/consent-engine
 
-replace github.com/gov-dx-sandbox/exchange/shared/utils => ../exchange/shared/utils
+replace github.com/gov-dx-sandbox/exchange/shared/utils => ./shared/utils

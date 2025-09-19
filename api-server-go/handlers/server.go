@@ -19,7 +19,6 @@ type APIServer struct {
 	providerService *services.ProviderService
 	adminService    *services.AdminService
 	grantsService   *services.GrantsService
-	authService     *services.AuthService
 }
 
 // NewAPIServer creates a new API server instance
@@ -53,14 +52,11 @@ func NewAPIServer() *APIServer {
 		consumerService = services.NewConsumerService()
 	}
 
-	authService := services.NewAuthService(consumerService)
-
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
 		grantsService:   grantsService,
-		authService:     authService,
 	}
 }
 
@@ -99,7 +95,6 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	mux.Handle("/admin/fields/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAllowListRoutes)))
 
 	// Authentication routes
-	mux.Handle("/auth/token", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAuthToken)))
 	mux.Handle("/auth/validate", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAsgardeoTokenValidate)))
 	mux.Handle("/auth/exchange", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleTokenExchange)))
 }
@@ -771,41 +766,6 @@ func (s *APIServer) handleAllowListRoutes(w http.ResponseWriter, r *http.Request
 }
 
 // Authentication handlers
-
-// handleAuthToken handles POST /auth/token - Authenticate consumer and get access token
-func (s *APIServer) handleAuthToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
-	var req models.AuthRequest
-	if err := utils.ParseJSONRequest(r, &req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if req.ConsumerID == "" || req.Secret == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "consumerId and secret are required")
-		return
-	}
-
-	// Validate input length and format
-	if len(req.ConsumerID) > 100 || len(req.Secret) > 200 {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid input length")
-		return
-	}
-
-	// Authenticate consumer
-	response, err := s.authService.AuthenticateConsumer(req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusUnauthorized, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
 
 // handleTokenExchange handles POST /auth/exchange - Exchange API credentials for Asgardeo token
 func (s *APIServer) handleTokenExchange(w http.ResponseWriter, r *http.Request) {

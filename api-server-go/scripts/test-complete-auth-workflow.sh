@@ -96,13 +96,12 @@ test_consumer_creation() {
     CONSUMER_RESPONSE=$(curl -s -X POST $API_SERVER_URL/consumers \
         -H "Content-Type: application/json" \
         -d "{
-            \"consumerId\": \"$TEST_CONSUMER_ID\",
             \"name\": \"Test Consumer\",
             \"email\": \"test@example.com\",
             \"description\": \"Test consumer for workflow verification\"
         }")
     
-    CONSUMER_ID=$(echo "$CONSUMER_RESPONSE" | jq -r '.data.consumerId // empty')
+    CONSUMER_ID=$(echo "$CONSUMER_RESPONSE" | jq -r '.consumerId // empty')
     if [ -z "$CONSUMER_ID" ]; then
         print_status $RED "❌ Failed to create consumer"
         echo "Response: $CONSUMER_RESPONSE"
@@ -111,15 +110,14 @@ test_consumer_creation() {
     print_status $GREEN "✅ Consumer created: $CONSUMER_ID"
     
     print_step "2.2" "Creating consumer application"
-    APP_RESPONSE=$(curl -s -X POST $API_SERVER_URL/consumer-applications \
+    APP_RESPONSE=$(curl -s -X POST $API_SERVER_URL/consumer-applications/$CONSUMER_ID \
         -H "Content-Type: application/json" \
         -d "{
-            \"consumerId\": \"$CONSUMER_ID\",
             \"name\": \"Test Application\",
             \"description\": \"Test application for workflow verification\"
         }")
     
-    APP_ID=$(echo "$APP_RESPONSE" | jq -r '.data.id // empty')
+    APP_ID=$(echo "$APP_RESPONSE" | jq -r '.submissionId // empty')
     if [ -z "$APP_ID" ]; then
         print_status $RED "❌ Failed to create consumer application"
         echo "Response: $APP_RESPONSE"
@@ -128,10 +126,11 @@ test_consumer_creation() {
     print_status $GREEN "✅ Consumer application created: $APP_ID"
     
     print_step "2.3" "Approving consumer application"
-    APPROVE_RESPONSE=$(curl -s -X PUT $API_SERVER_URL/consumer-applications/$APP_ID/approve \
-        -H "Content-Type: application/json")
+    APPROVE_RESPONSE=$(curl -s -X PUT $API_SERVER_URL/consumer-applications/$APP_ID \
+        -H "Content-Type: application/json" \
+        -d '{"status": "approved"}')
     
-    if echo "$APPROVE_RESPONSE" | jq -e '.success' > /dev/null; then
+    if echo "$APPROVE_RESPONSE" | jq -e '.status == "approved"' > /dev/null; then
         print_status $GREEN "✅ Consumer application approved"
     else
         print_status $RED "❌ Failed to approve consumer application"
@@ -140,19 +139,13 @@ test_consumer_creation() {
     fi
     
     print_step "2.4" "Getting API credentials"
-    CREDENTIALS_RESPONSE=$(curl -s -X POST $API_SERVER_URL/auth/token \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"consumerId\": \"$CONSUMER_ID\",
-            \"secret\": \"$TEST_CONSUMER_SECRET\"
-        }")
-    
-    API_KEY=$(echo "$CREDENTIALS_RESPONSE" | jq -r '.data.apiKey // empty')
-    API_SECRET=$(echo "$CREDENTIALS_RESPONSE" | jq -r '.data.apiSecret // empty')
+    # Credentials are already available from the approval response
+    API_KEY=$(echo "$APPROVE_RESPONSE" | jq -r '.credentials.apiKey // empty')
+    API_SECRET=$(echo "$APPROVE_RESPONSE" | jq -r '.credentials.apiSecret // empty')
     
     if [ -z "$API_KEY" ] || [ -z "$API_SECRET" ]; then
         print_status $RED "❌ Failed to get API credentials"
-        echo "Response: $CREDENTIALS_RESPONSE"
+        echo "Response: $APPROVE_RESPONSE"
         exit 1
     fi
     print_status $GREEN "✅ API credentials obtained"
@@ -174,7 +167,7 @@ test_token_exchange() {
             \"apiSecret\": \"$API_SECRET\"
         }")
     
-    ASGARDEO_TOKEN=$(echo "$EXCHANGE_RESPONSE" | jq -r '.data.accessToken // empty')
+    ASGARDEO_TOKEN=$(echo "$EXCHANGE_RESPONSE" | jq -r '.accessToken // empty')
     
     if [ -z "$ASGARDEO_TOKEN" ] || [ "$ASGARDEO_TOKEN" = "null" ]; then
         print_status $RED "❌ Failed to exchange credentials for Asgardeo token"
@@ -201,9 +194,9 @@ test_token_validation() {
             \"token\": \"$ASGARDEO_TOKEN\"
         }")
     
-    VALID=$(echo "$VALIDATION_RESPONSE" | jq -r '.data.valid // false')
-    CONSUMER_ID_FROM_TOKEN=$(echo "$VALIDATION_RESPONSE" | jq -r '.data.consumerId // empty')
-    ERROR=$(echo "$VALIDATION_RESPONSE" | jq -r '.data.error // empty')
+    VALID=$(echo "$VALIDATION_RESPONSE" | jq -r '.valid // false')
+    CONSUMER_ID_FROM_TOKEN=$(echo "$VALIDATION_RESPONSE" | jq -r '.consumerId // empty')
+    ERROR=$(echo "$VALIDATION_RESPONSE" | jq -r '.error // empty')
     
     if [ "$VALID" = "true" ]; then
         print_status $GREEN "✅ Token validation successful"
@@ -291,7 +284,7 @@ test_workflow_components() {
         -d '{"token": "test-token"}')
     
     # Check if response has expected structure
-    if echo "$VALIDATE_ENDPOINT_RESPONSE" | jq -e '.data.valid' > /dev/null; then
+    if echo "$VALIDATE_ENDPOINT_RESPONSE" | jq -e '.valid' > /dev/null; then
         print_status $GREEN "✅ API Server auth/validate endpoint returns correct structure"
     else
         print_status $YELLOW "⚠️  API Server auth/validate endpoint structure may be different"

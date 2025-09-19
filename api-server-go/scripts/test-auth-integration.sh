@@ -217,7 +217,7 @@ test_invalid_credentials() {
     
     MISSING_ERROR=$(echo $MISSING_RESPONSE | jq -r '.error')
     
-    if echo "$MISSING_ERROR" | grep -q "API secret is required"; then
+    if echo "$MISSING_ERROR" | grep -q "apiKey and apiSecret are required"; then
         print_status $GREEN "✅ Missing fields properly validated"
         echo "Error: $MISSING_ERROR"
     else

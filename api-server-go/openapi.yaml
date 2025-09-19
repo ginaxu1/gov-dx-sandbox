@@ -1,0 +1,1517 @@
+openapi: 3.0.3
+info:
+  title: OpenDIF API Server
+  description: |
+    API Server for managing OpenDIF platform components including
+    consumer applications, provider submissions, authentication, and administrative functions.
+    This service handles the complete lifecycle of data consumer and provider management
+    with integrated Asgardeo authentication.
+  version: 1.0.0
+  contact:
+    name: OpenDIF Team
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local Development Environment
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check if the API server is running and healthy
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: api-server
+                  status:
+                    type: string
+                    example: healthy
+
+  /debug:
+    get:
+      summary: Debug Information
+      description: Get debug information about the API server
+      operationId: debugInfo
+      tags:
+        - Debug
+      responses:
+        '200':
+          description: Debug information returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path:
+                    type: string
+                    example: /debug
+                  method:
+                    type: string
+                    example: GET
+
+  /consumers:
+    get:
+      summary: List All Consumers
+      description: Retrieve a list of all registered data consumers
+      operationId: listConsumers
+      tags:
+        - Consumers
+      responses:
+        '200':
+          description: List of consumers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create Consumer
+      description: Register a new data consumer organization
+      operationId: createConsumer
+      tags:
+        - Consumers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsumerRequest'
+      responses:
+        '201':
+          description: Consumer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consumers/{consumerId}:
+    get:
+      summary: Get Consumer by ID
+      description: Retrieve a specific consumer by their ID
+      operationId: getConsumerById
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer
+          schema:
+            type: string
+            example: consumer_1234567890
+      responses:
+        '200':
+          description: Consumer found and returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerResponse'
+        '404':
+          description: Consumer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update Consumer
+      description: Update an existing consumer's information
+      operationId: updateConsumer
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer
+          schema:
+            type: string
+            example: consumer_1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsumerRequest'
+      responses:
+        '200':
+          description: Consumer updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consumer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete Consumer
+      description: Delete a consumer and all associated data
+      operationId: deleteConsumer
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer
+          schema:
+            type: string
+            example: consumer_1234567890
+      responses:
+        '200':
+          description: Consumer deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Consumer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consumer-applications:
+    get:
+      summary: List All Consumer Applications
+      description: Retrieve all consumer applications (admin view)
+      operationId: listConsumerApplications
+      tags:
+        - Consumer Applications
+      responses:
+        '200':
+          description: List of consumer applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApplicationListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consumer-applications/{consumerId}:
+    get:
+      summary: Get Consumer Applications by Consumer ID
+      description: Retrieve all applications for a specific consumer
+      operationId: getConsumerApplicationsByConsumerId
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer
+          schema:
+            type: string
+            example: consumer_1234567890
+      responses:
+        '200':
+          description: Consumer applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApplicationListResponse'
+        '404':
+          description: Consumer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create Consumer Application
+      description: Create a new application for a specific consumer
+      operationId: createConsumerApplication
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer
+          schema:
+            type: string
+            example: consumer_1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsumerApplicationRequest'
+      responses:
+        '201':
+          description: Consumer application created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApplicationResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consumer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consumer-applications/{submissionId}:
+    get:
+      summary: Get Consumer Application by Submission ID
+      description: Retrieve a specific consumer application by submission ID
+      operationId: getConsumerApplicationBySubmissionId
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Unique identifier for the application submission
+          schema:
+            type: string
+            example: sub_1234567890
+      responses:
+        '200':
+          description: Consumer application retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApplicationResponse'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update Consumer Application
+      description: Update a consumer application (admin approval/rejection)
+      operationId: updateConsumerApplication
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Unique identifier for the application submission
+          schema:
+            type: string
+            example: sub_1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsumerApplicationRequest'
+      responses:
+        '200':
+          description: Consumer application updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateConsumerApplicationResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /provider-submissions:
+    get:
+      summary: List All Provider Submissions
+      description: Retrieve all provider submissions (admin view)
+      operationId: listProviderSubmissions
+      tags:
+        - Provider Submissions
+      responses:
+        '200':
+          description: List of provider submissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSubmissionListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create Provider Submission
+      description: Submit a new provider for registration
+      operationId: createProviderSubmission
+      tags:
+        - Provider Submissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderSubmissionRequest'
+      responses:
+        '201':
+          description: Provider submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSubmissionResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /provider-submissions/{submissionId}:
+    get:
+      summary: Get Provider Submission by ID
+      description: Retrieve a specific provider submission by ID
+      operationId: getProviderSubmissionById
+      tags:
+        - Provider Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Unique identifier for the provider submission
+          schema:
+            type: string
+            example: sub_1234567890
+      responses:
+        '200':
+          description: Provider submission retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSubmissionResponse'
+        '404':
+          description: Provider submission not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update Provider Submission
+      description: Update a provider submission (admin approval/rejection)
+      operationId: updateProviderSubmission
+      tags:
+        - Provider Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          description: Unique identifier for the provider submission
+          schema:
+            type: string
+            example: sub_1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderSubmissionRequest'
+      responses:
+        '200':
+          description: Provider submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSubmissionResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Provider submission not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /providers:
+    get:
+      summary: List All Providers
+      description: Retrieve all approved providers
+      operationId: listProviders
+      tags:
+        - Providers
+      responses:
+        '200':
+          description: List of providers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /providers/{providerId}:
+    get:
+      summary: Get Provider by ID
+      description: Retrieve a specific provider by ID
+      operationId: getProviderById
+      tags:
+        - Providers
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          description: Unique identifier for the provider
+          schema:
+            type: string
+            example: provider_1234567890
+      responses:
+        '200':
+          description: Provider retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderResponse'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/exchange:
+    post:
+      summary: Exchange API Credentials for Token
+      description: Exchange API credentials for Asgardeo access token
+      operationId: exchangeCredentialsForToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenExchangeRequest'
+      responses:
+        '200':
+          description: Token exchange successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenExchangeResponse'
+        '400':
+          description: Bad request - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/validate:
+    post:
+      summary: Validate Access Token
+      description: Validate an Asgardeo access token
+      operationId: validateAccessToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateTokenRequest'
+      responses:
+        '200':
+          description: Token validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateTokenResponse'
+        '400':
+          description: Bad request - invalid token format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/metrics:
+    get:
+      summary: Get System Metrics
+      description: Retrieve system metrics and statistics
+      operationId: getSystemMetrics
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: System metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemMetricsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/recent-activity:
+    get:
+      summary: Get Recent Activity
+      description: Retrieve recent system activity
+      operationId: getRecentActivity
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: Recent activity retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecentActivityResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/statistics:
+    get:
+      summary: Get Detailed Statistics
+      description: Retrieve detailed statistics by resource type
+      operationId: getDetailedStatistics
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: Detailed statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedStatisticsResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/fields/{fieldName}/allow-list:
+    get:
+      summary: List Allow List for Field
+      description: List consumers in allow list for a specific field
+      operationId: listAllowListForField
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          description: Name of the field
+          schema:
+            type: string
+            example: person.permanentAddress
+      responses:
+        '200':
+          description: Allow list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Add Consumer to Allow List
+      description: Add a consumer to the allow list for a specific field
+      operationId: addConsumerToAllowList
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          description: Name of the field
+          schema:
+            type: string
+            example: person.permanentAddress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToAllowListRequest'
+      responses:
+        '201':
+          description: Consumer added to allow list successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/fields/{fieldName}/allow-list/{consumerId}:
+    put:
+      summary: Update Consumer in Allow List
+      description: Update a consumer's entry in the allow list for a specific field
+      operationId: updateConsumerInAllowList
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          description: Name of the field
+          schema:
+            type: string
+            example: person.permanentAddress
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer
+          schema:
+            type: string
+            example: consumer_1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAllowListRequest'
+      responses:
+        '200':
+          description: Consumer updated in allow list successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consumer not found in allow list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Remove Consumer from Allow List
+      description: Remove a consumer from the allow list for a specific field
+      operationId: removeConsumerFromAllowList
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          description: Name of the field
+          schema:
+            type: string
+            example: person.permanentAddress
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer
+          schema:
+            type: string
+            example: consumer_1234567890
+      responses:
+        '200':
+          description: Consumer removed from allow list successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Consumer not found in allow list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Consumer:
+      type: object
+      properties:
+        consumerId:
+          type: string
+          description: Unique identifier for the consumer
+          example: consumer_1234567890
+        consumerName:
+          type: string
+          description: Name of the consumer organization
+          example: Test Application
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email address
+          example: test@example.com
+        phoneNumber:
+          type: string
+          description: Contact phone number
+          example: +94-11-123-4567
+        createdAt:
+          type: string
+          format: date-time
+          description: When the consumer was created
+          example: "2024-01-01T12:00:00Z"
+
+    CreateConsumerRequest:
+      type: object
+      required:
+        - consumerName
+        - contactEmail
+        - phoneNumber
+      properties:
+        consumerName:
+          type: string
+          description: Name of the consumer organization
+          example: Test Application
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email address
+          example: test@example.com
+        phoneNumber:
+          type: string
+          description: Contact phone number
+          example: +94-11-123-4567
+
+    UpdateConsumerRequest:
+      type: object
+      properties:
+        consumerName:
+          type: string
+          description: Name of the consumer organization
+          example: Updated Application Name
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email address
+          example: updated@example.com
+        phoneNumber:
+          type: string
+          description: Contact phone number
+          example: +94-11-987-6543
+
+    ConsumerResponse:
+      allOf:
+        - $ref: '#/components/schemas/Consumer'
+
+    ConsumerListResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 5
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Consumer'
+
+    ConsumerApplication:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          description: Unique identifier for the application submission
+          example: sub_1234567890
+        consumerId:
+          type: string
+          description: Unique identifier for the consumer
+          example: consumer_1234567890
+        status:
+          type: string
+          enum: [pending, approved, denied]
+          description: Current status of the application
+          example: pending
+        requiredFields:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Required data fields for the application
+          example:
+            person.fullName: true
+            person.dateOfBirth: true
+            person.permanentAddress: true
+        createdAt:
+          type: string
+          format: date-time
+          description: When the application was created
+          example: "2024-01-01T12:00:00Z"
+        credentials:
+          $ref: '#/components/schemas/Credentials'
+
+    CreateConsumerApplicationRequest:
+      type: object
+      required:
+        - required_fields
+      properties:
+        required_fields:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Required data fields for the application
+          example:
+            person.fullName: true
+            person.dateOfBirth: true
+            person.permanentAddress: true
+
+    UpdateConsumerApplicationRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [approved, denied]
+          description: New status of the application
+          example: approved
+        required_fields:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Required data fields for the application
+          example:
+            person.fullName: true
+            person.dateOfBirth: true
+
+    UpdateConsumerApplicationResponse:
+      allOf:
+        - $ref: '#/components/schemas/ConsumerApplication'
+        - type: object
+          properties:
+            providerId:
+              type: string
+              description: Provider ID (only present when status is approved)
+              example: provider_1234567890
+
+    ConsumerApplicationResponse:
+      allOf:
+        - $ref: '#/components/schemas/ConsumerApplication'
+
+    ConsumerApplicationListResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 3
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsumerApplication'
+
+    ProviderSubmission:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          description: Unique identifier for the provider submission
+          example: sub_1234567890
+        providerName:
+          type: string
+          description: Name of the provider organization
+          example: Department of Motor Vehicles
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email address
+          example: contact@dmv.gov.lk
+        phoneNumber:
+          type: string
+          description: Contact phone number
+          example: +94-11-234-5678
+        providerType:
+          type: string
+          enum: [government, board, business]
+          description: Type of provider organization
+          example: government
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: Current status of the submission
+          example: pending
+        createdAt:
+          type: string
+          format: date-time
+          description: When the submission was created
+          example: "2024-01-01T12:00:00Z"
+
+    CreateProviderSubmissionRequest:
+      type: object
+      required:
+        - providerName
+        - contactEmail
+        - phoneNumber
+        - providerType
+      properties:
+        providerName:
+          type: string
+          description: Name of the provider organization
+          example: Department of Motor Vehicles
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email address
+          example: contact@dmv.gov.lk
+        phoneNumber:
+          type: string
+          description: Contact phone number
+          example: +94-11-234-5678
+        providerType:
+          type: string
+          enum: [government, board, business]
+          description: Type of provider organization
+          example: government
+
+    UpdateProviderSubmissionRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+          description: New status of the submission
+          example: approved
+
+    ProviderSubmissionResponse:
+      allOf:
+        - $ref: '#/components/schemas/ProviderSubmission'
+
+    ProviderSubmissionListResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 2
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderSubmission'
+
+    Provider:
+      type: object
+      properties:
+        providerId:
+          type: string
+          description: Unique identifier for the provider
+          example: provider_1234567890
+        providerName:
+          type: string
+          description: Name of the provider organization
+          example: Department of Motor Vehicles
+        contactEmail:
+          type: string
+          format: email
+          description: Contact email address
+          example: contact@dmv.gov.lk
+        phoneNumber:
+          type: string
+          description: Contact phone number
+          example: +94-11-234-5678
+        providerType:
+          type: string
+          enum: [government, board, business]
+          description: Type of provider organization
+          example: government
+        approvedAt:
+          type: string
+          format: date-time
+          description: When the provider was approved
+          example: "2024-01-01T12:00:00Z"
+
+    ProviderResponse:
+      allOf:
+        - $ref: '#/components/schemas/Provider'
+
+    ProviderListResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/Provider'
+
+    Credentials:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          description: API key for authentication
+          example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+        apiSecret:
+          type: string
+          description: API secret for authentication
+          example: x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6x7y8z9
+
+    TokenExchangeRequest:
+      type: object
+      required:
+        - apiKey
+        - apiSecret
+      properties:
+        apiKey:
+          type: string
+          description: API key for authentication
+          example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+        apiSecret:
+          type: string
+          description: API secret for authentication
+          example: x1y2z3a4b5c6d7e8f9g0h1i2j3k4l5m6n7o8p9q0r1s2t3u4v5w6x7y8z9
+        scope:
+          type: string
+          description: OAuth scope for the token
+          example: gov-dx-api
+
+    TokenExchangeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              description: Asgardeo access token
+              example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+            token_type:
+              type: string
+              example: Bearer
+            expires_in:
+              type: integer
+              description: Token expiration time in seconds
+              example: 3600
+            scope:
+              type: string
+              description: OAuth scope for the token
+              example: gov-dx-api
+            consumerId:
+              type: string
+              description: Consumer ID associated with the token
+              example: consumer_1234567890
+
+    ValidateTokenRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: Access token to validate
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    ValidateTokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            valid:
+              type: boolean
+              description: Whether the token is valid
+              example: true
+            consumerId:
+              type: string
+              description: Consumer ID associated with the token
+              example: consumer_1234567890
+            error:
+              type: string
+              description: Error message if token is invalid
+              example: ""
+
+    SystemMetricsResponse:
+      type: object
+      properties:
+        total_consumer_apps:
+          type: integer
+          example: 15
+        total_provider_submissions:
+          type: integer
+          example: 8
+        total_providers:
+          type: integer
+          example: 5
+        total_schemas:
+          type: integer
+          example: 12
+
+    RecentActivityResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                example: consumer_application_created
+              description:
+                type: string
+                example: New consumer application created
+              id:
+                type: string
+                example: sub_1234567890
+              timestamp:
+                type: string
+                format: date-time
+                example: "2024-01-01T12:00:00Z"
+
+    DetailedStatisticsResponse:
+      type: object
+      properties:
+        "consumer-apps":
+          type: object
+          properties:
+            approved:
+              type: integer
+              example: 10
+        "provider-submissions":
+          type: object
+          properties:
+            approved:
+              type: integer
+              example: 5
+        "provider-schemas":
+          type: object
+          properties: {}
+
+    AllowListEntry:
+      type: object
+      properties:
+        consumerId:
+          type: string
+          description: Unique identifier for the consumer
+          example: consumer_1234567890
+        expires_at:
+          type: integer
+          description: Unix timestamp when the entry expires
+          example: 1757560679
+        grant_duration:
+          type: string
+          description: Duration of the granted access
+          example: 30d
+        reason:
+          type: string
+          description: Reason for the allow list entry
+          example: Consent approved by data owner
+        updated_by:
+          type: string
+          description: Who updated the entry
+          example: admin
+        created_at:
+          type: string
+          format: date-time
+          description: When the entry was created
+          example: "2024-01-01T12:00:00Z"
+
+    AllowListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            fieldName:
+              type: string
+              example: person.permanentAddress
+            allowList:
+              type: array
+              items:
+                $ref: '#/components/schemas/AllowListEntry'
+
+    AddToAllowListRequest:
+      type: object
+      required:
+        - consumerId
+        - expires_at
+        - grant_duration
+        - reason
+        - updated_by
+      properties:
+        consumerId:
+          type: string
+          description: Unique identifier for the consumer
+          example: consumer_1234567890
+        expires_at:
+          type: integer
+          description: Unix timestamp when the entry expires
+          example: 1757560679
+        grant_duration:
+          type: string
+          description: Duration of the granted access
+          example: 30d
+        reason:
+          type: string
+          description: Reason for the allow list entry
+          example: Consent approved by data owner
+        updated_by:
+          type: string
+          description: Who is adding the entry
+          example: admin
+
+    UpdateAllowListRequest:
+      type: object
+      required:
+        - consumerId
+        - expires_at
+        - grant_duration
+        - reason
+        - updated_by
+      properties:
+        consumerId:
+          type: string
+          description: Unique identifier for the consumer
+          example: consumer_1234567890
+        expires_at:
+          type: integer
+          description: Unix timestamp when the entry expires
+          example: 1757560679
+        grant_duration:
+          type: string
+          description: Duration of the granted access
+          example: 60d
+        reason:
+          type: string
+          description: Reason for the allow list entry
+          example: Extended access period
+        updated_by:
+          type: string
+          description: Who is updating the entry
+          example: admin
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Operation completed successfully
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+          example: "Invalid input data"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Debug
+    description: Debug information endpoints
+  - name: Consumers
+    description: Consumer management operations
+  - name: Consumer Applications
+    description: Consumer application management operations
+  - name: Provider Submissions
+    description: Provider submission management operations
+  - name: Providers
+    description: Provider management operations
+  - name: Authentication
+    description: Authentication and token management operations
+  - name: Admin
+    description: Administrative operations
+  - name: Allow List Management
+    description: Allow list management operations

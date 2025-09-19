@@ -12,44 +12,10 @@ import (
 )
 
 // TestAuthHandlers tests authentication endpoints
-func TestAuthHandlers(t *testing.T) {
+func TestAsgardeoAuthHandlers(t *testing.T) {
 	apiServer := handlers.NewAPIServer()
 	mux := http.NewServeMux()
 	apiServer.SetupRoutes(mux)
-
-	t.Run("POST /auth/token", func(t *testing.T) {
-		// Create test consumer and approved application
-		consumer := createTestConsumerViaAPI(t, mux)
-		app := createAndApproveTestAppViaAPI(t, mux, consumer.ConsumerID)
-
-		// Get the application from the API server's service to get the generated credentials
-		updatedApp, err := apiServer.GetConsumerService().GetConsumerApp(app.SubmissionID)
-		if err != nil {
-			t.Fatalf("Failed to get application: %v", err)
-		}
-
-		// Test valid authentication
-		authReq := models.AuthRequest{
-			ConsumerID: consumer.ConsumerID,
-			Secret:     updatedApp.Credentials.APISecret,
-		}
-
-		jsonBody, _ := json.Marshal(authReq)
-		req := httptest.NewRequest("POST", "/auth/token", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("Expected status 200, got %d", w.Code)
-		}
-
-		var response map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &response)
-
-		// Response should contain data directly
-	})
 
 	t.Run("POST /auth/validate", func(t *testing.T) {
 		validateReq := map[string]string{

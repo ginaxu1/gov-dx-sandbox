@@ -1,31 +1,5 @@
 package models
 
-import "time"
-
-// AuthRequest represents the request to authenticate a consumer
-type AuthRequest struct {
-	ConsumerID string `json:"consumerId"`
-	Secret     string `json:"secret"`
-}
-
-// AuthResponse represents the response from authentication
-type AuthResponse struct {
-	AccessToken  string            `json:"accessToken"`
-	TokenType    string            `json:"tokenType"`
-	ExpiresIn    int64             `json:"expiresIn"`
-	ExpiresAt    time.Time         `json:"expiresAt"`
-	ConsumerID   string            `json:"consumerId"`
-	AsgardeoUser *AsgardeoUserInfo `json:"asgardeoUser,omitempty"`
-}
-
-// TokenClaims represents the claims in a JWT token
-type TokenClaims struct {
-	ConsumerID string    `json:"consumerId"`
-	IssuedAt   time.Time `json:"iat"`
-	ExpiresAt  time.Time `json:"exp"`
-	Issuer     string    `json:"iss"`
-}
-
 // ValidateTokenRequest represents the request to validate a token
 type ValidateTokenRequest struct {
 	Token string `json:"token"`

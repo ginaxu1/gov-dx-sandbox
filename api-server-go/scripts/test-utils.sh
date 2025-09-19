@@ -266,7 +266,7 @@ test_code_structure() {
             record_test_failure
         fi
         
-        if grep -q "ValidateAsgardeoToken" api-server-go/handlers/server.go; then
+        if grep -q "ValidateToken" api-server-go/handlers/server.go; then
             print_success "API Server calls Asgardeo token validation"
             record_test_success
         else

@@ -31,6 +31,37 @@ if [ -f "$PROJECT_ROOT/.env.local" ]; then
     fi
 fi
 
+# Create template if it doesn't exist
+if [ ! -f "$PROJECT_ROOT/.env.template" ]; then
+    echo -e "${BLUE}📋 Creating environment template...${NC}"
+    cat > "$PROJECT_ROOT/.env.template" << 'EOF'
+# Environment Configuration Template for API Server Go
+# Copy this file to .env.local and update the values
+
+# Asgardeo Configuration (optional for local development)
+# If not provided, the system will use mock tokens for testing
+ASGARDEO_BASE_URL=https://your-instance.asgardeo.io
+ASGARDEO_CLIENT_ID=your_client_id_here
+ASGARDEO_CLIENT_SECRET=your_client_secret_here
+
+# JWT Configuration (optional)
+# If not provided, a default key will be generated
+JWT_SECRET_KEY=your_jwt_secret_key_here
+
+# Server Configuration
+PORT=3000
+LOG_LEVEL=debug
+
+# CORS Configuration (optional)
+CORS_ORIGINS=http://localhost:3000,http://localhost:4000
+
+# Rate Limiting (optional)
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=1m
+EOF
+    echo -e "${GREEN}✅ Created .env.template${NC}"
+fi
+
 # Copy template to .env.local
 echo -e "${BLUE}📋 Copying environment template...${NC}"
 cp "$PROJECT_ROOT/.env.template" "$PROJECT_ROOT/.env.local"
@@ -61,15 +92,6 @@ else
     echo -e "${YELLOW}⚠️  ASGARDEO_CLIENT_SECRET not provided, using placeholder${NC}"
 fi
 
-# JWT_SECRET_KEY
-read -s -p "JWT_SECRET_KEY (optional): " jwt_secret_key
-echo
-if [ -n "$jwt_secret_key" ]; then
-    sed -i.bak "s/your_jwt_secret_key_here/$jwt_secret_key/g" "$PROJECT_ROOT/.env.local"
-    echo -e "${GREEN}✅ JWT_SECRET_KEY set${NC}"
-else
-    echo -e "${YELLOW}⚠️  JWT_SECRET_KEY not provided, using placeholder${NC}"
-fi
 
 # Clean up backup files
 rm -f "$PROJECT_ROOT/.env.local.bak"
