@@ -2,12 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Response struct {
@@ -47,8 +49,29 @@ func RunServer(f *federator.Federator) {
 		}
 		response := f.FederateQuery(req)
 
+		// decode the token
+		// Example token (normally comes from request header: X-JWT-Assertion)
+		tokenString := r.Header.Get("X-JWT-Assertion")
+		if tokenString == "" {
+			http.Error(w, "missing token", http.StatusBadRequest)
+		}
+
+		// Parse without validation (careful: only safe if gateway already validated it!)
+		token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
+		if err != nil {
+			logger.Log.Error("failed to parse token: %v", err)
+		}
+
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			logger.Log.Info("claims: %v", claims)
+			for k, v := range claims {
+				fmt.Printf("%s = %v\n", k, v)
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+
+		err = json.NewEncoder(w).Encode(response)
+
 		if err != nil {
 			logger.Log.Error("Failed to write response", "error", err)
 			return
