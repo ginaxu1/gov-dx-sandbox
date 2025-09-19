@@ -13,13 +13,14 @@ func TestConsentWorkflowRequest(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []models.DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "199512345678",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "199512345678",
+				OwnerEmail: "199512345678@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 	}
 
 	// Verify the request structure
@@ -37,6 +38,10 @@ func TestConsentWorkflowRequest(t *testing.T) {
 
 	if req.DataFields[0].OwnerID != "199512345678" {
 		t.Errorf("Expected OwnerID to be '199512345678', got '%s'", req.DataFields[0].OwnerID)
+	}
+
+	if req.DataFields[0].OwnerEmail != "199512345678@example.com" {
+		t.Errorf("Expected OwnerEmail to be '199512345678@example.com', got '%s'", req.DataFields[0].OwnerEmail)
 	}
 
 	if len(req.DataFields[0].Fields) != 1 {
@@ -60,9 +65,10 @@ func TestConsentWorkflowRequest(t *testing.T) {
 func TestDataField(t *testing.T) {
 	// Test DataField model structure
 	field := models.DataField{
-		OwnerType: "citizen",
-		OwnerID:   "199512345678",
-		Fields:    []string{"person.permanentAddress", "person.fullName"},
+		OwnerType:  "citizen",
+		OwnerID:    "199512345678",
+		OwnerEmail: "199512345678@example.com",
+		Fields:     []string{"person.permanentAddress", "person.fullName"},
 	}
 
 	// Verify the field structure
@@ -72,6 +78,10 @@ func TestDataField(t *testing.T) {
 
 	if field.OwnerID != "199512345678" {
 		t.Errorf("Expected OwnerID to be '199512345678', got '%s'", field.OwnerID)
+	}
+
+	if field.OwnerEmail != "199512345678@example.com" {
+		t.Errorf("Expected OwnerEmail to be '199512345678@example.com', got '%s'", field.OwnerEmail)
 	}
 
 	if len(field.Fields) != 2 {
@@ -92,13 +102,14 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []models.DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "199512345678",
-				Fields:    []string{"person.permanentAddress"},
+				OwnerType:  "citizen",
+				OwnerID:    "199512345678",
+				OwnerEmail: "199512345678@example.com",
+				Fields:     []string{"person.permanentAddress"},
 			},
 		},
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 	}
 
 	// Test JSON marshaling
@@ -150,8 +161,8 @@ func TestConsentWorkflowValidation(t *testing.T) {
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:          "passport_application",
-				SessionID:        "session_123",
+				Purpose:   "passport_application",
+				SessionID: "session_123",
 			},
 			wantErr: false,
 		},
@@ -166,18 +177,18 @@ func TestConsentWorkflowValidation(t *testing.T) {
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:          "passport_application",
-				SessionID:        "session_123",
+				Purpose:   "passport_application",
+				SessionID: "session_123",
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty data_fields",
 			req: models.ConsentWorkflowRequest{
-				AppID:            "passport-app",
-				DataFields:       []models.DataField{},
-				Purpose:          "passport_application",
-				SessionID:        "session_123",
+				AppID:      "passport-app",
+				DataFields: []models.DataField{},
+				Purpose:    "passport_application",
+				SessionID:  "session_123",
 			},
 			wantErr: true,
 		},
@@ -192,8 +203,8 @@ func TestConsentWorkflowValidation(t *testing.T) {
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:          "",
-				SessionID:        "session_123",
+				Purpose:   "",
+				SessionID: "session_123",
 			},
 			wantErr: true,
 		},
@@ -239,8 +250,8 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 				Fields:    []string{"person.fullName"},
 			},
 		},
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 	}
 
 	if len(req.DataFields) != 2 {
@@ -257,8 +268,8 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 				Fields:    []string{"person.permanentAddress", "person.fullName", "person.email"},
 			},
 		},
-		Purpose:          "passport_application",
-		SessionID:        "session_123",
+		Purpose:   "passport_application",
+		SessionID: "session_123",
 	}
 
 	if len(multiFieldReq.DataFields[0].Fields) != 3 {
