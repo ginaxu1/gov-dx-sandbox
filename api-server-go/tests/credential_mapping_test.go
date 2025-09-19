@@ -4,15 +4,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gov-dx-sandbox/api-server-go/models"
 	"github.com/gov-dx-sandbox/api-server-go/services"
 )
 
 // TestCredentialMapping tests the credential mapping functionality
 func TestCredentialMapping(t *testing.T) {
-	// Setup
-	asgardeoService := services.NewAsgardeoService("https://api.asgardeo.io/t/test-tenant")
-	consumerService := services.NewConsumerServiceWithAsgardeo(asgardeoService)
+	// Setup - using the simplified ConsumerService without Asgardeo integration
+	consumerService := services.NewConsumerService()
 
 	// Set test environment variables
 	os.Setenv("ASGARDEO_CLIENT_ID", "test_client_id")
@@ -106,85 +104,9 @@ func TestCredentialMapping(t *testing.T) {
 	})
 }
 
-// TestTokenExchangeWithValidCredentials tests token exchange with valid credentials
-func TestTokenExchangeWithValidCredentials(t *testing.T) {
-	// Setup
-	asgardeoService := services.NewAsgardeoService("https://api.asgardeo.io/t/test-tenant")
-	consumerService := services.NewConsumerServiceWithAsgardeo(asgardeoService)
-
-	// Set test environment variables
-	os.Setenv("ASGARDEO_CLIENT_ID", "test_client_id")
-	os.Setenv("ASGARDEO_CLIENT_SECRET", "test_client_secret")
-	defer os.Unsetenv("ASGARDEO_CLIENT_ID")
-	defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
-
-	// Create a credential mapping
-	mapping, err := consumerService.CreateCredentialMapping(
-		"test_consumer_789",
-		"test_asgardeo_client_id",
-		"test_asgardeo_client_secret",
-	)
-
-	if err != nil {
-		t.Fatalf("Failed to create credential mapping: %v", err)
-	}
-
-	t.Run("ValidTokenExchange", func(t *testing.T) {
-		req := models.TokenExchangeRequest{
-			APIKey:    mapping.APIKey,
-			APISecret: mapping.APISecret,
-			Scope:     "gov-dx-api",
-		}
-
-		// This will fail with Asgardeo connection error, but should not fail with credential validation
-		_, err := consumerService.ExchangeCredentialsForToken(req)
-
-		// Should fail with Asgardeo connection error, not credential validation error
-		if err != nil && err.Error() == "invalid credentials: invalid API key" {
-			t.Errorf("Expected Asgardeo connection error, got credential validation error: %v", err)
-		}
-	})
-
-	t.Run("InvalidTokenExchange", func(t *testing.T) {
-		req := models.TokenExchangeRequest{
-			APIKey:    "invalid_key",
-			APISecret: "invalid_secret",
-			Scope:     "gov-dx-api",
-		}
-
-		_, err := consumerService.ExchangeCredentialsForToken(req)
-
-		if err == nil {
-			t.Error("Expected invalid credentials to fail")
-		}
-
-		if err.Error() != "invalid credentials: invalid API key" {
-			t.Errorf("Expected 'invalid credentials: invalid API key' error, got: %v", err)
-		}
-	})
-
-	t.Run("MissingFields", func(t *testing.T) {
-		req := models.TokenExchangeRequest{
-			APIKey: "test_key",
-			// Missing APISecret
-		}
-
-		_, err := consumerService.ExchangeCredentialsForToken(req)
-
-		if err == nil {
-			t.Error("Expected missing fields to fail")
-		}
-
-		if err.Error() != "API secret is required" {
-			t.Errorf("Expected 'API secret is required' error, got: %v", err)
-		}
-	})
-}
-
 // TestCredentialMappingConcurrency tests concurrent access to credential mappings
 func TestCredentialMappingConcurrency(t *testing.T) {
-	asgardeoService := services.NewAsgardeoService("https://api.asgardeo.io/t/test-tenant")
-	consumerService := services.NewConsumerServiceWithAsgardeo(asgardeoService)
+	consumerService := services.NewConsumerService()
 
 	// Set test environment variables
 	os.Setenv("ASGARDEO_CLIENT_ID", "test_client_id")

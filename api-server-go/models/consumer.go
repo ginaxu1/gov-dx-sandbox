@@ -97,7 +97,8 @@ type CredentialMapping struct {
 	ConsumerID           string `json:"consumerId"`
 }
 
-// TokenExchangeRequest represents the request to exchange API credentials for Asgardeo token
+// DEPRECATED: TokenExchangeRequest is no longer used in the new M2M authentication flow.
+// Consumer applications now get tokens directly from Asgardeo, bypassing the API Server.
 type TokenExchangeRequest struct {
 	APIKey    string `json:"apiKey"`
 	APISecret string `json:"apiSecret"`

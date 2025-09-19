@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 )
 
-// Validates access tokens for GraphQL requests
-func AuthMiddleware(authClient *Client, next http.Handler) http.Handler {
+// TrustedAuthMiddleware handles pre-authenticated requests from Choreo Gateway
+// The Gateway has already validated the JWT and extracted the consumer ID
+func TrustedAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip authentication for health check and OPTIONS requests
 		if r.URL.Path == "/health" || r.Method == "OPTIONS" {
@@ -16,43 +16,20 @@ func AuthMiddleware(authClient *Client, next http.Handler) http.Handler {
 			return
 		}
 
-		// Extract token from Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			respondWithAuthError(w, "Authorization header is required")
+		// Extract consumer ID from X-Consumer-ID header set by Choreo Gateway
+		consumerID := r.Header.Get("X-Consumer-ID")
+		if consumerID == "" {
+			respondWithAuthError(w, "X-Consumer-ID header is required - request not properly authenticated by Choreo Gateway")
 			return
 		}
 
-		// Validate token format (Bearer <token>)
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			respondWithAuthError(w, "Invalid authorization header format. Expected 'Bearer <token>'")
-			return
-		}
+		// Log the authenticated request for debugging
+		fmt.Printf("DEBUG: Trusted request from consumer: %s\n", consumerID)
+		fmt.Printf("DEBUG: Request headers: Authorization=%s, X-Consumer-ID=%s, User-Agent=%s, RemoteAddr=%s\n",
+			r.Header.Get("Authorization"), consumerID, r.Header.Get("User-Agent"), r.RemoteAddr)
 
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-
-		// Validate token with API server
-		response, err := authClient.ValidateToken(token)
-		if err != nil {
-			fmt.Printf("DEBUG: Token validation error: %v\n", err)
-			respondWithAuthError(w, "Failed to validate token: "+err.Error())
-			return
-		}
-
-		fmt.Printf("DEBUG: Token validation result: Valid=%v, ConsumerID=%s, Error=%s\n", response.Valid, response.ConsumerID, response.Error)
-
-		if !response.Valid {
-			errorMsg := response.Error
-			if errorMsg == "" {
-				errorMsg = "Token validation failed"
-			}
-			respondWithAuthError(w, errorMsg)
-			return
-		}
-
-		// Add consumer ID to request context for potential use in resolvers
-		r.Header.Set("X-Consumer-ID", response.ConsumerID)
-
+		// The request is already authenticated by Choreo Gateway
+		// We trust that the Gateway has validated the JWT properly
 		// Continue to next handler
 		next.ServeHTTP(w, r)
 	})

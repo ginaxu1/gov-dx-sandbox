@@ -1,5 +1,9 @@
 package models
 
+// DEPRECATED: These models are no longer used in the new M2M authentication flow.
+// Choreo Gateway now handles JWT validation directly, eliminating the need for
+// these token validation endpoints in the API Server.
+
 // ValidateTokenRequest represents the request to validate a token
 type ValidateTokenRequest struct {
 	Token string `json:"token"`

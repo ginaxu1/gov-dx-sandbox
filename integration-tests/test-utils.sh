@@ -171,6 +171,7 @@ test_api_call() {
     local expected_status="$5"
     local timeout="${6:-10}"
     local extract_field="$7"  # Optional: field to extract from response
+    local additional_headers="$8"  # Optional: additional headers (e.g., Authorization)
     
     log_test "$test_name"
     echo "URL: $url"
@@ -179,14 +180,29 @@ test_api_call() {
     if [ -n "$data" ]; then
         echo "Data: $data"
     fi
+    if [ -n "$additional_headers" ]; then
+        echo "Additional Headers: $additional_headers"
+    fi
     echo ""
     
     if [ -n "$data" ]; then
-        RESPONSE=$(timeout $timeout curl -s -w "\n%{http_code}" -X "$method" "$url" \
-            -H "Content-Type: application/json" \
-            -d "$data" 2>/dev/null || echo -e "\n408")
+        if [ -n "$additional_headers" ]; then
+            RESPONSE=$(timeout $timeout curl -s -w "\n%{http_code}" -X "$method" "$url" \
+                -H "Content-Type: application/json" \
+                $additional_headers \
+                -d "$data" 2>/dev/null || echo -e "\n408")
+        else
+            RESPONSE=$(timeout $timeout curl -s -w "\n%{http_code}" -X "$method" "$url" \
+                -H "Content-Type: application/json" \
+                -d "$data" 2>/dev/null || echo -e "\n408")
+        fi
     else
-        RESPONSE=$(timeout $timeout curl -s -w "\n%{http_code}" -X "$method" "$url" 2>/dev/null || echo -e "\n408")
+        if [ -n "$additional_headers" ]; then
+            RESPONSE=$(timeout $timeout curl -s -w "\n%{http_code}" -X "$method" "$url" \
+                $additional_headers 2>/dev/null || echo -e "\n408")
+        else
+            RESPONSE=$(timeout $timeout curl -s -w "\n%{http_code}" -X "$method" "$url" 2>/dev/null || echo -e "\n408")
+        fi
     fi
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
@@ -285,15 +301,16 @@ test_orchestration_engine() {
     test_api_call "$test_name" "$method" "$ORCHESTRATION_ENGINE_URL$endpoint" "$data" "$expected_status"
 }
 
-# Test GraphQL query
+# Test GraphQL query with Choreo M2M authentication
 test_graphql_query() {
     local test_name="$1"
     local query="$2"
     local expected_status="$3"
     local variables="${4:-{}}"
+    local choreo_token="${5:-mock-choreo-token}"
     
     local data="{\"query\": \"$query\", \"variables\": $variables}"
-    test_api_call "$test_name" "POST" "$ORCHESTRATION_ENGINE_URL/graphql" "$data" "$expected_status"
+    test_api_call "$test_name" "POST" "$ORCHESTRATION_ENGINE_URL/graphql" "$data" "$expected_status" "10" "" "-H \"Authorization: Bearer $choreo_token\""
 }
 
 # Standardized PDP test function

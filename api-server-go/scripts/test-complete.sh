@@ -160,28 +160,26 @@ run_authentication_tests() {
     
     print_status $YELLOW "Running authentication tests..."
     
-    # Test missing fields
-    print_status $BLUE "Testing missing fields..."
-    RESPONSE=$(curl -s -X POST http://localhost:3000/auth/exchange \
-        -H "Content-Type: application/json" \
-        -d '{"apiKey": "test"}')
+    # Test invalid consumer ID
+    print_status $BLUE "Testing invalid consumer ID..."
+    RESPONSE=$(curl -s -X GET http://localhost:3000/consumers/invalid-id)
     
-    if echo "$RESPONSE" | grep -q "API secret is required"; then
-        print_status $GREEN "Missing fields validation works"
+    if echo "$RESPONSE" | grep -q "not found\|invalid\|error"; then
+        print_status $GREEN "Invalid consumer ID properly rejected"
     else
-        print_status $RED "❌ Missing fields validation failed"
+        print_status $RED "❌ Invalid consumer ID not properly rejected"
     fi
     
-    # Test invalid credentials
-    print_status $BLUE "Testing invalid credentials..."
-    RESPONSE=$(curl -s -X POST http://localhost:3000/auth/exchange \
+    # Test malformed requests
+    print_status $BLUE "Testing malformed requests..."
+    RESPONSE=$(curl -s -X POST http://localhost:3000/consumers \
         -H "Content-Type: application/json" \
-        -d '{"apiKey": "invalid", "apiSecret": "invalid"}')
+        -d '{"invalid": "data"}')
     
-    if echo "$RESPONSE" | grep -q "invalid credentials"; then
-        print_status $GREEN "Invalid credentials rejected"
+    if echo "$RESPONSE" | grep -q "required\|validation\|error"; then
+        print_status $GREEN "Malformed requests properly validated"
     else
-        print_status $RED "❌ Invalid credentials not rejected"
+        print_status $RED "❌ Malformed requests not properly validated"
     fi
     
     echo ""

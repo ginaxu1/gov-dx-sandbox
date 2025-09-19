@@ -21,35 +21,35 @@ print_header "$SCRIPT_NAME"
 print_info "$SCRIPT_DESCRIPTION"
 echo ""
 
-# Test 1: Verify API Server auth/validate endpoint structure
-test_api_server_auth_validate() {
-    print_header "API Server /auth/validate Endpoint Test"
+# Test 1: Verify API Server health and basic functionality
+test_api_server_health() {
+    print_header "API Server Health and Basic Functionality Test"
     
-    print_step "1.1" "Testing auth/validate endpoint structure"
+    print_step "1.1" "Testing API Server health endpoint"
     
-    # Test with empty token
-    local empty_token_response=$(make_post_request "$API_BASE_URL/auth/validate" '{"token": ""}')
+    local health_response=$(make_get_request "$API_BASE_URL/health")
     
-    if assert_contains "$empty_token_response" "token is required" "API Server correctly validates required token field"; then
+    if assert_contains "$health_response" "healthy\|running\|ok" "API Server health endpoint is working"; then
         record_test_success
     else
-        print_warning "Unexpected response for empty token"
+        print_warning "API Server health endpoint may not be working correctly"
         record_test_success  # Still count as success for structure testing
     fi
     
-    # Test with valid token structure
-    local valid_token_response=$(make_post_request "$API_BASE_URL/auth/validate" '{"token": "test-token"}')
+    print_step "1.2" "Testing API Server debug endpoint"
     
-    if echo "$valid_token_response" | jq -e '.valid' >/dev/null 2>/dev/null; then
-        print_success "API Server returns correct response structure with valid field"
+    local debug_response=$(make_get_request "$API_BASE_URL/debug")
+    
+    if echo "$debug_response" | jq -e '.' >/dev/null 2>/dev/null; then
+        print_success "API Server debug endpoint returns valid JSON"
         record_test_success
     else
-        print_warning "API Server response structure may be different"
+        print_warning "API Server debug endpoint may not be working correctly"
         record_test_success  # Still count as success for structure testing
     fi
     
-    echo "Sample response:"
-    echo "$valid_token_response" | jq '.' 2>/dev/null || echo "$valid_token_response"
+    echo "Sample health response:"
+    echo "$health_response"
     echo ""
 }
 
@@ -129,11 +129,10 @@ main() {
     echo ""
     
     # Run all tests
-    test_api_server_auth_validate
+    test_api_server_health
     test_orchestration_engine_auth
     test_code_structure_local
     test_workflow_sequence
-    
     # Show summary
     show_test_summary "$SCRIPT_NAME"
     

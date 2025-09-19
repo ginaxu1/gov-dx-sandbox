@@ -3,9 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
@@ -26,31 +24,8 @@ func NewAPIServer() *APIServer {
 	providerService := services.NewProviderService()
 	grantsService := services.NewGrantsService()
 
-	// Initialize Asgardeo service
-	var asgardeoService *services.AsgardeoService
-	asgardeoBaseURL := os.Getenv("ASGARDEO_BASE_URL")
-	asgardeoClientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	asgardeoClientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if asgardeoBaseURL != "" && asgardeoClientID != "" && asgardeoClientSecret != "" {
-		asgardeoService = services.NewAsgardeoService(asgardeoBaseURL)
-		slog.Info("Asgardeo service initialized",
-			"baseURL", asgardeoBaseURL,
-			"clientID", asgardeoClientID)
-	} else {
-		slog.Warn("Asgardeo service not configured - missing required environment variables",
-			"ASGARDEO_BASE_URL", asgardeoBaseURL != "",
-			"ASGARDEO_CLIENT_ID", asgardeoClientID != "",
-			"ASGARDEO_CLIENT_SECRET", asgardeoClientSecret != "")
-	}
-
-	// Initialize consumer service with Asgardeo integration
-	var consumerService *services.ConsumerService
-	if asgardeoService != nil {
-		consumerService = services.NewConsumerServiceWithAsgardeo(asgardeoService)
-	} else {
-		consumerService = services.NewConsumerService()
-	}
+	// Initialize consumer service
+	consumerService := services.NewConsumerService()
 
 	return &APIServer{
 		consumerService: consumerService,
@@ -93,10 +68,6 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 
 	// Allow List Management routes
 	mux.Handle("/admin/fields/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAllowListRoutes)))
-
-	// Authentication routes
-	mux.Handle("/auth/validate", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAsgardeoTokenValidate)))
-	mux.Handle("/auth/exchange", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleTokenExchange)))
 }
 
 // Generic handler for collection endpoints (GET all, POST create)
@@ -763,75 +734,4 @@ func (s *APIServer) handleAllowListRoutes(w http.ResponseWriter, r *http.Request
 
 	// If no pattern matches, return 404
 	utils.RespondWithError(w, http.StatusNotFound, "Allow list endpoint not found")
-}
-
-// Authentication handlers
-
-// handleTokenExchange handles POST /auth/exchange - Exchange API credentials for Asgardeo token
-func (s *APIServer) handleTokenExchange(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
-	var req models.TokenExchangeRequest
-	if err := utils.ParseJSONRequest(r, &req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if req.APIKey == "" || req.APISecret == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "apiKey and apiSecret are required")
-		return
-	}
-
-	// Exchange credentials for Asgardeo token
-	response, err := s.consumerService.ExchangeCredentialsForToken(req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusUnauthorized, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-// handleAsgardeoTokenValidate handles POST /auth/validate - Validate Asgardeo access token
-func (s *APIServer) handleAsgardeoTokenValidate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
-	var req models.ValidateTokenRequest
-	if err := utils.ParseJSONRequest(r, &req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Validate required fields
-	if req.Token == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "token is required")
-		return
-	}
-
-	// Validate Asgardeo token
-	response, err := s.consumerService.ValidateAsgardeoToken(req.Token)
-	if err != nil {
-		// Check if the error is due to service not being configured
-		if strings.Contains(err.Error(), "not configured") {
-			utils.RespondWithError(w, http.StatusServiceUnavailable, err.Error())
-			return
-		}
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to validate Asgardeo token")
-		return
-	}
-
-	// If validation failed due to service not being configured, return 503
-	if !response.Valid && response.Error != "" && strings.Contains(response.Error, "not configured") {
-		utils.RespondWithError(w, http.StatusServiceUnavailable, response.Error)
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, response)
 }

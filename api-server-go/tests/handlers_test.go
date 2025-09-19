@@ -11,60 +11,6 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/models"
 )
 
-// TestAuthHandlers tests authentication endpoints
-func TestAsgardeoAuthHandlers(t *testing.T) {
-	apiServer := handlers.NewAPIServer()
-	mux := http.NewServeMux()
-	apiServer.SetupRoutes(mux)
-
-	t.Run("POST /auth/validate", func(t *testing.T) {
-		validateReq := map[string]string{
-			"token": "test-token",
-		}
-
-		jsonBody, _ := json.Marshal(validateReq)
-		req := httptest.NewRequest("POST", "/auth/validate", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		// Should return 200, 500, or 503 depending on Asgardeo configuration
-		if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError && w.Code != http.StatusServiceUnavailable {
-			t.Errorf("Expected status 200, 500, or 503, got %d", w.Code)
-		}
-	})
-
-	t.Run("POST /auth/exchange", func(t *testing.T) {
-		// Create test consumer and approved application
-		consumer := createTestConsumerViaAPI(t, mux)
-		app := createAndApproveTestAppViaAPI(t, mux, consumer.ConsumerID)
-
-		// Get the application from the API server's service to get the generated credentials
-		updatedApp, err := apiServer.GetConsumerService().GetConsumerApp(app.SubmissionID)
-		if err != nil {
-			t.Fatalf("Failed to get application: %v", err)
-		}
-
-		// Test token exchange
-		exchangeReq := models.TokenExchangeRequest{
-			APIKey:    updatedApp.Credentials.APIKey,
-			APISecret: updatedApp.Credentials.APISecret,
-		}
-
-		jsonBody, _ := json.Marshal(exchangeReq)
-		req := httptest.NewRequest("POST", "/auth/exchange", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
-
-		if w.Code != http.StatusOK {
-			t.Errorf("Expected status 200, got %d", w.Code)
-		}
-	})
-}
-
 // TestConsumerHandlers tests consumer management endpoints
 func TestConsumerHandlers(t *testing.T) {
 	apiServer := handlers.NewAPIServer()

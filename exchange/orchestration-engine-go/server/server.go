@@ -19,9 +19,6 @@ const DefaultPort = "4000"
 
 // Start a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
-	// Initialize authentication client
-	authClient := auth.NewClient()
-
 	mux := http.NewServeMux()
 	// /health route
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -75,8 +72,9 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	// Apply authentication middleware to all routes except health
-	handler := auth.AuthMiddleware(authClient, mux)
+	// Apply trusted authentication middleware for M2M flow
+	// Choreo Gateway handles JWT validation and sets X-Consumer-ID header
+	handler := auth.TrustedAuthMiddleware(mux)
 
 	if err := http.ListenAndServe(port, corsMiddleware(handler)); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)

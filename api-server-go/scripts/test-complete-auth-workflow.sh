@@ -155,60 +155,48 @@ test_consumer_creation() {
     echo ""
 }
 
-# Test 3: Exchange API credentials for Asgardeo token
-test_token_exchange() {
-    print_header "TEST 3: Token Exchange (API Credentials -> Asgardeo Token)"
+# Test 3: Verify consumer credentials (M2M authentication)
+test_consumer_credentials() {
+    print_header "TEST 3: Consumer Credentials Verification (M2M Authentication)"
     
-    print_step "3.1" "Exchanging API credentials for Asgardeo token"
-    EXCHANGE_RESPONSE=$(curl -s -X POST $API_SERVER_URL/auth/exchange \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"apiKey\": \"$API_KEY\",
-            \"apiSecret\": \"$API_SECRET\"
-        }")
+    print_step "3.1" "Verifying consumer credentials for M2M authentication"
     
-    ASGARDEO_TOKEN=$(echo "$EXCHANGE_RESPONSE" | jq -r '.accessToken // empty')
+    # In M2M flow, we use the consumer ID directly as the X-Consumer-ID header
+    CONSUMER_ID_FOR_AUTH="$CONSUMER_ID"
     
-    if [ -z "$ASGARDEO_TOKEN" ] || [ "$ASGARDEO_TOKEN" = "null" ]; then
-        print_status $RED "❌ Failed to exchange credentials for Asgardeo token"
-        echo "Response: $EXCHANGE_RESPONSE"
-        print_status $YELLOW "This is expected if ASGARDEO_CLIENT_ID and ASGARDEO_CLIENT_SECRET are not set"
-        print_status $YELLOW "Using mock token for workflow testing..."
-        ASGARDEO_TOKEN="mock-asgardeo-token-$(date +%s)"
+    if [ -n "$CONSUMER_ID_FOR_AUTH" ]; then
+        print_status $GREEN "✅ Consumer ID available for M2M authentication"
+        print_status $YELLOW "   Consumer ID: $CONSUMER_ID_FOR_AUTH"
+        print_status $BLUE "   This will be used as X-Consumer-ID header in GraphQL requests"
     else
-        print_status $GREEN "✅ Asgardeo token obtained"
-        print_status $YELLOW "   Token: ${ASGARDEO_TOKEN:0:20}..."
+        print_status $RED "❌ No consumer ID available for M2M authentication"
+        exit 1
     fi
     
     echo ""
 }
 
-# Test 4: Validate Asgardeo token via API Server
-test_token_validation() {
-    print_header "TEST 4: Token Validation (Orchestration Engine -> API Server -> Asgardeo)"
+# Test 4: Verify consumer exists in API Server
+test_consumer_verification() {
+    print_header "TEST 4: Consumer Verification (M2M Authentication)"
     
-    print_step "4.1" "Validating Asgardeo token via API Server"
-    VALIDATION_RESPONSE=$(curl -s -X POST $API_SERVER_URL/auth/validate \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"token\": \"$ASGARDEO_TOKEN\"
-        }")
+    print_step "4.1" "Verifying consumer exists in API Server"
+    CONSUMER_VERIFICATION_RESPONSE=$(curl -s -X GET $API_SERVER_URL/consumers/$CONSUMER_ID_FOR_AUTH)
     
-    VALID=$(echo "$VALIDATION_RESPONSE" | jq -r '.valid // false')
-    CONSUMER_ID_FROM_TOKEN=$(echo "$VALIDATION_RESPONSE" | jq -r '.consumerId // empty')
-    ERROR=$(echo "$VALIDATION_RESPONSE" | jq -r '.error // empty')
+    CONSUMER_NAME=$(echo "$CONSUMER_VERIFICATION_RESPONSE" | jq -r '.consumerName // empty')
+    CONSUMER_EMAIL=$(echo "$CONSUMER_VERIFICATION_RESPONSE" | jq -r '.contactEmail // empty')
     
-    if [ "$VALID" = "true" ]; then
-        print_status $GREEN "✅ Token validation successful"
-        print_status $YELLOW "   Consumer ID: $CONSUMER_ID_FROM_TOKEN"
+    if [ -n "$CONSUMER_NAME" ] && [ "$CONSUMER_NAME" != "null" ]; then
+        print_status $GREEN "✅ Consumer verification successful"
+        print_status $YELLOW "   Consumer Name: $CONSUMER_NAME"
+        print_status $YELLOW "   Consumer Email: $CONSUMER_EMAIL"
     else
-        print_status $YELLOW "⚠️  Token validation failed (expected for mock token)"
-        print_status $YELLOW "   Error: $ERROR"
-        print_status $YELLOW "   This is expected if using mock token or Asgardeo is not configured"
+        print_status $YELLOW "⚠️  Consumer verification failed (expected if consumer not found)"
+        print_status $YELLOW "   This is expected if the consumer was not properly created"
     fi
     
-    echo "Full validation response:"
-    echo "$VALIDATION_RESPONSE" | jq '.'
+    echo "Full consumer verification response:"
+    echo "$CONSUMER_VERIFICATION_RESPONSE" | jq '.'
     echo ""
 }
 
