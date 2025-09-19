@@ -38,7 +38,6 @@ func (p *Provider) StartTokenRefresh() {
 					continue
 				}
 				// print the token response
-				logger.Log.Info("Refreshing Token", "service", prov.ServiceKey)
 				logger.Log.Info("Token Refreshed", "Token Expires At:", prov.Auth2Token.ExpiresAt)
 			}
 
