@@ -16,8 +16,7 @@ endpoints:
     # Network visibility: Public for external API access
     networkVisibilities:
       - Public
-    openapi:
-      file: openapi.yaml
+    schemaFilePath: openapi.yaml
 
 build:
   # Build context - set to api-server-go directory 

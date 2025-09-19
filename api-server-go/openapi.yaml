@@ -14,6 +14,8 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
+  - url: https://41200aa1-4106-4e6c-babf-311dce37c04a-dev.e1-us-east-azure.choreoapis.dev/opendif-ndx/api-server-go-ly/v1.0
+    description: Choreo Development Environment
   - url: http://localhost:3000
     description: Local Development Environment
 
