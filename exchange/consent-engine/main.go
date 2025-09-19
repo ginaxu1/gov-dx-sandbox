@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -16,6 +17,43 @@ import (
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
+
+// loadEnvFile loads environment variables from .env.local if it exists
+func loadEnvFile() {
+	envFile := ".env.local"
+	if _, err := os.Stat(envFile); os.IsNotExist(err) {
+		return
+	}
+
+	file, err := os.Open(envFile)
+	if err != nil {
+		slog.Warn("Failed to open .env.local file", "error", err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			// Only set if not already set in environment
+			if os.Getenv(key) == "" {
+				os.Setenv(key, value)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		slog.Warn("Error reading .env.local file", "error", err)
+	}
+}
 
 // getEnvOrDefault returns the environment variable value or a default
 func getEnvOrDefault(key, defaultValue string) string {
@@ -750,6 +788,9 @@ func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// Load environment variables from .env.local if it exists
+	loadEnvFile()
+
 	// Load configuration using flags
 	cfg := config.LoadConfig("consent-engine")
 

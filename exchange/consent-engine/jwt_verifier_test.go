@@ -144,7 +144,6 @@ func TestDataInfoEndpointNotFound(t *testing.T) {
 func TestJWTMiddlewareEmailMatching(t *testing.T) {
 	// Create a test consent engine
 	engine := NewConsentEngine("http://localhost:5173")
-	server := &apiServer{engine: engine}
 
 	// Create a test consent record
 	consentReq := ConsentRequest{

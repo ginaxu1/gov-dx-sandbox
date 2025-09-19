@@ -11,9 +11,33 @@ Service that manages data owner consent workflows for data access requests.
 
 ## Quick Start
 
+### 1. Environment Setup
+
+First, set up your environment variables:
+
+```bash
+# Run the setup script to create .env.local
+./setup-env.sh
+
+# Edit .env.local with your Asgardeo credentials
+nano .env.local
+```
+
+The service will automatically load environment variables from `.env.local` if it exists. You can also set them directly in your shell or use the example file:
+
+```bash
+# Copy the example file
+cp env.example .env.local
+
+# Edit with your values
+nano .env.local
+```
+
+### 2. Run the Service
+
 ```bash
 # Run locally
-cd consent-engine && go run main.go
+cd consent-engine && go run main.go engine.go jwt_verifier.go
 
 # Run tests
 go test -v
@@ -319,8 +343,28 @@ curl http://localhost:8081/health
 ## Configuration
 
 ### Environment Variables
+
+#### Required (for JWT authentication)
+- `ASGARDEO_BASE_URL` - Your Asgardeo organization URL (e.g., https://api.asgardeo.io/t/lankasoftwarefoundation)
+- `ASGARDEO_CLIENT_ID` - Your Asgardeo application client ID
+- `ASGARDEO_CLIENT_SECRET` - Your Asgardeo application client secret
+
+#### Optional (with defaults)
+- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks)
+- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation)
+- `ASGARDEO_AUDIENCE` - JWT audience
 - `PORT` - Service port (default: 8081)
 - `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
+
+### Getting Asgardeo Credentials
+
+1. Go to [Asgardeo Console](https://console.asgardeo.io/)
+2. Navigate to your organization
+3. Go to Applications → Your App → Settings
+4. Copy the following values:
+   - **Base URL**: Your organization URL
+   - **Client ID**: From the application settings
+   - **Client Secret**: From the application settings (if using confidential client)
 
 ## Integration
 
