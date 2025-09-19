@@ -22,11 +22,14 @@ input SourceInfoInput {
 }
 
 type PersonInfo {
+    fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName")
     name: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name")
+    otherNames: String @sourceInfo(providerKey: "drp", providerField: "person.otherNames")
     address: String @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress")
     profession: String @sourceInfo(providerKey: "drp", providerField: "person.profession")
+    dateOfBirth: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthDate")
+    sex: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.sex")
     birthInfo: BirthInfo
-    birthRegistrationNumber: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo")
     ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data")
 }
 
@@ -38,5 +41,7 @@ type VehicleInfo {
 }
 
 type BirthInfo {
-    brNo: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo")
+    birthRegistrationNumber: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo")
+    birthPlace: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthPlace")
+    district: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.district")
 }

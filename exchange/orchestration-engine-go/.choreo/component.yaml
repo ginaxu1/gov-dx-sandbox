@@ -5,7 +5,7 @@ schemaVersion: 1.2
 endpoints:
   # GraphQL Endpoint for DMT Subgraph
   - name: orchestration-engine-go
-    displayName: Orchestration Engine Go
+    displayName: Orchestration Engine
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
