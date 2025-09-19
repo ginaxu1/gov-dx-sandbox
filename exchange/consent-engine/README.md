@@ -7,6 +7,7 @@ Service that manages data owner consent workflows for data access requests.
 - **Technology**: Go + In-memory storage
 - **Port**: 8081
 - **Purpose**: Consent management and workflow coordination
+- **Authentication**: JWT tokens from Asgardeo with email-based authorization
 
 ## Quick Start
 
@@ -23,13 +24,72 @@ docker build -t ce . && docker run -p 8081:8081 ce
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/consents` | POST | Create new consent |
-| `/consents/{id}` | GET | Get consent information (user-facing) |
-| `/consents/{id}` | PUT | Update consent status |
-| `/consents/{id}` | DELETE | Revoke consent |
-| `/health` | GET | Health check |
+| Endpoint | Method | Description | Authentication |
+|----------|--------|-------------|----------------|
+| `/consents` | POST | Create new consent | None |
+| `/consents/{id}` | GET | Get consent information (user-facing) | **JWT Required** |
+| `/consents/{id}` | PUT | Update consent status | **JWT Required** |
+| `/consents/{id}` | POST | Update consent status (alternative) | **JWT Required** |
+| `/consents/{id}` | DELETE | Revoke consent | **JWT Required** |
+| `/data-info/{id}` | GET | Get data owner information | None |
+| `/consent-portal` | POST | Create consent via portal | None |
+| `/consent-portal` | PUT | Update consent via portal | None |
+| `/consent-portal` | GET | Get consent portal info | None |
+| `/consent-website` | GET | Serve consent portal website | None |
+| `/data-owner/{id}` | GET | Get consents by data owner | None |
+| `/consumer/{id}` | GET | Get consents by consumer | None |
+| `/admin/expiry-check` | POST | Check expired consents | None |
+| `/health` | GET | Health check | None |
+
+## Authentication
+
+The Consent Engine uses JWT tokens from Asgardeo for authentication on protected endpoints. The JWT must contain a valid email claim that matches the consent owner's email.
+
+### JWT Configuration
+
+- **JWKS URL**: `https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks`
+- **Issuer**: `https://api.asgardeo.io/t/lankasoftwarefoundation`
+- **Audience**: `lankasoftwarefoundation`
+
+### Environment Variables
+
+- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks)
+- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation)
+- `ASGARDEO_AUDIENCE` - JWT audience (default: lankasoftwarefoundation)
+
+### JWT Token Format
+
+```bash
+Authorization: Bearer <jwt_token>
+```
+
+The JWT token must contain an email claim in one of these fields:
+- `email`
+- `sub` (subject)
+- `preferred_username`
+
+### Email Authorization
+
+For protected endpoints (`/consents/{id}`), the JWT email must match the consent owner's email. If they don't match, the request will be rejected with a 403 Forbidden response.
+
+## Data Owner Information
+
+**Endpoint:** `GET /data-info/{consentId}`
+
+Retrieves only the owner ID and email for a specific consent record. This endpoint does not require authentication.
+
+**Response:**
+```json
+{
+  "owner_id": "test-owner-123",
+  "owner_email": "owner@example.com"
+}
+```
+
+**cURL Example:**
+```bash
+curl -X GET http://localhost:8081/data-info/consent_122af00e
+```
 
 ## Create Consent
 
@@ -91,7 +151,8 @@ curl -X POST http://localhost:8081/consents \
 
 ## Get Consent Information
 
-**Endpoint:** `GET /consents/{id}`
+**Endpoint:** `GET /consents/{id}`  
+**Authentication:** JWT Required (email must match consent owner)
 
 **Response (User-facing format):**
 ```json
@@ -108,12 +169,18 @@ curl -X POST http://localhost:8081/consents \
 
 **cURL Example:**
 ```bash
-curl -X GET http://localhost:8081/consents/consent_122af00e
+curl -X GET http://localhost:8081/consents/consent_122af00e \
+  -H "Authorization: Bearer <jwt_token>"
 ```
+
+**Error Responses:**
+- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `404 Not Found` - Consent record not found
 
 ## Update Consent Status
 
-**Endpoint:** `PUT /consents/{id}`
+**Endpoint:** `PUT /consents/{id}`  
+**Authentication:** JWT Required (email must match consent owner)
 
 **Request:**
 ```json
@@ -138,6 +205,7 @@ curl -X GET http://localhost:8081/consents/consent_122af00e
 ```bash
 curl -X PUT http://localhost:8081/consents/consent_122af00e \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt_token>" \
   -d '{
     "status": "approved",
     "owner_id": "199512345678",
@@ -145,9 +213,14 @@ curl -X PUT http://localhost:8081/consents/consent_122af00e \
   }'
 ```
 
+**Error Responses:**
+- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `404 Not Found` - Consent record not found
+
 ## Revoke Consent
 
-**Endpoint:** `DELETE /consents/{id}`
+**Endpoint:** `DELETE /consents/{id}`  
+**Authentication:** JWT Required (email must match consent owner)
 
 **Request:**
 ```json
@@ -170,8 +243,13 @@ curl -X PUT http://localhost:8081/consents/consent_122af00e \
 ```bash
 curl -X DELETE http://localhost:8081/consents/consent_122af00e \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt_token>" \
   -d '{"reason": "User requested data deletion"}'
 ```
+
+**Error Responses:**
+- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `404 Not Found` - Consent record not found
 
 ## Testing
 

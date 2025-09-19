@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,6 +24,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+
+// Context key type for user email
+type contextKey string
+
+const userEmailKey contextKey = "user_email"
 
 // Build information - set during build
 var (
@@ -50,6 +56,73 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// Call the next handler
 		next.ServeHTTP(w, r)
 	})
+}
+
+// JWT authentication middleware
+func jwtAuthMiddleware(jwtVerifier *JWTVerifier, engine ConsentEngine) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract the Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Authorization header is required"})
+				return
+			}
+
+			// Check if it's a Bearer token
+			const bearerPrefix = "Bearer "
+			if !strings.HasPrefix(authHeader, bearerPrefix) {
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Invalid authorization format. Expected 'Bearer <token>'"})
+				return
+			}
+
+			// Extract the token
+			tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
+			if tokenString == "" {
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Token is required"})
+				return
+			}
+
+			// Verify the token and extract email
+			email, err := jwtVerifier.VerifyAndExtractEmail(tokenString)
+			if err != nil {
+				slog.Warn("JWT verification failed", "error", err)
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Invalid or expired token"})
+				return
+			}
+
+			// Extract consent ID from the URL path
+			consentID := strings.TrimPrefix(r.URL.Path, "/consents/")
+			if consentID == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
+				return
+			}
+
+			// Get the consent record to check owner email
+			consentRecord, err := engine.GetConsentStatus(consentID)
+			if err != nil {
+				utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+				return
+			}
+
+			// Check if the JWT email matches the consent owner email
+			if consentRecord.OwnerEmail != email {
+				slog.Warn("JWT email does not match consent owner email",
+					"jwt_email", email,
+					"consent_owner_email", consentRecord.OwnerEmail,
+					"consent_id", consentID)
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Access denied: email does not match consent owner"})
+				return
+			}
+
+			// Add the email to the request context for use in handlers
+			ctx := context.WithValue(r.Context(), userEmailKey, email)
+			r = r.WithContext(ctx)
+
+			slog.Info("JWT authentication successful", "email", email, "consent_id", consentID)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // apiServer holds dependencies for the HTTP handlers
@@ -569,6 +642,22 @@ func (s *apiServer) getConsentByID(w http.ResponseWriter, r *http.Request, conse
 	utils.RespondWithJSON(w, http.StatusOK, consentView)
 }
 
+func (s *apiServer) getDataInfo(w http.ResponseWriter, r *http.Request, consentID string) {
+	record, err := s.engine.GetConsentStatus(consentID)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		return
+	}
+
+	// Return only owner_id and owner_email
+	dataInfo := map[string]interface{}{
+		"owner_id":    record.OwnerID,
+		"owner_email": record.OwnerEmail,
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, dataInfo)
+}
+
 func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, consentID string) {
 	var req struct {
 		Status  string `json:"status"`
@@ -637,6 +726,20 @@ func (s *apiServer) consentWebsiteHandler(w http.ResponseWriter, r *http.Request
 	http.ServeFile(w, r, "consent-website.html")
 }
 
+func (s *apiServer) dataInfoHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/data-info/")
+	if path == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		s.getDataInfo(w, r, path)
+	} else {
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
+	}
+}
+
 func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/admin")
 	if path == "/expiry-check" && r.Method == http.MethodPost {
@@ -668,16 +771,26 @@ func main() {
 	engine := NewConsentEngine(consentPortalUrl)
 	server := &apiServer{engine: engine}
 
+	// Initialize JWT verifier with Asgardeo JWKS endpoint
+	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
+	jwtVerifier := NewJWTVerifier(jwksURL)
+	slog.Info("Initialized JWT verifier", "jwks_url", jwksURL)
+
 	// Setup routes using utils
 	mux := http.NewServeMux()
+
+	// Routes that don't require authentication
 	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
-	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	mux.Handle("/consent-portal/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentPortalHandler)))
 	mux.Handle("/consent-website", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentWebsiteHandler)))
 	mux.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))
 	mux.Handle("/consumer/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consumerHandler)))
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
+	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+
+	// Routes that require JWT authentication
+	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(jwtAuthMiddleware(jwtVerifier, engine)(http.HandlerFunc(server.consentHandler))))
 
 	// Create server using utils
 	serverConfig := &utils.ServerConfig{
