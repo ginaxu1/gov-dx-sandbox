@@ -20,6 +20,7 @@ declare global {
 interface ConsentRecord {
   consent_id: string;
   owner_id: string;
+  owner_name: string;
   owner_email: string;
   data_consumer: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
@@ -30,6 +31,7 @@ interface ConsentRecord {
   fields: string[];
   session_id: string;
   redirect_url: string;
+  app_display_name: string;
 }
 
 interface ConsentGatewayProps {}
@@ -54,7 +56,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     const accessToken = await getAccessToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
+      // 'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
       'Test-Key': 'your-test-key'
     };
     
@@ -109,7 +111,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         if (response.status === 401) {
           throw new Error(errorMessage || 'Unauthorized: Please sign in to access this consent');
         } else if (response.status === 403) {
-          throw new Error(errorMessage || 'Forbidden: You do not have permission to access this consent');
+          // throw new Error(errorMessage || 'Forbidden: You do not have permission to access this consent');
+          setCurrentStep('unauthorized');
+          setError(errorMessage || 'Forbidden: You do not have permission to access this consent');
+          return null;
         } else if (response.status === 404) {
           throw new Error(errorMessage || 'Consent not found');
         } else {
@@ -555,11 +560,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="font-medium text-gray-600">Application:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.app_display_name}</span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-600">Owner ID:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
+                  <span className="font-medium text-gray-600">Owner Email:</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.owner_email}</span>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Status:</span>
@@ -635,7 +640,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="mb-6 p-4 bg-blue-50 rounded-lg">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Application Request</h3>
                 <p className="text-gray-600">
-                  <span className="font-medium">{consentRecord.data_consumer}</span> is requesting access to the following data:
+                  <span className="font-medium">{consentRecord.app_display_name}</span> is requesting access to the following data fields:
                 </p>
               </div>
 
@@ -657,8 +662,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 <h3 className="text-lg font-semibold text-gray-800 mb-3">Consent Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="font-medium text-gray-600">Owner ID:</span>
-                    <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
+                    <span className="font-medium text-gray-600">Owner Name:</span>
+                    <span className="ml-2 text-gray-800">{consentRecord.owner_name}</span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Owner Email:</span>
