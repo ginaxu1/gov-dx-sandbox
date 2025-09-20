@@ -244,10 +244,10 @@ func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, 
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
 
-	// Check if there's already an existing consent for this (app_id, owner_id) pair
+	// Check if there's already an existing consent for this (app_id, owner_id, owner_email) combination
 	// We only need to check the first data field since all should have the same owner
 	if len(req.DataFields) > 0 {
-		existingRecord := ce.findExistingConsentUnsafe(req.AppID, req.DataFields[0].OwnerID)
+		existingRecord := ce.findExistingConsentByEmailUnsafe(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail)
 		if existingRecord != nil {
 			// Return the existing record instead of creating a new one
 			return existingRecord, nil
@@ -305,6 +305,17 @@ func (ce *consentEngineImpl) FindExistingConsent(consumerAppID, ownerID string) 
 func (ce *consentEngineImpl) findExistingConsentUnsafe(consumerAppID, ownerID string) *ConsentRecord {
 	for _, record := range ce.consentRecords {
 		if record.AppID == consumerAppID && record.OwnerID == ownerID {
+			return record
+		}
+	}
+	return nil
+}
+
+// findExistingConsentByEmailUnsafe finds an existing consent record by app_id, owner_id, and owner_email
+// This should only be called when the caller already holds the appropriate lock
+func (ce *consentEngineImpl) findExistingConsentByEmailUnsafe(consumerAppID, ownerID, ownerEmail string) *ConsentRecord {
+	for _, record := range ce.consentRecords {
+		if record.AppID == consumerAppID && record.OwnerID == ownerID && record.OwnerEmail == ownerEmail {
 			return record
 		}
 	}
@@ -531,10 +542,10 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
 
-	// Check if there's already an existing consent for this (app_id, owner_id) pair
+	// Check if there's already an existing consent for this (app_id, owner_id, owner_email) combination
 	// We only need to check the first data field since all should have the same owner
 	if len(req.DataFields) > 0 {
-		existingRecord := ce.findExistingConsentUnsafe(req.AppID, req.DataFields[0].OwnerID)
+		existingRecord := ce.findExistingConsentByEmailUnsafe(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail)
 		if existingRecord != nil {
 			// Return the existing record instead of creating a new one
 			return existingRecord, nil

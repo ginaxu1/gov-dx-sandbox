@@ -4,7 +4,13 @@ info:
   description: |
     Consent Engine API for managing data consent workflows in the Data Exchange Platform.
     This service handles consent creation, approval, tracking, and management for data access requests.
-  version: 1.0.0
+    
+    ## Hybrid Authentication
+    The API uses hybrid authentication that differentiates between frontend and M2M requests:
+    - **Frontend requests**: Require JWT authentication with email validation
+    - **M2M requests**: JWT authentication is optional
+    - **Detection**: Based on HTTP headers (X-Requested-With, User-Agent)
+  version: 1.1.0
   contact:
     name: OpenDIF Team
   license:
@@ -78,12 +84,17 @@ paths:
   /consents/{consentId}:
     get:
       summary: Get Consent by ID
-      description: Retrieve a specific consent record by its ID (requires JWT authentication)
+      description: |
+        Retrieve a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
       operationId: getConsentById
       tags:
         - Consents
       security:
         - BearerAuth: []
+        - {}: []
       parameters:
         - name: consentId
           in: path
@@ -120,12 +131,17 @@ paths:
 
     put:
       summary: Update Consent
-      description: Update a specific consent record by its ID (requires JWT authentication)
+      description: |
+        Update a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
       operationId: updateConsent
       tags:
         - Consents
       security:
         - BearerAuth: []
+        - {}: []
       parameters:
         - name: consentId
           in: path
@@ -246,12 +262,17 @@ paths:
 
     delete:
       summary: Revoke Consent
-      description: Revoke a specific consent record by its ID (requires JWT authentication)
+      description: |
+        Revoke a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
       operationId: revokeConsent
       tags:
         - Consents
       security:
         - BearerAuth: []
+        - {}: []
       parameters:
         - name: consentId
           in: path

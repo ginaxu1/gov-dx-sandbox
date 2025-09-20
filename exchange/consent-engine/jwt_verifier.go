@@ -143,8 +143,8 @@ func (j *JWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) {
 		return nil, fmt.Errorf("failed to ensure fresh keys: %w", err)
 	}
 
-	// Parse the token without verification first to get the kid
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	// Parse the token with custom claims validation that skips exp check
+	token, err := jwt.ParseWithClaims(tokenString, &jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Check the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -163,7 +163,7 @@ func (j *JWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) {
 		}
 
 		return publicKey, nil
-	})
+	}, jwt.WithoutClaimsValidation())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify token: %w", err)

@@ -8,7 +8,7 @@ import (
 )
 
 func TestJWTVerifierInitialization(t *testing.T) {
-	jwksURL := "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks"
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
 	jwtVerifier := NewJWTVerifier(jwksURL)
 
 	if jwtVerifier == nil {
@@ -29,7 +29,7 @@ func TestJWTVerifierInitialization(t *testing.T) {
 }
 
 func TestFetchJWKS(t *testing.T) {
-	jwksURL := "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks"
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
 	jwtVerifier := NewJWTVerifier(jwksURL)
 
 	err := jwtVerifier.fetchJWKS()
@@ -45,7 +45,7 @@ func TestFetchJWKS(t *testing.T) {
 }
 
 func TestVerifyInvalidToken(t *testing.T) {
-	jwksURL := "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks"
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
 	jwtVerifier := NewJWTVerifier(jwksURL)
 
 	// First fetch the JWKS
@@ -65,7 +65,8 @@ func TestVerifyInvalidToken(t *testing.T) {
 
 func TestDataInfoEndpoint(t *testing.T) {
 	// Create a test consent engine
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	// Create a test consent record
@@ -124,7 +125,8 @@ func TestDataInfoEndpoint(t *testing.T) {
 }
 
 func TestDataInfoEndpointNotFound(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	// Test with non-existent consent ID
@@ -143,7 +145,8 @@ func TestDataInfoEndpointNotFound(t *testing.T) {
 
 func TestJWTMiddlewareEmailMatching(t *testing.T) {
 	// Create a test consent engine
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	// Create a test consent record
 	consentReq := ConsentRequest{
@@ -167,7 +170,8 @@ func TestJWTMiddlewareEmailMatching(t *testing.T) {
 	}
 
 	// Test JWT middleware with matching email
-	jwtVerifier := NewJWTVerifier("https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
+	jwtVerifier := NewJWTVerifier(jwksURL)
 
 	// Create a mock JWT token (this will fail verification, but we can test the flow)
 	req := httptest.NewRequest("GET", "/consents/"+consentRecord.ConsentID, nil)

@@ -1,13 +1,14 @@
 # Consent Engine (CE)
 
-Service that manages data owner consent workflows for data access requests.
+Service that manages data owner consent workflows for data access requests with hybrid authentication support.
 
 ## Overview
 
 - **Technology**: Go + In-memory storage
 - **Port**: 8081
 - **Purpose**: Consent management and workflow coordination
-- **Authentication**: JWT tokens from Asgardeo with email-based authorization
+- **Authentication**: Hybrid JWT authentication (Frontend requires JWT, M2M optional)
+- **Test Coverage**: 34% with comprehensive unit and integration tests
 
 ## Quick Start
 
@@ -37,10 +38,13 @@ nano .env.local
 
 ```bash
 # Run locally
-cd consent-engine && go run main.go engine.go jwt_verifier.go
+cd consent-engine && go run *.go
 
 # Run tests
 go test -v
+
+# Run tests with coverage
+go test -v -cover
 
 # Docker
 docker build -t ce . && docker run -p 8081:8081 ce
@@ -51,10 +55,10 @@ docker build -t ce . && docker run -p 8081:8081 ce
 | Endpoint | Method | Description | Authentication |
 |----------|--------|-------------|----------------|
 | `/consents` | POST | Create new consent | None |
-| `/consents/{id}` | GET | Get consent information (user-facing) | **JWT Required** |
-| `/consents/{id}` | PUT | Update consent status | **JWT Required** |
-| `/consents/{id}` | POST | Update consent status (alternative) | **JWT Required** |
-| `/consents/{id}` | DELETE | Revoke consent | **JWT Required** |
+| `/consents/{id}` | GET | Get consent information | **Hybrid Auth** |
+| `/consents/{id}` | PUT | Update consent status | **Hybrid Auth** |
+| `/consents/{id}` | POST | Update consent status (alternative) | **Hybrid Auth** |
+| `/consents/{id}` | DELETE | Revoke consent | **Hybrid Auth** |
 | `/data-info/{id}` | GET | Get data owner information | None |
 | `/consent-portal` | POST | Create consent via portal | None |
 | `/consent-portal` | PUT | Update consent via portal | None |
@@ -65,21 +69,55 @@ docker build -t ce . && docker run -p 8081:8081 ce
 | `/admin/expiry-check` | POST | Check expired consents | None |
 | `/health` | GET | Health check | None |
 
-## Authentication
+**Hybrid Auth**: Frontend requests require JWT, M2M requests are optional
 
-The Consent Engine uses JWT tokens from Asgardeo for authentication on protected endpoints. The JWT must contain a valid email claim that matches the consent owner's email.
+## Hybrid Authentication
 
-### JWT Configuration
+The Consent Engine uses a hybrid authentication system that differentiates between frontend and M2M (Machine-to-Machine) requests:
 
-- **JWKS URL**: `https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks`
-- **Issuer**: `https://api.asgardeo.io/t/lankasoftwarefoundation`
-- **Audience**: `lankasoftwarefoundation`
+### Frontend Requests
+- **Require JWT authentication** with valid email claim
+- **Email must match** the consent owner's email
+- **Detected by** browser headers (`X-Requested-With: XMLHttpRequest` or `User-Agent` containing browser names)
+
+### M2M Requests  
+- **JWT authentication is optional**
+- **No email validation required**
+- **Detected by** absence of browser headers
+
+### Request Detection
+The system automatically detects request type based on HTTP headers:
+- **Frontend**: Contains `X-Requested-With: XMLHttpRequest` or `User-Agent` with browser identifiers
+- **M2M**: No browser-like headers present
 
 ### Environment Variables
 
-- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks)
-- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation)
-- `ASGARDEO_AUDIENCE` - JWT audience (default: lankasoftwarefoundation)
+#### Required - Asgardeo Configuration
+- `ASGARDEO_BASE_URL` - Your Asgardeo organization URL (e.g., https://api.asgardeo.io/t/YOUR_TENANT)
+- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks)
+- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token)
+- `ASGARDEO_AUDIENCE` - JWT audience (default: YOUR_AUDIENCE)
+- `ASGARDEO_ORG_NAME` - Your organization name (default: YOUR_ORG_NAME)
+
+#### Required - Service Configuration
+- `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
+- `ORCHESTRATION_ENGINE_URL` - Orchestration engine URL (default: http://localhost:4000)
+- `M2M_API_KEY` - M2M API key for service-to-service communication
+- `ENVIRONMENT` - Environment (production/development)
+
+#### Optional - Service Configuration
+- `PORT` - Service port (default: 8081)
+- `LOG_LEVEL` - Log level (default: info)
+- `LOG_FORMAT` - Log format (default: text)
+- `CORS` - Enable CORS (default: true)
+- `RATE_LIMIT` - Rate limit per minute (default: 100)
+
+#### Test Configuration
+- `TEST_CONSENT_PORTAL_URL` - Test consent portal URL (default: http://localhost:5173)
+- `TEST_JWKS_URL` - Test JWKS URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks)
+- `TEST_ASGARDEO_ISSUER` - Test Asgardeo issuer (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token)
+- `TEST_ASGARDEO_AUDIENCE` - Test Asgardeo audience (default: YOUR_AUDIENCE)
+- `TEST_ASGARDEO_ORG_NAME` - Test organization name (default: YOUR_ORG_NAME)
 
 ### JWT Token Format
 
@@ -191,8 +229,20 @@ curl -X POST http://localhost:8081/consents \
 }
 ```
 
-**cURL Example:**
+**Frontend Request (JWT Required):**
 ```bash
+curl -X GET http://localhost:8081/consents/consent_122af00e \
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+```
+
+**M2M Request (JWT Optional):**
+```bash
+# Without JWT
+curl -X GET http://localhost:8081/consents/consent_122af00e
+
+# With JWT
 curl -X GET http://localhost:8081/consents/consent_122af00e \
   -H "Authorization: Bearer <jwt_token>"
 ```
@@ -276,6 +326,33 @@ curl -X DELETE http://localhost:8081/consents/consent_122af00e \
 - `404 Not Found` - Consent record not found
 
 ## Testing
+
+The consent engine includes comprehensive testing
+
+### Test Structure
+- **Unit Tests**: Located in root directory (required for package access)
+- **Integration Tests**: Located in `tests/` directory
+- **Test Utilities**: Located in `testutils/` directory with reusable helpers
+
+### Test Utilities
+The `testutils/test_helpers.go` provides reusable test components:
+- **ConsentRequestBuilder**: Fluent API for building test consent requests
+- **DataFieldBuilder**: Fluent API for building test data fields  
+- **HTTPTestHelper**: Common HTTP testing utilities
+- **JWTTestHelper**: JWT token creation and verification helpers
+- **EngineTestHelper**: Consent engine testing utilities
+
+### Running Tests
+```bash
+# Run all tests
+go test -v
+
+# Run with coverage
+go test -v -cover
+
+# Run specific test
+go test -v -run TestHybridAuthMiddleware
+```
 
 ### Test Complete Workflow
 
