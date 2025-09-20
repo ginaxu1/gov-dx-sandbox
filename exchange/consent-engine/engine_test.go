@@ -7,7 +7,8 @@ import (
 
 // TestConsentEngine_CreateConsent tests the core CreateConsent functionality
 func TestConsentEngine_CreateConsent(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	req := ConsentRequest{
 		AppID:     "passport-app",
@@ -52,7 +53,8 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 
 // TestConsentEngine_GetConsentStatus tests retrieving consent status
 func TestConsentEngine_GetConsentStatus(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	// Create a consent record first
 	req := ConsentRequest{
@@ -93,7 +95,8 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 
 // TestConsentEngine_UpdateConsent tests updating consent status
 func TestConsentEngine_UpdateConsent(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	// Create a consent record first
 	req := ConsentRequest{
@@ -146,7 +149,8 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 
 // TestConsentEngine_FindExistingConsent tests finding existing consents
 func TestConsentEngine_FindExistingConsent(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	// Create a consent record first
 	req := ConsentRequest{
@@ -187,7 +191,8 @@ func TestConsentEngine_FindExistingConsent(t *testing.T) {
 
 // TestConsentEngine_UpdateConsentRecord tests direct record updates
 func TestConsentEngine_UpdateConsentRecord(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	// Create a consent record first
 	req := ConsentRequest{
@@ -252,7 +257,8 @@ func TestConsentEngine_StatusTransitions(t *testing.T) {
 
 // TestConsentEngine_CheckConsentExpiry tests the CheckConsentExpiry functionality
 func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	t.Run("NoExpiredRecords", func(t *testing.T) {
 		// Create a consent that won't expire soon
@@ -298,7 +304,8 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("HasExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		engine := NewConsentEngine("http://localhost:5173")
+		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+		engine := NewConsentEngine(consentPortalURL)
 
 		// Create a consent
 		req := ConsentRequest{
@@ -357,7 +364,8 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("OnlyApprovedRecordsExpire", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		engine := NewConsentEngine("http://localhost:5173")
+		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+		engine := NewConsentEngine(consentPortalURL)
 
 		// Create a consent
 		req := ConsentRequest{
@@ -408,7 +416,8 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("MultipleExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		engine := NewConsentEngine("http://localhost:5173")
+		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+		engine := NewConsentEngine(consentPortalURL)
 
 		// Create multiple consents
 		consentIDs := make([]string, 3)
@@ -471,7 +480,8 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 // TestConsentEngine_UpdateConsentWithGrantDuration tests updating consent with grant_duration
 func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 
 	// Create a consent
 	req := ConsentRequest{

@@ -1,6 +1,6 @@
 # Consent Portal Testing Guide
 
-This README explains how to test the consent-portal with the ConsentEngine.
+This README explains how to test the consent-portal with the ConsentEngine using JWT authentication from Asgardeo.
 
 ## Start the Consent Engine Backend
 
