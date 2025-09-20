@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -23,6 +26,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+
+// Context key type for user email
+type contextKey string
+
+const userEmailKey contextKey = "user_email"
 
 // Build information - set during build
 var (
@@ -37,7 +45,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*") // In production, specify your frontend domain
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, Test-Key")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
 
@@ -50,6 +58,381 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// Call the next handler
 		next.ServeHTTP(w, r)
 	})
+}
+
+// TokenType represents the type of token (user or m2m)
+type TokenType string
+
+const (
+	TokenTypeUser TokenType = "user"
+	TokenTypeM2M  TokenType = "m2m"
+)
+
+// TokenInfo contains information about the verified token
+type TokenInfo struct {
+	Type     TokenType
+	Email    string
+	Subject  string
+	Scopes   []string
+	ClientID string
+	Audience []string
+	Issuer   string
+	AuthType string // "APPLICATION_USER" or "APPLICATION"
+}
+
+// UserTokenValidationConfig holds configuration for user token validation
+type UserTokenValidationConfig struct {
+	ExpectedIssuer   string
+	ExpectedAudience string
+	ExpectedOrgName  string
+	RequiredScopes   []string
+}
+
+// Hybrid authentication middleware that handles both user and M2M tokens
+func hybridAuthMiddleware(jwtVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract consent ID from the URL path
+			consentID := strings.TrimPrefix(r.URL.Path, "/consents/")
+			if consentID == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
+				return
+			}
+
+			// Get the consent record to check permissions
+			consentRecord, err := engine.GetConsentStatus(consentID)
+			if err != nil {
+				utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+				return
+			}
+
+			// Check if this is a frontend request (has browser-like headers)
+			isFrontendRequest := r.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
+				strings.Contains(r.Header.Get("User-Agent"), "Mozilla") ||
+				strings.Contains(r.Header.Get("User-Agent"), "Chrome") ||
+				strings.Contains(r.Header.Get("User-Agent"), "Safari") ||
+				strings.Contains(r.Header.Get("User-Agent"), "Firefox")
+
+			// Extract the Authorization header
+			authHeader := r.Header.Get("Authorization")
+
+			// If it's a frontend request, JWT authentication is required
+			if isFrontendRequest {
+				if authHeader == "" {
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Authorization header is required"})
+					return
+				}
+
+				// Check if it's a Bearer token
+				const bearerPrefix = "Bearer "
+				if !strings.HasPrefix(authHeader, bearerPrefix) {
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid authorization format. Expected 'Bearer <token>'"})
+					return
+				}
+
+				// Extract the token
+				tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
+				if tokenString == "" {
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Token is required"})
+					return
+				}
+
+				// Manually decode JWT token without verification
+				parts := strings.Split(tokenString, ".")
+				if len(parts) != 3 {
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid token format"})
+					return
+				}
+
+				// Decode claims
+				claimsBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+				if err != nil {
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to decode token claims"})
+					return
+				}
+
+				var claims map[string]interface{}
+				if err := json.Unmarshal(claimsBytes, &claims); err != nil {
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to parse token claims"})
+					return
+				}
+
+				// Get email from token
+				email, ok := claims["email"].(string)
+				if !ok || email == "" {
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Token missing email claim"})
+					return
+				}
+
+				// Check if the email matches the consent owner email
+				if consentRecord.OwnerEmail != email {
+					slog.Warn("User email does not match consent owner email",
+						"user_email", email,
+						"consent_owner_email", consentRecord.OwnerEmail,
+						"consent_id", consentID)
+					utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Access denied: email does not match consent owner"})
+					return
+				}
+
+				// Add email to the request context
+				ctx := context.WithValue(r.Context(), userEmailKey, email)
+				r = r.WithContext(ctx)
+
+				slog.Info("Frontend authentication successful",
+					"email", email,
+					"consent_id", consentID)
+
+			} else {
+				// This is an M2M request - JWT authentication is optional
+				if authHeader != "" {
+					// If JWT is provided, verify it
+					const bearerPrefix = "Bearer "
+					if strings.HasPrefix(authHeader, bearerPrefix) {
+						tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
+						if tokenString != "" {
+							// Verify the token
+							token, err := jwtVerifier.VerifyToken(tokenString)
+							if err == nil {
+								// Extract token information and determine type
+								tokenInfo, err := extractTokenInfo(token)
+								if err == nil && tokenInfo.Type == TokenTypeM2M {
+									// For M2M tokens, no additional scope validation required
+									// M2M tokens are trusted for all consent operations
+
+									// Add token information to the request context
+									ctx := context.WithValue(r.Context(), "token_info", tokenInfo)
+									ctx = context.WithValue(ctx, "auth_type", string(tokenInfo.Type))
+									r = r.WithContext(ctx)
+
+									slog.Info("M2M authentication with JWT successful",
+										"client_id", tokenInfo.ClientID,
+										"consent_id", consentID)
+								}
+							}
+						}
+					}
+				}
+
+				// For M2M without JWT, set auth type to M2M
+				if r.Context().Value("auth_type") == nil {
+					ctx := context.WithValue(r.Context(), "auth_type", "m2m")
+					r = r.WithContext(ctx)
+
+					slog.Info("M2M authentication without JWT successful",
+						"consent_id", consentID)
+				}
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// extractTokenInfo extracts token information and determines the token type
+func extractTokenInfo(token *jwt.Token) (*TokenInfo, error) {
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+
+	tokenInfo := &TokenInfo{}
+
+	// Extract basic claims
+	if sub, ok := claims["sub"].(string); ok {
+		tokenInfo.Subject = sub
+	}
+
+	if aud, ok := claims["aud"].(interface{}); ok {
+		switch v := aud.(type) {
+		case string:
+			tokenInfo.Audience = []string{v}
+		case []interface{}:
+			for _, a := range v {
+				if s, ok := a.(string); ok {
+					tokenInfo.Audience = append(tokenInfo.Audience, s)
+				}
+			}
+		}
+	}
+
+	if iss, ok := claims["iss"].(string); ok {
+		tokenInfo.Issuer = iss
+	}
+
+	if clientID, ok := claims["client_id"].(string); ok {
+		tokenInfo.ClientID = clientID
+	}
+
+	// Extract scopes
+	if scope, ok := claims["scope"].(string); ok {
+		tokenInfo.Scopes = strings.Fields(scope)
+	}
+
+	// Extract email
+	emailFields := []string{"email", "preferred_username"}
+	for _, field := range emailFields {
+		if email, ok := claims[field].(string); ok && email != "" {
+			tokenInfo.Email = email
+			break
+		}
+	}
+
+	// Extract auth type
+	if authType, ok := claims["aut"].(string); ok {
+		tokenInfo.AuthType = authType
+	}
+
+	// Determine token type based on claims
+	tokenInfo.Type = determineTokenType(claims)
+
+	return tokenInfo, nil
+}
+
+// determineTokenType determines if a token is a user token or M2M token
+func determineTokenType(claims jwt.MapClaims) TokenType {
+	// Check for auth type first
+	if authType, ok := claims["aut"].(string); ok {
+		if authType == "APPLICATION_USER" {
+			return TokenTypeUser
+		}
+		if authType == "APPLICATION" {
+			return TokenTypeM2M
+		}
+	}
+
+	// Fallback to legacy logic
+	clientID, hasClientID := claims["client_id"].(string)
+	sub, hasSub := claims["sub"].(string)
+	scope, hasScope := claims["scope"].(string)
+
+	// If it has client_id and either no sub or sub matches client_id, it's likely M2M
+	if hasClientID && (!hasSub || sub == clientID) {
+		// Additional check: M2M tokens usually have scopes like "consent:read consent:write"
+		if hasScope && strings.Contains(scope, "consent:") {
+			return TokenTypeM2M
+		}
+	}
+
+	// If it has a sub claim that doesn't match client_id, it's likely a user token
+	if hasSub && (clientID == "" || sub != clientID) {
+		return TokenTypeUser
+	}
+
+	// If it has an email claim, it's likely a user token
+	if email, ok := claims["email"].(string); ok && email != "" {
+		return TokenTypeUser
+	}
+
+	// Default to user token if we can't determine
+	return TokenTypeUser
+}
+
+// validateUserToken validates a user token against the expected configuration
+func validateUserToken(tokenInfo *TokenInfo, config UserTokenValidationConfig) error {
+	// Check issuer
+	if tokenInfo.Issuer != config.ExpectedIssuer {
+		return fmt.Errorf("invalid issuer: expected %s, got %s", config.ExpectedIssuer, tokenInfo.Issuer)
+	}
+
+	// Check audience
+	audienceMatch := false
+	for _, aud := range tokenInfo.Audience {
+		if aud == config.ExpectedAudience {
+			audienceMatch = true
+			break
+		}
+	}
+	if !audienceMatch {
+		return fmt.Errorf("invalid audience: expected %s, got %v", config.ExpectedAudience, tokenInfo.Audience)
+	}
+
+	// Check auth type
+	if tokenInfo.AuthType != "APPLICATION_USER" {
+		return fmt.Errorf("invalid auth type: expected APPLICATION_USER, got %s", tokenInfo.AuthType)
+	}
+
+	// Check required scopes
+	if len(config.RequiredScopes) > 0 {
+		scopeMap := make(map[string]bool)
+		for _, scope := range tokenInfo.Scopes {
+			scopeMap[scope] = true
+		}
+
+		for _, required := range config.RequiredScopes {
+			if !scopeMap[required] {
+				return fmt.Errorf("missing required scope: %s", required)
+			}
+		}
+	}
+
+	return nil
+}
+
+// JWT authentication middleware
+func jwtAuthMiddleware(jwtVerifier *JWTVerifier, engine ConsentEngine) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract the Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Authorization header is required"})
+				return
+			}
+
+			// Check if it's a Bearer token
+			const bearerPrefix = "Bearer "
+			if !strings.HasPrefix(authHeader, bearerPrefix) {
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Invalid authorization format. Expected 'Bearer <token>'"})
+				return
+			}
+
+			// Extract the token
+			tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
+			if tokenString == "" {
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Token is required"})
+				return
+			}
+
+			// Verify the token and extract email
+			email, err := jwtVerifier.VerifyAndExtractEmail(tokenString)
+			if err != nil {
+				slog.Warn("JWT verification failed", "error", err)
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Invalid or expired token"})
+				return
+			}
+
+			// Extract consent ID from the URL path
+			consentID := strings.TrimPrefix(r.URL.Path, "/consents/")
+			if consentID == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
+				return
+			}
+
+			// Get the consent record to check owner email
+			consentRecord, err := engine.GetConsentStatus(consentID)
+			if err != nil {
+				utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+				return
+			}
+
+			// Check if the JWT email matches the consent owner email
+			if consentRecord.OwnerEmail != email {
+				slog.Warn("JWT email does not match consent owner email",
+					"jwt_email", email,
+					"consent_owner_email", consentRecord.OwnerEmail,
+					"consent_id", consentID)
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Access denied: email does not match consent owner"})
+				return
+			}
+
+			// Add the email to the request context for use in handlers
+			ctx := context.WithValue(r.Context(), userEmailKey, email)
+			r = r.WithContext(ctx)
+
+			slog.Info("JWT authentication successful", "email", email, "consent_id", consentID)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // apiServer holds dependencies for the HTTP handlers
@@ -283,7 +666,8 @@ func (s *apiServer) updateConsentStatus(w http.ResponseWriter, r *http.Request, 
 
 	// If approved, redirect to orchestration engine's redirect endpoint
 	if req.Status == "approved" {
-		redirectURL := fmt.Sprintf("http://localhost:4000/consent-redirect?consent_id=%s", req.ConsentID)
+		orchestrationEngineURL := getEnvOrDefault("ORCHESTRATION_ENGINE_URL", "http://localhost:4000")
+		redirectURL := fmt.Sprintf("%s/consent-redirect?consent_id=%s", orchestrationEngineURL, req.ConsentID)
 		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return
 	}
@@ -569,6 +953,22 @@ func (s *apiServer) getConsentByID(w http.ResponseWriter, r *http.Request, conse
 	utils.RespondWithJSON(w, http.StatusOK, consentView)
 }
 
+func (s *apiServer) getDataInfo(w http.ResponseWriter, r *http.Request, consentID string) {
+	record, err := s.engine.GetConsentStatus(consentID)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		return
+	}
+
+	// Return only owner_id and owner_email
+	dataInfo := map[string]interface{}{
+		"owner_id":    record.OwnerID,
+		"owner_email": record.OwnerEmail,
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, dataInfo)
+}
+
 func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, consentID string) {
 	var req struct {
 		Status  string `json:"status"`
@@ -637,6 +1037,20 @@ func (s *apiServer) consentWebsiteHandler(w http.ResponseWriter, r *http.Request
 	http.ServeFile(w, r, "consent-website.html")
 }
 
+func (s *apiServer) dataInfoHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/data-info/")
+	if path == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		s.getDataInfo(w, r, path)
+	} else {
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
+	}
+}
+
 func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/admin")
 	if path == "/expiry-check" && r.Method == http.MethodPost {
@@ -645,7 +1059,6 @@ func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
-
 func main() {
 	// Load configuration using flags
 	cfg := config.LoadConfig("consent-engine")
@@ -668,16 +1081,36 @@ func main() {
 	engine := NewConsentEngine(consentPortalUrl)
 	server := &apiServer{engine: engine}
 
+	// Initialize JWT verifier with Asgardeo JWKS endpoint
+	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	issuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	audience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
+	slog.Info("Initialized JWT verifier", "jwks_url", jwksURL, "issuer", issuer, "audience", audience)
+
+	// Configure user token validation
+	userTokenConfig := UserTokenValidationConfig{
+		ExpectedIssuer:   getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token"),
+		ExpectedAudience: getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE"),
+		ExpectedOrgName:  getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME"),
+		RequiredScopes:   []string{}, // No required scopes for basic consent access
+	}
+
 	// Setup routes using utils
 	mux := http.NewServeMux()
+
+	// Routes that don't require authentication
 	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
-	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	mux.Handle("/consent-portal/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentPortalHandler)))
 	mux.Handle("/consent-website", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentWebsiteHandler)))
 	mux.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))
 	mux.Handle("/consumer/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consumerHandler)))
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
+	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+
+	// Routes that require hybrid authentication (both user and M2M tokens)
+	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(hybridAuthMiddleware(jwtVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
 
 	// Create server using utils
 	serverConfig := &utils.ServerConfig{

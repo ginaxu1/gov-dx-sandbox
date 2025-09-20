@@ -1,5 +1,5 @@
 #!/bin/bash
-# End-to-end flow tests using DRY principles
+# End-to-end flow tests
 # Tests the exact flow: AppUser -> App -> DataCustodian -> PDP -> ConsentEngine
 
 # Source common utilities

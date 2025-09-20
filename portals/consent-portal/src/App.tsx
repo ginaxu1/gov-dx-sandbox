@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Check, X, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { useAuthContext } from "@asgardeo/auth-react";
+import { Shield, CheckCircle, X, AlertCircle } from 'lucide-react';
 
 // Extend Window interface to include config
 declare global {
   interface Window {
     configs: {
       apiUrl: string;
+      VITE_CLIENT_ID: string;
+      VITE_BASE_URL: string;
+      VITE_SCOPE: string;
+      signInRedirectURL: string;
+      signOutRedirectURL: string;
     };
   }
 }
@@ -14,6 +20,7 @@ declare global {
 interface ConsentRecord {
   consent_id: string;
   owner_id: string;
+  owner_email: string;
   data_consumer: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
   type?: string;
@@ -25,310 +32,169 @@ interface ConsentRecord {
   redirect_url: string;
 }
 
-interface OwnerInfo {
-  owner_id: string;
-  email: string;
-  contact_number: string;
-  name?: string;
-}
-
 interface ConsentGatewayProps {}
 
 const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
-  const [currentStep, setCurrentStep] = useState<'loading' | 'consent' | 'otp' | 'success' | 'error' | 'statusInfo'>('loading');
+  // State management
+  const [currentStep, setCurrentStep] = useState<'loading' | 'consent' | 'success' | 'error' | 'statusInfo' | 'unauthorized'>('loading');
   const [consentRecord, setConsentRecord] = useState<ConsentRecord | null>(null);
-  const [ownerInfo, setOwnerInfo] = useState<OwnerInfo | null>(null);
-  const [userDecision, setUserDecision] = useState<'approved' | 'rejected' | null>(null);
-  const [otp, setOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [otpExpiryTime, setOtpExpiryTime] = useState<Date | null>(null);
-  const [deliveryMethod, setDeliveryMethod] = useState<'email' | 'sms'>('email');
-  const [isResendingOtp, setIsResendingOtp] = useState(false);
-  // const [otpSent, setOtpSent] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [consentId, setConsentId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [userName, setName] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { state, signIn, signOut, getBasicUserInfo, getAccessToken } = useAuthContext();
 
   // Base API path from environment variable
-  // const BASE_PATH = import.meta.env.VITE_BASE_PATH || 'http://localhost:3000';
-  // const CONSENT_ENGINE_PATH = import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
-  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : 'http://localhost:8081';
-  // console.log('CONSENT_ENGINE_PATH:', CONSENT_ENGINE_PATH);
-  // For demonstration, using a placeholder. Replace with actual API base path.
+  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
 
-  // Get consent_uuid from URL params
-  const getConsentUuid = (): string | null => {
-    const urlParams = new URLSearchParams(window.location.search);
-    // console.log('URL Params:', urlParams.toString());
-    return urlParams.get('consent_id'); // Placeholder for testing
-
+  // Helper function to get headers with JWT token
+  const getAuthHeaders = async (): Promise<HeadersInit> => {
+    const accessToken = await getAccessToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
+      'Test-Key': 'your-test-key'
+    };
+    
+    if (accessToken) {
+      console.log("Using access token for API call");
+      console.log("Access Token:", accessToken);
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    return headers;
   };
 
-  // Fetch consent data
+  // Step 1: Check for consent_id in URL parameters
+  const getConsentIdFromUrl = (): string | null => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('consent_id');
+  };
+
+  // Step 2: Get authenticated user info
+  const fetchUserInfo = async () => {
+    try {
+      const userBasicInfo = await getBasicUserInfo();
+      console.log('User Basic Info:', userBasicInfo);
+      
+      if (userBasicInfo) {
+        setName(userBasicInfo.name || '');
+        setUserEmail(userBasicInfo.email || '');
+      }
+    } catch (error) {
+      console.error('Failed to fetch user info:', error);
+    }
+  };
+
+  // Step 3: Fetch consent data
   const fetchConsentData = async (consentUuid: string) => {
     try {
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`, {
+        headers
+      });
+
+      // Handle different error responses
       if (!response.ok) {
-        throw new Error('Failed to fetch consent data');
+        let errorMessage = '';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || '';
+        } catch (parseError) {
+          console.warn('Failed to parse error response:', parseError);
+        }
+        
+        if (response.status === 401) {
+          throw new Error(errorMessage || 'Unauthorized: Please sign in to access this consent');
+        } else if (response.status === 403) {
+          throw new Error(errorMessage || 'Forbidden: You do not have permission to access this consent');
+        } else if (response.status === 404) {
+          throw new Error(errorMessage || 'Consent not found');
+        } else {
+          throw new Error(errorMessage || `Failed to fetch consent data: ${response.status} ${response.statusText}`);
+        }
       }
       const data: ConsentRecord = await response.json();
       setConsentRecord({
-          ...data,
-          consent_id: consentUuid,
+        ...data,
+        consent_id: consentUuid,
       });
       
-      // Check consent status and set appropriate step
-      if (data.status === 'pending') {
-        setCurrentStep('consent');
-      } else {
-        setCurrentStep('statusInfo');
-      }
-      await fetchOwnerInfo(consentRecord ? consentRecord.owner_id : 'user_12345');
-
+      return data;
     } catch (err) {
-      setError('Failed to load consent information. Please try again.');
+      console.error('Failed to fetch consent data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load consent information. Please try again.');
       setCurrentStep('error');
-    }
-    // Mocked data for demonstration
-    // const mockedData: ConsentRecord = {
-    //   consent_uuid: consentUuid,
-    //   owner_id: 'user_12345',
-    //   data_consumer: 'Example App',
-    //   status: 'pending', // Change this to test different statuses: 'approved', 'rejected', 'expired', 'revoked'
-    //   type: 'Standard',
-    //   created_at: new Date().toISOString(),
-    //   updated_at: new Date().toISOString(),
-    //   expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days later
-    //   fields: ['profile.name', 'profile.email', 'address.street', 'address.city'],
-    //   session_id: 'session_67890',
-    //   redirect_url: 'http://localhost:4000/redirect' // Placeholder redirect URL
-    // };
-    // setConsentRecord(mockedData);
-    
-    // Fetch owner information after getting consent data
-    // await fetchOwnerInfo(consentRecord ? consentRecord.owner_id : 'user_12345');
-    
-    // setCurrentStep('consent');
-  };
-
-  // Fetch owner information
-  const fetchOwnerInfo = async (ownerId: string) => {
-    try {
-      // const response = await fetch(`${BASE_PATH}/owners/${ownerId}`);
-      // if (!response.ok) {
-      //   throw new Error('Failed to fetch owner information');
-      // }
-      // const data: OwnerInfo = await response.json();
-      // setOwnerInfo(data);
-      
-      // Mocked data for demonstration
-      const mockedOwnerData: OwnerInfo = {
-        owner_id: ownerId,
-        email: 'user@example.com',
-        contact_number: '+1234567890',
-        name: 'John Doe'
-      };
-      setOwnerInfo(mockedOwnerData);
-    } catch (err) {
-      console.error('Failed to fetch owner information:', err);
-      // Continue without owner info - this is optional
+      return null;
     }
   };
 
-  // Send OTP
-  const sendOTP = async (method: 'email' | 'sms') => {
-    if (!ownerInfo || !consentRecord) {
-      setError('Missing owner or consent information');
-      return false;
-    }
-
-    try {
-      // const payload = {
-      //   owner_id: ownerInfo.owner_id,
-      //   consent_uuid: consentRecord.consent_uuid,
-      //   delivery_method: method,
-      //   email: method === 'email' ? ownerInfo.email : undefined,
-      //   contact_number: method === 'sms' ? ownerInfo.contact_number : undefined,
-      //   decision: userDecision
-      // };
-
-      // const response = await fetch(`${BASE_PATH}/otp/send`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(payload)
-      // });
-
-      // if (!response.ok) {
-      //   throw new Error('Failed to send OTP');
-      // }
-
-      // For demonstration, simulate API call
-      console.log('Sending OTP via', method, 'to', method === 'email' ? ownerInfo.email : ownerInfo.contact_number);
-      
-      // Set OTP expiry time (5 minutes from now)
-      const expiryTime = new Date();
-      expiryTime.setMinutes(expiryTime.getMinutes() + 5);
-      setOtpExpiryTime(expiryTime);
-      // setOtpSent(true);
-      
-      return true;
-    } catch (err) {
-      console.error('Failed to send OTP:', err);
-      setError('Failed to send OTP. Please try again.');
-      return false;
-    }
-  };
-
-  // Initialize component
-  useEffect(() => {
-    const consentUuid = getConsentUuid();
-    if (!consentUuid) {
-      setError('Invalid consent link. Missing consent ID.');
-      setCurrentStep('error');
-      return;
-    }
-    
-    fetchConsentData(consentUuid);
-  }, []);
-
-  // Timer for OTP expiry countdown
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (currentStep === 'otp' && otpExpiryTime) {
-      interval = setInterval(() => {
-        setCurrentTime(new Date()); // Update current time to trigger re-render
-        if (isOtpExpired()) {
-          setOtpError('OTP has expired. Please request a new one.');
-        }
-      }, 1000);
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [currentStep, otpExpiryTime]);
-
-  // Handle consent decision
+  // Step 4: Handle consent decision (approve/deny)
   const handleConsentDecision = async (decision: 'approved' | 'rejected') => {
-    setUserDecision(decision);
-    setOtp('');
-    setOtpError('');
-    setError('');
-    
-    // Send OTP automatically using the selected delivery method
-    const otpSent = await sendOTP(deliveryMethod);
-    if (otpSent) {
-      setCurrentStep('otp');
-    } else {
-      setCurrentStep('error');
-    }
-  };
-
-  // Resend OTP
-  const resendOTP = async () => {
-    setIsResendingOtp(true);
-    setOtpError('');
-    
-    const otpSent = await sendOTP(deliveryMethod);
-    if (!otpSent) {
-      setOtpError('Failed to resend OTP. Please try again.');
-    }
-    
-    setIsResendingOtp(false);
-  };
-
-  // Check if OTP is expired
-  const isOtpExpired = (): boolean => {
-    if (!otpExpiryTime) return false;
-    return new Date() > otpExpiryTime;
-  };
-
-  // Get remaining time for OTP expiry
-  const getRemainingTime = (): string => {
-    if (!otpExpiryTime) return '';
-    
-    const now = currentTime; // Use currentTime state instead of new Date()
-    const remaining = otpExpiryTime.getTime() - now.getTime();
-    
-    if (remaining <= 0) return 'Expired';
-    
-    const minutes = Math.floor(remaining / 60000);
-    const seconds = Math.floor((remaining % 60000) / 1000);
-    
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // Validate OTP
-  const validateOtp = (inputOtp: string): boolean => {
-    // Check if OTP is expired first
-    if (isOtpExpired()) {
-      setOtpError('OTP has expired. Please request a new one.');
-      return false;
-    }
-    
-    // Check OTP value (hardcoded as requested)
-    if (inputOtp !== '123456') {
-      setOtpError('Invalid OTP. Please enter the correct code.');
-      return false;
-    }
-    
-    return true;
-  };
-
-  // Submit consent decision
-  const submitConsentDecision = async () => {
-    if (!validateOtp(otp)) {
-      return;
-    }
-
-    if (!consentRecord || !userDecision) {
-      setError('Missing consent data or decision');
+    if (!consentRecord) {
+      setError('Missing consent data');
       return;
     }
 
     setIsSubmitting(true);
-    setOtpError('');
 
     try {
       const payload = {
         ...consentRecord,
-        status: userDecision,
-        updated_by: ownerInfo ? ownerInfo.owner_id : 'self-service',
-        reason: userDecision === 'rejected' ? 'User denied the consent request via self-service portal' : 'User approved the consent request via self-service portal',
-        otp: '000000'
+        status: decision,
+        updated_by: userEmail || 'self-service',
+        reason: decision === 'rejected' ? 'User denied the consent request via self-service portal' : 'User approved the consent request via self-service portal'
       };
 
+      const headers = await getAuthHeaders();
       const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentRecord.consent_id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update consent');
+        let errorMessage = '';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || '';
+        } catch (parseError) {
+          console.warn('Failed to parse error response:', parseError);
+        }
+        
+        if (response.status === 401) {
+          throw new Error(errorMessage || 'Unauthorized: Please sign in to update this consent');
+        } else if (response.status === 403) {
+          throw new Error(errorMessage || 'Forbidden: You do not have permission to update this consent');
+        } else if (response.status === 404) {
+          throw new Error(errorMessage || 'Consent not found');
+        } else {
+          throw new Error(errorMessage || `Failed to update consent: ${response.status} ${response.statusText}`);
+        }
       }
 
       setCurrentStep('success');
       
-      // Closing the tab after a short delay to allow user to see success message
+      // Clear consent_id from storage since the flow is complete
+      clearConsentIdFromStorage();
+      
+      // Redirect after success
       setTimeout(() => {
-              // Notify the opener window
-              if (window.opener) {
-                  window.opener.postMessage("consent_granted", "*");
-              }
-              // Close this popup
-              window.close();
+        if (window.opener) {
+          window.opener.postMessage("consent_granted", "*");
+        }
+        if (consentRecord.redirect_url) {
+          window.location.href = consentRecord.redirect_url;
+        } else {
+          window.close();
+        }
       }, 3000);
 
     } catch (err) {
-      setError('Failed to process your consent decision. Please try again.');
+      console.error('Failed to process consent decision:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process your consent decision. Please try again.');
       setCurrentStep('error');
     } finally {
       setIsSubmitting(false);
@@ -340,13 +206,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     const lastField = field ? field.split('.').at(-1) : '';
     if (!lastField) return field;
 
-    // Split by camelCase or underscores
     const words = lastField
-      .replace(/([a-z])([A-Z])/g, '$1 $2') // Split camelCase
-      .split(/[_\s]+/) // Split by underscores or spaces
-      .filter(word => word.length > 0); // Remove empty strings
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .split(/[_\s]+/)
+      .filter(word => word.length > 0);
 
-    // Convert each word to title case
     return words
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
@@ -357,22 +221,165 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  // Loading state
-  if (currentStep === 'loading') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading consent information...</p>
+  // Save consent_id to localStorage to persist through auth redirects
+  const saveConsentIdToStorage = (id: string) => {
+    localStorage.setItem('consent_id', id);
+  };
+
+  // Get consent_id from localStorage
+  const getConsentIdFromStorage = (): string | null => {
+    return localStorage.getItem('consent_id');
+  };
+
+  // Clear consent_id from localStorage
+  const clearConsentIdFromStorage = () => {
+    localStorage.removeItem('consent_id');
+  };
+
+  // Main initialization effect
+  useEffect(() => {
+    // Step 1: Check for consent_id in URL first, then fallback to localStorage
+    let urlConsentId = getConsentIdFromUrl();
+    
+    if (!urlConsentId) {
+      // Try to get from localStorage (after auth redirect)
+      urlConsentId = getConsentIdFromStorage();
+    }
+    
+    if (!urlConsentId) {
+      setError('URL missing the consent_id parameter');
+      setCurrentStep('error');
+      return;
+    }
+    
+    // Save to localStorage and update URL if needed
+    saveConsentIdToStorage(urlConsentId);
+    
+    // Update URL to include consent_id if it's missing
+    const currentUrl = new URL(window.location.href);
+    if (!currentUrl.searchParams.get('consent_id')) {
+      currentUrl.searchParams.set('consent_id', urlConsentId);
+      window.history.replaceState({}, '', currentUrl.toString());
+    }
+    
+    setConsentId(urlConsentId);
+  }, []);
+
+  // Handle authentication state changes and restore flow after auth redirect
+  useEffect(() => {
+    // When user becomes authenticated, check if we have a stored consent_id
+    if (state.isAuthenticated && !consentId) {
+      const storedConsentId = getConsentIdFromStorage();
+      if (storedConsentId) {
+        setConsentId(storedConsentId);
+        // Update URL to include consent_id
+        const currentUrl = new URL(window.location.href);
+        if (!currentUrl.searchParams.get('consent_id')) {
+          currentUrl.searchParams.set('consent_id', storedConsentId);
+          window.history.replaceState({}, '', currentUrl.toString());
+        }
+      }
+    }
+  }, [state.isAuthenticated, consentId]);
+
+  // Handle authentication and consent data fetching
+  useEffect(() => {
+    if (!consentId) return;
+
+    // Step 2: Check authentication
+    if (!state.isAuthenticated) {
+      console.log('User not authenticated, waiting for login');
+      return;
+    }
+
+    // Step 3: Get user info and fetch consent data
+    const initializeConsentFlow = async () => {
+      await fetchUserInfo();
+      const consent = await fetchConsentData(consentId);
+      
+      if (consent) {
+        // Step 4: Check owner email authorization
+        console.log('Consent Owner Email:', consent.owner_email);
+        console.log('Authenticated User Email:', userEmail);
+        if (consent.owner_email !== userEmail) {
+          setError('Unauthorized access: You are not the data owner for this consent request');
+          setCurrentStep('unauthorized');
+          return;
+        }
+        
+        // Step 5: Set appropriate step based on status
+        if (consent.status === 'pending') {
+          setCurrentStep('consent');
+        } else {
+          setCurrentStep('statusInfo');
+        }
+      }
+    };
+
+    initializeConsentFlow();
+  }, [state.isAuthenticated, consentId, userEmail]);
+
+  // Update user email when authentication state changes
+  useEffect(() => {
+    if (state.isAuthenticated) {
+      fetchUserInfo();
+    }
+  }, [state.isAuthenticated]);
+
+  // Handle sign in with consent_id preservation
+  const handleSignIn = () => {
+    // Ensure consent_id is saved before redirect
+    const currentConsentId = consentId || getConsentIdFromUrl() || getConsentIdFromStorage();
+    if (currentConsentId) {
+      saveConsentIdToStorage(currentConsentId);
+    }
+    signIn();
+  };
+
+  // Handle sign out with consent_id cleanup
+  const handleSignOut = () => {
+    clearConsentIdFromStorage();
+    signOut();
+  };
+
+  // User header component
+  const UserHeader = () => {
+    if (!state.isAuthenticated) {
+      return (
+        <div className="absolute top-4 right-4 flex items-center space-x-4 bg-white rounded-lg shadow-md px-4 py-2">
+          <div className="text-sm text-gray-600">
+            Please sign in to continue.
+          </div>
+          <button
+            onClick={handleSignIn}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+          >
+            Sign In
+          </button>
         </div>
+      );
+    }
+    
+    return (
+      <div className="absolute top-4 right-4 flex items-center space-x-4 bg-white rounded-lg shadow-md px-4 py-2">
+        <div className="text-sm text-gray-600">
+          Welcome, <span className="font-medium text-gray-800">{userName}</span>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors"
+        >
+          Sign Out
+        </button>
       </div>
     );
-  }
+  };
 
-  // Error state
+  // Error state - including URL missing consent_id
   if (currentStep === 'error') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center p-4 relative">
+        <UserHeader />
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-gray-800 mb-2">Error</h1>
@@ -388,138 +395,80 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     );
   }
 
-  // Success state
-  if (currentStep === 'success') {
+  // Unauthorized access state
+  if (currentStep === 'unauthorized') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-100 flex items-center justify-center p-4 relative">
+        <UserHeader />
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
-          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-gray-800 mb-2">Success!</h1>
-          <p className="text-gray-600 mb-4">
-            Your consent has been {userDecision === 'approved' ? 'approved' : 'denied'} successfully.
+          <X className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-gray-800 mb-2">Unauthorized Access</h1>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-sm text-gray-500 mb-4">
+            Your email: <span className="font-mono text-blue-600">{userEmail}</span>
           </p>
-          <p className="text-sm text-gray-500">
-            Redirecting you back to the application...
-          </p>
+          <button 
+            onClick={handleSignOut}
+            className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            Sign Out
+          </button>
         </div>
       </div>
     );
   }
 
-  // OTP verification state
-  if (currentStep === 'otp') {
+  // Login required state
+  if (!state.isAuthenticated && consentId) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
-          <div className="text-center mb-6">
-            <Lock className="h-12 w-12 text-indigo-600 mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-gray-800 mb-2">Verify Your Decision</h1>
-            <p className="text-gray-600">
-              Please enter the OTP sent to your {deliveryMethod === 'email' ? 'email' : 'phone'} to confirm your decision to {' '}
-              <span className={`font-semibold ${userDecision === 'approved' ? 'text-green-600' : 'text-red-600'}`}>
-                {userDecision === 'approved' ? 'approve' : 'deny'}
-              </span>
-              {' '}the consent request.
-            </p>
-            {ownerInfo && (
-              <p className="text-sm text-gray-500 mt-2">
-                OTP sent to: {deliveryMethod === 'email' ? ownerInfo.email : ownerInfo.contact_number}
-              </p>
-            )}
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+          <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Consent Portal</h1>
+          <p className="text-gray-600 mb-4">
+            You need to sign in to process your consent request.
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            Consent ID: <span className="font-mono text-blue-600">{consentId}</span>
+          </p>
+          <button 
+            onClick={handleSignIn} 
+            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+          >
+            Sign In to Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-          {/* Delivery Method Selection */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Delivery Method
-            </label>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setDeliveryMethod('email')}
-                className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
-                  deliveryMethod === 'email'
-                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-                disabled={isSubmitting || isResendingOtp}
-              >
-                Email
-              </button>
-              <button
-                onClick={() => setDeliveryMethod('sms')}
-                className={`flex-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
-                  deliveryMethod === 'sms'
-                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
-                disabled={isSubmitting || isResendingOtp}
-              >
-                SMS
-              </button>
-            </div>
-          </div>
+  // Loading state
+  if (currentStep === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center relative">
+        <UserHeader />
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading consent information...</p>
+        </div>
+      </div>
+    );
+  }
 
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-gray-700">
-                  Enter OTP
-                </label>
-                {otpExpiryTime && (
-                  <span className={`text-xs ${isOtpExpired() ? 'text-red-600' : 'text-gray-500'}`}>
-                    {isOtpExpired() ? 'Expired' : `Expires in ${getRemainingTime()}`}
-                  </span>
-                )}
-              </div>
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => {
-                  setOtp(e.target.value);
-                  setOtpError('');
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="Enter 6-digit OTP"
-                maxLength={6}
-                disabled={isOtpExpired()}
-              />
-              {otpError && (
-                <p className="mt-1 text-sm text-red-600">{otpError}</p>
-              )}
-            </div>
-
-            {/* Resend OTP */}
-            <div className="text-center">
-              <button
-                onClick={resendOTP}
-                disabled={isResendingOtp || isSubmitting}
-                className="text-sm text-indigo-600 hover:text-indigo-700 disabled:text-gray-400 transition-colors"
-              >
-                {isResendingOtp ? 'Resending...' : 'Resend OTP'}
-              </button>
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setCurrentStep('consent')}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                disabled={isSubmitting || isResendingOtp}
-              >
-                Back
-              </button>
-              <button
-                onClick={submitConsentDecision}
-                disabled={!otp || isSubmitting || isResendingOtp || isOtpExpired()}
-                className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors ${
-                  userDecision === 'approved' 
-                    ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-400' 
-                    : 'bg-red-600 hover:bg-red-700 disabled:bg-red-400'
-                }`}
-              >
-                {isSubmitting ? 'Processing...' : 'Confirm'}
-              </button>
-            </div>
-          </div>
+  // Success state
+  if (currentStep === 'success') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4 relative">
+        <UserHeader />
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-gray-800 mb-2">Success!</h1>
+          <p className="text-gray-600 mb-4">
+            Your consent has been processed successfully.
+          </p>
+          <p className="text-sm text-gray-500">
+            Redirecting you back to the application...
+          </p>
         </div>
       </div>
     );
@@ -580,7 +529,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     const statusInfo = getStatusMessage();
 
     return (
-      <div className={`min-h-screen bg-gradient-to-br ${statusInfo.bgColor} flex items-center justify-center p-4`}>
+      <div className={`min-h-screen bg-gradient-to-br ${statusInfo.bgColor} flex items-center justify-center p-4 relative`}>
+        <UserHeader />
         <div className="max-w-2xl w-full bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Header */}
           <div className="bg-indigo-600 text-white p-6">
@@ -613,18 +563,18 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Status:</span>
-                  <span className={`ml-2 font-medium capitalize ${
-                    consentRecord.status === 'approved' ? 'text-green-600' :
-                    consentRecord.status === 'rejected' ? 'text-red-600' :
-                    consentRecord.status === 'expired' ? 'text-orange-600' :
-                    'text-gray-600'
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                    consentRecord.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    consentRecord.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                    consentRecord.status === 'expired' ? 'bg-orange-100 text-orange-800' :
+                    'bg-gray-100 text-gray-800'
                   }`}>
-                    {consentRecord.status}
+                    {consentRecord.status.charAt(0).toUpperCase() + consentRecord.status.slice(1)}
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-600">Last Updated:</span>
-                  <span className="ml-2 text-gray-800">{formatDate(consentRecord.updated_at)}</span>
+                  <span className="font-medium text-gray-600">Created:</span>
+                  <span className="ml-2 text-gray-800">{formatDate(consentRecord.created_at)}</span>
                 </div>
               </div>
             </div>
@@ -634,9 +584,9 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <h3 className="text-lg font-semibold text-gray-800 mb-3">Data Fields</h3>
               <div className="space-y-2">
                 {consentRecord.fields.map((field, index) => (
-                  <div key={index} className="flex items-center p-3 bg-blue-50 rounded-lg">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                    <span className="text-gray-800 font-medium">{formatFieldName(field)}</span>
+                  <div key={index} className="flex items-center p-2 bg-white border border-gray-200 rounded">
+                    <div className="h-2 w-2 bg-indigo-400 rounded-full mr-3"></div>
+                    <span className="text-gray-700">{formatFieldName(field)}</span>
                   </div>
                 ))}
               </div>
@@ -661,10 +611,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     );
   }
 
-  // Main consent approval state
-  if (currentStep === 'consent') {
+  // Main consent approval state (status === "pending")
+  if (currentStep === 'consent' && consentRecord) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 relative">
+        <UserHeader />
         <div className="max-w-2xl mx-auto py-8">
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             {/* Header */}
@@ -673,112 +624,74 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 <Shield className="h-8 w-8 mr-3" />
                 <div>
                   <h1 className="text-2xl font-bold">Consent Request</h1>
-                  <p className="text-indigo-100">Please review and approve data access</p>
+                  <p className="text-indigo-100">Review and approve data sharing</p>
                 </div>
               </div>
             </div>
 
             {/* Content */}
             <div className="p-6">
-            {consentRecord && (
-              <>
-                {/* Application Info */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-3">Application Request</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-600">Application:</span>
-                      <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
+              {/* Application Info */}
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Application Request</h3>
+                <p className="text-gray-600">
+                  <span className="font-medium">{consentRecord.data_consumer}</span> is requesting access to the following data:
+                </p>
+              </div>
+
+              {/* Data Fields */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Data Fields</h3>
+                <div className="space-y-2">
+                  {consentRecord.fields.map((field, index) => (
+                    <div key={index} className="flex items-center p-3 bg-gray-50 border border-gray-200 rounded">
+                      <div className="h-2 w-2 bg-indigo-400 rounded-full mr-3"></div>
+                      <span className="text-gray-700 font-medium">{formatFieldName(field)}</span>
                     </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Owner ID:</span>
-                      <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Request Type:</span>
-                      <span className="ml-2 text-gray-800">{consentRecord.type || 'Standard'}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Expires:</span>
-                      <span className="ml-2 text-gray-800">{formatDate(consentRecord.expires_at)}</span>
-                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Consent Details */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Consent Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-600">Owner ID:</span>
+                    <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Owner Email:</span>
+                    <span className="ml-2 text-gray-800">{consentRecord.owner_email}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Expires:</span>
+                    <span className="ml-2 text-gray-800">{formatDate(consentRecord.expires_at)}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Created:</span>
+                    <span className="ml-2 text-gray-800">{formatDate(consentRecord.created_at)}</span>
                   </div>
                 </div>
+              </div>
 
-                {/* Fields Requested */}
-                <div className="mb-6">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-3">Data Fields Requested</h2>
-                  <div className="space-y-2">
-                    {consentRecord.fields.map((field, index) => (
-                      <div key={index} className="flex items-center p-3 bg-blue-50 rounded-lg">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-                        <span className="text-gray-800 font-medium">{formatFieldName(field)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Warning */}
-                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-start">
-                    <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
-                    <div className="text-sm text-yellow-800">
-                      <p className="font-medium mb-1">Important:</p>
-                      <p>By approving this request, you are granting {consentRecord.data_consumer} access to the specified data fields. This access will remain valid until {formatDate(consentRecord.expires_at)}.</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* OTP Delivery Method Selection */}
-                {ownerInfo && (
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-800 mb-3">OTP Delivery Method</h3>
-                    <div className="space-y-2">
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="deliveryMethod"
-                          value="email"
-                          checked={deliveryMethod === 'email'}
-                          onChange={(e) => setDeliveryMethod(e.target.value as 'email' | 'sms')}
-                          className="mr-2"
-                        />
-                        <span className="text-sm text-gray-700">Email: {ownerInfo.email}</span>
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="deliveryMethod"
-                          value="sms"
-                          checked={deliveryMethod === 'sms'}
-                          onChange={(e) => setDeliveryMethod(e.target.value as 'email' | 'sms')}
-                          className="mr-2"
-                        />
-                        <span className="text-sm text-gray-700">SMS: {ownerInfo.contact_number}</span>
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex space-x-4">
-                  <button
-                    onClick={() => handleConsentDecision('approved')}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center"
-                  >
-                    <Check className="h-5 w-5 mr-2" />
-                    Approve Consent
-                  </button>
-                  <button
-                    onClick={() => handleConsentDecision('rejected')}
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center"
-                  >
-                    <X className="h-5 w-5 mr-2" />
-                    Deny Consent
-                  </button>
-                </div>
-              </>
-            )}
+              {/* Action Buttons */}
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => handleConsentDecision('rejected')}
+                  disabled={isSubmitting}
+                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400 transition-colors font-medium"
+                >
+                  {isSubmitting ? 'Processing...' : 'Deny'}
+                </button>
+                <button
+                  onClick={() => handleConsentDecision('approved')}
+                  disabled={isSubmitting}
+                  className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 transition-colors font-medium"
+                >
+                  {isSubmitting ? 'Processing...' : 'Approve'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

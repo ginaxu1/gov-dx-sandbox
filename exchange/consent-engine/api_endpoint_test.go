@@ -12,7 +12,8 @@ import (
 // TestPOSTConsentsEndpoint tests the POST /consents endpoint
 func TestPOSTConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	t.Run("CreateNewConsent_Success", func(t *testing.T) {
@@ -79,12 +80,101 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
 		}
 	})
+
+	t.Run("CreateConsent_DifferentEmailsSameOwnerID", func(t *testing.T) {
+		// First request with owner_email: "regina@test.lk"
+		req1 := ConsentRequest{
+			AppID: "passport-app",
+			DataFields: []DataField{
+				{
+					OwnerType:  "citizen",
+					OwnerID:    "dfdfd",
+					OwnerEmail: "regina@test.lk",
+					Fields:     []string{"personInfo.permanentAddress"},
+				},
+			},
+			Purpose:   "passport_application",
+			SessionID: "session_123",
+		}
+
+		jsonBody1, _ := json.Marshal(req1)
+		httpReq1 := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody1))
+		httpReq1.Header.Set("Content-Type", "application/json")
+		w1 := httptest.NewRecorder()
+
+		server.consentHandler(w1, httpReq1)
+
+		if w1.Code != http.StatusCreated {
+			t.Errorf("First request: Expected status %d, got %d", http.StatusCreated, w1.Code)
+		}
+
+		var response1 map[string]interface{}
+		if err := json.Unmarshal(w1.Body.Bytes(), &response1); err != nil {
+			t.Fatalf("Failed to unmarshal first response: %v", err)
+		}
+
+		firstConsentID := response1["consent_id"].(string)
+		firstOwnerEmail := response1["owner_email"].(string)
+
+		// Second request with different owner_email: "different@test.lk"
+		req2 := ConsentRequest{
+			AppID: "passport-app",
+			DataFields: []DataField{
+				{
+					OwnerType:  "citizen",
+					OwnerID:    "dfdfd",             // Same owner_id
+					OwnerEmail: "different@test.lk", // Different owner_email
+					Fields:     []string{"personInfo.permanentAddress"},
+				},
+			},
+			Purpose:   "passport_application",
+			SessionID: "session_123",
+		}
+
+		jsonBody2, _ := json.Marshal(req2)
+		httpReq2 := httptest.NewRequest("POST", "/consents", bytes.NewBuffer(jsonBody2))
+		httpReq2.Header.Set("Content-Type", "application/json")
+		w2 := httptest.NewRecorder()
+
+		server.consentHandler(w2, httpReq2)
+
+		if w2.Code != http.StatusCreated {
+			t.Errorf("Second request: Expected status %d, got %d", http.StatusCreated, w2.Code)
+		}
+
+		var response2 map[string]interface{}
+		if err := json.Unmarshal(w2.Body.Bytes(), &response2); err != nil {
+			t.Fatalf("Failed to unmarshal second response: %v", err)
+		}
+
+		secondConsentID := response2["consent_id"].(string)
+		secondOwnerEmail := response2["owner_email"].(string)
+
+		// BUG: Currently both responses return the same consent record
+		t.Logf("First request - ConsentID: %s, OwnerEmail: %s", firstConsentID, firstOwnerEmail)
+		t.Logf("Second request - ConsentID: %s, OwnerEmail: %s", secondConsentID, secondOwnerEmail)
+
+		// This test will fail with the current buggy behavior
+		if firstConsentID == secondConsentID {
+			t.Errorf("BUG: Both requests returned the same consent ID (%s), but they should be different", firstConsentID)
+		}
+
+		if firstOwnerEmail == secondOwnerEmail {
+			t.Errorf("BUG: Both requests returned the same owner email (%s), but they should be different", firstOwnerEmail)
+		}
+
+		// The correct behavior should be:
+		// - Different consent IDs
+		// - Different owner emails
+		// - Both records should be stored separately
+	})
 }
 
 // TestPUTConsentsEndpoint tests the PUT /consents/{id} endpoint
 func TestPUTConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	t.Run("UpdateNonExistentConsent", func(t *testing.T) {
@@ -110,7 +200,8 @@ func TestPUTConsentsEndpoint(t *testing.T) {
 // TestGETConsentsEndpoint tests the GET /consents/{id} endpoint
 func TestGETConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	t.Run("GetNonExistentConsent", func(t *testing.T) {
@@ -128,7 +219,8 @@ func TestGETConsentsEndpoint(t *testing.T) {
 // TestDELETEConsentsEndpoint tests the DELETE /consents/{id} endpoint
 func TestDELETEConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	t.Run("RevokeNonExistentConsent", func(t *testing.T) {
@@ -152,7 +244,8 @@ func TestDELETEConsentsEndpoint(t *testing.T) {
 // TestPOSTAdminExpiryCheckEndpoint tests the POST /admin/expiry-check endpoint
 func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 	// Create a test server
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	t.Run("NoExpiredRecords", func(t *testing.T) {
@@ -206,7 +299,8 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 
 	t.Run("WithExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		engine := NewConsentEngine("http://localhost:5173")
+		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+		engine := NewConsentEngine(consentPortalURL)
 		server := &apiServer{engine: engine}
 
 		// Create a consent
@@ -310,7 +404,8 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 // TestPUTConsentsWithGrantDuration tests the PUT /consents/:consentId endpoint with grant_duration
 func TestPUTConsentsWithGrantDuration(t *testing.T) {
 	// Create a test server
-	engine := NewConsentEngine("http://localhost:5173")
+	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
+	engine := NewConsentEngine(consentPortalURL)
 	server := &apiServer{engine: engine}
 
 	// First create a consent
