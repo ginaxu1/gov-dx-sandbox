@@ -8,8 +8,10 @@ import (
 )
 
 func TestJWTVerifierInitialization(t *testing.T) {
-	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
-	jwtVerifier := NewJWTVerifier(jwksURL)
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	issuer := getEnvOrDefault("TEST_ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	audience := getEnvOrDefault("TEST_ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
 
 	if jwtVerifier == nil {
 		t.Fatal("JWT verifier should not be nil")
@@ -17,6 +19,14 @@ func TestJWTVerifierInitialization(t *testing.T) {
 
 	if jwtVerifier.jwksURL != jwksURL {
 		t.Errorf("Expected JWKS URL %s, got %s", jwksURL, jwtVerifier.jwksURL)
+	}
+
+	if jwtVerifier.issuer != issuer {
+		t.Errorf("Expected issuer %s, got %s", issuer, jwtVerifier.issuer)
+	}
+
+	if jwtVerifier.audience != audience {
+		t.Errorf("Expected audience %s, got %s", audience, jwtVerifier.audience)
 	}
 
 	if jwtVerifier.httpClient == nil {
@@ -29,8 +39,10 @@ func TestJWTVerifierInitialization(t *testing.T) {
 }
 
 func TestFetchJWKS(t *testing.T) {
-	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
-	jwtVerifier := NewJWTVerifier(jwksURL)
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	issuer := getEnvOrDefault("TEST_ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	audience := getEnvOrDefault("TEST_ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
 
 	err := jwtVerifier.fetchJWKS()
 	if err != nil {
@@ -45,8 +57,10 @@ func TestFetchJWKS(t *testing.T) {
 }
 
 func TestVerifyInvalidToken(t *testing.T) {
-	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
-	jwtVerifier := NewJWTVerifier(jwksURL)
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	issuer := getEnvOrDefault("TEST_ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	audience := getEnvOrDefault("TEST_ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
 
 	// First fetch the JWKS
 	err := jwtVerifier.fetchJWKS()
@@ -170,8 +184,10 @@ func TestJWTMiddlewareEmailMatching(t *testing.T) {
 	}
 
 	// Test JWT middleware with matching email
-	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
-	jwtVerifier := NewJWTVerifier(jwksURL)
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	issuer := getEnvOrDefault("TEST_ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	audience := getEnvOrDefault("TEST_ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
 
 	// Create a mock JWT token (this will fail verification, but we can test the flow)
 	req := httptest.NewRequest("GET", "/consents/"+consentRecord.ConsentID, nil)
@@ -194,4 +210,24 @@ func TestJWTMiddlewareEmailMatching(t *testing.T) {
 	}
 
 	t.Logf("✅ JWT middleware email matching test passed")
+}
+
+func TestJWTClaimsValidation(t *testing.T) {
+	jwksURL := getEnvOrDefault("TEST_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	issuer := getEnvOrDefault("TEST_ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	audience := getEnvOrDefault("TEST_ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
+
+	// Test that the verifier has the correct configuration
+	if jwtVerifier.issuer != issuer {
+		t.Errorf("Expected issuer %s, got %s", issuer, jwtVerifier.issuer)
+	}
+
+	if jwtVerifier.audience != audience {
+		t.Errorf("Expected audience %s, got %s", audience, jwtVerifier.audience)
+	}
+
+	t.Logf("✅ JWT claims validation configuration test passed")
+	t.Logf("   Issuer: %s", jwtVerifier.issuer)
+	t.Logf("   Audience: %s", jwtVerifier.audience)
 }

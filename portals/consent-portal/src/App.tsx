@@ -49,6 +49,24 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // Base API path from environment variable
   const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
 
+  // Helper function to get headers with JWT token
+  const getAuthHeaders = async (): Promise<HeadersInit> => {
+    const accessToken = await getAccessToken();
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
+      'Test-Key': 'your-test-key'
+    };
+    
+    if (accessToken) {
+      console.log("Using access token for API call");
+      console.log("Access Token:", accessToken);
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    
+    return headers;
+  };
+
   // Step 1: Check for consent_id in URL parameters
   const getConsentIdFromUrl = (): string | null => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -73,26 +91,30 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   // Step 3: Fetch consent data
   const fetchConsentData = async (consentUuid: string) => {
     try {
-      // const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`);
-      const accessToken = getAccessToken();
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Test-Key':'your-test-key' // Example of adding a custom header
-      };
-      
-      if (accessToken) {
-        console.log("Using access token for consent fetch");
-        console.log("Access Token:", accessToken);
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
-
+      const headers = await getAuthHeaders();
       const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`, {
         headers
       });
 
-      // TODO: handle unauthorized (401) and forbidden (403) responses specifically
+      // Handle different error responses
       if (!response.ok) {
-        throw new Error('Failed to fetch consent data');
+        let errorMessage = '';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || '';
+        } catch (parseError) {
+          console.warn('Failed to parse error response:', parseError);
+        }
+        
+        if (response.status === 401) {
+          throw new Error(errorMessage || 'Unauthorized: Please sign in to access this consent');
+        } else if (response.status === 403) {
+          throw new Error(errorMessage || 'Forbidden: You do not have permission to access this consent');
+        } else if (response.status === 404) {
+          throw new Error(errorMessage || 'Consent not found');
+        } else {
+          throw new Error(errorMessage || `Failed to fetch consent data: ${response.status} ${response.statusText}`);
+        }
       }
       const data: ConsentRecord = await response.json();
       setConsentRecord({
@@ -103,7 +125,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       return data;
     } catch (err) {
       console.error('Failed to fetch consent data:', err);
-      setError('Failed to load consent information. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to load consent information. Please try again.');
       setCurrentStep('error');
       return null;
     }
@@ -126,16 +148,31 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         reason: decision === 'rejected' ? 'User denied the consent request via self-service portal' : 'User approved the consent request via self-service portal'
       };
 
+      const headers = await getAuthHeaders();
       const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentRecord.consent_id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update consent');
+        let errorMessage = '';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || '';
+        } catch (parseError) {
+          console.warn('Failed to parse error response:', parseError);
+        }
+        
+        if (response.status === 401) {
+          throw new Error(errorMessage || 'Unauthorized: Please sign in to update this consent');
+        } else if (response.status === 403) {
+          throw new Error(errorMessage || 'Forbidden: You do not have permission to update this consent');
+        } else if (response.status === 404) {
+          throw new Error(errorMessage || 'Consent not found');
+        } else {
+          throw new Error(errorMessage || `Failed to update consent: ${response.status} ${response.statusText}`);
+        }
       }
 
       setCurrentStep('success');
@@ -157,7 +194,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
     } catch (err) {
       console.error('Failed to process consent decision:', err);
-      setError('Failed to process your consent decision. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to process your consent decision. Please try again.');
       setCurrentStep('error');
     } finally {
       setIsSubmitting(false);

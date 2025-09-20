@@ -33,15 +33,19 @@ type JWK struct {
 // JWTVerifier handles JWT token verification using Asgardeo JWKS
 type JWTVerifier struct {
 	jwksURL    string
+	issuer     string
+	audience   string
 	httpClient *http.Client
 	keys       map[string]*rsa.PublicKey
 	lastFetch  time.Time
 }
 
 // NewJWTVerifier creates a new JWT verifier instance
-func NewJWTVerifier(jwksURL string) *JWTVerifier {
+func NewJWTVerifier(jwksURL, issuer, audience string) *JWTVerifier {
 	return &JWTVerifier{
-		jwksURL: jwksURL,
+		jwksURL:  jwksURL,
+		issuer:   issuer,
+		audience: audience,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -143,7 +147,7 @@ func (j *JWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) {
 		return nil, fmt.Errorf("failed to ensure fresh keys: %w", err)
 	}
 
-	// Parse the token with custom claims validation that skips exp check
+	// Parse the token with custom claims validation
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// Check the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
@@ -173,7 +177,73 @@ func (j *JWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) {
 		return nil, fmt.Errorf("token is not valid")
 	}
 
+	// Validate custom claims
+	if err := j.validateClaims(token); err != nil {
+		return nil, fmt.Errorf("token claims validation failed: %w", err)
+	}
+
 	return token, nil
+}
+
+// validateClaims validates the iss, aud, and exp claims
+func (j *JWTVerifier) validateClaims(token *jwt.Token) error {
+	claims, ok := token.Claims.(*jwt.MapClaims)
+	if !ok {
+		return fmt.Errorf("invalid token claims")
+	}
+
+	// Validate issuer (iss)
+	if iss, ok := (*claims)["iss"].(string); ok {
+		if iss != j.issuer {
+			return fmt.Errorf("invalid issuer: expected %s, got %s", j.issuer, iss)
+		}
+	} else {
+		return fmt.Errorf("missing or invalid issuer claim")
+	}
+
+	// Validate audience (aud)
+	if aud, ok := (*claims)["aud"]; ok {
+		// aud can be a string or array of strings
+		var audiences []string
+		switch v := aud.(type) {
+		case string:
+			audiences = []string{v}
+		case []interface{}:
+			for _, item := range v {
+				if str, ok := item.(string); ok {
+					audiences = append(audiences, str)
+				}
+			}
+		default:
+			return fmt.Errorf("invalid audience claim type")
+		}
+
+		// Check if our expected audience is in the list
+		found := false
+		for _, audience := range audiences {
+			if audience == j.audience {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("invalid audience: expected %s, got %v", j.audience, audiences)
+		}
+	} else {
+		return fmt.Errorf("missing audience claim")
+	}
+
+	// Validate expiry (exp)
+	if exp, ok := (*claims)["exp"].(float64); ok {
+		expTime := time.Unix(int64(exp), 0)
+		if time.Now().After(expTime) {
+			return fmt.Errorf("token has expired: expired at %v", expTime)
+		}
+	} else {
+		return fmt.Errorf("missing or invalid expiry claim")
+	}
+
+	return nil
 }
 
 // ExtractEmailFromToken extracts the email from a verified JWT token

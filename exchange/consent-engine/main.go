@@ -1082,9 +1082,11 @@ func main() {
 	server := &apiServer{engine: engine}
 
 	// Initialize JWT verifier with Asgardeo JWKS endpoint
-	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks")
-	jwtVerifier := NewJWTVerifier(jwksURL)
-	slog.Info("Initialized JWT verifier", "jwks_url", jwksURL)
+	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	issuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	audience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
+	slog.Info("Initialized JWT verifier", "jwks_url", jwksURL, "issuer", issuer, "audience", audience)
 
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
