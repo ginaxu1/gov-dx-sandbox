@@ -49,7 +49,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const { state, signIn, signOut, getBasicUserInfo, getAccessToken } = useAuthContext();
 
   // Base API path from environment variable
-  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
+  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl;
 
   // Helper function to get headers with JWT token
   const getAuthHeaders = async (): Promise<HeadersInit> => {
@@ -299,18 +299,18 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
     // Step 3: Get user info and fetch consent data
     const initializeConsentFlow = async () => {
-      await fetchUserInfo();
+      // await fetchUserInfo();
       const consent = await fetchConsentData(consentId);
       
       if (consent) {
         // Step 4: Check owner email authorization
-        console.log('Consent Owner Email:', consent.owner_email);
-        console.log('Authenticated User Email:', userEmail);
-        if (consent.owner_email !== userEmail) {
-          setError('Unauthorized access: You are not the data owner for this consent request');
-          setCurrentStep('unauthorized');
-          return;
-        }
+        // console.log('Consent Owner Email:', consent.owner_email);
+        // console.log('Authenticated User Email:', userEmail);
+        // if (consent.owner_email !== userEmail) {
+        //   setError('Unauthorized access: You are not the data owner for this consent request');
+        //   setCurrentStep('unauthorized');
+        //   return;
+        // }
         
         // Step 5: Set appropriate step based on status
         if (consent.status === 'pending') {
