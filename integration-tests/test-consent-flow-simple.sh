@@ -1,5 +1,5 @@
 #!/bin/bash
-# Simplified Consent Flow Test Script using DRY principles
+# Simplified Consent Flow Test Script
 
 # Source common utilities
 source "$(dirname "$0")/test-utils.sh"
