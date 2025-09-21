@@ -555,11 +555,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="font-medium text-gray-600">Application:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.app_display_name}</span>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Owner ID:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.owner_name}</span>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Status:</span>

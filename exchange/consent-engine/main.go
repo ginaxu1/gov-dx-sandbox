@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -31,6 +32,256 @@ func getEnvOrDefault(key, defaultValue string) string {
 type contextKey string
 
 const userEmailKey contextKey = "user_email"
+
+// OwnerIDToEmailMapping represents the mapping from owner_id to owner_email
+type OwnerIDToEmailMapping struct {
+	OwnerID    string `json:"owner_id"`
+	OwnerEmail string `json:"owner_email"`
+}
+
+// ownerIDToEmailMap stores the mapping from owner_id to owner_email
+// In a real implementation, this would be loaded from a database or external service
+var ownerIDToEmailMap = map[string]string{
+	// Example mappings - in production, these would come from a database
+	"199512345678": "regina@opensource.lk",
+	"198712345678": "thanikan@opensource.lk",
+	"200012345678": "mohamed@opensource.lk",
+}
+
+// M2M Token structures
+type M2MTokenRequest struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	GrantType    string `json:"grant_type"`
+	Scope        string `json:"scope"`
+}
+
+type M2MTokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+	Scope       string `json:"scope"`
+}
+
+// SCIM User structures
+type SCIMUser struct {
+	ID       string `json:"id"`
+	UserName string `json:"userName"`
+	Emails   []struct {
+		Value   string `json:"value"`
+		Primary bool   `json:"primary"`
+		Type    string `json:"type"`
+	} `json:"emails"`
+	Schemas []string `json:"schemas"`
+	Meta    struct {
+		ResourceType string `json:"resourceType"`
+	} `json:"meta"`
+}
+
+type SCIMResponse struct {
+	TotalResults int        `json:"totalResults"`
+	ItemsPerPage int        `json:"itemsPerPage"`
+	StartIndex   int        `json:"startIndex"`
+	Resources    []SCIMUser `json:"Resources"`
+	Schemas      []string   `json:"schemas"`
+}
+
+// AsgardeoSCIMClient handles SCIM API interactions
+type AsgardeoSCIMClient struct {
+	baseURL      string
+	clientID     string
+	clientSecret string
+	accessToken  string
+	tokenExpiry  time.Time
+	httpClient   *http.Client
+}
+
+// NewAsgardeoSCIMClient creates a new SCIM client
+func NewAsgardeoSCIMClient(baseURL, clientID, clientSecret string) *AsgardeoSCIMClient {
+	return &AsgardeoSCIMClient{
+		baseURL:      baseURL,
+		clientID:     clientID,
+		clientSecret: clientSecret,
+		httpClient:   &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// getM2MToken fetches an M2M access token from Asgardeo
+func (c *AsgardeoSCIMClient) getM2MToken() error {
+	// Check if we have a valid token
+	if c.accessToken != "" && time.Now().Before(c.tokenExpiry) {
+		return nil
+	}
+
+	tokenURL := fmt.Sprintf("%s/oauth2/token", c.baseURL)
+
+	// Prepare the token request
+	tokenReq := M2MTokenRequest{
+		ClientID:     c.clientID,
+		ClientSecret: c.clientSecret,
+		GrantType:    "client_credentials",
+		Scope:        "internal_user_mgt_view",
+	}
+
+	// Convert to form data
+	formData := url.Values{}
+	formData.Set("client_id", tokenReq.ClientID)
+	formData.Set("client_secret", tokenReq.ClientSecret)
+	formData.Set("grant_type", tokenReq.GrantType)
+	formData.Set("scope", tokenReq.Scope)
+
+	// Make the request
+	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to make token request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("token request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp M2MTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	c.accessToken = tokenResp.AccessToken
+	c.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+
+	slog.Info("M2M token obtained successfully", "expires_in", tokenResp.ExpiresIn)
+	return nil
+}
+
+// getUserByNIC fetches user information by NIC using SCIM API
+func (c *AsgardeoSCIMClient) getUserByNIC(nic string) (*SCIMUser, error) {
+	// Ensure we have a valid token
+	if err := c.getM2MToken(); err != nil {
+		return nil, fmt.Errorf("failed to get M2M token: %w", err)
+	}
+
+	// Construct SCIM query URL
+	scimURL := fmt.Sprintf("%s/scim2/Users", c.baseURL)
+
+	// Create query parameters for NIC search
+	params := url.Values{}
+	params.Set("filter", fmt.Sprintf("urn:scim:schemas:extension:custom:User:nic eq \"%s\"", nic))
+	params.Set("attributes", "id,userName,emails")
+
+	queryURL := fmt.Sprintf("%s?%s", scimURL, params.Encode())
+
+	// Make the SCIM request
+	req, err := http.NewRequest("GET", queryURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SCIM request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	req.Header.Set("Accept", "application/scim+json")
+	req.Header.Set("Content-Type", "application/scim+json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make SCIM request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("SCIM request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var scimResp SCIMResponse
+	if err := json.NewDecoder(resp.Body).Decode(&scimResp); err != nil {
+		return nil, fmt.Errorf("failed to decode SCIM response: %w", err)
+	}
+
+	if scimResp.TotalResults == 0 {
+		return nil, fmt.Errorf("no user found with NIC: %s", nic)
+	}
+
+	if len(scimResp.Resources) == 0 {
+		return nil, fmt.Errorf("no user resources found for NIC: %s", nic)
+	}
+
+	user := scimResp.Resources[0]
+
+	// Validate that the user has an email
+	if len(user.Emails) == 0 {
+		return nil, fmt.Errorf("user with NIC %s has no email address", nic)
+	}
+
+	// Find the primary email or use the first one
+	var email string
+	for _, e := range user.Emails {
+		if e.Primary {
+			email = e.Value
+			break
+		}
+	}
+	if email == "" {
+		email = user.Emails[0].Value
+	}
+
+	user.Emails = []struct {
+		Value   string `json:"value"`
+		Primary bool   `json:"primary"`
+		Type    string `json:"type"`
+	}{{
+		Value:   email,
+		Primary: true,
+		Type:    "work",
+	}}
+
+	slog.Info("User found via SCIM", "nic", nic, "email", email, "username", user.UserName)
+	return &user, nil
+}
+
+// Global SCIM client instance
+var scimClient *AsgardeoSCIMClient
+
+// getOwnerEmailByID looks up the owner_email for a given owner_id using SCIM API
+func getOwnerEmailByID(ownerID string) (string, error) {
+	// Initialize SCIM client if not already done
+	if scimClient == nil {
+		baseURL := getEnvOrDefault("ASGARDEO_BASE_URL", "https://api.asgardeo.io/t/YOUR_TENANT")
+		clientID := getEnvOrDefault("ASGARDEO_M2M_CLIENT_ID", "")
+		clientSecret := getEnvOrDefault("ASGARDEO_M2M_CLIENT_SECRET", "")
+
+		if clientID == "" || clientSecret == "" {
+			// Fallback to hardcoded mapping for development/testing
+			slog.Warn("M2M credentials not configured, using hardcoded mapping", "owner_id", ownerID)
+			if email, exists := ownerIDToEmailMap[ownerID]; exists {
+				return email, nil
+			}
+			return "", fmt.Errorf("no email mapping found for owner_id: %s", ownerID)
+		}
+
+		scimClient = NewAsgardeoSCIMClient(baseURL, clientID, clientSecret)
+	}
+
+	// Try SCIM lookup first
+	user, err := scimClient.getUserByNIC(ownerID)
+	if err != nil {
+		slog.Warn("SCIM lookup failed, falling back to hardcoded mapping", "owner_id", ownerID, "error", err)
+		// Fallback to hardcoded mapping
+		if email, exists := ownerIDToEmailMap[ownerID]; exists {
+			return email, nil
+		}
+		return "", fmt.Errorf("no email found for owner_id: %s (SCIM error: %v)", ownerID, err)
+	}
+
+	return user.Emails[0].Value, nil
+}
 
 // Build information - set during build
 var (
@@ -529,7 +780,7 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate each data field
+	// Validate each data field and populate owner_email from owner_id mapping
 	for i, dataField := range req.DataFields {
 		if dataField.OwnerType == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_type is required and cannot be empty", i)})
@@ -537,10 +788,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		}
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
-			return
-		}
-		if dataField.OwnerEmail == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_email is required and cannot be empty", i)})
 			return
 		}
 		if len(dataField.Fields) == 0 {
@@ -554,6 +801,16 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+
+		// Look up owner_email from owner_id mapping
+		ownerEmail, err := getOwnerEmailByID(dataField.OwnerID)
+		if err != nil {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id '%s' not found in mapping: %v", i, dataField.OwnerID, err)})
+			return
+		}
+
+		// Set the owner_email in the data field
+		req.DataFields[i].OwnerEmail = ownerEmail
 	}
 
 	// Process consent request using the engine
