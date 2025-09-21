@@ -414,7 +414,7 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 		DataFields: []DataField{
 			{
 				OwnerType: "citizen",
-				OwnerID:   "33333",
+				OwnerID:   "200012345678",
 				// OwnerEmail will be populated from mapping
 				Fields: []string{"personInfo.permanentAddress"},
 			},
@@ -479,12 +479,12 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 		t.Errorf("Expected grant_duration '1m', got %s", response["grant_duration"])
 	}
 
-	if response["owner_id"] != "33333" {
-		t.Errorf("Expected owner_id '33333', got %s", response["owner_id"])
+	if response["owner_id"] != "200012345678" {
+		t.Errorf("Expected owner_id '200012345678', got %s", response["owner_id"])
 	}
 
-	if response["owner_email"] != "33333@example.com" {
-		t.Errorf("Expected owner_email '33333@example.com', got %s", response["owner_email"])
+	if response["owner_email"] != "mohamed@opensource.lk" {
+		t.Errorf("Expected owner_email 'mohamed@opensource.lk', got %s", response["owner_email"])
 	}
 
 	if response["app_id"] != "passport-app" {

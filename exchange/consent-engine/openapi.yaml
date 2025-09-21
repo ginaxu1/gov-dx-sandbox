@@ -69,6 +69,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateConsentRequest'
+            example:
+              app_id: "passport-app"
+              data_fields:
+                - owner_type: "citizen"
+                  owner_id: "199512345678"
+                  fields: ["personInfo.permanentAddress", "personInfo.photo"]
+              purpose: "passport_application"
+              session_id: "session_123"
       responses:
         '201':
           description: Consent created successfully
@@ -76,12 +84,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
+              example:
+                consent_id: "consent_8d255282"
+                owner_id: "199512345678"
+                owner_email: "regina@opensource.lk"
+                app_id: "passport-app"
+                status: "pending"
+                type: "data_sharing"
+                created_at: "2025-09-21T10:30:00Z"
+                updated_at: "2025-09-21T10:30:00Z"
+                expires_at: "2025-09-22T10:30:00Z"
+                grant_duration: "30d"
+                fields: ["personInfo.permanentAddress", "personInfo.photo"]
+                session_id: "session_123"
+                consent_portal_url: "http://localhost:5173/?consent_id=consent_8d255282"
+                purpose: "passport_application"
+                message: "Consent created successfully"
         '400':
-          description: Bad request - invalid input data
+          description: Bad request - invalid input data or owner_id not found in SCIM lookup
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_data:
+                  summary: Invalid input data
+                  value:
+                    error: "data_fields[0].owner_id is required and cannot be empty"
+                owner_not_found:
+                  summary: Owner ID not found in SCIM
+                  value:
+                    error: "data_fields[0].owner_id 'unknown_nic_123' not found in mapping: no email found for owner_id: unknown_nic_123 (SCIM error: no user found with NIC: unknown_nic_123)"
         '500':
           description: Internal server error
           content:

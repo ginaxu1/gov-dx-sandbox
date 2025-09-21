@@ -168,7 +168,7 @@ func TestSCIMIntegration(t *testing.T) {
 			t.Errorf("Expected no error, got %v", err)
 		}
 
-		expectedEmail := "john.doe@example.com"
+		expectedEmail := "regina@opensource.lk"
 		if email != expectedEmail {
 			t.Errorf("Expected email %s, got %s", expectedEmail, email)
 		}

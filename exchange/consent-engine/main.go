@@ -120,7 +120,7 @@ func (c *AsgardeoSCIMClient) getM2MToken() error {
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
 		GrantType:    "client_credentials",
-		Scope:        "internal_user_mgt_view",
+		Scope:        "internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update",
 	}
 
 	// Convert to form data
@@ -169,6 +169,19 @@ func (c *AsgardeoSCIMClient) getUserByNIC(nic string) (*SCIMUser, error) {
 		return nil, fmt.Errorf("failed to get M2M token: %w", err)
 	}
 
+	// Try SCIM API first
+	user, err := c.getUserByNICSCIM(nic)
+	if err == nil {
+		return user, nil
+	}
+
+	// If SCIM fails, try User Management API as fallback
+	slog.Warn("SCIM API failed, trying User Management API", "error", err)
+	return c.getUserByNICUserMgmt(nic)
+}
+
+// getUserByNICSCIM tries to get user via SCIM API
+func (c *AsgardeoSCIMClient) getUserByNICSCIM(nic string) (*SCIMUser, error) {
 	// Construct SCIM query URL
 	scimURL := fmt.Sprintf("%s/scim2/Users", c.baseURL)
 
@@ -243,6 +256,85 @@ func (c *AsgardeoSCIMClient) getUserByNIC(nic string) (*SCIMUser, error) {
 	}}
 
 	slog.Info("User found via SCIM", "nic", nic, "email", email, "username", user.UserName)
+	return &user, nil
+}
+
+// getUserByNICUserMgmt tries to get user via User Management API
+func (c *AsgardeoSCIMClient) getUserByNICUserMgmt(nic string) (*SCIMUser, error) {
+	// Construct User Management API query URL
+	userMgmtURL := fmt.Sprintf("%s/scim2/Users", c.baseURL)
+
+	// Create query parameters for NIC search
+	params := url.Values{}
+	params.Set("filter", fmt.Sprintf("urn:scim:schemas:extension:custom:User:nic eq \"%s\"", nic))
+	params.Set("attributes", "id,userName,emails")
+
+	queryURL := fmt.Sprintf("%s?%s", userMgmtURL, params.Encode())
+
+	// Make the request
+	req, err := http.NewRequest("GET", queryURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create User Management request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make User Management request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("User Management request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var scimResp SCIMResponse
+	if err := json.NewDecoder(resp.Body).Decode(&scimResp); err != nil {
+		return nil, fmt.Errorf("failed to decode User Management response: %w", err)
+	}
+
+	if scimResp.TotalResults == 0 {
+		return nil, fmt.Errorf("no user found with NIC: %s", nic)
+	}
+
+	if len(scimResp.Resources) == 0 {
+		return nil, fmt.Errorf("no user resources found for NIC: %s", nic)
+	}
+
+	user := scimResp.Resources[0]
+
+	// Validate that the user has an email
+	if len(user.Emails) == 0 {
+		return nil, fmt.Errorf("user with NIC %s has no email address", nic)
+	}
+
+	// Find the primary email or use the first one
+	var email string
+	for _, e := range user.Emails {
+		if e.Primary {
+			email = e.Value
+			break
+		}
+	}
+	if email == "" {
+		email = user.Emails[0].Value
+	}
+
+	user.Emails = []struct {
+		Value   string `json:"value"`
+		Primary bool   `json:"primary"`
+		Type    string `json:"type"`
+	}{{
+		Value:   email,
+		Primary: true,
+		Type:    "work",
+	}}
+
+	slog.Info("User found via User Management API", "nic", nic, "email", email, "username", user.UserName)
 	return &user, nil
 }
 
