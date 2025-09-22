@@ -22,7 +22,6 @@ type Options struct {
 type Cfg struct {
 	*Options
 	Environment string `json:"environment,omitempty"`
-	*federator.Options
 	*graphql.MappingAST
 	Schema *ast.Document
 	*policy.PdpConfig
