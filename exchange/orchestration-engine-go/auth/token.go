@@ -52,9 +52,9 @@ func GetConsumerJwtFromToken(r *http.Request) (*ConsumerAssertion, error) {
 
 	// Map claims into struct
 	ca := &ConsumerAssertion{
-		ApplicationUuid: fmt.Sprintf("%v", claims["http://wso2.org/claims/applicationUUId"]),
-		Subscriber:      fmt.Sprintf("%v", claims["http://wso2.org/claims/subscriber"]),
-		ApplicationId:   fmt.Sprintf("%v", claims["http://wso2.org/claims/applicationid"]),
+		ApplicationUuid: fmt.Sprintf("%v", claims[ClaimAppUUID]),
+		Subscriber:      fmt.Sprintf("%v", claims[ClaimSubscriber]),
+		ApplicationId:   fmt.Sprintf("%v", claims[ClaimAppID]),
 	}
 
 	return ca, nil
