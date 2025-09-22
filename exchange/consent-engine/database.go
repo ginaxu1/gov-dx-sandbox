@@ -86,6 +86,10 @@ func InitDatabase(db *sql.DB) error {
 	-- Create composite index for finding existing pending consents
 	CREATE INDEX IF NOT EXISTS idx_consent_records_pending_lookup ON consent_records(owner_id, owner_email, app_id, status) 
 		WHERE status = 'pending';
+	
+	-- Create unique partial index to enforce only one pending record per (owner_id, app_id) tuple
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_consent_records_unique_pending ON consent_records(owner_id, app_id) 
+		WHERE status = 'pending';
 	`
 
 	_, err := db.Exec(createTableSQL)

@@ -447,13 +447,13 @@ func createTestConsent(t *testing.T, engine ConsentEngine) string {
 		AppID: "test-app",
 		DataFields: []DataField{
 			{
-				OwnerType:  "citizen",
+				
 				OwnerID:    "test-owner-123",
 				OwnerEmail: "test@example.com",
 				Fields:     []string{"person.name", "person.email"},
 			},
 		},
-		Purpose:   "testing",
+		
 		SessionID: "test-session-123",
 	}
 

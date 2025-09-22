@@ -13,13 +13,13 @@ func TestConsentWorkflowRequest(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []models.DataField{
 			{
-				OwnerType:  "citizen",
+				
 				OwnerID:    "199512345678",
 				OwnerEmail: "199512345678@example.com",
 				Fields:     []string{"person.permanentAddress"},
 			},
 		},
-		Purpose:   "passport_application",
+		
 		SessionID: "session_123",
 	}
 
@@ -65,7 +65,7 @@ func TestConsentWorkflowRequest(t *testing.T) {
 func TestDataField(t *testing.T) {
 	// Test DataField model structure
 	field := models.DataField{
-		OwnerType:  "citizen",
+		
 		OwnerID:    "199512345678",
 		OwnerEmail: "199512345678@example.com",
 		Fields:     []string{"person.permanentAddress", "person.fullName"},
@@ -102,13 +102,13 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []models.DataField{
 			{
-				OwnerType:  "citizen",
+				
 				OwnerID:    "199512345678",
 				OwnerEmail: "199512345678@example.com",
 				Fields:     []string{"person.permanentAddress"},
 			},
 		},
-		Purpose:   "passport_application",
+		
 		SessionID: "session_123",
 	}
 
@@ -156,12 +156,12 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				AppID: "passport-app",
 				DataFields: []models.DataField{
 					{
-						OwnerType: "citizen",
+						
 						OwnerID:   "199512345678",
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:   "passport_application",
+				
 				SessionID: "session_123",
 			},
 			wantErr: false,
@@ -172,12 +172,12 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				AppID: "",
 				DataFields: []models.DataField{
 					{
-						OwnerType: "citizen",
+						
 						OwnerID:   "199512345678",
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:   "passport_application",
+				
 				SessionID: "session_123",
 			},
 			wantErr: true,
@@ -187,7 +187,7 @@ func TestConsentWorkflowValidation(t *testing.T) {
 			req: models.ConsentWorkflowRequest{
 				AppID:      "passport-app",
 				DataFields: []models.DataField{},
-				Purpose:    "passport_application",
+				
 				SessionID:  "session_123",
 			},
 			wantErr: true,
@@ -198,12 +198,12 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				AppID: "passport-app",
 				DataFields: []models.DataField{
 					{
-						OwnerType: "citizen",
+						
 						OwnerID:   "199512345678",
 						Fields:    []string{"person.permanentAddress"},
 					},
 				},
-				Purpose:   "",
+				
 				SessionID: "session_123",
 			},
 			wantErr: true,
@@ -240,17 +240,17 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []models.DataField{
 			{
-				OwnerType: "citizen",
+				
 				OwnerID:   "199512345678",
 				Fields:    []string{"person.permanentAddress"},
 			},
 			{
-				OwnerType: "citizen",
+				
 				OwnerID:   "199512345679",
 				Fields:    []string{"person.fullName"},
 			},
 		},
-		Purpose:   "passport_application",
+		
 		SessionID: "session_123",
 	}
 
@@ -263,12 +263,12 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []models.DataField{
 			{
-				OwnerType: "citizen",
+				
 				OwnerID:   "199512345678",
 				Fields:    []string{"person.permanentAddress", "person.fullName", "person.email"},
 			},
 		},
-		Purpose:   "passport_application",
+		
 		SessionID: "session_123",
 	}
 

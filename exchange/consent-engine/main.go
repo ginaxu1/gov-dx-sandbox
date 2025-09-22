@@ -707,10 +707,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "app_id is required and cannot be empty"})
 		return
 	}
-	if req.Purpose == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "purpose is required and cannot be empty"})
-		return
-	}
 	if req.SessionID == "" {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
 		return
@@ -722,10 +718,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 
 	// Validate each data field and populate owner_email from owner_id mapping
 	for i, dataField := range req.DataFields {
-		if dataField.OwnerType == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_type is required and cannot be empty", i)})
-			return
-		}
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
 			return
@@ -1097,10 +1089,6 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 
 	// Validate each data field
 	for i, dataField := range req.DataFields {
-		if dataField.OwnerType == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_type is required and cannot be empty", i)})
-			return
-		}
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
 			return
@@ -1126,7 +1114,6 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 	consentReq := ConsentRequest{
 		AppID:      req.AppID,
 		DataFields: req.DataFields,
-		Purpose:    req.Purpose,
 		SessionID:  req.SessionID,
 	}
 

@@ -21,13 +21,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType:  "citizen",
 					OwnerID:    "199512345678",
 					OwnerEmail: "199512345678@example.com",
 					Fields:     []string{"person.permanentAddress", "person.birthDate"},
 				},
 			},
-			Purpose:   "passport_application",
 			SessionID: "session_123",
 		}
 
@@ -65,7 +63,6 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		reqBody := ConsentRequest{
 			AppID:      "passport-app",
 			DataFields: []DataField{},
-			Purpose:    "passport_application",
 			SessionID:  "session_123",
 		}
 
@@ -87,13 +84,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "199512345678",
-					// OwnerEmail will be populated from mapping
-					Fields: []string{"personInfo.permanentAddress"},
+					OwnerID:    "199512345678",
+					OwnerEmail: "199512345678@example.com",
+					Fields:     []string{"personInfo.permanentAddress"},
 				},
 			},
-			Purpose:   "passport_application",
 			SessionID: "session_123",
 		}
 
@@ -121,13 +116,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "198712345678", // Different owner_id
-					// OwnerEmail will be populated from mapping
-					Fields: []string{"personInfo.permanentAddress"},
+					OwnerID:    "198712345678", // Different owner_id
+					OwnerEmail: "198712345678@example.com",
+					Fields:     []string{"personInfo.permanentAddress"},
 				},
 			},
-			Purpose:   "passport_application",
 			SessionID: "session_123",
 		}
 
@@ -308,13 +301,11 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType:  "citizen",
 					OwnerID:    "user123",
 					OwnerEmail: "user123@example.com",
 					Fields:     []string{"person.permanentAddress"},
 				},
 			},
-			Purpose:   "passport_application",
 			SessionID: "session_123",
 		}
 
@@ -334,10 +325,16 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 			t.Fatalf("UpdateConsent failed: %v", err)
 		}
 
-		// Manually set the expiry time to the past
+		// Manually set the expiry time to the past by updating the record
 		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
-		engineImpl := engine.(*consentEngineImpl)
-		engineImpl.consentRecords[record.ConsentID] = record
+		// Update the record in the database to have an expired time
+		updateReq := UpdateConsentRequest{
+			Status: StatusApproved, // Keep it approved but expired
+		}
+		_, err = engine.UpdateConsent(record.ConsentID, updateReq)
+		if err != nil {
+			t.Fatalf("Failed to update consent: %v", err)
+		}
 
 		// Call the expiry check endpoint
 		httpReq := httptest.NewRequest("POST", "/admin/expiry-check", nil)
@@ -413,13 +410,13 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "200012345678",
+
+				OwnerID: "200012345678",
 				// OwnerEmail will be populated from mapping
 				Fields: []string{"personInfo.permanentAddress"},
 			},
 		},
-		Purpose:   "passport_application",
+
 		SessionID: "session_123",
 	}
 

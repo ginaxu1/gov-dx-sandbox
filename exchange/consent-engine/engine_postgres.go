@@ -4,10 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
@@ -45,15 +43,49 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	// Use the first data field for owner information
 	firstDataField := req.DataFields[0]
 
-	// Check for existing pending consent for the same owner and app
-	existingConsent, err := pce.findExistingPendingConsentByEmail(firstDataField.OwnerEmail, req.AppID)
+	// First, check for existing pending consent - only one pending record allowed per (appId, ownerId)
+	existingPendingConsent, err := pce.findExistingPendingConsentByOwnerID(firstDataField.OwnerID, req.AppID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for existing pending consent: %w", err)
+	}
+
+	// If pending consent exists, update it and return (enforce only 1 pending per tuple)
+	if existingPendingConsent != nil {
+		slog.Info("Found existing pending consent record, updating with new request",
+			"consent_id", existingPendingConsent.ConsentID,
+			"owner_id", existingPendingConsent.OwnerID,
+			"app_id", existingPendingConsent.AppID)
+
+		// Update the existing pending consent record with new fields and session info
+		updatedConsent, err := pce.updateExistingConsent(existingPendingConsent, req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update existing pending consent: %w", err)
+		}
+
+		return updatedConsent, nil
+	}
+
+	// Check for existing non-pending consent (approved, rejected) for the same owner and app
+	existingConsent, err := pce.findExistingConsentByOwnerID(firstDataField.OwnerID, req.AppID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing consent: %w", err)
 	}
 
+	// If existing non-pending consent found, update it and return
 	if existingConsent != nil {
-		return nil, fmt.Errorf("a pending consent already exists for owner_email '%s' and app_id '%s' (consent_id: %s)",
-			firstDataField.OwnerEmail, req.AppID, existingConsent.ConsentID)
+		slog.Info("Found existing non-pending consent record, updating with new request",
+			"consent_id", existingConsent.ConsentID,
+			"owner_id", existingConsent.OwnerID,
+			"app_id", existingConsent.AppID,
+			"current_status", existingConsent.Status)
+
+		// Update the existing consent record with new fields and session info
+		updatedConsent, err := pce.updateExistingConsent(existingConsent, req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update existing consent: %w", err)
+		}
+
+		return updatedConsent, nil
 	}
 
 	// Create new consent record
@@ -144,7 +176,7 @@ func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*ConsentRe
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-		&record.ExpiresAt, &record.GrantDuration, &record.Fields,
+		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
 
 	if err != nil {
@@ -260,7 +292,7 @@ func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error)
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-			&record.ExpiresAt, &record.GrantDuration, &record.Fields,
+			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
 
 		if err != nil {
@@ -319,26 +351,62 @@ func (pce *postgresConsentEngine) StopBackgroundExpiryProcess() {
 	slog.Info("Background expiry process stopped")
 }
 
-// findExistingPendingConsentByEmail finds existing pending consent for the given email and app
-func (pce *postgresConsentEngine) findExistingPendingConsentByEmail(ownerEmail, appID string) (*ConsentRecord, error) {
+// findExistingConsentByOwnerID finds existing consent for the given owner_id and app
+// Returns the most recent non-expired consent record (pending, approved, or rejected)
+func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID string) (*ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
 		       session_id, consent_portal_url, updated_by
 		FROM consent_records 
-		WHERE owner_email = $1 AND app_id = $2 AND status = 'pending'
+		WHERE owner_id = $1 AND app_id = $2 
+		AND status IN ('pending', 'approved', 'rejected')
+		AND expires_at > NOW()
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
 
-	row := pce.db.QueryRow(querySQL, ownerEmail, appID)
+	row := pce.db.QueryRow(querySQL, ownerID, appID)
 
 	var record ConsentRecord
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-		&record.ExpiresAt, &record.GrantDuration, &record.Fields,
+		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
+		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No existing consent found
+		}
+		return nil, fmt.Errorf("failed to query existing consent: %w", err)
+	}
+
+	return &record, nil
+}
+
+// findExistingPendingConsentByOwnerID finds existing pending consent for the given owner_id and app
+// This enforces the constraint that only one pending record can exist per (appId, ownerId) tuple
+func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, appID string) (*ConsentRecord, error) {
+	querySQL := `
+		SELECT consent_id, owner_id, owner_email, app_id, status, type,
+		       created_at, updated_at, expires_at, grant_duration, fields,
+		       session_id, consent_portal_url, updated_by
+		FROM consent_records 
+		WHERE owner_id = $1 AND app_id = $2 AND status = 'pending'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	row := pce.db.QueryRow(querySQL, ownerID, appID)
+
+	var record ConsentRecord
+
+	err := row.Scan(
+		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
+		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
+		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
 
 	if err != nil {
@@ -349,6 +417,57 @@ func (pce *postgresConsentEngine) findExistingPendingConsentByEmail(ownerEmail, 
 	}
 
 	return &record, nil
+}
+
+// updateExistingConsent updates an existing consent record with new fields, grant_duration, expires_at, and session_id
+func (pce *postgresConsentEngine) updateExistingConsent(existingConsent *ConsentRecord, req ConsentRequest) (*ConsentRecord, error) {
+	// Combine all fields from all data fields
+	var allFields []string
+	for _, dataField := range req.DataFields {
+		allFields = append(allFields, dataField.Fields...)
+	}
+
+	// Use default grant duration if not provided
+	grantDuration := getDefaultGrantDuration(req.GrantDuration)
+
+	// Calculate new expires_at
+	now := time.Now()
+	expiresAt, err := calculateExpiresAt(grantDuration, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate expiry time: %w", err)
+	}
+
+	// Update the existing consent record
+	updateSQL := `
+		UPDATE consent_records 
+		SET fields = $1, updated_at = $2, grant_duration = $3, expires_at = $4, session_id = $5, updated_by = $6
+		WHERE consent_id = $7
+	`
+
+	_, err = pce.db.Exec(updateSQL,
+		pq.Array(allFields), now, grantDuration, expiresAt, req.SessionID, existingConsent.OwnerID, existingConsent.ConsentID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update existing consent record: %w", err)
+	}
+
+	// Update the record object with new values
+	updatedRecord := *existingConsent
+	updatedRecord.Fields = allFields
+	updatedRecord.UpdatedAt = now
+	updatedRecord.GrantDuration = grantDuration
+	updatedRecord.ExpiresAt = expiresAt
+	updatedRecord.SessionID = req.SessionID
+	updatedRecord.UpdatedBy = existingConsent.OwnerID
+
+	slog.Info("Existing consent record updated",
+		"consent_id", updatedRecord.ConsentID,
+		"owner_id", updatedRecord.OwnerID,
+		"app_id", updatedRecord.AppID,
+		"status", updatedRecord.Status,
+		"updated_fields", allFields)
+
+	return &updatedRecord, nil
 }
 
 // FindExistingConsent finds an existing consent record by consumer app ID and owner ID
@@ -370,7 +489,7 @@ func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID str
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-		&record.ExpiresAt, &record.GrantDuration, &record.Fields,
+		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
 
 	if err != nil {
@@ -433,7 +552,7 @@ func (pce *postgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*C
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-			&record.ExpiresAt, &record.GrantDuration, &record.Fields,
+			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
 
 		if err != nil {
@@ -474,7 +593,7 @@ func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*Con
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-			&record.ExpiresAt, &record.GrantDuration, &record.Fields,
+			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
 
 		if err != nil {
@@ -489,9 +608,4 @@ func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*Con
 	}
 
 	return records, nil
-}
-
-// generateConsentID generates a unique consent ID
-func generateConsentID() string {
-	return "consent_" + strings.ReplaceAll(uuid.New().String(), "-", "")
 }
