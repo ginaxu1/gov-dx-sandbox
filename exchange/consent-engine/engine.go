@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -269,6 +270,7 @@ func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, 
 	for _, dataField := range req.DataFields {
 		allFields = append(allFields, dataField.Fields...)
 	}
+	slog.Info("Creating consent record", "consent_id", consentID, "owner_id", req.DataFields[0].OwnerID, "owner_email", req.DataFields[0].OwnerEmail, "app_id", req.AppID, "status", string(StatusPending), "type", string(ConsentTypeRealTime), "created_at", now, "updated_at", now, "expires_at", expiresAt, "grant_duration", grantDuration, "fields", allFields, "session_id", req.SessionID, "consent_portal_url", fmt.Sprintf("%s/?consent_id=%s", ce.consentPortalUrl, consentID))
 
 	record := &ConsentRecord{
 		ConsentID:        consentID,
@@ -287,7 +289,7 @@ func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, 
 	}
 
 	ce.consentRecords[record.ConsentID] = record
-
+	slog.Info("Consent record created", "consent_id", record.ConsentID)
 	// Return the created record
 	return record, nil
 }
@@ -331,6 +333,7 @@ func (ce *consentEngineImpl) GetConsentStatus(id string) (*ConsentRecord, error)
 	if !ok {
 		return nil, fmt.Errorf("consent record with ID '%s' not found", id)
 	}
+	slog.Info("Consent record found", "consent_id", record.ConsentID, "owner_id", record.OwnerID, "owner_email", record.OwnerEmail, "app_id", record.AppID, "status", record.Status, "type", record.Type, "created_at", record.CreatedAt, "updated_at", record.UpdatedAt, "expires_at", record.ExpiresAt, "grant_duration", record.GrantDuration, "fields", record.Fields, "session_id", record.SessionID, "consent_portal_url", record.ConsentPortalURL)
 	return record, nil
 }
 
@@ -366,6 +369,7 @@ func (ce *consentEngineImpl) UpdateConsent(id string, req UpdateConsentRequest) 
 	}
 
 	ce.consentRecords[id] = record
+	slog.Info("Consent record updated", "consent_id", record.ConsentID, "owner_id", record.OwnerID, "owner_email", record.OwnerEmail, "app_id", record.AppID, "status", record.Status, "type", record.Type, "created_at", record.CreatedAt, "updated_at", record.UpdatedAt, "expires_at", record.ExpiresAt, "grant_duration", record.GrantDuration, "fields", record.Fields, "session_id", record.SessionID, "consent_portal_url", record.ConsentPortalURL)
 	return record, nil
 }
 
