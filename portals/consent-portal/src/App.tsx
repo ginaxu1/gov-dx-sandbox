@@ -437,9 +437,9 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
           <p className="text-gray-600 mb-4">
             You need to sign in to process your consent request.
           </p>
-          <p className="text-sm text-gray-500 mb-6">
+          {/* <p className="text-sm text-gray-500 mb-6">
             Consent ID: <span className="font-mono text-blue-600">{consentId}</span>
-          </p>
+          </p> */}
           <button 
             onClick={handleSignIn} 
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
