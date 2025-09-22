@@ -31,6 +31,11 @@
           "consumer_id": "driver-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -44,6 +49,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -57,6 +67,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -70,6 +85,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -119,6 +139,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -132,6 +157,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -145,6 +175,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -156,6 +191,11 @@
       "allow_list": [
         {
           "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
           "expires_at": 1757560679,
           "grant_duration": "30d"
         }
@@ -171,6 +211,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
         }
       ]
     },
@@ -184,6 +229,11 @@
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
         }
       ]
     },
@@ -195,6 +245,11 @@
       "allow_list": [
         {
           "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
           "expires_at": 1757560679,
           "grant_duration": "30d"
         }
