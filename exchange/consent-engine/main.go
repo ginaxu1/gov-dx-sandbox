@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -661,114 +660,6 @@ func determineTokenType(claims jwt.MapClaims) TokenType {
 	return TokenTypeUser
 }
 
-// validateUserToken validates a user token against the expected configuration
-func validateUserToken(tokenInfo *TokenInfo, config UserTokenValidationConfig) error {
-	// Check issuer
-	if tokenInfo.Issuer != config.ExpectedIssuer {
-		return fmt.Errorf("invalid issuer: expected %s, got %s", config.ExpectedIssuer, tokenInfo.Issuer)
-	}
-
-	// Check audience
-	audienceMatch := false
-	for _, aud := range tokenInfo.Audience {
-		if aud == config.ExpectedAudience {
-			audienceMatch = true
-			break
-		}
-	}
-	if !audienceMatch {
-		return fmt.Errorf("invalid audience: expected %s, got %v", config.ExpectedAudience, tokenInfo.Audience)
-	}
-
-	// Check auth type
-	if tokenInfo.AuthType != "APPLICATION_USER" {
-		return fmt.Errorf("invalid auth type: expected APPLICATION_USER, got %s", tokenInfo.AuthType)
-	}
-
-	// Check required scopes
-	if len(config.RequiredScopes) > 0 {
-		scopeMap := make(map[string]bool)
-		for _, scope := range tokenInfo.Scopes {
-			scopeMap[scope] = true
-		}
-
-		for _, required := range config.RequiredScopes {
-			if !scopeMap[required] {
-				return fmt.Errorf("missing required scope: %s", required)
-			}
-		}
-	}
-
-	return nil
-}
-
-// JWT authentication middleware
-func jwtAuthMiddleware(jwtVerifier *JWTVerifier, engine ConsentEngine) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Extract the Authorization header
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Authorization header is required"})
-				return
-			}
-
-			// Check if it's a Bearer token
-			const bearerPrefix = "Bearer "
-			if !strings.HasPrefix(authHeader, bearerPrefix) {
-				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Invalid authorization format. Expected 'Bearer <token>'"})
-				return
-			}
-
-			// Extract the token
-			tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
-			if tokenString == "" {
-				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Token is required"})
-				return
-			}
-
-			// Verify the token and extract email
-			email, err := jwtVerifier.VerifyAndExtractEmail(tokenString)
-			if err != nil {
-				slog.Warn("JWT verification failed", "error", err)
-				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Invalid or expired token"})
-				return
-			}
-
-			// Extract consent ID from the URL path
-			consentID := strings.TrimPrefix(r.URL.Path, "/consents/")
-			if consentID == "" {
-				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
-				return
-			}
-
-			// Get the consent record to check owner email
-			consentRecord, err := engine.GetConsentStatus(consentID)
-			if err != nil {
-				utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
-				return
-			}
-
-			// Check if the JWT email matches the consent owner email
-			if consentRecord.OwnerEmail != email {
-				slog.Warn("JWT email does not match consent owner email",
-					"jwt_email", email,
-					"consent_owner_email", consentRecord.OwnerEmail,
-					"consent_id", consentID)
-				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Access denied: email does not match consent owner"})
-				return
-			}
-
-			// Add the email to the request context for use in handlers
-			ctx := context.WithValue(r.Context(), userEmailKey, email)
-			r = r.WithContext(ctx)
-
-			slog.Info("JWT authentication successful", "email", email, "consent_id", consentID)
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
 // apiServer holds dependencies for the HTTP handlers
 type apiServer struct {
 	engine ConsentEngine
@@ -791,43 +682,9 @@ type ConsentPortalUpdateRequest struct {
 
 // Consent handlers - organized for better readability
 func (s *apiServer) handleConsentPost(w http.ResponseWriter, r *http.Request) {
-	// First, try to parse as a consent update (has consent_id field)
-	var updateReq struct {
-		ConsentID string `json:"consent_id"`
-		Status    string `json:"status"`
-	}
-
-	// Read the request body
-	body, err := utils.ReadRequestBody(r)
-	if err != nil {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Failed to read request body"})
-		return
-	}
-
-	// Try to parse as update request
-	if err := json.Unmarshal(body, &updateReq); err == nil && updateReq.ConsentID != "" {
-		// This is a consent update request
-		s.updateConsentStatus(w, r, updateReq)
-		return
-	}
-
-	// Otherwise, treat as new consent request - reset the body for createConsent to read
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
+	// POST /consents should only create new consent records
+	// The engine will handle reuse logic internally
 	s.createConsent(w, r)
-}
-
-func (s *apiServer) processConsentRequest(w http.ResponseWriter, r *http.Request, req ConsentRequest) {
-	response, err := s.engine.ProcessConsentRequest(req)
-	if err != nil {
-		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to process consent request: " + err.Error()})
-		return
-	}
-
-	// Log the operation
-	slog.Info("Operation successful", "operation", OpCreateConsent, "consentId", response.ConsentID, "status", response.Status)
-
-	// Return the ConsentRecord directly as it already has the correct format
-	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
 func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
@@ -910,16 +767,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
-func (s *apiServer) getConsentStatus(w http.ResponseWriter, r *http.Request) {
-	utils.PathHandler(w, r, "/consents/", func(id string) (interface{}, int, error) {
-		record, err := s.engine.GetConsentStatus(id)
-		if err != nil {
-			return nil, http.StatusNotFound, fmt.Errorf(ErrConsentNotFound+": %w", err)
-		}
-		return record, http.StatusOK, nil
-	})
-}
-
 func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 	var req UpdateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
@@ -958,6 +805,92 @@ func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 		}
 		return record, http.StatusOK, nil
 	})
+}
+
+// revokeConsentByID handles DELETE /consents/{id} - revoke consent by ID
+func (s *apiServer) revokeConsentByID(w http.ResponseWriter, r *http.Request, consentID string) {
+	var req struct{ Reason string }
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
+		return
+	}
+
+	record, err := s.engine.RevokeConsent(consentID, req.Reason)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		} else {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to revoke consent: " + err.Error()})
+		}
+		return
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, record)
+}
+
+// patchConsentByID handles PATCH /consents/{id} - partial update of consent resource
+func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, consentID string) {
+	var req struct {
+		Status        string   `json:"status,omitempty"`
+		UpdatedBy     string   `json:"updated_by,omitempty"`
+		Reason        string   `json:"reason,omitempty"`
+		GrantDuration string   `json:"grant_duration,omitempty"`
+		Fields        []string `json:"fields,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
+		return
+	}
+
+	// Get the existing record first
+	existingRecord, err := s.engine.GetConsentStatus(consentID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		} else {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to get consent record: " + err.Error()})
+		}
+		return
+	}
+
+	// Apply partial updates
+	updateReq := UpdateConsentRequest{
+		Status:    ConsentStatus(existingRecord.Status), // Keep existing status by default
+		UpdatedBy: existingRecord.OwnerID,               // Keep existing updated_by by default
+		Reason:    "",                                   // Will be set if provided
+	}
+
+	// Update only provided fields
+	if req.Status != "" {
+		updateReq.Status = ConsentStatus(req.Status)
+	}
+	if req.UpdatedBy != "" {
+		updateReq.UpdatedBy = req.UpdatedBy
+	}
+	if req.Reason != "" {
+		updateReq.Reason = req.Reason
+	}
+	if req.GrantDuration != "" {
+		updateReq.GrantDuration = req.GrantDuration
+	}
+	if len(req.Fields) > 0 {
+		updateReq.Fields = req.Fields
+	}
+
+	// Update the record
+	updatedRecord, err := s.engine.UpdateConsent(consentID, updateReq)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		} else {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent record: " + err.Error()})
+		}
+		return
+	}
+	slog.Info("Consent record updated", "consent_id", updatedRecord.ConsentID, "owner_id", updatedRecord.OwnerID, "owner_email", updatedRecord.OwnerEmail, "app_id", updatedRecord.AppID, "status", updatedRecord.Status, "type", updatedRecord.Type, "created_at", updatedRecord.CreatedAt, "updated_at", updatedRecord.UpdatedAt, "expires_at", updatedRecord.ExpiresAt, "grant_duration", updatedRecord.GrantDuration, "fields", updatedRecord.Fields, "session_id", updatedRecord.SessionID, "consent_portal_url", updatedRecord.ConsentPortalURL)
+	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
 }
 
 // Simple endpoint for consent website to approve/reject consent
@@ -1094,20 +1027,24 @@ func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/consents")
 	switch {
 	case path == "" && r.Method == http.MethodPost:
-		// Check if this is a consent update (has consent_id) or new consent request
+		// POST /consents - create new consent record
 		s.handleConsentPost(w, r)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodGet:
-		// Handle GET /consents/{id} - get consent by ID
+		// GET /consents/{id} - get consent by ID
 		consentID := strings.TrimPrefix(path, "/")
 		s.getConsentByID(w, r, consentID)
-	case strings.HasPrefix(path, "/") && r.Method == http.MethodPost:
-		// Handle POST /consents/{id} - update consent by ID
+	case strings.HasPrefix(path, "/") && r.Method == http.MethodPut:
+		// PUT /consents/{id} - replace entire consent resource (idempotent)
 		consentID := strings.TrimPrefix(path, "/")
 		s.updateConsentByID(w, r, consentID)
-	case strings.HasPrefix(path, "/") && r.Method == http.MethodPut:
-		s.updateConsent(w, r)
+	case strings.HasPrefix(path, "/") && r.Method == http.MethodPatch:
+		// PATCH /consents/{id} - partial update of consent resource
+		consentID := strings.TrimPrefix(path, "/")
+		s.patchConsentByID(w, r, consentID)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodDelete:
-		s.revokeConsent(w, r)
+		// DELETE /consents/{id} - revoke consent
+		consentID := strings.TrimPrefix(path, "/")
+		s.revokeConsentByID(w, r, consentID)
 	default:
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
@@ -1311,9 +1248,10 @@ func (s *apiServer) getDataInfo(w http.ResponseWriter, r *http.Request, consentI
 
 func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, consentID string) {
 	var req struct {
-		Status  string `json:"status"`
-		OwnerID string `json:"owner_id"`
-		Message string `json:"message"`
+		Status        string `json:"status"`
+		UpdatedBy     string `json:"updated_by,omitempty"`
+		GrantDuration string `json:"grant_duration,omitempty"`
+		Reason        string `json:"reason,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1321,39 +1259,64 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 		return
 	}
 
-	// Validate status
-	if req.Status != "approved" && req.Status != "rejected" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be 'approved' or 'rejected'"})
+	// Get the existing consent record to extract owner information
+	existingRecord, err := s.engine.GetConsentStatus(consentID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		} else {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to get consent record: " + err.Error()})
+		}
 		return
 	}
 
-	// Validate required fields
-	if req.OwnerID == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "owner_id is required"})
-		return
-	}
-
-	// Note: We don't need to check if the record exists here since UpdateConsent will handle it
-
-	// Convert status and set message based on status
-	var newStatus string
-	var message string
-	if req.Status == "approved" {
-		// For approved consents, set to approved
-		newStatus = string(StatusApproved)
-		message = "User approved consent via portal"
-		slog.Info("DEBUG: Setting status to approved for consent", "consentId", consentID, "requestStatus", req.Status, "newStatus", newStatus)
+	// Validate status if provided
+	var newStatus ConsentStatus
+	if req.Status != "" {
+		// Validate that the status is one of the valid consent statuses
+		validStatuses := []string{"pending", "approved", "rejected", "expired", "revoked"}
+		isValid := false
+		for _, validStatus := range validStatuses {
+			if req.Status == validStatus {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be one of: pending, approved, rejected, expired, revoked"})
+			return
+		}
+		newStatus = ConsentStatus(req.Status)
 	} else {
-		newStatus = string(StatusRejected)
-		message = "User rejected consent via portal"
-		slog.Info("DEBUG: Setting status to rejected", "consentId", consentID, "requestStatus", req.Status, "newStatus", newStatus)
+		// Keep existing status if not provided
+		newStatus = ConsentStatus(existingRecord.Status)
+	}
+
+	// Set default reason if not provided
+	reason := req.Reason
+	if reason == "" {
+		switch newStatus {
+		case StatusApproved:
+			reason = "Consent approved via API"
+		case StatusRejected:
+			reason = "Consent rejected via API"
+		case StatusExpired:
+			reason = "Consent expired via API"
+		case StatusRevoked:
+			reason = "Consent revoked via API"
+		case StatusPending:
+			reason = "Consent reset to pending via API"
+		default:
+			reason = "Consent updated via API"
+		}
 	}
 
 	// Update the record
 	updateReq := UpdateConsentRequest{
-		Status:    ConsentStatus(newStatus),
-		UpdatedBy: req.OwnerID,
-		Reason:    message,
+		Status:        newStatus,
+		UpdatedBy:     existingRecord.OwnerID, // Use existing owner ID
+		Reason:        reason,
+		GrantDuration: req.GrantDuration, // Will be empty string if not provided
 	}
 
 	updatedRecord, err := s.engine.UpdateConsent(consentID, updateReq)
@@ -1367,7 +1330,7 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// Log the operation
-	slog.Info("Consent status updated", "consentId", consentID, "status", req.Status, "ownerId", req.OwnerID)
+	slog.Info("Consent updated via PUT", "consentId", consentID, "status", string(newStatus), "ownerId", existingRecord.OwnerID, "grantDuration", req.GrantDuration)
 
 	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
 }
