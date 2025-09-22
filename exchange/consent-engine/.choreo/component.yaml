@@ -38,3 +38,9 @@ configurations:
           # +optional default value is string if not specified
           # Allowed types - string, number, boolean, secret
           type: number
+
+# +optional Dependencies for the component
+dependencies:
+  connectionReferences:
+  - name: OpenDIF DB
+    resourceRef: database:opendif-db/defaultdb

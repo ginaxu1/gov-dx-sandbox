@@ -108,6 +108,10 @@ type ConsentRecord struct {
 	SessionID string `json:"session_id"`
 	// ConsentPortalURL is the URL to redirect to for consent portal
 	ConsentPortalURL string `json:"consent_portal_url"`
+	// UpdatedBy identifies who last updated the consent (audit field)
+	UpdatedBy string `json:"updated_by,omitempty"`
+	// Reason provides context for the last status change (audit field)
+	Reason string `json:"reason,omitempty"`
 }
 
 // ConsentPortalView represents the user-facing consent object for the UI.
@@ -208,6 +212,8 @@ type ConsentEngine interface {
 	GetConsentsByConsumer(consumer string) ([]*ConsentRecord, error)
 	// CheckConsentExpiry checks and updates expired consent records
 	CheckConsentExpiry() ([]*ConsentRecord, error)
+	// StartBackgroundExpiryProcess starts the background process for checking consent expiry
+	StartBackgroundExpiryProcess(interval time.Duration)
 	// RevokeConsent revokes a consent record
 	RevokeConsent(id string, reason string) (*ConsentRecord, error)
 	// ProcessConsentRequest processes the new consent workflow request
@@ -509,23 +515,45 @@ func (ce *consentEngineImpl) GetConsentsByConsumer(consumer string) ([]*ConsentR
 	return records, nil
 }
 
-// CheckConsentExpiry checks and updates expired consent records
+// CheckConsentExpiry checks and deletes expired consent records
 func (ce *consentEngineImpl) CheckConsentExpiry() ([]*ConsentRecord, error) {
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
 
 	now := time.Now()
-	var expiredRecords []*ConsentRecord
+	var deletedRecords []*ConsentRecord
 
-	for _, record := range ce.consentRecords {
-		if record.ExpiresAt.Before(now) && record.Status == string(StatusApproved) {
-			record.Status = string(StatusExpired)
-			record.UpdatedAt = now
-			expiredRecords = append(expiredRecords, record)
+	// Create a slice to store keys to delete (to avoid modifying map while iterating)
+	var keysToDelete []string
+
+	for consentID, record := range ce.consentRecords {
+		// Recalculate expires_at to be safe
+		recalculatedExpiresAt, err := calculateExpiresAt(record.GrantDuration, record.UpdatedAt)
+		if err != nil {
+			// If we can't recalculate, use the original expires_at
+			recalculatedExpiresAt = record.ExpiresAt
+		}
+
+		// Check if record is expired (either by original expires_at or recalculated)
+		isExpired := record.ExpiresAt.Before(now) || recalculatedExpiresAt.Before(now)
+
+		// Only delete approved records that are expired
+		if isExpired && record.Status == string(StatusApproved) {
+			deletedRecords = append(deletedRecords, record)
+			keysToDelete = append(keysToDelete, consentID)
 		}
 	}
 
-	return expiredRecords, nil
+	// Delete the expired records
+	for _, consentID := range keysToDelete {
+		delete(ce.consentRecords, consentID)
+	}
+
+	if len(deletedRecords) > 0 {
+		slog.Info("Deleted expired consent records", "count", len(deletedRecords))
+	}
+
+	return deletedRecords, nil
 }
 
 // RevokeConsent revokes a consent record
@@ -702,7 +730,7 @@ func calculateExpiresAt(grantDuration string, updatedAt time.Time) (time.Time, e
 }
 
 // startBackgroundExpiryProcess starts a background goroutine that runs every 24 hours
-// to check and update expired consent records
+// to check and delete expired consent records
 func (ce *consentEngineImpl) startBackgroundExpiryProcess() {
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
@@ -714,13 +742,13 @@ func (ce *consentEngineImpl) startBackgroundExpiryProcess() {
 			select {
 			case <-ticker.C:
 				// Run the expiry check
-				expiredRecords, err := ce.CheckConsentExpiry()
+				deletedRecords, err := ce.CheckConsentExpiry()
 				if err != nil {
 					slog.Error("Background expiry check failed", "error", err)
-				} else if len(expiredRecords) > 0 {
-					slog.Info("Background expiry process completed", "expired_count", len(expiredRecords))
+				} else if len(deletedRecords) > 0 {
+					slog.Info("Background expiry process completed", "deleted_count", len(deletedRecords))
 				} else {
-					slog.Debug("Background expiry process completed", "expired_count", 0)
+					slog.Debug("Background expiry process completed", "deleted_count", 0)
 				}
 			case <-ce.stopChan:
 				slog.Info("Background expiry process stopped")
@@ -731,6 +759,10 @@ func (ce *consentEngineImpl) startBackgroundExpiryProcess() {
 }
 
 // StopBackgroundExpiryProcess stops the background expiry process
+func (ce *consentEngineImpl) StartBackgroundExpiryProcess(interval time.Duration) {
+	ce.startBackgroundExpiryProcess()
+}
+
 func (ce *consentEngineImpl) StopBackgroundExpiryProcess() {
 	close(ce.stopChan)
 }

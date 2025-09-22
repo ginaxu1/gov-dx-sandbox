@@ -7,186 +7,185 @@ import (
 
 // TestConsentEngine_CreateConsent tests the core CreateConsent functionality
 func TestConsentEngine_CreateConsent(t *testing.T) {
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	TestWithBothEngines(t, "CreateConsent", func(t *testing.T, engine ConsentEngine) {
 
-	req := ConsentRequest{
-		AppID:     "passport-app",
-		Purpose:   "passport_application",
-		SessionID: "session_123",
-		DataFields: []DataField{
-			{
-				OwnerType:  "citizen",
-				OwnerID:    "user123",
-				OwnerEmail: "user123@example.com",
-				Fields:     []string{"person.permanentAddress"},
+		req := ConsentRequest{
+			AppID:     "passport-app",
+			Purpose:   "passport_application",
+			SessionID: "session_123",
+			DataFields: []DataField{
+				{
+					OwnerType:  "citizen",
+					OwnerID:    "user123",
+					OwnerEmail: "user123@example.com",
+					Fields:     []string{"person.permanentAddress"},
+				},
 			},
-		},
-	}
+		}
 
-	record, err := engine.CreateConsent(req)
-	if err != nil {
-		t.Fatalf("CreateConsent failed: %v", err)
-	}
+		record, err := engine.CreateConsent(req)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
 
-	if record.ConsentID == "" {
-		t.Error("Expected non-empty consent ID")
-	}
+		if record.ConsentID == "" {
+			t.Error("Expected non-empty consent ID")
+		}
 
-	if record.Status != string(StatusPending) {
-		t.Errorf("Expected status=%s, got %s", string(StatusPending), record.Status)
-	}
+		if record.Status != string(StatusPending) {
+			t.Errorf("Expected status=%s, got %s", string(StatusPending), record.Status)
+		}
 
-	if record.AppID != req.AppID {
-		t.Errorf("Expected AppID=%s, got %s", req.AppID, record.AppID)
-	}
+		if record.AppID != req.AppID {
+			t.Errorf("Expected AppID=%s, got %s", req.AppID, record.AppID)
+		}
 
-	if record.OwnerID != req.DataFields[0].OwnerID {
-		t.Errorf("Expected OwnerID=%s, got %s", req.DataFields[0].OwnerID, record.OwnerID)
-	}
+		if record.OwnerID != req.DataFields[0].OwnerID {
+			t.Errorf("Expected OwnerID=%s, got %s", req.DataFields[0].OwnerID, record.OwnerID)
+		}
 
-	if record.OwnerEmail != req.DataFields[0].OwnerEmail {
-		t.Errorf("Expected OwnerEmail=%s, got %s", req.DataFields[0].OwnerEmail, record.OwnerEmail)
-	}
-
+		if record.OwnerEmail != req.DataFields[0].OwnerEmail {
+			t.Errorf("Expected OwnerEmail=%s, got %s", req.DataFields[0].OwnerEmail, record.OwnerEmail)
+		}
+	})
 }
 
 // TestConsentEngine_GetConsentStatus tests retrieving consent status
 func TestConsentEngine_GetConsentStatus(t *testing.T) {
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	TestWithBothEngines(t, "GetConsentStatus", func(t *testing.T, engine ConsentEngine) {
 
-	// Create a consent record first
-	req := ConsentRequest{
-		AppID:     "passport-app",
-		Purpose:   "passport_application",
-		SessionID: "session_123",
-		DataFields: []DataField{
-			{
-				OwnerType:  "citizen",
-				OwnerID:    "user123",
-				OwnerEmail: "user123@example.com",
-				Fields:     []string{"person.permanentAddress"},
+		// Create a consent record first
+		req := ConsentRequest{
+			AppID:     "passport-app",
+			Purpose:   "passport_application",
+			SessionID: "session_123",
+			DataFields: []DataField{
+				{
+					OwnerType:  "citizen",
+					OwnerID:    "user123",
+					OwnerEmail: "user123@example.com",
+					Fields:     []string{"person.permanentAddress"},
+				},
 			},
-		},
-	}
+		}
 
-	createdRecord, err := engine.CreateConsent(req)
-	if err != nil {
-		t.Fatalf("CreateConsent failed: %v", err)
-	}
+		createdRecord, err := engine.CreateConsent(req)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
 
-	// Test getting the consent status
-	record, err := engine.GetConsentStatus(createdRecord.ConsentID)
-	if err != nil {
-		t.Fatalf("GetConsentStatus failed: %v", err)
-	}
+		// Test getting the consent status
+		record, err := engine.GetConsentStatus(createdRecord.ConsentID)
+		if err != nil {
+			t.Fatalf("GetConsentStatus failed: %v", err)
+		}
 
-	if record.ConsentID != createdRecord.ConsentID {
-		t.Errorf("Expected ConsentID=%s, got %s", createdRecord.ConsentID, record.ConsentID)
-	}
+		if record.ConsentID != createdRecord.ConsentID {
+			t.Errorf("Expected ConsentID=%s, got %s", createdRecord.ConsentID, record.ConsentID)
+		}
 
-	// Test getting non-existent consent
-	_, err = engine.GetConsentStatus("non-existent-id")
-	if err == nil {
-		t.Error("Expected error for non-existent consent ID")
-	}
+		// Test getting non-existent consent
+		_, err = engine.GetConsentStatus("non-existent-id")
+		if err == nil {
+			t.Error("Expected error for non-existent consent ID")
+		}
+	})
 }
 
 // TestConsentEngine_UpdateConsent tests updating consent status
 func TestConsentEngine_UpdateConsent(t *testing.T) {
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	TestWithBothEngines(t, "UpdateConsent", func(t *testing.T, engine ConsentEngine) {
 
-	// Create a consent record first
-	req := ConsentRequest{
-		AppID:     "passport-app",
-		Purpose:   "passport_application",
-		SessionID: "session_123",
-		DataFields: []DataField{
-			{
-				OwnerType:  "citizen",
-				OwnerID:    "user123",
-				OwnerEmail: "user123@example.com",
-				Fields:     []string{"person.permanentAddress"},
+		// Create a consent record first
+		req := ConsentRequest{
+			AppID:     "passport-app",
+			Purpose:   "passport_application",
+			SessionID: "session_123",
+			DataFields: []DataField{
+				{
+					OwnerType:  "citizen",
+					OwnerID:    "user123",
+					OwnerEmail: "user123@example.com",
+					Fields:     []string{"person.permanentAddress"},
+				},
 			},
-		},
-	}
+		}
 
-	createdRecord, err := engine.CreateConsent(req)
-	if err != nil {
-		t.Fatalf("CreateConsent failed: %v", err)
-	}
+		createdRecord, err := engine.CreateConsent(req)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
 
-	// Test updating consent status
-	updateReq := UpdateConsentRequest{
-		Status:    StatusApproved,
-		UpdatedBy: "user123",
-		Reason:    "User approved consent",
-	}
+		// Test updating consent status
+		updateReq := UpdateConsentRequest{
+			Status:    StatusApproved,
+			UpdatedBy: "user123",
+			Reason:    "User approved consent",
+		}
 
-	updatedRecord, err := engine.UpdateConsent(createdRecord.ConsentID, updateReq)
-	if err != nil {
-		t.Fatalf("UpdateConsent failed: %v", err)
-	}
+		updatedRecord, err := engine.UpdateConsent(createdRecord.ConsentID, updateReq)
+		if err != nil {
+			t.Fatalf("UpdateConsent failed: %v", err)
+		}
 
-	if updatedRecord.Status != string(StatusApproved) {
-		t.Errorf("Expected status=%s, got %s", string(StatusApproved), updatedRecord.Status)
-	}
+		if updatedRecord.Status != string(StatusApproved) {
+			t.Errorf("Expected status=%s, got %s", string(StatusApproved), updatedRecord.Status)
+		}
 
-	// Test invalid status transition (approved -> pending is not allowed)
-	invalidUpdateReq := UpdateConsentRequest{
-		Status:    StatusPending,
-		UpdatedBy: "user123",
-		Reason:    "Invalid transition",
-	}
+		// Test invalid status transition (approved -> pending is not allowed)
+		invalidUpdateReq := UpdateConsentRequest{
+			Status:    StatusPending,
+			UpdatedBy: "user123",
+			Reason:    "Invalid transition",
+		}
 
-	_, err = engine.UpdateConsent(createdRecord.ConsentID, invalidUpdateReq)
-	if err == nil {
-		t.Error("Expected error for invalid status transition from approved to pending")
-	}
+		_, err = engine.UpdateConsent(createdRecord.ConsentID, invalidUpdateReq)
+		if err == nil {
+			t.Error("Expected error for invalid status transition from approved to pending")
+		}
+	})
 }
 
 // TestConsentEngine_FindExistingConsent tests finding existing consents
 func TestConsentEngine_FindExistingConsent(t *testing.T) {
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	TestWithBothEngines(t, "FindExistingConsent", func(t *testing.T, engine ConsentEngine) {
 
-	// Create a consent record first
-	req := ConsentRequest{
-		AppID:     "passport-app",
-		Purpose:   "passport_application",
-		SessionID: "session_123",
-		DataFields: []DataField{
-			{
-				OwnerType:  "citizen",
-				OwnerID:    "user123",
-				OwnerEmail: "user123@example.com",
-				Fields:     []string{"person.permanentAddress"},
+		// Create a consent record first
+		req := ConsentRequest{
+			AppID:     "passport-app",
+			Purpose:   "passport_application",
+			SessionID: "session_123",
+			DataFields: []DataField{
+				{
+					OwnerType:  "citizen",
+					OwnerID:    "user123",
+					OwnerEmail: "user123@example.com",
+					Fields:     []string{"person.permanentAddress"},
+				},
 			},
-		},
-	}
+		}
 
-	createdRecord, err := engine.CreateConsent(req)
-	if err != nil {
-		t.Fatalf("CreateConsent failed: %v", err)
-	}
+		createdRecord, err := engine.CreateConsent(req)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
 
-	// Test finding existing consent
-	foundRecord := engine.FindExistingConsent("passport-app", "user123")
-	if foundRecord == nil {
-		t.Error("Expected to find existing consent record")
-	}
+		// Test finding existing consent
+		foundRecord := engine.FindExistingConsent("passport-app", "user123")
+		if foundRecord == nil {
+			t.Error("Expected to find existing consent record")
+		}
 
-	if foundRecord.ConsentID != createdRecord.ConsentID {
-		t.Errorf("Expected ConsentID=%s, got %s", createdRecord.ConsentID, foundRecord.ConsentID)
-	}
+		if foundRecord.ConsentID != createdRecord.ConsentID {
+			t.Errorf("Expected ConsentID=%s, got %s", createdRecord.ConsentID, foundRecord.ConsentID)
+		}
 
-	// Test finding non-existent consent
-	notFoundRecord := engine.FindExistingConsent("different-app", "user123")
-	if notFoundRecord != nil {
-		t.Error("Expected not to find consent record for different app")
-	}
+		// Test finding non-existent consent
+		notFoundRecord := engine.FindExistingConsent("different-app", "user123")
+		if notFoundRecord != nil {
+			t.Error("Expected not to find consent record for different app")
+		}
+	})
 }
 
 // TestConsentEngine_StatusTransitions tests status transition validation
@@ -269,14 +268,14 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 			t.Fatalf("UpdateConsent failed: %v", err)
 		}
 
-		// Check expiry - should return empty list
-		expiredRecords, err := engine.CheckConsentExpiry()
+		// Check expiry - should return empty list (no records to delete)
+		deletedRecords, err := engine.CheckConsentExpiry()
 		if err != nil {
 			t.Fatalf("CheckConsentExpiry failed: %v", err)
 		}
 
-		if len(expiredRecords) != 0 {
-			t.Errorf("Expected 0 expired records, got %d", len(expiredRecords))
+		if len(deletedRecords) != 0 {
+			t.Errorf("Expected 0 deleted records, got %d", len(deletedRecords))
 		}
 	})
 
@@ -321,22 +320,24 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		engineImpl := engine.(*consentEngineImpl)
 		engineImpl.consentRecords[record.ConsentID] = record
 
-		// Check expiry - should return the expired record
-		expiredRecords, err := engine.CheckConsentExpiry()
+		// Check expiry - should delete the expired record
+		deletedRecords, err := engine.CheckConsentExpiry()
 		if err != nil {
 			t.Fatalf("CheckConsentExpiry failed: %v", err)
 		}
 
-		if len(expiredRecords) != 1 {
-			t.Errorf("Expected 1 expired record, got %d", len(expiredRecords))
+		if len(deletedRecords) != 1 {
+			t.Errorf("Expected 1 deleted record, got %d", len(deletedRecords))
 		}
 
-		if expiredRecords[0].ConsentID != record.ConsentID {
-			t.Errorf("Expected expired record ID %s, got %s", record.ConsentID, expiredRecords[0].ConsentID)
+		if deletedRecords[0].ConsentID != record.ConsentID {
+			t.Errorf("Expected deleted record ID %s, got %s", record.ConsentID, deletedRecords[0].ConsentID)
 		}
 
-		if expiredRecords[0].Status != string(StatusExpired) {
-			t.Errorf("Expected expired record status %s, got %s", string(StatusExpired), expiredRecords[0].Status)
+		// Verify the record was actually deleted from the store
+		_, err = engine.GetConsentStatus(record.ConsentID)
+		if err == nil {
+			t.Errorf("Expected record to be deleted, but it still exists")
 		}
 	})
 
@@ -381,14 +382,14 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		engineImpl := engine.(*consentEngineImpl)
 		engineImpl.consentRecords[record.ConsentID] = record
 
-		// Check expiry - should return empty list (rejected records don't expire)
-		expiredRecords, err := engine.CheckConsentExpiry()
+		// Check expiry - should return empty list (rejected records don't get deleted)
+		deletedRecords, err := engine.CheckConsentExpiry()
 		if err != nil {
 			t.Fatalf("CheckConsentExpiry failed: %v", err)
 		}
 
-		if len(expiredRecords) != 0 {
-			t.Errorf("Expected 0 expired records (rejected records don't expire), got %d", len(expiredRecords))
+		if len(deletedRecords) != 0 {
+			t.Errorf("Expected 0 deleted records (rejected records don't get deleted), got %d", len(deletedRecords))
 		}
 	})
 
@@ -437,20 +438,21 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 			consentIDs[i] = record.ConsentID
 		}
 
-		// Check expiry - should return all 3 expired records
-		expiredRecords, err := engine.CheckConsentExpiry()
+		// Check expiry - should delete all 3 expired records
+		deletedRecords, err := engine.CheckConsentExpiry()
 		if err != nil {
 			t.Fatalf("CheckConsentExpiry failed: %v", err)
 		}
 
-		if len(expiredRecords) != 3 {
-			t.Errorf("Expected 3 expired records, got %d", len(expiredRecords))
+		if len(deletedRecords) != 3 {
+			t.Errorf("Expected 3 deleted records, got %d", len(deletedRecords))
 		}
 
-		// Verify all records are marked as expired
-		for _, record := range expiredRecords {
-			if record.Status != string(StatusExpired) {
-				t.Errorf("Expected expired record status %s, got %s", string(StatusExpired), record.Status)
+		// Verify all records were actually deleted from the store
+		for _, consentID := range consentIDs {
+			_, err = engine.GetConsentStatus(consentID)
+			if err == nil {
+				t.Errorf("Expected record %s to be deleted, but it still exists", consentID)
 			}
 		}
 	})

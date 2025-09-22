@@ -218,6 +218,15 @@ paths:
         - **Frontend requests**: Require JWT authentication with email validation
         - **M2M requests**: JWT authentication is optional
         - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        
+        **Status Transitions:**
+        - **Pending**: Can transition to `approved`, `rejected`, or `expired`
+        - **Approved**: Can transition to `approved`, `rejected`, `revoked`, or `expired`
+        - **Rejected**: Can only transition to `expired` (terminal state)
+        - **Expired**: Can only stay `expired` (terminal state)
+        - **Revoked**: Can only transition to `expired` (terminal state)
+        
+        **Terminal States:** Once a consent reaches `rejected`, `expired`, or `revoked` status, it cannot transition back to active states like `pending` or `approved`. This ensures a clear, unalterable audit trail of consent decisions.
       operationId: updateConsent
       tags:
         - Consents
@@ -238,6 +247,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateConsentRequest'
+            example:
+              status: "approved"
+              updated_by: "citizen_199512345678"
+              grant_duration: "1h"
+              reason: "User approved consent via portal"
       responses:
         '200':
           description: Consent updated successfully
@@ -790,29 +804,117 @@ components:
       type: object
       required:
         - status
-        - updated_by
       properties:
         status:
           type: string
           enum: [pending, approved, rejected, expired, revoked]
-          description: New status of the consent
+          description: New status of the consent. Note: Terminal states (rejected, expired, revoked) cannot transition back to active states.
           example: approved
         grant_duration:
-          type: string
-          description: Duration of the granted access (e.g., "1h", "1d", "30d")
+          type: stringWhat is your source configuration file ?
+The source configuration file is located within the .choreo directory at the root of the project directory.
+
+component.yaml v1.1
+component.yaml v1.0
+component-config.yaml
+Introduction
+Create programmatic connections to databases
+(See more)
+
+Add Connection Configuration
+To integrate the mentioned configurations into your application, copy and paste the below snippet into the component.yaml file.
+
+dependencies:
+    connectionReferences:
+    - name: OpenDIF DB
+      resourceRef: database:opendif-db/defaultdb
+    
+The name and resourceRef represent the name of your connection, and a readable identifier unique to the database you are connecting to.
+
+The table below details the Choreo-defined environment variables.
+
+Configuration Key
+
+Choreo-Defined Environment Variable Name
+
+HostName
+
+CHOREO_OPENDIF_DB_HOSTNAME
+
+Port
+
+CHOREO_OPENDIF_DB_PORT
+
+Username
+
+CHOREO_OPENDIF_DB_USERNAME
+
+Password
+
+CHOREO_OPENDIF_DB_PASSWORD
+
+DatabaseName
+
+CHOREO_OPENDIF_DB_DATABASENAME
+
+Name environment variables and manage references
+(See more)
+
+Read Configurations
+Read configurations within the application
+(See more)
+
+// sample nodeJS code snippet
+const hostname = process.env.CHOREO_OPENDIF_DB_HOSTNAME;
+const port = process.env.CHOREO_OPENDIF_DB_PORT;
+const username = process.env.CHOREO_OPENDIF_DB_USERNAME;
+const password = process.env.CHOREO_OPENDIF_DB_PASSWORD;
+const databasename = process.env.CHOREO_OPENDIF_DB_DATABASENAME;
+
+Initiate a database connection
+To initiate a connection to a database, you'll need to follow these general steps.
+
+Install Required Packages
+// Install the pg package
+npm install pg
+
+Import Packages
+// sample nodeJS code snippet 
+const client = require('pg');
+
+Establish a Connection
+// sample nodeJS code snippet
+
+// hostName, username, password, port and databaseName represent variables to which respective environment variables were read
+const caCert = fs.readFileSync('<path-to-ca-certificate>');
+var connection = client.Client({
+  host: hostName,
+  user: username,
+  password: password,
+  database: databaseName,
+  port: port,
+  ssl: {
+    ca: caCert, 
+    rejectUnauthorized: true, 
+  }
+});
+
+          description: Duration of the granted access (e.g., "1h", "1d", "30d"). If not provided, existing grant_duration will be used.
           example: "1d"
         updated_by:
           type: string
-          description: ID of the user who updated the consent
+          description: ID of the user who updated the consent. If not provided, will use the existing owner_id.
           example: citizen_199512345678
         reason:
           type: string
-          description: Reason for the status update
+          description: Reason for the status update. If not provided, a default reason will be generated based on the status.
           example: User approved consent via portal
-        metadata:
-          type: object
-          description: Additional information about the update
-          additionalProperties: true
+        fields:
+          type: array
+          description: List of data fields covered by this consent. If not provided, existing fields will be maintained.
+          items:
+            type: string
+          example: ["personInfo.permanentAddress", "personInfo.photo"]
 
     ConsentPortalAction:
       type: object

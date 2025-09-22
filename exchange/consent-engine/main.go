@@ -908,32 +908,30 @@ func (s *apiServer) updateConsentStatus(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// Get the consent record
-	record, err := s.engine.GetConsentStatus(req.ConsentID)
+	// Update the status using the proper UpdateConsent method
+	var newStatus ConsentStatus
+	if req.Status == "approved" {
+		newStatus = StatusApproved
+	} else {
+		newStatus = StatusRejected
+	}
+
+	updateReq := UpdateConsentRequest{
+		Status:    newStatus,
+		UpdatedBy: "consent-portal", // This comes from the consent portal
+	}
+
+	updatedRecord, err := s.engine.UpdateConsent(req.ConsentID, updateReq)
 	if err != nil {
 		utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "consent record not found"})
 		return
 	}
 
-	// Update the status
-	var newStatus string
-	if req.Status == "approved" {
-		newStatus = string(StatusApproved)
-	} else {
-		newStatus = string(StatusRejected)
-	}
-
-	record.Status = newStatus
-	record.UpdatedAt = time.Now()
-
-	// Store the updated record
-	s.engine.(*consentEngineImpl).consentRecords[req.ConsentID] = record
-
 	response := map[string]interface{}{
-		"id":                      record.ConsentID,
-		"status":                  string(record.Status),
-		"updated_at":              record.UpdatedAt.Format(time.RFC3339),
-		"approved_at":             record.UpdatedAt.Format(time.RFC3339),
+		"id":                      updatedRecord.ConsentID,
+		"status":                  string(updatedRecord.Status),
+		"updated_at":              updatedRecord.UpdatedAt.Format(time.RFC3339),
+		"approved_at":             updatedRecord.UpdatedAt.Format(time.RFC3339),
 		"data_owner_confirmation": true,
 	}
 
@@ -1376,13 +1374,37 @@ func main() {
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
 
+	// Initialize database connection
+	dbConfig := NewDatabaseConfig()
+	db, err := ConnectDB(dbConfig)
+	if err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	// Initialize database tables
+	if err := InitDatabase(db); err != nil {
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize consent engine
 	consentPortalUrl := getEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
 
 	slog.Info("Using consent portal URL", "url", consentPortalUrl)
 
-	engine := NewConsentEngine(consentPortalUrl)
+	engine := NewPostgresConsentEngine(db)
 	server := &apiServer{engine: engine}
+
+	// Start background expiry process
+	expiryInterval := getEnvOrDefault("CONSENT_EXPIRY_CHECK_INTERVAL", "24h")
+	interval, err := time.ParseDuration(expiryInterval)
+	if err != nil {
+		slog.Warn("Invalid expiry check interval, using default 24h", "interval", expiryInterval, "error", err)
+		interval = 24 * time.Hour
+	}
+	engine.StartBackgroundExpiryProcess(interval)
 
 	// Initialize JWT verifier with Asgardeo JWKS endpoint
 	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
