@@ -54,7 +54,7 @@ func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
 			DataFields: []consent.DataOwnerRecord{
 				{
 					OwnerType: "citizen",
-					OwnerId:   "199512345678",
+					OwnerId:   args[0].Value.GetValue().(string),
 					Fields:    pdpResponse.ConsentRequiredFields,
 				},
 			},
