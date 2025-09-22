@@ -52,8 +52,8 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		if response["status"] != "pending" {
 			t.Errorf("Expected status 'pending', got '%s'", response["status"])
 		}
-		if response["owner_email"] != "199512345678@example.com" {
-			t.Errorf("Expected owner_email '199512345678@example.com', got '%s'", response["owner_email"])
+		if response["owner_email"] != "regina@opensource.lk" {
+			t.Errorf("Expected owner_email 'regina@opensource.lk', got '%s'", response["owner_email"])
 		}
 		if response["redirect_url"] == "" {
 			t.Error("Expected non-empty redirect_url")
@@ -82,15 +82,15 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 	})
 
 	t.Run("CreateConsent_DifferentEmailsSameOwnerID", func(t *testing.T) {
-		// First request with owner_email: "regina@test.lk"
+		// First request with owner_id: "199512345678" (will be mapped to email)
 		req1 := ConsentRequest{
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType:  "citizen",
-					OwnerID:    "dfdfd",
-					OwnerEmail: "regina@test.lk",
-					Fields:     []string{"personInfo.permanentAddress"},
+					OwnerType: "citizen",
+					OwnerID:   "199512345678",
+					// OwnerEmail will be populated from mapping
+					Fields: []string{"personInfo.permanentAddress"},
 				},
 			},
 			Purpose:   "passport_application",
@@ -116,15 +116,15 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		firstConsentID := response1["consent_id"].(string)
 		firstOwnerEmail := response1["owner_email"].(string)
 
-		// Second request with different owner_email: "different@test.lk"
+		// Second request with different owner_id: "198712345678" (will be mapped to different email)
 		req2 := ConsentRequest{
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType:  "citizen",
-					OwnerID:    "dfdfd",             // Same owner_id
-					OwnerEmail: "different@test.lk", // Different owner_email
-					Fields:     []string{"personInfo.permanentAddress"},
+					OwnerType: "citizen",
+					OwnerID:   "198712345678", // Different owner_id
+					// OwnerEmail will be populated from mapping
+					Fields: []string{"personInfo.permanentAddress"},
 				},
 			},
 			Purpose:   "passport_application",
@@ -413,10 +413,10 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []DataField{
 			{
-				OwnerType:  "citizen",
-				OwnerID:    "33333",
-				OwnerEmail: "33333@example.com",
-				Fields:     []string{"personInfo.permanentAddress"},
+				OwnerType: "citizen",
+				OwnerID:   "200012345678",
+				// OwnerEmail will be populated from mapping
+				Fields: []string{"personInfo.permanentAddress"},
 			},
 		},
 		Purpose:   "passport_application",
@@ -479,12 +479,12 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 		t.Errorf("Expected grant_duration '1m', got %s", response["grant_duration"])
 	}
 
-	if response["owner_id"] != "33333" {
-		t.Errorf("Expected owner_id '33333', got %s", response["owner_id"])
+	if response["owner_id"] != "200012345678" {
+		t.Errorf("Expected owner_id '200012345678', got %s", response["owner_id"])
 	}
 
-	if response["owner_email"] != "33333@example.com" {
-		t.Errorf("Expected owner_email '33333@example.com', got %s", response["owner_email"])
+	if response["owner_email"] != "mohamed@opensource.lk" {
+		t.Errorf("Expected owner_email 'mohamed@opensource.lk', got %s", response["owner_email"])
 	}
 
 	if response["app_id"] != "passport-app" {

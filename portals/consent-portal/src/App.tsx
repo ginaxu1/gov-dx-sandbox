@@ -19,7 +19,7 @@ declare global {
 // Types
 interface ConsentRecord {
   consent_id: string;
-  owner_id: string;
+  owner_id: string;  
   owner_name: string;
   owner_email: string;
   data_consumer: string;
