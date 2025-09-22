@@ -284,14 +284,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-    post:
-      summary: Update Consent (Alternative)
-      description: Alternative endpoint to update a specific consent record by its ID (requires JWT authentication)
-      operationId: updateConsentById
+    patch:
+      summary: Partially Update Consent
+      description: |
+        Partially update a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        
+        This endpoint allows partial updates to consent records, updating only the fields provided in the request body.
+      operationId: patchConsentById
       tags:
         - Consents
       security:
         - BearerAuth: []
+        - {}: []
       parameters:
         - name: consentId
           in: path
@@ -306,24 +313,35 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - status
-                - owner_id
-                - message
               properties:
                 status:
                   type: string
-                  enum: [approved, rejected]
-                  description: New status of the consent
+                  enum:
+                    - pending
+                    - approved
+                    - rejected
+                    - expired
+                    - revoked
+                  description: New status of the consent (optional)
                   example: approved
-                owner_id:
+                updated_by:
                   type: string
-                  description: ID of the data owner
+                  description: ID of the user who updated the consent (optional)
                   example: citizen_199512345678
-                message:
+                reason:
                   type: string
-                  description: Message for the status update
+                  description: Reason for the status update (optional)
                   example: User approved consent via portal
+                grant_duration:
+                  type: string
+                  description: Duration of the granted access (optional)
+                  example: "1d"
+                fields:
+                  type: array
+                  description: List of data fields covered by this consent (optional)
+                  items:
+                    type: string
+                  example: ["personInfo.permanentAddress", "personInfo.photo"]
       responses:
         '200':
           description: Consent updated successfully
@@ -506,7 +524,7 @@ paths:
         '500':
           description: Internal server error
 
-  /consent-portal:
+  /consent-portal/:
     post:
       summary: Create Consent via Portal
       description: Create a new consent record via the consent portal
@@ -518,7 +536,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateConsentRequest'
+              $ref: '#/components/schemas/ConsentPortalCreateRequest'
       responses:
         '201':
           description: Consent created successfully
@@ -540,7 +558,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     put:
       summary: Update Consent via Portal
-      description: Update a consent record via the consent portal
+      description: Update a consent record via the consent portal. The consent ID should be included in the URL path after the trailing slash.
       operationId: updateConsentViaPortal
       tags:
         - Portal
@@ -558,7 +576,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
         '400':
-          description: Bad request - invalid input data
+          description: Bad request - invalid input data or missing consent ID in path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consent not found
           content:
             application/json:
               schema:
@@ -571,7 +595,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     get:
       summary: Get Consent Portal Information
-      description: Retrieve consent information for the portal display
+      description: Retrieve consent information for the portal display. The consent ID should be provided as a query parameter.
       operationId: getConsentPortalInfo
       tags:
         - Portal
@@ -592,53 +616,6 @@ paths:
                 $ref: '#/components/schemas/ConsentPortalView'
         '400':
           description: Bad request - missing consent_id
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Consent not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /consent-portal/{consentId}:
-    post:
-      summary: Handle Consent Portal Actions
-      description: Process actions from the consent portal (approve/deny)
-      operationId: handleConsentPortalAction
-      tags:
-        - Portal
-      parameters:
-        - name: consentId
-          in: path
-          required: true
-          description: Unique identifier for the consent
-          schema:
-            type: string
-            example: consent_8d255282
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ConsentPortalAction'
-      responses:
-        '200':
-          description: Action processed successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConsentResponse'
-        '400':
-          description: Bad request - invalid action
           content:
             application/json:
               schema:
@@ -807,98 +784,16 @@ components:
       properties:
         status:
           type: string
-          enum: [pending, approved, rejected, expired, revoked]
-          description: New status of the consent. Note: Terminal states (rejected, expired, revoked) cannot transition back to active states.
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
+          description: New status of the consent.
           example: approved
         grant_duration:
-          type: stringWhat is your source configuration file ?
-The source configuration file is located within the .choreo directory at the root of the project directory.
-
-component.yaml v1.1
-component.yaml v1.0
-component-config.yaml
-Introduction
-Create programmatic connections to databases
-(See more)
-
-Add Connection Configuration
-To integrate the mentioned configurations into your application, copy and paste the below snippet into the component.yaml file.
-
-dependencies:
-    connectionReferences:
-    - name: OpenDIF DB
-      resourceRef: database:opendif-db/defaultdb
-    
-The name and resourceRef represent the name of your connection, and a readable identifier unique to the database you are connecting to.
-
-The table below details the Choreo-defined environment variables.
-
-Configuration Key
-
-Choreo-Defined Environment Variable Name
-
-HostName
-
-CHOREO_OPENDIF_DB_HOSTNAME
-
-Port
-
-CHOREO_OPENDIF_DB_PORT
-
-Username
-
-CHOREO_OPENDIF_DB_USERNAME
-
-Password
-
-CHOREO_OPENDIF_DB_PASSWORD
-
-DatabaseName
-
-CHOREO_OPENDIF_DB_DATABASENAME
-
-Name environment variables and manage references
-(See more)
-
-Read Configurations
-Read configurations within the application
-(See more)
-
-// sample nodeJS code snippet
-const hostname = process.env.CHOREO_OPENDIF_DB_HOSTNAME;
-const port = process.env.CHOREO_OPENDIF_DB_PORT;
-const username = process.env.CHOREO_OPENDIF_DB_USERNAME;
-const password = process.env.CHOREO_OPENDIF_DB_PASSWORD;
-const databasename = process.env.CHOREO_OPENDIF_DB_DATABASENAME;
-
-Initiate a database connection
-To initiate a connection to a database, you'll need to follow these general steps.
-
-Install Required Packages
-// Install the pg package
-npm install pg
-
-Import Packages
-// sample nodeJS code snippet 
-const client = require('pg');
-
-Establish a Connection
-// sample nodeJS code snippet
-
-// hostName, username, password, port and databaseName represent variables to which respective environment variables were read
-const caCert = fs.readFileSync('<path-to-ca-certificate>');
-var connection = client.Client({
-  host: hostName,
-  user: username,
-  password: password,
-  database: databaseName,
-  port: port,
-  ssl: {
-    ca: caCert, 
-    rejectUnauthorized: true, 
-  }
-});
-
+          type: string
           description: Duration of the granted access (e.g., "1h", "1d", "30d"). If not provided, existing grant_duration will be used.
           example: "1d"
         updated_by:
@@ -916,6 +811,32 @@ var connection = client.Client({
             type: string
           example: ["personInfo.permanentAddress", "personInfo.photo"]
 
+    ConsentPortalCreateRequest:
+      type: object
+      required:
+        - app_id
+        - data_fields
+        - purpose
+        - session_id
+      properties:
+        app_id:
+          type: string
+          description: ID of the consumer application requesting data
+          example: passport-app
+        data_fields:
+          type: array
+          description: List of data field groups with ownership information
+          items:
+            $ref: '#/components/schemas/DataField'
+        purpose:
+          type: string
+          description: Purpose for data access
+          example: passport_application
+        session_id:
+          type: string
+          description: Session identifier for tracking
+          example: test-session-123
+
     ConsentPortalAction:
       type: object
       required:
@@ -923,7 +844,10 @@ var connection = client.Client({
       properties:
         status:
           type: string
-          enum: [approved, rejected, revoked]
+          enum:
+            - approved
+            - rejected
+            - revoked
           description: Action to take on the consent
           example: approved
 
@@ -948,12 +872,19 @@ var connection = client.Client({
           example: passport-app
         status:
           type: string
-          enum: [pending, approved, rejected, expired, revoked]
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
           description: Current status of the consent
           example: pending
         type:
           type: string
-          enum: [realtime, offline]
+          enum:
+            - realtime
+            - offline
           description: Type of consent workflow
           example: realtime
         created_at:
@@ -1006,7 +937,9 @@ var connection = client.Client({
       properties:
         status:
           type: string
-          enum: [approved, rejected]
+          enum:
+            - approved
+            - rejected
           description: New status of the consent
           example: approved
         updated_by:
@@ -1056,12 +989,19 @@ var connection = client.Client({
           example: owner@example.com
         status:
           type: string
-          enum: [pending, approved, rejected, expired, revoked]
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
           description: Current status of the consent
           example: pending
         type:
           type: string
-          enum: [realtime, offline]
+          enum:
+            - realtime
+            - offline
           description: Type of consent workflow
           example: realtime
 
