@@ -56,8 +56,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     const accessToken = await getAccessToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' // Browser user agent for frontend detection
+      // 'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
+      // 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' // Browser user agent for frontend detection
     };
     
     if (accessToken) {
