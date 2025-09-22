@@ -39,15 +39,6 @@ type OwnerIDToEmailMapping struct {
 	OwnerEmail string `json:"owner_email"`
 }
 
-// ownerIDToEmailMap stores the mapping from owner_id to owner_email
-// In a real implementation, this would be loaded from a database or external service
-var ownerIDToEmailMap = map[string]string{
-	// Example mappings - in production, these would come from a database
-	"199512345678": "regina@opensource.lk",
-	"198712345678": "thanikan@opensource.lk",
-	"200012345678": "mohamed@opensource.lk",
-}
-
 // M2M Token structures
 type M2MTokenRequest struct {
 	ClientID     string `json:"client_id"`
@@ -388,7 +379,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*") // In production, specify your frontend domain
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, Test-Key")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
 
