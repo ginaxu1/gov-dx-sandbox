@@ -170,6 +170,8 @@ type UpdateConsentRequest struct {
 	UpdatedBy string `json:"updated_by"`
 	// Reason provides context for the status change
 	Reason string `json:"reason,omitempty"`
+	// Fields is the list of data fields that require consent
+	Fields []string `json:"fields,omitempty"`
 	// Metadata contains additional information about the update
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
@@ -210,10 +212,8 @@ type ConsentEngine interface {
 	RevokeConsent(id string, reason string) (*ConsentRecord, error)
 	// ProcessConsentRequest processes the new consent workflow request
 	ProcessConsentRequest(req ConsentRequest) (*ConsentRecord, error)
-	// CreateOrUpdateConsentRecord creates a new consent record or updates an existing one
-	CreateOrUpdateConsentRecord(req ConsentRecord) (*ConsentRecord, error)
-	// UpdateConsentRecord updates an existing consent record directly
-	UpdateConsentRecord(record *ConsentRecord) error
+	// StopBackgroundExpiryProcess stops the background expiry process
+	StopBackgroundExpiryProcess()
 }
 
 // consentEngineImpl is the private, in-memory implementation of the ConsentEngine interface
@@ -221,6 +221,7 @@ type consentEngineImpl struct {
 	consentRecords   map[string]*ConsentRecord
 	consentPortalUrl string
 	lock             sync.RWMutex
+	stopChan         chan struct{}
 }
 
 // NewConsentEngine creates a new in-memory instance of the ConsentEngine
@@ -228,7 +229,11 @@ func NewConsentEngine(consentPortalUrl string) ConsentEngine {
 	ce := &consentEngineImpl{
 		consentRecords:   make(map[string]*ConsentRecord),
 		consentPortalUrl: consentPortalUrl,
+		stopChan:         make(chan struct{}),
 	}
+
+	// Start the background expiry process
+	ce.startBackgroundExpiryProcess()
 
 	return ce
 }
@@ -245,24 +250,61 @@ func (ce *consentEngineImpl) CreateConsent(req ConsentRequest) (*ConsentRecord, 
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
 
-	// Check if there's already an existing consent for this (app_id, owner_id, owner_email) combination
-	// We only need to check the first data field since all should have the same owner
+	// Check if there's already a PENDING consent for this (app_id, owner_id, owner_email) combination
 	if len(req.DataFields) > 0 {
-		existingRecord := ce.findExistingConsentByEmailUnsafe(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail)
-		if existingRecord != nil {
-			// Return the existing record instead of creating a new one
-			return existingRecord, nil
+		existingPendingRecord := ce.findExistingPendingConsentByEmailUnsafe(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail)
+		if existingPendingRecord != nil {
+			// Update the existing pending record with new fields and updated_at
+			now := time.Now()
+
+			// Combine all fields from all data fields
+			var allFields []string
+			for _, dataField := range req.DataFields {
+				allFields = append(allFields, dataField.Fields...)
+			}
+
+			// Update the existing record with all provided fields (PATCH-like behavior)
+			existingPendingRecord.Fields = allFields
+			existingPendingRecord.UpdatedAt = now
+			existingPendingRecord.SessionID = req.SessionID
+
+			// Update grant duration (use default "1h" if not provided)
+			grantDuration := getDefaultGrantDuration(req.GrantDuration)
+			existingPendingRecord.GrantDuration = grantDuration
+
+			// Recalculate expires_at based on grant_duration and updated_at
+			expiresAt, err := calculateExpiresAt(grantDuration, now)
+			if err != nil {
+				return nil, err
+			}
+			existingPendingRecord.ExpiresAt = expiresAt
+
+			// Store the updated record
+			ce.consentRecords[existingPendingRecord.ConsentID] = existingPendingRecord
+
+			slog.Info("Updated existing pending consent record", "consent_id", existingPendingRecord.ConsentID, "owner_id", existingPendingRecord.OwnerID, "owner_email", existingPendingRecord.OwnerEmail, "app_id", existingPendingRecord.AppID, "status", existingPendingRecord.Status, "type", existingPendingRecord.Type, "created_at", existingPendingRecord.CreatedAt, "updated_at", existingPendingRecord.UpdatedAt, "expires_at", existingPendingRecord.ExpiresAt, "grant_duration", existingPendingRecord.GrantDuration, "fields", existingPendingRecord.Fields, "session_id", existingPendingRecord.SessionID, "consent_portal_url", existingPendingRecord.ConsentPortalURL)
+
+			return existingPendingRecord, nil
+		}
+	}
+
+	// Validate that we don't have multiple pending consents for this combination
+	if len(req.DataFields) > 0 {
+		if err := ce.validatePendingConsentUniqueness(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail); err != nil {
+			return nil, err
 		}
 	}
 
 	// Create new consent record for this owner
 	consentID := fmt.Sprintf("consent_%s", uuid.New().String()[:8])
-	expiresAt := now.Add(30 * 24 * time.Hour)
 
 	// Set default grant duration if not provided
-	grantDuration := req.GrantDuration
-	if grantDuration == "" {
-		grantDuration = "30d"
+	grantDuration := getDefaultGrantDuration(req.GrantDuration)
+
+	// Calculate expires_at based on grant_duration and updated_at
+	expiresAt, err := calculateExpiresAt(grantDuration, now)
+	if err != nil {
+		return nil, err
 	}
 
 	// Combine all fields from all data fields
@@ -313,14 +355,31 @@ func (ce *consentEngineImpl) findExistingConsentUnsafe(consumerAppID, ownerID st
 	return nil
 }
 
-// findExistingConsentByEmailUnsafe finds an existing consent record by app_id, owner_id, and owner_email
+// findExistingPendingConsentByEmailUnsafe finds an existing PENDING consent record by app_id, owner_id, and owner_email
 // This should only be called when the caller already holds the appropriate lock
-func (ce *consentEngineImpl) findExistingConsentByEmailUnsafe(consumerAppID, ownerID, ownerEmail string) *ConsentRecord {
+func (ce *consentEngineImpl) findExistingPendingConsentByEmailUnsafe(consumerAppID, ownerID, ownerEmail string) *ConsentRecord {
 	for _, record := range ce.consentRecords {
-		if record.AppID == consumerAppID && record.OwnerID == ownerID && record.OwnerEmail == ownerEmail {
+		if record.AppID == consumerAppID && record.OwnerID == ownerID && record.OwnerEmail == ownerEmail && record.Status == string(StatusPending) {
 			return record
 		}
 	}
+	return nil
+}
+
+// validatePendingConsentUniqueness validates that there's only one pending consent record per (owner_id, owner_email, app_id) combination
+// This should only be called when the caller already holds the appropriate lock
+func (ce *consentEngineImpl) validatePendingConsentUniqueness(consumerAppID, ownerID, ownerEmail string) error {
+	pendingCount := 0
+	for _, record := range ce.consentRecords {
+		if record.AppID == consumerAppID && record.OwnerID == ownerID && record.OwnerEmail == ownerEmail && record.Status == string(StatusPending) {
+			pendingCount++
+		}
+	}
+
+	if pendingCount > 1 {
+		return fmt.Errorf("data integrity violation: found %d pending consent records for (app_id=%s, owner_id=%s, owner_email=%s), expected maximum 1", pendingCount, consumerAppID, ownerID, ownerEmail)
+	}
+
 	return nil
 }
 
@@ -356,17 +415,25 @@ func (ce *consentEngineImpl) UpdateConsent(id string, req UpdateConsentRequest) 
 	record.Status = string(req.Status)
 	record.UpdatedAt = time.Now()
 
-	// Update grant duration if provided
+	// Update grant duration if provided, otherwise use existing or default
 	if req.GrantDuration != "" {
 		record.GrantDuration = req.GrantDuration
-
-		// Recalculate expires_at if grant duration is provided
-		duration, err := utils.ParseExpiryTime(req.GrantDuration)
-		if err != nil {
-			return nil, fmt.Errorf("invalid grant duration format: %w", err)
-		}
-		record.ExpiresAt = time.Now().Add(duration)
+	} else {
+		// Ensure we have a valid grant duration
+		record.GrantDuration = getDefaultGrantDuration(record.GrantDuration)
 	}
+
+	// Update fields if provided
+	if len(req.Fields) > 0 {
+		record.Fields = req.Fields
+	}
+
+	// Recalculate expires_at based on grant_duration and updated_at
+	expiresAt, err := calculateExpiresAt(record.GrantDuration, record.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	record.ExpiresAt = expiresAt
 
 	ce.consentRecords[id] = record
 	slog.Info("Consent record updated", "consent_id", record.ConsentID, "owner_id", record.OwnerID, "owner_email", record.OwnerEmail, "app_id", record.AppID, "status", record.Status, "type", record.Type, "created_at", record.CreatedAt, "updated_at", record.UpdatedAt, "expires_at", record.ExpiresAt, "grant_duration", record.GrantDuration, "fields", record.Fields, "session_id", record.SessionID, "consent_portal_url", record.ConsentPortalURL)
@@ -442,19 +509,6 @@ func (ce *consentEngineImpl) GetConsentsByConsumer(consumer string) ([]*ConsentR
 	return records, nil
 }
 
-// GetAllConsentRecords retrieves all consent records (for debugging/admin purposes)
-func (ce *consentEngineImpl) GetAllConsentRecords() ([]*ConsentRecord, error) {
-	ce.lock.RLock()
-	defer ce.lock.RUnlock()
-
-	var records []*ConsentRecord
-	for _, record := range ce.consentRecords {
-		records = append(records, record)
-	}
-
-	return records, nil
-}
-
 // CheckConsentExpiry checks and updates expired consent records
 func (ce *consentEngineImpl) CheckConsentExpiry() ([]*ConsentRecord, error) {
 	ce.lock.Lock()
@@ -499,11 +553,11 @@ func (ce *consentEngineImpl) RevokeConsent(id string, reason string) (*ConsentRe
 // Helper function to validate status transitions
 func isValidStatusTransition(current, new ConsentStatus) bool {
 	validTransitions := map[ConsentStatus][]ConsentStatus{
-		StatusPending:  {StatusApproved, StatusRejected, StatusExpired}, // Initial decision
-		StatusApproved: {StatusApproved, StatusRejected, StatusRevoked}, // Direct approval flow: approved->approved (success), approved->rejected (direct rejection), approved->revoked (user revocation)
-		StatusRejected: {StatusPending, StatusApproved},                 // Allow retry from rejected
-		StatusExpired:  {StatusPending},                                 // Allow renewal
-		StatusRevoked:  {StatusPending},                                 // Allow revocation reconsideration (must go through pending first)
+		StatusPending:  {StatusApproved, StatusRejected, StatusExpired},                               // Initial decision
+		StatusApproved: {StatusPending, StatusApproved, StatusRejected, StatusRevoked, StatusExpired}, // Direct approval flow: approved->approved (success), approved->rejected (direct rejection), approved->revoked (user revocation), approved->expired (expiry)
+		StatusRejected: {StatusPending, StatusExpired},                                                // Terminal state - can only transition to expired
+		StatusExpired:  {StatusExpired},                                                               // Terminal state - can only stay expired
+		StatusRevoked:  {StatusExpired},                                                               // Terminal state - can only transition to expired
 	}
 
 	allowed, exists := validTransitions[current]
@@ -540,19 +594,52 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 		}
 	}
 
-	// Create expiry time (30 days from now)
-	expiresAt := time.Now().Add(30 * 24 * time.Hour)
-
 	ce.lock.Lock()
 	defer ce.lock.Unlock()
 
-	// Check if there's already an existing consent for this (app_id, owner_id, owner_email) combination
+	// Check if there's already a PENDING consent for this (app_id, owner_id, owner_email) combination
 	// We only need to check the first data field since all should have the same owner
 	if len(req.DataFields) > 0 {
-		existingRecord := ce.findExistingConsentByEmailUnsafe(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail)
-		if existingRecord != nil {
-			// Return the existing record instead of creating a new one
-			return existingRecord, nil
+		existingPendingRecord := ce.findExistingPendingConsentByEmailUnsafe(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail)
+		if existingPendingRecord != nil {
+			// Update the existing pending record with new fields and updated_at
+			now := time.Now()
+
+			// Combine all fields from all data fields
+			var allFields []string
+			for _, dataField := range req.DataFields {
+				allFields = append(allFields, dataField.Fields...)
+			}
+
+			// Update the existing record with all provided fields
+			existingPendingRecord.Fields = allFields
+			existingPendingRecord.UpdatedAt = now
+			existingPendingRecord.SessionID = req.SessionID
+
+			// Update grant duration (use default "1h" if not provided)
+			grantDuration := getDefaultGrantDuration(req.GrantDuration)
+			existingPendingRecord.GrantDuration = grantDuration
+
+			// Recalculate expires_at based on grant_duration and updated_at
+			expiresAt, err := calculateExpiresAt(grantDuration, now)
+			if err != nil {
+				return nil, err
+			}
+			existingPendingRecord.ExpiresAt = expiresAt
+
+			// Store the updated record
+			ce.consentRecords[existingPendingRecord.ConsentID] = existingPendingRecord
+
+			slog.Info("Updated existing pending consent record", "consent_id", existingPendingRecord.ConsentID, "owner_id", existingPendingRecord.OwnerID, "owner_email", existingPendingRecord.OwnerEmail, "app_id", existingPendingRecord.AppID, "status", existingPendingRecord.Status, "type", existingPendingRecord.Type, "created_at", existingPendingRecord.CreatedAt, "updated_at", existingPendingRecord.UpdatedAt, "expires_at", existingPendingRecord.ExpiresAt, "grant_duration", existingPendingRecord.GrantDuration, "fields", existingPendingRecord.Fields, "session_id", existingPendingRecord.SessionID, "consent_portal_url", existingPendingRecord.ConsentPortalURL)
+
+			return existingPendingRecord, nil
+		}
+	}
+
+	// Validate that we don't have multiple pending consents for this combination
+	if len(req.DataFields) > 0 {
+		if err := ce.validatePendingConsentUniqueness(req.AppID, req.DataFields[0].OwnerID, req.DataFields[0].OwnerEmail); err != nil {
+			return nil, err
 		}
 	}
 
@@ -560,9 +647,13 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	consentID := fmt.Sprintf("consent_%s", uuid.New().String()[:8])
 
 	// Set default grant duration if not provided
-	grantDuration := req.GrantDuration
-	if grantDuration == "" {
-		grantDuration = "30d"
+	grantDuration := getDefaultGrantDuration(req.GrantDuration)
+
+	// Calculate expires_at based on grant_duration and updated_at
+	now := time.Now()
+	expiresAt, err := calculateExpiresAt(grantDuration, now)
+	if err != nil {
+		return nil, err
 	}
 
 	// Combine all fields from all data fields
@@ -578,8 +669,8 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 		AppID:            req.AppID,
 		Status:           string(StatusPending),
 		Type:             string(ConsentTypeRealTime),
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		CreatedAt:        now,
+		UpdatedAt:        now,
 		ExpiresAt:        expiresAt,
 		GrantDuration:    grantDuration,
 		Fields:           allFields,
@@ -593,102 +684,53 @@ func (ce *consentEngineImpl) ProcessConsentRequest(req ConsentRequest) (*Consent
 	return record, nil
 }
 
-// Helper function to parse expiry time strings like "30d", "1h", "7d"
-func parseExpiryTime(expiryStr string) (time.Duration, error) {
-	if len(expiryStr) < 2 {
-		return 0, fmt.Errorf("invalid expiry time format")
-	}
-
-	unit := expiryStr[len(expiryStr)-1:]
-	value := expiryStr[:len(expiryStr)-1]
-
-	var duration time.Duration
-	switch unit {
-	case "d":
-		duration = 24 * time.Hour
-	case "h":
-		duration = time.Hour
-	case "m":
-		duration = time.Minute
-	case "s":
-		duration = time.Second
-	default:
-		return 0, fmt.Errorf("unsupported time unit: %s", unit)
-	}
-
-	// Parse the numeric value
-	var multiplier int
-	if _, err := fmt.Sscanf(value, "%d", &multiplier); err != nil {
-		return 0, fmt.Errorf("invalid numeric value: %s", value)
-	}
-
-	return time.Duration(multiplier) * duration, nil
-}
-
-// CreateOrUpdateConsentRecord creates a new consent record or updates an existing one
-func (ce *consentEngineImpl) CreateOrUpdateConsentRecord(req ConsentRecord) (*ConsentRecord, error) {
-	ce.lock.Lock()
-	defer ce.lock.Unlock()
-
-	// Check if record already exists
-	if existingRecord, exists := ce.consentRecords[req.ConsentID]; exists {
-		// Update existing record
-		existingRecord.Status = req.Status
-		existingRecord.Type = req.Type
-		existingRecord.OwnerID = req.OwnerID
-		existingRecord.OwnerEmail = req.OwnerEmail
-		existingRecord.AppID = req.AppID
-		existingRecord.UpdatedAt = time.Now()
-		existingRecord.Fields = req.Fields
-		existingRecord.SessionID = req.SessionID
-		existingRecord.ConsentPortalURL = fmt.Sprintf("%s/?consent_id=%s", ce.consentPortalUrl, existingRecord.ConsentID)
-		existingRecord.ExpiresAt = req.ExpiresAt
-		existingRecord.GrantDuration = req.GrantDuration
-
-		return existingRecord, nil
-	}
-
-	// Set default grant duration if not provided
-	grantDuration := req.GrantDuration
+// getDefaultGrantDuration returns the grant duration with a default value if empty
+func getDefaultGrantDuration(grantDuration string) string {
 	if grantDuration == "" {
-		grantDuration = "30d"
+		return "1h"
 	}
-
-	// Create new record
-	record := &ConsentRecord{
-		ConsentID:        req.ConsentID,
-		OwnerID:          req.OwnerID,
-		OwnerEmail:       req.OwnerEmail,
-		AppID:            req.AppID,
-		Status:           req.Status,
-		Type:             req.Type,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
-		ExpiresAt:        req.ExpiresAt,
-		GrantDuration:    grantDuration,
-		Fields:           req.Fields,
-		SessionID:        req.SessionID,
-		ConsentPortalURL: fmt.Sprintf("%s/?consent_id=%s", ce.consentPortalUrl, req.ConsentID),
-	}
-
-	// Store the record
-	ce.consentRecords[req.ConsentID] = record
-
-	return record, nil
+	return grantDuration
 }
 
-// UpdateConsentRecord updates an existing consent record directly
-func (ce *consentEngineImpl) UpdateConsentRecord(record *ConsentRecord) error {
-	ce.lock.Lock()
-	defer ce.lock.Unlock()
-
-	// Check if the record exists
-	if _, exists := ce.consentRecords[record.ConsentID]; !exists {
-		return fmt.Errorf("consent record with ID '%s' not found", record.ConsentID)
+// calculateExpiresAt calculates the expiration time based on grant duration and updated time
+func calculateExpiresAt(grantDuration string, updatedAt time.Time) (time.Time, error) {
+	duration, err := utils.ParseExpiryTime(grantDuration)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid grant duration format: %w", err)
 	}
+	return updatedAt.Add(duration), nil
+}
 
-	// Update the record
-	ce.consentRecords[record.ConsentID] = record
+// startBackgroundExpiryProcess starts a background goroutine that runs every 24 hours
+// to check and update expired consent records
+func (ce *consentEngineImpl) startBackgroundExpiryProcess() {
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
 
-	return nil
+		slog.Info("Background expiry process started", "interval", "24h")
+
+		for {
+			select {
+			case <-ticker.C:
+				// Run the expiry check
+				expiredRecords, err := ce.CheckConsentExpiry()
+				if err != nil {
+					slog.Error("Background expiry check failed", "error", err)
+				} else if len(expiredRecords) > 0 {
+					slog.Info("Background expiry process completed", "expired_count", len(expiredRecords))
+				} else {
+					slog.Debug("Background expiry process completed", "expired_count", 0)
+				}
+			case <-ce.stopChan:
+				slog.Info("Background expiry process stopped")
+				return
+			}
+		}
+	}()
+}
+
+// StopBackgroundExpiryProcess stops the background expiry process
+func (ce *consentEngineImpl) StopBackgroundExpiryProcess() {
+	close(ce.stopChan)
 }
