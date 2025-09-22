@@ -433,6 +433,21 @@ curl http://localhost:8081/health
 - `PORT` - Service port (default: 8081)
 - `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
 
+### Development Constants
+
+The `constants.go` file contains a fallback mapping for local development and testing:
+
+```go
+// ownerIDToEmailMap - Fallback mapping for development
+// TODO: Remove this file once SCIM integration is fully tested and deployed
+var ownerIDToEmailMap = map[string]string{
+    "199512345678": "test@opensource.lk",
+    // ... more mappings
+}
+```
+
+**Important**: This file is temporary and will be removed once the SCIM integration is fully tested and deployed. In production, `owner_email` is resolved via Asgardeo's SCIM API using the `owner_id` (NIC).
+
 ### Getting Asgardeo Credentials
 
 1. Go to [Asgardeo Console](https://console.asgardeo.io/)

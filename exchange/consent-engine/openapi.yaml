@@ -130,6 +130,20 @@ paths:
         - **Frontend requests**: Require JWT authentication with email validation
         - **M2M requests**: JWT authentication is optional
         - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        
+        **Example Frontend Request:**
+        ```bash
+        curl -X GET "https://api.example.com/consents/consent_8d255282" \
+          -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+          -H "X-Requested-With: XMLHttpRequest" \
+          -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        ```
+        
+        **Example M2M Request:**
+        ```bash
+        curl -X GET "https://api.example.com/consents/consent_8d255282"
+        # No Authorization header required for M2M requests
+        ```
       operationId: getConsentById
       tags:
         - Consents
@@ -144,6 +158,33 @@ paths:
           schema:
             type: string
             example: consent_8d255282
+        - name: Authorization
+          in: header
+          required: false
+          description: |
+            JWT Bearer token for authentication. Required for frontend requests, optional for M2M requests.
+            Format: 'Bearer <jwt_token>'
+          schema:
+            type: string
+            example: "Bearer eyJ4NXQiOiJCU19FeUwwZ0ZMMU82WTB6Vnh2RllRVlB3bUEiLCJraWQiOiJabU0wTUdFd05EQm1OR0pqTUdZeU1EaGhORFEyWTJJelltSmxaVFEzTWjsbU16YzBNV1pqTmpBelpHWmxPREE0TVRGak9XRmhNbVJqTm1ZNVlXWTRPUV9SUzI1NiIsImFsZyI6IlJTMjU2In0..."
+        - name: X-Requested-With
+          in: header
+          required: false
+          description: |
+            Header to identify frontend requests. Set to 'XMLHttpRequest' for frontend calls.
+            When present, JWT authentication becomes mandatory.
+          schema:
+            type: string
+            example: "XMLHttpRequest"
+        - name: User-Agent
+          in: header
+          required: false
+          description: |
+            Browser user agent string. Used to detect frontend requests.
+            When containing browser names (Mozilla, Chrome, Safari, Firefox), JWT authentication becomes mandatory.
+          schema:
+            type: string
+            example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       responses:
         '200':
           description: Consent found and returned
