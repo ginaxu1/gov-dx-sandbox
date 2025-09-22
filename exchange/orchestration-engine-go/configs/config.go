@@ -15,6 +15,7 @@ import (
 
 // Cfg defines the configuration structure for the application.
 type Cfg struct {
+	Environment string `json:"environment,omitempty"`
 	*federator.Options
 	*graphql.MappingAST
 	Schema *ast.Document

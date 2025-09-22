@@ -2,84 +2,15 @@ package federator
 
 import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/printer"
 )
 
-func QueryBuilder(doc *ast.Document) ([]*federationServiceRequest, error) {
+func QueryBuilder(maps []string, args []*ArgSource) ([]*federationServiceRequest, error) {
 
 	// initialize return variable
 	var requests = make([]*federationServiceRequest, 0)
-
-	var schema = configs.AppConfig.Schema
-
-	// Collect the directives from the query
-	var maps, args = ProviderSchemaCollector(schema, doc)
-
-	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
-	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
-
-	pdpResponse, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
-		ConsumerId:     "passport-app",
-		AppId:          "passport-app",
-		RequestId:      "request_123",
-		RequiredFields: maps,
-	})
-
-	if err != nil {
-		logger.Log.Info("PDP request failed", "error", err)
-	}
-
-	if pdpResponse == nil {
-		logger.Log.Error("Failed to get response from PDP")
-		return requests, nil
-	}
-
-	if !pdpResponse.Allowed {
-		logger.Log.Info("Request not allowed by PDP")
-		return requests, nil
-	}
-
-	if pdpResponse.ConsentRequired {
-		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
-
-		ceResp, err := ceClient.MakeConsentRequest(&consent.CERequest{
-			AppId:     "passport-app",
-			Purpose:   "testing",
-			SessionId: "session_123",
-			DataFields: []consent.DataOwnerRecord{
-				{
-					OwnerType: "citizen",
-					OwnerId:   "199512345678",
-					Fields:    pdpResponse.ConsentRequiredFields,
-				},
-			},
-		})
-
-		if err != nil {
-			logger.Log.Info("CE request failed", "error", err)
-			return requests, nil
-		}
-
-		// log the consent response
-		logger.Log.Info("Consent Response", "response", ceResp)
-
-		if ceResp.Status != "approved" {
-			logger.Log.Info("Consent not approved")
-			return requests, &graphql.JSONError{
-				Message: "Consent not approved",
-				Extensions: map[string]interface{}{
-					"consentPortalUrl": ceResp.ConsentPortalUrl,
-				},
-			}
-		}
-	}
-
-	logger.Log.Info("Consent approved, proceeding with query execution")
 
 	var queries = BuildProviderLevelQuery(maps)
 

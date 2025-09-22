@@ -2,14 +2,13 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type Response struct {
@@ -47,27 +46,21 @@ func RunServer(f *federator.Federator) {
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		response := f.FederateQuery(req)
 
 		// decode the token
-		// Example token (normally comes from request header: X-JWT-Assertion)
-		tokenString := r.Header.Get("X-JWT-Assertion")
-		if tokenString == "" {
-			http.Error(w, "missing token", http.StatusBadRequest)
-		}
+		consumerAssertion, err := auth.GetConsumerJwtFromToken(r)
 
-		// Parse without validation (careful: only safe if gateway already validated it!)
-		token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
 		if err != nil {
-			logger.Log.Error("failed to parse token: %v", err)
+			logger.Log.Error("Failed to get consumer JWT from token", "error", err)
+			http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+			return
 		}
 
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			logger.Log.Info("claims: %v", claims)
-			for k, v := range claims {
-				fmt.Printf("%s = %v\n", k, v)
-			}
-		}
+		response, statusCode := f.FederateQuery(req, consumerAssertion)
+
+		w.WriteHeader(statusCode)
+		// Set content type to application/json
+
 		w.Header().Set("Content-Type", "application/json")
 
 		err = json.NewEncoder(w).Encode(response)
