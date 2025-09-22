@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -328,13 +329,16 @@ func (c *AsgardeoSCIMClient) getUserByNICUserMgmt(nic string) (*SCIMUser, error)
 	return &user, nil
 }
 
-// Global SCIM client instance
-var scimClient *AsgardeoSCIMClient
+// Global SCIM client instance with thread-safe initialization
+var (
+	scimClient *AsgardeoSCIMClient
+	scimOnce   sync.Once
+)
 
 // getOwnerEmailByID looks up the owner_email for a given owner_id using SCIM API
 func getOwnerEmailByID(ownerID string) (string, error) {
-	// Initialize SCIM client if not already done
-	if scimClient == nil {
+	// Initialize SCIM client thread-safely using sync.Once
+	scimOnce.Do(func() {
 		baseURL := getEnvOrDefault("ASGARDEO_BASE_URL", "https://api.asgardeo.io/t/YOUR_TENANT")
 		clientID := getEnvOrDefault("ASGARDEO_M2M_CLIENT_ID", "")
 		clientSecret := getEnvOrDefault("ASGARDEO_M2M_CLIENT_SECRET", "")
@@ -342,13 +346,19 @@ func getOwnerEmailByID(ownerID string) (string, error) {
 		if clientID == "" || clientSecret == "" {
 			// Fallback to hardcoded mapping for development/testing
 			slog.Warn("M2M credentials not configured, using hardcoded mapping", "owner_id", ownerID)
-			if email, exists := ownerIDToEmailMap[ownerID]; exists {
-				return email, nil
-			}
-			return "", fmt.Errorf("no email mapping found for owner_id: %s", ownerID)
+			// Don't initialize scimClient if credentials are missing
+			return
 		}
 
 		scimClient = NewAsgardeoSCIMClient(baseURL, clientID, clientSecret)
+	})
+
+	// If SCIM client is not initialized (missing credentials), use hardcoded mapping
+	if scimClient == nil {
+		if email, exists := ownerIDToEmailMap[ownerID]; exists {
+			return email, nil
+		}
+		return "", fmt.Errorf("no email mapping found for owner_id: %s", ownerID)
 	}
 
 	// Try SCIM lookup first
@@ -1384,14 +1394,19 @@ func main() {
 	engine := NewPostgresConsentEngine(db)
 	server := &apiServer{engine: engine}
 
-	// Start background expiry process
+	// Start background expiry process with context cancellation
 	expiryInterval := getEnvOrDefault("CONSENT_EXPIRY_CHECK_INTERVAL", "24h")
 	interval, err := time.ParseDuration(expiryInterval)
 	if err != nil {
 		slog.Warn("Invalid expiry check interval, using default 24h", "interval", expiryInterval, "error", err)
 		interval = 24 * time.Hour
 	}
-	engine.StartBackgroundExpiryProcess(interval)
+
+	// Create a context for the background process that can be cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // This will cancel the background process when main exits
+
+	engine.StartBackgroundExpiryProcess(ctx, interval)
 
 	// Initialize JWT verifier with Asgardeo JWKS endpoint
 	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")

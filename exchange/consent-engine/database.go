@@ -1,58 +1,174 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"time"
 
 	_ "github.com/lib/pq"
 )
 
 // DatabaseConfig holds database connection configuration
 type DatabaseConfig struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	Database string
-	SSLMode  string
+	Host            string
+	Port            string
+	Username        string
+	Password        string
+	Database        string
+	SSLMode         string
+	MaxOpenConns    int           // Maximum number of open connections
+	MaxIdleConns    int           // Maximum number of idle connections
+	ConnMaxLifetime time.Duration // Maximum lifetime of a connection
+	ConnMaxIdleTime time.Duration // Maximum idle time of a connection
+	QueryTimeout    time.Duration // Timeout for individual queries
+	ConnectTimeout  time.Duration // Timeout for initial connection
+	RetryAttempts   int           // Number of retry attempts for connection
+	RetryDelay      time.Duration // Delay between retry attempts
 }
 
 // NewDatabaseConfig creates a new database configuration from environment variables
 func NewDatabaseConfig() *DatabaseConfig {
+	// Parse durations from environment variables with defaults
+	maxOpenConns := parseIntOrDefault("DB_MAX_OPEN_CONNS", 25)
+	maxIdleConns := parseIntOrDefault("DB_MAX_IDLE_CONNS", 5)
+	connMaxLifetime := parseDurationOrDefault("DB_CONN_MAX_LIFETIME", "1h")
+	connMaxIdleTime := parseDurationOrDefault("DB_CONN_MAX_IDLE_TIME", "30m")
+	queryTimeout := parseDurationOrDefault("DB_QUERY_TIMEOUT", "30s")
+	connectTimeout := parseDurationOrDefault("DB_CONNECT_TIMEOUT", "10s")
+	retryAttempts := parseIntOrDefault("DB_RETRY_ATTEMPTS", 3)
+	retryDelay := parseDurationOrDefault("DB_RETRY_DELAY", "1s")
+
 	return &DatabaseConfig{
-		Host:     getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost"),
-		Port:     getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432"),
-		Username: getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres"),
-		Password: getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password"),
-		Database: getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "consent_engine"),
-		SSLMode:  getEnvOrDefault("DB_SSLMODE", "require"),
+		Host:            getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost"),
+		Port:            getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432"),
+		Username:        getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres"),
+		Password:        getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password"),
+		Database:        getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "consent_engine"),
+		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
+		MaxOpenConns:    maxOpenConns,
+		MaxIdleConns:    maxIdleConns,
+		ConnMaxLifetime: connMaxLifetime,
+		ConnMaxIdleTime: connMaxIdleTime,
+		QueryTimeout:    queryTimeout,
+		ConnectTimeout:  connectTimeout,
+		RetryAttempts:   retryAttempts,
+		RetryDelay:      retryDelay,
 	}
 }
 
-// ConnectDB establishes a connection to the PostgreSQL database
+// parseIntOrDefault parses an integer from environment variable or returns default
+func parseIntOrDefault(key string, defaultValue int) int {
+	if value := getEnvOrDefault(key, ""); value != "" {
+		if parsed, err := fmt.Sscanf(value, "%d", &defaultValue); err == nil && parsed == 1 {
+			return defaultValue
+		}
+	}
+	return defaultValue
+}
+
+// parseDurationOrDefault parses a duration from environment variable or returns default
+func parseDurationOrDefault(key, defaultValue string) time.Duration {
+	if value := getEnvOrDefault(key, defaultValue); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil {
+			return parsed
+		}
+	}
+	// Fallback to parsing the default value
+	if parsed, err := time.ParseDuration(defaultValue); err == nil {
+		return parsed
+	}
+	// Ultimate fallback
+	return time.Hour
+}
+
+// ConnectDB establishes a connection to the PostgreSQL database with retry logic
 func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
-	// Build connection string
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
+	// Build connection string with timeout
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d",
+		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode, int(config.ConnectTimeout.Seconds()))
 
-	// Open connection
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
+	var db *sql.DB
+	var err error
+
+	// Retry connection attempts
+	for attempt := 1; attempt <= config.RetryAttempts; attempt++ {
+		slog.Info("Attempting database connection", "attempt", attempt, "max_attempts", config.RetryAttempts)
+
+		// Open connection
+		db, err = sql.Open("postgres", connStr)
+		if err != nil {
+			slog.Warn("Failed to open database connection", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to open database connection after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		// Configure connection pool
+		db.SetMaxOpenConns(config.MaxOpenConns)
+		db.SetMaxIdleConns(config.MaxIdleConns)
+		db.SetConnMaxLifetime(config.ConnMaxLifetime)
+		db.SetConnMaxIdleTime(config.ConnMaxIdleTime)
+
+		// Test connection with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
+		err = db.PingContext(ctx)
+		cancel()
+
+		if err != nil {
+			slog.Warn("Failed to ping database", "attempt", attempt, "error", err)
+			db.Close()
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to ping database after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		// Connection successful
+		slog.Info("Successfully connected to PostgreSQL database",
+			"host", config.Host,
+			"port", config.Port,
+			"database", config.Database,
+			"max_open_conns", config.MaxOpenConns,
+			"max_idle_conns", config.MaxIdleConns,
+			"conn_max_lifetime", config.ConnMaxLifetime,
+			"conn_max_idle_time", config.ConnMaxIdleTime)
+
+		return db, nil
 	}
 
-	// Test connection
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
+	return nil, fmt.Errorf("unexpected error: should not reach here")
+}
 
-	slog.Info("Successfully connected to PostgreSQL database",
-		"host", config.Host,
-		"port", config.Port,
-		"database", config.Database)
+// ExecuteWithTimeout executes a query with timeout using the provided context
+func ExecuteWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) (sql.Result, error) {
+	// Create a timeout context for the query
+	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
+	defer cancel()
 
-	return db, nil
+	return db.ExecContext(queryCtx, query, args...)
+}
+
+// QueryWithTimeout executes a query with timeout and returns rows
+func QueryWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) (*sql.Rows, error) {
+	// Create a timeout context for the query
+	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
+	defer cancel()
+
+	return db.QueryContext(queryCtx, query, args...)
+}
+
+// QueryRowWithTimeout executes a query with timeout and returns a single row
+func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) *sql.Row {
+	// Create a timeout context for the query
+	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
+	defer cancel()
+
+	return db.QueryRowContext(queryCtx, query, args...)
 }
 
 // InitDatabase creates the necessary tables if they don't exist

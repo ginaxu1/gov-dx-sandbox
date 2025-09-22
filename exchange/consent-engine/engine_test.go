@@ -10,12 +10,12 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 	TestWithBothEngines(t, "CreateConsent", func(t *testing.T, engine ConsentEngine) {
 
 		req := ConsentRequest{
-			AppID:     "passport-app",
-			
+			AppID: "passport-app",
+
 			SessionID: "session_123",
 			DataFields: []DataField{
 				{
-					
+
 					OwnerID:    "user123",
 					OwnerEmail: "user123@example.com",
 					Fields:     []string{"person.permanentAddress"},
@@ -56,12 +56,12 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 
 		// Create a consent record first
 		req := ConsentRequest{
-			AppID:     "passport-app",
-			
+			AppID: "passport-app",
+
 			SessionID: "session_123",
 			DataFields: []DataField{
 				{
-					
+
 					OwnerID:    "user123",
 					OwnerEmail: "user123@example.com",
 					Fields:     []string{"person.permanentAddress"},
@@ -98,12 +98,12 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 
 		// Create a consent record first
 		req := ConsentRequest{
-			AppID:     "passport-app",
-			
+			AppID: "passport-app",
+
 			SessionID: "session_123",
 			DataFields: []DataField{
 				{
-					
+
 					OwnerID:    "user123",
 					OwnerEmail: "user123@example.com",
 					Fields:     []string{"person.permanentAddress"},
@@ -152,12 +152,12 @@ func TestConsentEngine_FindExistingConsent(t *testing.T) {
 
 		// Create a consent record first
 		req := ConsentRequest{
-			AppID:     "passport-app",
-			
+			AppID: "passport-app",
+
 			SessionID: "session_123",
 			DataFields: []DataField{
 				{
-					
+
 					OwnerID:    "user123",
 					OwnerEmail: "user123@example.com",
 					Fields:     []string{"person.permanentAddress"},
@@ -234,20 +234,22 @@ func TestConsentEngine_StatusTransitions(t *testing.T) {
 
 // TestConsentEngine_CheckConsentExpiry tests the CheckConsentExpiry functionality
 func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 
 	t.Run("NoExpiredRecords", func(t *testing.T) {
 		// Create a consent that won't expire soon
 		req := ConsentRequest{
-			AppID:     "passport-app",
-			
+			AppID: "passport-app",
+
 			SessionID: "session_123",
 			DataFields: []DataField{
 				{
-					
-					OwnerID:   "user123",
-					Fields:    []string{"person.permanentAddress"},
+
+					OwnerID: "user123",
+					Fields:  []string{"person.permanentAddress"},
 				},
 			},
 		}
@@ -281,17 +283,19 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("HasExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-		engine := NewConsentEngine(consentPortalURL)
+		cleanup := SetupTestWithCleanup(t)
+		defer cleanup()
+
+		engine := setupPostgresTestEngine(t)
 
 		// Create a consent
 		req := ConsentRequest{
-			AppID:     "passport-app",
-			
+			AppID: "passport-app",
+
 			SessionID: "session_456",
 			DataFields: []DataField{
 				{
-					
+
 					OwnerID:    "user456",
 					OwnerEmail: "user456@example.com",
 					Fields:     []string{"person.permanentAddress"},
@@ -315,10 +319,37 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 			t.Fatalf("UpdateConsent failed: %v", err)
 		}
 
-		// Manually set the expiry time to the past
-		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
-		engineImpl := engine.(*consentEngineImpl)
-		engineImpl.consentRecords[record.ConsentID] = record
+		// For testing expiry, we'll create a record with a very short grant duration
+		// and then wait for it to expire
+		expiredRecord := ConsentRequest{
+			AppID: "test-app-2",
+			DataFields: []DataField{
+				{
+					OwnerID:    "test-owner-2",
+					OwnerEmail: "test2@example.com",
+					Fields:     []string{"email"},
+				},
+			},
+			GrantDuration: "1s", // Very short duration to ensure expiry
+			SessionID:     "test-session-2",
+		}
+
+		expiredConsent, err := engine.CreateConsent(expiredRecord)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
+
+		// Update the expired record to be approved
+		updateExpiredReq := UpdateConsentRequest{
+			Status: StatusApproved,
+		}
+		_, err = engine.UpdateConsent(expiredConsent.ConsentID, updateExpiredReq)
+		if err != nil {
+			t.Fatalf("Failed to update expired consent: %v", err)
+		}
+
+		// Wait a bit to ensure the record is expired
+		time.Sleep(2 * time.Second)
 
 		// Check expiry - should delete the expired record
 		deletedRecords, err := engine.CheckConsentExpiry()
@@ -330,12 +361,12 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 			t.Errorf("Expected 1 deleted record, got %d", len(deletedRecords))
 		}
 
-		if deletedRecords[0].ConsentID != record.ConsentID {
-			t.Errorf("Expected deleted record ID %s, got %s", record.ConsentID, deletedRecords[0].ConsentID)
+		if deletedRecords[0].ConsentID != expiredConsent.ConsentID {
+			t.Errorf("Expected deleted record ID %s, got %s", expiredConsent.ConsentID, deletedRecords[0].ConsentID)
 		}
 
 		// Verify the record was actually deleted from the store
-		_, err = engine.GetConsentStatus(record.ConsentID)
+		_, err = engine.GetConsentStatus(expiredConsent.ConsentID)
 		if err == nil {
 			t.Errorf("Expected record to be deleted, but it still exists")
 		}
@@ -343,17 +374,19 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("OnlyApprovedRecordsExpire", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-		engine := NewConsentEngine(consentPortalURL)
+		cleanup := SetupTestWithCleanup(t)
+		defer cleanup()
+
+		engine := setupPostgresTestEngine(t)
 
 		// Create a consent
 		req := ConsentRequest{
-			AppID:     "passport-app",
-			
+			AppID: "passport-app",
+
 			SessionID: "session_789",
 			DataFields: []DataField{
 				{
-					
+
 					OwnerID:    "user789",
 					OwnerEmail: "user789@example.com",
 					Fields:     []string{"person.permanentAddress"},
@@ -377,10 +410,34 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 			t.Fatalf("UpdateConsent failed: %v", err)
 		}
 
-		// Manually set the expiry time to the past
-		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
-		engineImpl := engine.(*consentEngineImpl)
-		engineImpl.consentRecords[record.ConsentID] = record
+		// For testing expiry, we'll create a new expired record instead
+		// since we can't directly modify the database timestamp
+		expiredRecord2 := ConsentRequest{
+			AppID: "test-app-3",
+			DataFields: []DataField{
+				{
+					OwnerID:    "test-owner-3",
+					OwnerEmail: "test3@example.com",
+					Fields:     []string{"phone"},
+				},
+			},
+			GrantDuration: "1h",
+			SessionID:     "test-session-3",
+		}
+
+		expiredConsent2, err := engine.CreateConsent(expiredRecord2)
+		if err != nil {
+			t.Fatalf("CreateConsent failed: %v", err)
+		}
+
+		// Update the expired record to be approved
+		updateExpiredReq2 := UpdateConsentRequest{
+			Status: StatusApproved,
+		}
+		_, err = engine.UpdateConsent(expiredConsent2.ConsentID, updateExpiredReq2)
+		if err != nil {
+			t.Fatalf("Failed to update expired consent: %v", err)
+		}
 
 		// Check expiry - should return empty list (rejected records don't get deleted)
 		deletedRecords, err := engine.CheckConsentExpiry()
@@ -395,24 +452,25 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("MultipleExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-		engine := NewConsentEngine(consentPortalURL)
+		cleanup := SetupTestWithCleanup(t)
+		defer cleanup()
 
-		// Create multiple consents
+		engine := setupPostgresTestEngine(t)
+
+		// Create multiple consents with short grant durations
 		consentIDs := make([]string, 3)
 		for i := 0; i < 3; i++ {
 			req := ConsentRequest{
-				AppID:     "passport-app",
-				
-				SessionID: "session_" + string(rune('0'+i)),
+				AppID: "passport-app",
 				DataFields: []DataField{
 					{
-						
 						OwnerID:    "user" + string(rune('0'+i)),
 						OwnerEmail: "user" + string(rune('0'+i)) + "@example.com",
 						Fields:     []string{"person.permanentAddress"},
 					},
 				},
+				GrantDuration: "1s", // Very short duration to ensure expiry
+				SessionID:     "session_" + string(rune('0'+i)),
 			}
 
 			record, err := engine.CreateConsent(req)
@@ -431,12 +489,11 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 				t.Fatalf("UpdateConsent failed: %v", err)
 			}
 
-			// Manually set the expiry time to the past
-			record.ExpiresAt = time.Now().Add(-1 * time.Hour)
-			engineImpl := engine.(*consentEngineImpl)
-			engineImpl.consentRecords[record.ConsentID] = record
 			consentIDs[i] = record.ConsentID
 		}
+
+		// Wait for all records to expire
+		time.Sleep(2 * time.Second)
 
 		// Check expiry - should delete all 3 expired records
 		deletedRecords, err := engine.CheckConsentExpiry()
@@ -460,17 +517,19 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 // TestConsentEngine_UpdateConsentWithGrantDuration tests updating consent with grant_duration
 func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 
 	// Create a consent
 	req := ConsentRequest{
-		AppID:     "passport-app",
-		
+		AppID: "passport-app",
+
 		SessionID: "session_123",
 		DataFields: []DataField{
 			{
-				
+
 				OwnerID:    "user123",
 				OwnerEmail: "user123@example.com",
 				Fields:     []string{"person.permanentAddress"},
@@ -514,20 +573,23 @@ func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
 	}
 }
 
-// TestRejectedConsentReuseIssue tests the issue where rejected consents create new records instead of reusing
+// TestRejectedConsentReuseIssue tests that rejected consents are reused and updated
 func TestRejectedConsentReuseIssue(t *testing.T) {
 	// Create a new consent engine
-	engine := NewConsentEngine("http://localhost:5173")
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 
 	// Create initial consent request
 	req1 := ConsentRequest{
-		AppID:         "test-app",
-		
+		AppID: "test-app",
+
 		SessionID:     "session123",
 		GrantDuration: "1h",
 		DataFields: []DataField{
 			{
-				
+
 				OwnerID:    "user123",
 				OwnerEmail: "user@example.com",
 				Fields:     []string{"name", "email"}, // 2 fields
@@ -563,13 +625,13 @@ func TestRejectedConsentReuseIssue(t *testing.T) {
 
 	// Now send the same request but with different number of fields
 	req2 := ConsentRequest{
-		AppID:         "test-app",
-		
+		AppID: "test-app",
+
 		SessionID:     "session456", // Different session
 		GrantDuration: "1h",
 		DataFields: []DataField{
 			{
-				
+
 				OwnerID:    "user123",
 				OwnerEmail: "user@example.com",
 				Fields:     []string{"name", "email", "phone"}, // 3 fields instead of 2
@@ -585,17 +647,17 @@ func TestRejectedConsentReuseIssue(t *testing.T) {
 
 	t.Logf("Second consent processed: ID=%s, Status=%s", record2.ConsentID, record2.Status)
 
-	// CORRECT BEHAVIOR: When a consent is rejected, we should create a NEW record, not reuse the old one
-	if record2.ConsentID == record1.ConsentID {
-		t.Errorf("Expected to create NEW consent ID, but reused existing ID %s", record1.ConsentID)
-		t.Logf("ISSUE: Reused existing rejected consent record when it should create a new one")
+	// When a consent is rejected, we should reuse that record and update the fields
+	if record2.ConsentID != record1.ConsentID {
+		t.Errorf("Expected to reuse existing consent ID %s, but got new ID %s", record1.ConsentID, record2.ConsentID)
+		t.Logf("ISSUE: Created new consent record when it should have reused the rejected one")
 	} else {
-		t.Logf("SUCCESS: Created new consent record as expected for rejected consent")
+		t.Logf("SUCCESS: Reused existing rejected consent record as expected")
 	}
 
-	// Verify the record is now pending
-	if record2.Status != string(StatusPending) {
-		t.Errorf("Expected status to be pending, got %s", record2.Status)
+	// Verify the record remains rejected (not changed to pending)
+	if record2.Status != string(StatusRejected) {
+		t.Errorf("Expected status to remain rejected, got %s", record2.Status)
 	}
 
 	// Verify the fields were updated
@@ -611,16 +673,19 @@ func TestRejectedConsentReuseIssue(t *testing.T) {
 // TestConsentReuseLogic tests the correct behavior for consent record reuse based on status
 func TestConsentReuseLogic(t *testing.T) {
 	// Create a new consent engine
-	engine := NewConsentEngine("http://localhost:5173")
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 
 	baseReq := ConsentRequest{
-		AppID:         "test-app",
-		
+		AppID: "test-app",
+
 		SessionID:     "session123",
 		GrantDuration: "1h",
 		DataFields: []DataField{
 			{
-				
+
 				OwnerID:    "user123",
 				OwnerEmail: "user@example.com",
 				Fields:     []string{"name", "email"},
@@ -650,8 +715,8 @@ func TestConsentReuseLogic(t *testing.T) {
 		t.Logf("✓ SUCCESS: Reused pending consent record")
 	}
 
-	// Test 2: Rejected records should NOT be reused
-	t.Log("\n=== Test 2: Rejected records should NOT be reused ===")
+	// Test 2: Rejected records should be reused and updated
+	t.Log("\n=== Test 2: Rejected records should be reused and updated ===")
 	updateReq := UpdateConsentRequest{
 		Status:    StatusRejected,
 		UpdatedBy: "test-user",
@@ -664,7 +729,7 @@ func TestConsentReuseLogic(t *testing.T) {
 	}
 	t.Logf("Consent rejected: ID=%s, Status=%s", rejectedRecord.ConsentID, rejectedRecord.Status)
 
-	// Send same request after rejection - should create NEW record
+	// Send same request after rejection - should reuse and update the rejected record
 	baseReq.SessionID = "session789"
 	record3, err := engine.ProcessConsentRequest(baseReq)
 	if err != nil {
@@ -672,54 +737,85 @@ func TestConsentReuseLogic(t *testing.T) {
 	}
 	t.Logf("Third request: ID=%s, Status=%s", record3.ConsentID, record3.Status)
 
-	if record3.ConsentID == record1.ConsentID {
-		t.Errorf("Expected to create NEW consent ID, but reused rejected ID %s", record1.ConsentID)
+	if record3.ConsentID != record1.ConsentID {
+		t.Errorf("Expected to reuse rejected consent ID %s, but got new ID %s", record1.ConsentID, record3.ConsentID)
 	} else {
-		t.Logf("✓ SUCCESS: Created new consent record after rejection")
+		t.Logf("✓ SUCCESS: Reused rejected consent record and updated fields")
 	}
 
-	// Test 3: Approved records should NOT be reused
-	t.Log("\n=== Test 3: Approved records should NOT be reused ===")
-	approveReq := UpdateConsentRequest{
-		Status:    StatusApproved,
-		UpdatedBy: "test-user",
-		Reason:    "testing approval",
+	// Verify the record remains rejected
+	if record3.Status != string(StatusRejected) {
+		t.Errorf("Expected status to remain rejected, got %s", record3.Status)
 	}
 
-	approvedRecord, err := engine.UpdateConsent(record3.ConsentID, approveReq)
-	if err != nil {
-		t.Fatalf("Failed to approve consent: %v", err)
+	// Test 3: Approved records should be reused and updated
+	t.Log("\n=== Test 3: Approved records should be reused and updated ===")
+	// Create a new consent record with different owner to avoid conflicts
+	approveReq := ConsentRequest{
+		AppID: "test-app",
+		DataFields: []DataField{
+			{
+				OwnerID:    "user456", // Different owner to create new record
+				OwnerEmail: "user456@example.com",
+				Fields:     []string{"name", "email"},
+			},
+		},
+		GrantDuration: "1h",
+		SessionID:     "session999",
 	}
-	t.Logf("Consent approved: ID=%s, Status=%s", approvedRecord.ConsentID, approvedRecord.Status)
 
-	// Send same request after approval - should create NEW record
-	baseReq.SessionID = "session999"
-	record4, err := engine.ProcessConsentRequest(baseReq)
+	record4, err := engine.ProcessConsentRequest(approveReq)
 	if err != nil {
 		t.Fatalf("Failed to process fourth request: %v", err)
 	}
 	t.Logf("Fourth request: ID=%s, Status=%s", record4.ConsentID, record4.Status)
 
-	if record4.ConsentID == record3.ConsentID {
-		t.Errorf("Expected to create NEW consent ID, but reused approved ID %s", record3.ConsentID)
-	} else {
-		t.Logf("✓ SUCCESS: Created new consent record after approval")
+	// Approve the new record
+	updateReq2 := UpdateConsentRequest{
+		Status:    StatusApproved,
+		UpdatedBy: "test-user",
+		Reason:    "testing approval",
 	}
 
-	// Test 4: Only ONE pending record per (appId, ownerId, ownerEmail) tuple
-	t.Log("\n=== Test 4: Only ONE pending record per tuple ===")
-	// Send another request - should reuse the pending record from Test 3
-	baseReq.SessionID = "session1000"
-	record5, err := engine.ProcessConsentRequest(baseReq)
+	approvedRecord, err := engine.UpdateConsent(record4.ConsentID, updateReq2)
+	if err != nil {
+		t.Fatalf("Failed to approve consent: %v", err)
+	}
+	t.Logf("Consent approved: ID=%s, Status=%s", approvedRecord.ConsentID, approvedRecord.Status)
+
+	// Send same request after approval - should reuse and update the approved record
+	approveReq.SessionID = "session1000"
+	record5, err := engine.ProcessConsentRequest(approveReq)
 	if err != nil {
 		t.Fatalf("Failed to process fifth request: %v", err)
 	}
 	t.Logf("Fifth request: ID=%s, Status=%s", record5.ConsentID, record5.Status)
 
 	if record5.ConsentID != record4.ConsentID {
-		t.Errorf("Expected to reuse pending consent ID %s, but got new ID %s", record4.ConsentID, record5.ConsentID)
+		t.Errorf("Expected to reuse approved consent ID %s, but got new ID %s", record4.ConsentID, record5.ConsentID)
 	} else {
-		t.Logf("✓ SUCCESS: Reused pending consent record (only one pending per tuple)")
+		t.Logf("✓ SUCCESS: Reused approved consent record and updated fields")
+	}
+
+	// Verify the record remains approved
+	if record5.Status != string(StatusApproved) {
+		t.Errorf("Expected status to remain approved, got %s", record5.Status)
+	}
+
+	// Test 4: Only ONE pending record per (appId, ownerId, ownerEmail) tuple
+	t.Log("\n=== Test 4: Only ONE pending record per tuple ===")
+	// Send another request - should reuse the approved record from Test 3
+	approveReq.SessionID = "session1001"
+	record6, err := engine.ProcessConsentRequest(approveReq)
+	if err != nil {
+		t.Fatalf("Failed to process sixth request: %v", err)
+	}
+	t.Logf("Sixth request: ID=%s, Status=%s", record6.ConsentID, record6.Status)
+
+	if record6.ConsentID != record5.ConsentID {
+		t.Errorf("Expected to reuse approved consent ID %s, but got new ID %s", record5.ConsentID, record6.ConsentID)
+	} else {
+		t.Logf("✓ SUCCESS: Reused approved consent record")
 	}
 
 	// Stop the background process

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -269,13 +270,13 @@ func (pce *postgresConsentEngine) RevokeConsent(consentID string, reason string)
 func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error) {
 	now := time.Now()
 
-	// Find expired records that are not already marked as expired
+	// Find expired approved records
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
 		       session_id, consent_portal_url, updated_by
 		FROM consent_records 
-		WHERE expires_at < $1 AND status != 'expired'
+		WHERE expires_at < $1 AND status = 'approved'
 	`
 
 	rows, err := pce.db.Query(querySQL, now)
@@ -284,7 +285,7 @@ func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error)
 	}
 	defer rows.Close()
 
-	var expiredRecords []*ConsentRecord
+	var deletedRecords []*ConsentRecord
 
 	for rows.Next() {
 		var record ConsentRecord
@@ -299,33 +300,29 @@ func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error)
 			return nil, fmt.Errorf("failed to scan expired record: %w", err)
 		}
 
-		// Update status to expired
-		updateReq := UpdateConsentRequest{
-			Status:    StatusExpired,
-			UpdatedBy: "system",
-			Reason:    "Consent expired automatically",
-		}
-
-		_, err = pce.UpdateConsent(record.ConsentID, updateReq)
+		// Delete the expired record
+		deleteSQL := `DELETE FROM consent_records WHERE consent_id = $1`
+		_, err = pce.db.Exec(deleteSQL, record.ConsentID)
 		if err != nil {
-			slog.Error("Failed to update expired consent", "consent_id", record.ConsentID, "error", err)
+			slog.Error("Failed to delete expired consent", "consent_id", record.ConsentID, "error", err)
 			continue
 		}
 
-		record.Status = string(StatusExpired)
-		expiredRecords = append(expiredRecords, &record)
+		deletedRecords = append(deletedRecords, &record)
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating expired records: %w", err)
 	}
 
-	slog.Info("Checked consent expiry", "expired_count", len(expiredRecords))
-	return expiredRecords, nil
+	if len(deletedRecords) > 0 {
+		slog.Info("Deleted expired consent records", "count", len(deletedRecords))
+	}
+	return deletedRecords, nil
 }
 
 // StartBackgroundExpiryProcess starts the background process for checking consent expiry
-func (pce *postgresConsentEngine) StartBackgroundExpiryProcess(interval time.Duration) {
+func (pce *postgresConsentEngine) StartBackgroundExpiryProcess(ctx context.Context, interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -339,6 +336,9 @@ func (pce *postgresConsentEngine) StartBackgroundExpiryProcess(interval time.Dur
 				if err != nil {
 					slog.Error("Error checking consent expiry", "error", err)
 				}
+			case <-ctx.Done():
+				slog.Info("Background expiry process stopped due to context cancellation")
+				return
 			}
 		}
 	}()

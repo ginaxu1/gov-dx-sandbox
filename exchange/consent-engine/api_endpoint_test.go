@@ -12,8 +12,10 @@ import (
 // TestPOSTConsentsEndpoint tests the POST /consents endpoint
 func TestPOSTConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("CreateNewConsent_Success", func(t *testing.T) {
@@ -166,8 +168,10 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 // TestPUTConsentsEndpoint tests the PUT /consents/{id} endpoint
 func TestPUTConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("UpdateNonExistentConsent", func(t *testing.T) {
@@ -193,8 +197,10 @@ func TestPUTConsentsEndpoint(t *testing.T) {
 // TestGETConsentsEndpoint tests the GET /consents/{id} endpoint
 func TestGETConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("GetNonExistentConsent", func(t *testing.T) {
@@ -212,8 +218,10 @@ func TestGETConsentsEndpoint(t *testing.T) {
 // TestDELETEConsentsEndpoint tests the DELETE /consents/{id} endpoint
 func TestDELETEConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("RevokeNonExistentConsent", func(t *testing.T) {
@@ -237,8 +245,10 @@ func TestDELETEConsentsEndpoint(t *testing.T) {
 // TestPOSTAdminExpiryCheckEndpoint tests the POST /admin/expiry-check endpoint
 func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("NoExpiredRecords", func(t *testing.T) {
@@ -292,8 +302,10 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 
 	t.Run("WithExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-		engine := NewConsentEngine(consentPortalURL)
+		cleanup := SetupTestWithCleanup(t)
+		defer cleanup()
+
+		engine := setupPostgresTestEngine(t)
 		server := &apiServer{engine: engine}
 
 		// Create a consent
@@ -328,7 +340,7 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 		// Manually set the expiry time to the past by updating the record
 		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
 		// Update the record in the database to have an expired time
-		updateReq := UpdateConsentRequest{
+		updateReq = UpdateConsentRequest{
 			Status: StatusApproved, // Keep it approved but expired
 		}
 		_, err = engine.UpdateConsent(record.ConsentID, updateReq)
@@ -401,8 +413,10 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 // TestPUTConsentsWithGrantDuration tests the PUT /consents/:consentId endpoint with grant_duration
 func TestPUTConsentsWithGrantDuration(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	// First create a consent

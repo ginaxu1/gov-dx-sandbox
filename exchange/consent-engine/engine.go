@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -157,7 +158,7 @@ type ConsentEngine interface {
 	// CheckConsentExpiry checks and updates expired consent records
 	CheckConsentExpiry() ([]*ConsentRecord, error)
 	// StartBackgroundExpiryProcess starts the background process for checking consent expiry
-	StartBackgroundExpiryProcess(interval time.Duration)
+	StartBackgroundExpiryProcess(ctx context.Context, interval time.Duration)
 	// RevokeConsent revokes a consent record
 	RevokeConsent(id string, reason string) (*ConsentRecord, error)
 	// ProcessConsentRequest processes the new consent workflow request

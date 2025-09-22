@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -25,21 +27,28 @@ func SetupTestEngine(t *testing.T) ConsentEngine {
 		return setupPostgresTestEngine(t)
 	}
 
-	// Default to in-memory engine for faster tests
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	return NewConsentEngine(consentPortalURL)
+	// Default to PostgreSQL engine for tests
+	return setupPostgresTestEngine(t)
 }
 
 // setupPostgresTestEngine creates a PostgreSQL test engine
 func setupPostgresTestEngine(t *testing.T) ConsentEngine {
 	// Use test database configuration
 	config := &DatabaseConfig{
-		Host:     getEnvOrDefault("TEST_DB_HOST", "localhost"),
-		Port:     getEnvOrDefault("TEST_DB_PORT", "5432"),
-		Username: getEnvOrDefault("TEST_DB_USERNAME", "postgres"),
-		Password: getEnvOrDefault("TEST_DB_PASSWORD", "password"),
-		Database: getEnvOrDefault("TEST_DB_DATABASE", "consent_engine_test"),
-		SSLMode:  getEnvOrDefault("TEST_DB_SSLMODE", "disable"),
+		Host:            getEnvOrDefault("TEST_DB_HOST", "localhost"),
+		Port:            getEnvOrDefault("TEST_DB_PORT", "5432"),
+		Username:        getEnvOrDefault("TEST_DB_USERNAME", "postgres"),
+		Password:        getEnvOrDefault("TEST_DB_PASSWORD", "password"),
+		Database:        getEnvOrDefault("TEST_DB_DATABASE", "consent_engine_test"),
+		SSLMode:         getEnvOrDefault("TEST_DB_SSLMODE", "disable"),
+		MaxOpenConns:    10,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: 5 * time.Minute,
+		ConnMaxIdleTime: 1 * time.Minute,
+		QueryTimeout:    30 * time.Second,
+		ConnectTimeout:  10 * time.Second,
+		RetryAttempts:   3,
+		RetryDelay:      1 * time.Second,
 	}
 
 	db, err := ConnectDB(config)
@@ -66,16 +75,41 @@ func cleanupTestData(t *testing.T, db *sql.DB) {
 	}
 }
 
+// ResetGlobalState resets all global state for testing
+func ResetGlobalState() {
+	// Reset SCIM client and sync.Once to allow reinitialization
+	scimClient = nil
+	scimOnce = sync.Once{}
+}
+
+// SetupTestWithCleanup sets up a test with proper cleanup of global state
+func SetupTestWithCleanup(t *testing.T) func() {
+	// Reset global state before test
+	ResetGlobalState()
+
+	// Return cleanup function
+	return func() {
+		// Reset global state after test
+		ResetGlobalState()
+	}
+}
+
 // TestWithBothEngines runs a test function with both in-memory and PostgreSQL engines
 func TestWithBothEngines(t *testing.T, testName string, testFunc func(t *testing.T, engine ConsentEngine)) {
 	t.Run("InMemory_"+testName, func(t *testing.T) {
-		engine := NewConsentEngine("http://localhost:5173")
+		cleanup := SetupTestWithCleanup(t)
+		defer cleanup()
+
+		engine := setupPostgresTestEngine(t)
 		testFunc(t, engine)
 	})
 
 	// Only run PostgreSQL tests if explicitly enabled
 	if os.Getenv("TEST_USE_POSTGRES") == "true" {
 		t.Run("PostgreSQL_"+testName, func(t *testing.T) {
+			cleanup := SetupTestWithCleanup(t)
+			defer cleanup()
+
 			engine := setupPostgresTestEngine(t)
 			testFunc(t, engine)
 		})

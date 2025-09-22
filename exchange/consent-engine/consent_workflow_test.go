@@ -3,23 +3,21 @@ package main
 import (
 	"encoding/json"
 	"testing"
-
-	"github.com/gov-dx-sandbox/exchange/consent-engine/models"
 )
 
 func TestConsentWorkflowRequest(t *testing.T) {
 	// Test ConsentWorkflowRequest model structure
-	req := models.ConsentWorkflowRequest{
+	req := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []DataField{
 			{
-				
+
 				OwnerID:    "199512345678",
 				OwnerEmail: "199512345678@example.com",
 				Fields:     []string{"person.permanentAddress"},
 			},
 		},
-		
+
 		SessionID: "session_123",
 	}
 
@@ -30,10 +28,6 @@ func TestConsentWorkflowRequest(t *testing.T) {
 
 	if len(req.DataFields) != 1 {
 		t.Errorf("Expected 1 data field, got %d", len(req.DataFields))
-	}
-
-	if req.DataFields[0].OwnerType != "citizen" {
-		t.Errorf("Expected OwnerType to be 'citizen', got '%s'", req.DataFields[0].OwnerType)
 	}
 
 	if req.DataFields[0].OwnerID != "199512345678" {
@@ -52,10 +46,6 @@ func TestConsentWorkflowRequest(t *testing.T) {
 		t.Errorf("Expected field to be 'person.permanentAddress', got '%s'", req.DataFields[0].Fields[0])
 	}
 
-	if req.Purpose != "passport_application" {
-		t.Errorf("Expected Purpose to be 'passport_application', got '%s'", req.Purpose)
-	}
-
 	if req.SessionID != "session_123" {
 		t.Errorf("Expected SessionID to be 'session_123', got '%s'", req.SessionID)
 	}
@@ -64,17 +54,14 @@ func TestConsentWorkflowRequest(t *testing.T) {
 
 func TestDataField(t *testing.T) {
 	// Test DataField model structure
-	field := models.DataField{
-		
+	field := DataField{
+
 		OwnerID:    "199512345678",
 		OwnerEmail: "199512345678@example.com",
 		Fields:     []string{"person.permanentAddress", "person.fullName"},
 	}
 
 	// Verify the field structure
-	if field.OwnerType != "citizen" {
-		t.Errorf("Expected OwnerType to be 'citizen', got '%s'", field.OwnerType)
-	}
 
 	if field.OwnerID != "199512345678" {
 		t.Errorf("Expected OwnerID to be '199512345678', got '%s'", field.OwnerID)
@@ -98,17 +85,17 @@ func TestDataField(t *testing.T) {
 
 func TestConsentWorkflowJSONSerialization(t *testing.T) {
 	// Test JSON serialization/deserialization
-	req := models.ConsentWorkflowRequest{
+	req := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []DataField{
 			{
-				
+
 				OwnerID:    "199512345678",
 				OwnerEmail: "199512345678@example.com",
 				Fields:     []string{"person.permanentAddress"},
 			},
 		},
-		
+
 		SessionID: "session_123",
 	}
 
@@ -119,7 +106,7 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 	}
 
 	// Test JSON unmarshaling
-	var unmarshaledReq models.ConsentWorkflowRequest
+	var unmarshaledReq ConsentRequest
 	err = json.Unmarshal(jsonData, &unmarshaledReq)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal ConsentWorkflowRequest: %v", err)
@@ -134,10 +121,6 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 		t.Errorf("Expected %d data fields, got %d", len(req.DataFields), len(unmarshaledReq.DataFields))
 	}
 
-	if unmarshaledReq.Purpose != req.Purpose {
-		t.Errorf("Expected Purpose to be '%s', got '%s'", req.Purpose, unmarshaledReq.Purpose)
-	}
-
 	if unmarshaledReq.SessionID != req.SessionID {
 		t.Errorf("Expected SessionID to be '%s', got '%s'", req.SessionID, unmarshaledReq.SessionID)
 	}
@@ -147,63 +130,47 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 func TestConsentWorkflowValidation(t *testing.T) {
 	tests := []struct {
 		name    string
-		req     models.ConsentWorkflowRequest
+		req     ConsentRequest
 		wantErr bool
 	}{
 		{
 			name: "valid request",
-			req: models.ConsentWorkflowRequest{
+			req: ConsentRequest{
 				AppID: "passport-app",
-				DataFields: []models.DataField{
+				DataFields: []DataField{
 					{
-						
-						OwnerID:   "199512345678",
-						Fields:    []string{"person.permanentAddress"},
+
+						OwnerID: "199512345678",
+						Fields:  []string{"person.permanentAddress"},
 					},
 				},
-				
+
 				SessionID: "session_123",
 			},
 			wantErr: false,
 		},
 		{
 			name: "empty app_id",
-			req: models.ConsentWorkflowRequest{
+			req: ConsentRequest{
 				AppID: "",
-				DataFields: []models.DataField{
+				DataFields: []DataField{
 					{
-						
-						OwnerID:   "199512345678",
-						Fields:    []string{"person.permanentAddress"},
+
+						OwnerID: "199512345678",
+						Fields:  []string{"person.permanentAddress"},
 					},
 				},
-				
+
 				SessionID: "session_123",
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty data_fields",
-			req: models.ConsentWorkflowRequest{
+			req: ConsentRequest{
 				AppID:      "passport-app",
-				DataFields: []models.DataField{},
-				
-				SessionID:  "session_123",
-			},
-			wantErr: true,
-		},
-		{
-			name: "empty purpose",
-			req: models.ConsentWorkflowRequest{
-				AppID: "passport-app",
-				DataFields: []models.DataField{
-					{
-						
-						OwnerID:   "199512345678",
-						Fields:    []string{"person.permanentAddress"},
-					},
-				},
-				
+				DataFields: []DataField{},
+
 				SessionID: "session_123",
 			},
 			wantErr: true,
@@ -223,10 +190,6 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				hasError = true
 			}
 
-			if tt.req.Purpose == "" {
-				hasError = true
-			}
-
 			if hasError != tt.wantErr {
 				t.Errorf("Expected error: %v, got error: %v", tt.wantErr, hasError)
 			}
@@ -236,21 +199,21 @@ func TestConsentWorkflowValidation(t *testing.T) {
 
 func TestConsentWorkflowEdgeCases(t *testing.T) {
 	// Test with multiple data fields
-	req := models.ConsentWorkflowRequest{
+	req := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []DataField{
 			{
-				
-				OwnerID:   "199512345678",
-				Fields:    []string{"person.permanentAddress"},
+
+				OwnerID: "199512345678",
+				Fields:  []string{"person.permanentAddress"},
 			},
 			{
-				
-				OwnerID:   "199512345679",
-				Fields:    []string{"person.fullName"},
+
+				OwnerID: "199512345679",
+				Fields:  []string{"person.fullName"},
 			},
 		},
-		
+
 		SessionID: "session_123",
 	}
 
@@ -259,16 +222,16 @@ func TestConsentWorkflowEdgeCases(t *testing.T) {
 	}
 
 	// Test with multiple fields per data owner
-	multiFieldReq := models.ConsentWorkflowRequest{
+	multiFieldReq := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []models.DataField{
+		DataFields: []DataField{
 			{
-				
-				OwnerID:   "199512345678",
-				Fields:    []string{"person.permanentAddress", "person.fullName", "person.email"},
+
+				OwnerID: "199512345678",
+				Fields:  []string{"person.permanentAddress", "person.fullName", "person.email"},
 			},
 		},
-		
+
 		SessionID: "session_123",
 	}
 
