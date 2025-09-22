@@ -5,16 +5,22 @@ import (
 	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
 )
 
+// Options defines the configuration options for the federator.
+type Options struct {
+	Providers []*provider.Provider `json:"providers,omitempty"`
+}
+
 // Cfg defines the configuration structure for the application.
 type Cfg struct {
+	*Options
 	Environment string `json:"environment,omitempty"`
 	*federator.Options
 	*graphql.MappingAST
