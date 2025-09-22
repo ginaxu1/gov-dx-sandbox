@@ -19,7 +19,8 @@ declare global {
 // Types
 interface ConsentRecord {
   consent_id: string;
-  owner_id: string;
+  owner_id: string;  
+  owner_name: string;
   owner_email: string;
   data_consumer: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired' | 'revoked';
@@ -30,6 +31,7 @@ interface ConsentRecord {
   fields: string[];
   session_id: string;
   redirect_url: string;
+  app_display_name: string;
 }
 
 interface ConsentGatewayProps {}
@@ -47,14 +49,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const { state, signIn, signOut, getBasicUserInfo, getAccessToken } = useAuthContext();
 
   // Base API path from environment variable
-  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl ? window.configs.apiUrl : import.meta.env.VITE_CONSENT_ENGINE_PATH || 'http://localhost:8081';
+  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl || 'http://localhost:8081';
 
   // Helper function to get headers with JWT token
   const getAuthHeaders = async (): Promise<HeadersInit> => {
     const accessToken = await getAccessToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
+      // 'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
       'Test-Key': 'your-test-key'
     };
     
@@ -109,7 +111,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         if (response.status === 401) {
           throw new Error(errorMessage || 'Unauthorized: Please sign in to access this consent');
         } else if (response.status === 403) {
-          throw new Error(errorMessage || 'Forbidden: You do not have permission to access this consent');
+          // throw new Error(errorMessage || 'Forbidden: You do not have permission to access this consent');
+          setCurrentStep('unauthorized');
+          setError(errorMessage || 'Forbidden: You do not have permission to access this consent');
+          return null;
         } else if (response.status === 404) {
           throw new Error(errorMessage || 'Consent not found');
         } else {
@@ -294,18 +299,18 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
 
     // Step 3: Get user info and fetch consent data
     const initializeConsentFlow = async () => {
-      await fetchUserInfo();
+      // await fetchUserInfo();
       const consent = await fetchConsentData(consentId);
       
       if (consent) {
         // Step 4: Check owner email authorization
-        console.log('Consent Owner Email:', consent.owner_email);
-        console.log('Authenticated User Email:', userEmail);
-        if (consent.owner_email !== userEmail) {
-          setError('Unauthorized access: You are not the data owner for this consent request');
-          setCurrentStep('unauthorized');
-          return;
-        }
+        // console.log('Consent Owner Email:', consent.owner_email);
+        // console.log('Authenticated User Email:', userEmail);
+        // if (consent.owner_email !== userEmail) {
+        //   setError('Unauthorized access: You are not the data owner for this consent request');
+        //   setCurrentStep('unauthorized');
+        //   return;
+        // }
         
         // Step 5: Set appropriate step based on status
         if (consent.status === 'pending') {
@@ -559,7 +564,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Owner ID:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.owner_name}</span>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Status:</span>
@@ -635,7 +640,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="mb-6 p-4 bg-blue-50 rounded-lg">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Application Request</h3>
                 <p className="text-gray-600">
-                  <span className="font-medium">{consentRecord.data_consumer}</span> is requesting access to the following data:
+                  <span className="font-medium">{consentRecord.app_display_name}</span> is requesting access to the following data:
                 </p>
               </div>
 
