@@ -450,7 +450,7 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 	}
 
 	jsonBody, _ = json.Marshal(updateReq)
-	req = httptest.NewRequest("PUT", "/consents/"+consentID, bytes.NewBuffer(jsonBody))
+	req = httptest.NewRequest("PATCH", "/consents/"+consentID, bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 
@@ -458,7 +458,7 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 
 	// Verify response
 	if w.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
+		t.Errorf("Expected status %d, got %d. Response body: %s", http.StatusOK, w.Code, w.Body.String())
 	}
 
 	var response map[string]interface{}
