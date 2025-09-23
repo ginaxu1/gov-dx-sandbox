@@ -23,7 +23,7 @@ paths:
   /health:
     get:
       summary: Health Check
-      description: Check if the API server is running and healthy
+      description: Check if the API server is running and healthy with database status and connection pool metrics
       operationId: healthCheck
       tags:
         - Health
@@ -37,10 +37,62 @@ paths:
                 properties:
                   status:
                     type: string
+                    enum: [healthy, warning, critical]
                     example: healthy
                   service:
                     type: string
                     example: api-server
+                  database:
+                    type: string
+                    example: available
+                  connection_pool:
+                    type: object
+                    properties:
+                      maxOpenConns:
+                        type: integer
+                      openConns:
+                        type: integer
+                      inUse:
+                        type: integer
+                      idle:
+                        type: integer
+                  utilization_percent:
+                    type: number
+                    format: float
+                    example: 25.5
+                  duration:
+                    type: string
+                    example: 2.5ms
+                  timestamp:
+                    type: integer
+                    format: int64
+                    example: 1640995200
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: unhealthy
+                  service:
+                    type: string
+                    example: api-server
+                  database:
+                    type: string
+                    example: unavailable
+                  error:
+                    type: string
+                    example: connection refused
+                  duration:
+                    type: string
+                    example: 5.2ms
+                  timestamp:
+                    type: integer
+                    format: int64
+                    example: 1640995200
 
   /consumers:
     get:

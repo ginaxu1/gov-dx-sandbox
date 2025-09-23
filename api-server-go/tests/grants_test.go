@@ -62,8 +62,8 @@ func TestGrantsService_GetAllConsumerGrants(t *testing.T) {
 		t.Error("Expected grants data to be returned")
 	}
 
-	if len(grants.LegacyConsumerGrants) != 2 {
-		t.Errorf("Expected 2 consumer grants, got %d", len(grants.LegacyConsumerGrants))
+	if len(grants.ConsumerGrants) != 2 {
+		t.Errorf("Expected 2 consumer grants, got %d", len(grants.ConsumerGrants))
 	}
 }
 

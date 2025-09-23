@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
+	"github.com/gov-dx-sandbox/api-server-go/shared/database"
 )
 
 type GrantsService struct {
@@ -21,18 +22,6 @@ func NewGrantsService(db *sql.DB) *GrantsService {
 	}
 }
 
-// validateDBConnection checks if the database connection is valid
-func (s *GrantsService) validateDBConnection() error {
-	if s.db == nil {
-		return fmt.Errorf("database connection is nil")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	return s.db.PingContext(ctx)
-}
-
 // Consumer Grants Management
 
 // GetAllConsumerGrants retrieves all consumer grants
@@ -40,7 +29,7 @@ func (s *GrantsService) GetAllConsumerGrants() (*models.ConsumerGrantsData, erro
 	slog.Info("Starting retrieval of all consumer grants")
 
 	// Validate database connection
-	if err := s.validateDBConnection(); err != nil {
+	if err := database.ValidateDBConnection(s.db); err != nil {
 		slog.Error("Database connection validation failed", "error", err)
 		return nil, fmt.Errorf("database connection validation failed: %w", err)
 	}
@@ -95,7 +84,7 @@ func (s *GrantsService) GetAllConsumerGrants() (*models.ConsumerGrantsData, erro
 	duration := time.Since(start)
 	slog.Info("Successfully retrieved all consumer grants", "count", len(grants), "duration", duration)
 	return &models.ConsumerGrantsData{
-		LegacyConsumerGrants: grants,
+		ConsumerGrants: grants,
 	}, nil
 }
 
@@ -507,7 +496,7 @@ func (s *GrantsService) ImportConsumerGrants(data []byte) error {
 	}
 
 	// Import each grant
-	for _, grant := range grants.LegacyConsumerGrants {
+	for _, grant := range grants.ConsumerGrants {
 		req := models.CreateConsumerGrantRequest{
 			ConsumerID:     grant.ConsumerID,
 			ApprovedFields: grant.ApprovedFields,
@@ -518,7 +507,7 @@ func (s *GrantsService) ImportConsumerGrants(data []byte) error {
 		}
 	}
 
-	slog.Info("Imported consumer grants", "count", len(grants.LegacyConsumerGrants))
+	slog.Info("Imported consumer grants", "count", len(grants.ConsumerGrants))
 	return nil
 }
 

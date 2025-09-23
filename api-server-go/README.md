@@ -86,8 +86,6 @@ DB_HEALTH_CHECK_INTERVAL=30s
 
 ### Health Monitoring
 
-The application provides several health monitoring endpoints:
+The application provides a comprehensive health monitoring endpoint:
 
-- `/health` - General health check with database status
-- `/health/db` - Database-specific health check with connection pool metrics
-- `/metrics/db` - Database connection pool statistics
+- `/health` - Complete health check with database status, connection pool metrics, and utilization monitoring

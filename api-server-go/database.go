@@ -54,7 +54,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 		Username:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_USERNAME", getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres")),
 		Password:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_PASSWORD", getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password")),
 		Database:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_DATABASE", getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "api_server")),
-		SSLMode:             getEnvOrDefault("DB_SSLMODE", "disable"),
+		SSLMode:             getEnvOrDefault("DB_SSLMODE", "require"),
 		MaxOpenConns:        maxOpenConns,
 		MaxIdleConns:        maxIdleConns,
 		ConnMaxLifetime:     connMaxLifetime,

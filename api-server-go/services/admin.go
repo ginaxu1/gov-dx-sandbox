@@ -15,12 +15,6 @@ type AdminService struct {
 	mutex           sync.RWMutex
 }
 
-func NewAdminService() *AdminService {
-	// This method is deprecated - use NewAdminServiceWithServices instead
-	// as it requires database-backed services
-	return nil
-}
-
 // NewAdminServiceWithServices creates an admin service with existing services
 func NewAdminServiceWithServices(consumerService ConsumerServiceInterface, providerService ProviderServiceInterface) *AdminService {
 	return &AdminService{
@@ -92,9 +86,9 @@ func (s *AdminService) GetRecentActivity() ([]map[string]interface{}, error) {
 	defer s.mutex.RUnlock()
 
 	// Get data from services
-	applications, err := s.consumerService.GetAllApplications()
+	applications, err := s.consumerService.GetAllConsumerApps()
 	if err != nil {
-		slog.Error("Failed to get applications for recent activity", "error", err)
+		slog.Error("Failed to get consumer apps for recent activity", "error", err)
 		return nil, err
 	}
 
@@ -128,7 +122,7 @@ func (s *AdminService) GetStatistics() (map[string]interface{}, error) {
 	defer s.mutex.RUnlock()
 
 	// Get data from services
-	applications, err := s.consumerService.GetAllApplications()
+	applications, err := s.consumerService.GetAllConsumerApps()
 	if err != nil {
 		slog.Error("Failed to get applications for statistics", "error", err)
 		return nil, err
@@ -161,7 +155,7 @@ func (s *AdminService) GetStatistics() (map[string]interface{}, error) {
 }
 
 // countApplicationsByStatus counts applications by their status
-func (s *AdminService) countApplicationsByStatus(applications []*models.Application) map[string]int {
+func (s *AdminService) countApplicationsByStatus(applications []*models.ConsumerApp) map[string]int {
 	stats := make(map[string]int)
 	for _, app := range applications {
 		stats[string(app.Status)]++
@@ -196,7 +190,7 @@ type ActivityItem struct {
 }
 
 // generateRecentActivity creates a list of recent activities from all data sources
-func (s *AdminService) generateRecentActivity(applications []*models.Application, submissions []*models.ProviderSubmission, profiles []*models.ProviderProfile, schemas []*models.ProviderSchema) []map[string]interface{} {
+func (s *AdminService) generateRecentActivity(applications []*models.ConsumerApp, submissions []*models.ProviderSubmission, profiles []*models.ProviderProfile, schemas []*models.ProviderSchema) []map[string]interface{} {
 	var activities []ActivityItem
 
 	// Add application activities

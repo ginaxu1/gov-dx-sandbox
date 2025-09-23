@@ -69,9 +69,3 @@ type UpdateConsumerAppResponse struct {
 	*ConsumerApp
 	ProviderID string `json:"providerId,omitempty"` // Only present when status is approved
 }
-
-// Legacy models for backward compatibility
-type Application = ConsumerApp
-type CreateApplicationRequest = CreateConsumerAppRequest
-type UpdateApplicationRequest = UpdateConsumerAppRequest
-type UpdateApplicationResponse = UpdateConsumerAppResponse

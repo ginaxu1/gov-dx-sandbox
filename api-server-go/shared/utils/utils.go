@@ -45,17 +45,6 @@ func RespondWithSuccess(w http.ResponseWriter, statusCode int, data interface{})
 	RespondWithJSON(w, statusCode, data)
 }
 
-// HealthHandler creates a health check handler
-func HealthHandler(serviceName string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		response := map[string]string{
-			"service": serviceName,
-			"status":  "healthy",
-		}
-		RespondWithJSON(w, http.StatusOK, response)
-	}
-}
-
 // PanicRecoveryMiddleware provides panic recovery for HTTP handlers
 func PanicRecoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

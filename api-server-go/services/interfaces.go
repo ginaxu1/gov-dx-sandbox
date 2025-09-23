@@ -19,12 +19,6 @@ type ConsumerServiceInterface interface {
 	UpdateConsumerApp(id string, req models.UpdateConsumerAppRequest) (*models.UpdateConsumerAppResponse, error)
 	GetAllConsumerApps() ([]*models.ConsumerApp, error)
 	GetConsumerAppsByConsumerID(consumerID string) ([]*models.ConsumerApp, error)
-	// Legacy methods
-	GetAllApplications() ([]*models.Application, error)
-	CreateApplication(req models.CreateApplicationRequest) (*models.Application, error)
-	GetApplication(id string) (*models.Application, error)
-	UpdateApplication(id string, req models.UpdateApplicationRequest) (*models.UpdateApplicationResponse, error)
-	DeleteApplication(id string) error
 }
 
 type ProviderServiceInterface interface {

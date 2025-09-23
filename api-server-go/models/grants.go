@@ -10,7 +10,7 @@ type ConsumerGrant struct {
 
 // ConsumerGrantsData represents the complete consumer grants data structure
 type ConsumerGrantsData struct {
-	LegacyConsumerGrants map[string]ConsumerGrant `json:"legacyConsumerGrants"`
+	ConsumerGrants map[string]ConsumerGrant `json:"consumerGrants"`
 }
 
 // CreateConsumerGrantRequest represents the request to create a new consumer grant

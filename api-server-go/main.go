@@ -45,52 +45,18 @@ func main() {
 	mux := http.NewServeMux()
 	apiServer.SetupRoutes(mux)
 
-	// Health check with database status
+	// Consolidated health check endpoint
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Perform database health check
-		if err := HealthCheck(db); err != nil {
-			slog.Error("Health check failed", "error", err)
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
-				"status":   "unhealthy",
-				"service":  "api-server",
-				"database": "unavailable",
-				"error":    err.Error(),
-			})
-			return
-		}
-
-		// Get connection pool stats
-		poolStats := GetConnectionPoolStats(db)
-
-		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"status":          "healthy",
-			"service":         "api-server",
-			"database":        "available",
-			"connection_pool": poolStats,
-		})
-	})))
-
-	// Debug endpoint
-	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		utils.RespondWithJSON(w, http.StatusOK, map[string]string{"path": r.URL.Path, "method": r.Method})
-	})))
-
-	// Connection pool monitoring endpoint
-	mux.Handle("/metrics/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		poolStats := GetConnectionPoolStats(db)
-		utils.RespondWithJSON(w, http.StatusOK, poolStats)
-	})))
-
-	// Cloud database health endpoint (optimized for Choreo/Aiven)
-	mux.Handle("/health/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
+		// Perform database health check
 		if err := HealthCheck(db); err != nil {
 			duration := time.Since(start)
-			slog.Error("Database health check failed", "error", err, "duration", duration)
+			slog.Error("Health check failed", "error", err, "duration", duration)
 			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
 				"status":    "unhealthy",
-				"database":  "choreo_postgresql",
+				"service":   "api-server",
+				"database":  "unavailable",
 				"error":     err.Error(),
 				"duration":  duration.String(),
 				"timestamp": time.Now().Unix(),
@@ -98,10 +64,12 @@ func main() {
 			return
 		}
 
+		// Get connection pool stats
 		poolStats := GetConnectionPoolStats(db)
 		utilization := float64(poolStats.InUse) / float64(poolStats.MaxOpenConns) * 100
 		duration := time.Since(start)
 
+		// Determine overall status based on utilization
 		status := "healthy"
 		if utilization > 90 {
 			status = "critical"
@@ -111,12 +79,18 @@ func main() {
 
 		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 			"status":              status,
-			"database":            "choreo_postgresql",
-			"duration":            duration.String(),
-			"timestamp":           time.Now().Unix(),
+			"service":             "api-server",
+			"database":            "available",
 			"connection_pool":     poolStats,
 			"utilization_percent": utilization,
+			"duration":            duration.String(),
+			"timestamp":           time.Now().Unix(),
 		})
+	})))
+
+	// Debug endpoint
+	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		utils.RespondWithJSON(w, http.StatusOK, map[string]string{"path": r.URL.Path, "method": r.Method})
 	})))
 
 	// Start server

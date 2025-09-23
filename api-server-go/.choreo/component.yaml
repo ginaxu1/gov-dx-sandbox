@@ -43,6 +43,13 @@ configurations:
           displayName: Log Format
           required: false
           type: string
+    - name: DB_SSLMODE
+      valueFrom:
+        configForm:
+          displayName: Database SSL Mode
+          required: false
+          type: string
+          defaultValue: require
 
 # +optional Dependencies for the component
 dependencies:
