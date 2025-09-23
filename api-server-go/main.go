@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
-	"github.com/gov-dx-sandbox/api-server-go/pkg/database"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 )
 
@@ -21,20 +20,20 @@ func main() {
 	slog.Info("Starting API Server initialization")
 
 	// Initialize database connection
-	dbConfig := database.NewDatabaseConfig()
-	db, err := database.ConnectDB(dbConfig)
+	dbConfig := NewDatabaseConfig()
+	db, err := ConnectDB(dbConfig)
 	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
 	defer func() {
-		if err := database.GracefulShutdown(db); err != nil {
+		if err := GracefulShutdown(db); err != nil {
 			slog.Error("Error during database graceful shutdown", "error", err)
 		}
 	}()
 
 	// Initialize database tables
-	if err := database.InitDatabase(db); err != nil {
+	if err := InitDatabase(db); err != nil {
 		slog.Error("Failed to initialize database tables", "error", err)
 		os.Exit(1)
 	}
@@ -49,7 +48,7 @@ func main() {
 	// Health check with database status
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Perform database health check
-		if err := database.HealthCheck(db); err != nil {
+		if err := HealthCheck(db); err != nil {
 			slog.Error("Health check failed", "error", err)
 			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
 				"status":   "unhealthy",
@@ -61,7 +60,7 @@ func main() {
 		}
 
 		// Get connection pool stats
-		poolStats := database.GetConnectionPoolStats(db)
+		poolStats := GetConnectionPoolStats(db)
 
 		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 			"status":          "healthy",
@@ -78,7 +77,7 @@ func main() {
 
 	// Connection pool monitoring endpoint
 	mux.Handle("/metrics/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		poolStats := database.GetConnectionPoolStats(db)
+		poolStats := GetConnectionPoolStats(db)
 		utils.RespondWithJSON(w, http.StatusOK, poolStats)
 	})))
 
@@ -86,7 +85,7 @@ func main() {
 	mux.Handle("/health/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		if err := database.HealthCheck(db); err != nil {
+		if err := HealthCheck(db); err != nil {
 			duration := time.Since(start)
 			slog.Error("Database health check failed", "error", err, "duration", duration)
 			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
@@ -99,7 +98,7 @@ func main() {
 			return
 		}
 
-		poolStats := database.GetConnectionPoolStats(db)
+		poolStats := GetConnectionPoolStats(db)
 		utilization := float64(poolStats.InUse) / float64(poolStats.MaxOpenConns) * 100
 		duration := time.Since(start)
 
@@ -141,7 +140,7 @@ func main() {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			database.LogConnectionPoolStats(db)
+			LogConnectionPoolStats(db)
 		}
 	}()
 

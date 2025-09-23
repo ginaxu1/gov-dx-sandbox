@@ -1,4 +1,4 @@
-package database
+package main
 
 import (
 	"context"
@@ -49,12 +49,12 @@ func NewDatabaseConfig() *DatabaseConfig {
 	enableMonitoring := getEnvOrDefault("DB_ENABLE_MONITORING", "true") == "true"
 
 	return &DatabaseConfig{
-		Host:                getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost"),
-		Port:                getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432"),
-		Username:            getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres"),
-		Password:            getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password"),
-		Database:            getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "api_server"),
-		SSLMode:             getEnvOrDefault("DB_SSLMODE", "require"),
+		Host:                getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_HOST", getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost")),
+		Port:                getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_PORT", getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432")),
+		Username:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_USERNAME", getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres")),
+		Password:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_PASSWORD", getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password")),
+		Database:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_DATABASE", getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "api_server")),
+		SSLMode:             getEnvOrDefault("DB_SSLMODE", "disable"),
 		MaxOpenConns:        maxOpenConns,
 		MaxIdleConns:        maxIdleConns,
 		ConnMaxLifetime:     connMaxLifetime,

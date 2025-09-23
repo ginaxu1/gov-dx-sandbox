@@ -12,12 +12,12 @@ ARG GIT_COMMIT
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Copy shared packages first
-COPY exchange/shared/ /app/shared/
-
 # Copy go mod files and source code
-COPY api-server-go/go.mod api-server-go/go.sum ./
-COPY api-server-go/ ./
+COPY go.mod go.sum ./
+COPY . ./
+
+# Copy shared packages
+COPY shared/ /app/shared/
 
 # Download dependencies
 RUN go mod download
@@ -59,5 +59,5 @@ ENV ENVIRONMENT=production
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
-# Run the application standalone
-CMD ["./service_binary"]
+# Run the application with environment-based flags
+CMD ["./service_binary", "-env=${ENVIRONMENT:-production}", "-port=3000"]
