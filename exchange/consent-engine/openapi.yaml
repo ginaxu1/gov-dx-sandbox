@@ -133,7 +133,7 @@ paths:
         
         **Example Frontend Request:**
         ```bash
-        curl -X GET "https://api.example.com/consents/consent_8d255282" \
+        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)" \
           -H "Authorization: Bearer YOUR_JWT_TOKEN" \
           -H "X-Requested-With: XMLHttpRequest" \
           -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -141,7 +141,7 @@ paths:
         
         **Example M2M Request:**
         ```bash
-        curl -X GET "https://api.example.com/consents/consent_8d255282"
+        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)"
         # No Authorization header required for M2M requests
         ```
       operationId: getConsentById
@@ -149,7 +149,7 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}: []
+        - {}
       parameters:
         - name: consentId
           in: path
@@ -232,7 +232,7 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}: []
+        - {}
       parameters:
         - name: consentId
           in: path
@@ -298,7 +298,7 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}: []
+        - {}
       parameters:
         - name: consentId
           in: path
@@ -386,7 +386,7 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}: []
+        - {}
       parameters:
         - name: consentId
           in: path
@@ -395,12 +395,13 @@ paths:
           schema:
             type: string
             example: consent_8d255282
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RevokeConsentRequest'
+        - name: reason
+          in: query
+          required: true
+          description: Reason for revoking the consent
+          schema:
+            type: string
+            example: User requested revocation
       responses:
         '200':
           description: Consent revoked successfully
@@ -949,16 +950,6 @@ components:
           type: string
           description: Reason for the status update
           example: User approved consent via portal
-
-    RevokeConsentRequest:
-      type: object
-      required:
-        - reason
-      properties:
-        reason:
-          type: string
-          description: Reason for revoking the consent
-          example: User requested revocation
 
     ConsentPortalView:
       type: object

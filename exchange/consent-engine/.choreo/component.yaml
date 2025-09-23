@@ -6,6 +6,7 @@ endpoints:
   # REST API Endpoint for Consent Management
   - name: consent-engine
     displayName: Consent Engine
+    # +required Service section has the user service endpoint details
     service:
       # Base path for the REST API endpoint
       basePath: /
