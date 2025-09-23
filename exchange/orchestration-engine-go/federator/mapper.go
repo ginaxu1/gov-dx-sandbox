@@ -73,13 +73,14 @@ func ProviderFieldMap(directives []*ast.Directive) []string {
 	return fieldMap
 }
 
-func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]string, []*ArgSource) {
+func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]string, []*ArgSource, error) {
 	// map of service key to list of fields
-	var providerFieldMap = make([]string, 0)
 
 	// only query is supported not mutations or subscriptions
 	if len(query.Definitions) != 1 || query.Definitions[0].(*ast.OperationDefinition).Operation != "query" {
-		panic("Only query operation is supported")
+		return nil, nil, &graphql.JSONError{
+			Message: "Only query operation is supported",
+		}
 	}
 
 	// iterate through the query fields
@@ -88,9 +89,13 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]strin
 	var queryObjectDef = getQueryObjectDefinition(schema)
 
 	if queryObjectDef == nil {
-		panic("No Query object found in schema")
+		return nil, nil, &graphql.JSONError{
+			Message: "Query object definition not found in schema",
+		}
 	}
 	var providerDirectives, arguments = recursivelyExtractSourceSchemaInfo(selections, schema, queryObjectDef, nil, nil)
+
+	var providerFieldMap = make([]string, 0)
 
 	providerFieldMap = ProviderFieldMap(providerDirectives)
 
@@ -98,7 +103,7 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]strin
 
 	var extractedArgs = ExtractRequiredArguments(requiredArguments, arguments)
 
-	return providerFieldMap, extractedArgs
+	return providerFieldMap, extractedArgs, nil
 }
 
 // This function recursively traverses the selection set to extract @sourceInfo directives.

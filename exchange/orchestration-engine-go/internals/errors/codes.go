@@ -18,6 +18,11 @@ const (
 	CodeCENotApproved    = "CE_NOT_APPROVED"
 )
 
+// OE-related
+const (
+	CodeMissingEntityIdentifier = "MISSING_IDENTIFIER"
+)
+
 // Auth-related
 const (
 	CodeUnauthorized = "UNAUTHORIZED"
