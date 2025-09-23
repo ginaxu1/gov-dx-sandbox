@@ -7,7 +7,7 @@ import (
 
 // TestConsentEngine_CreateConsent tests the core CreateConsent functionality
 func TestConsentEngine_CreateConsent(t *testing.T) {
-	TestWithBothEngines(t, "CreateConsent", func(t *testing.T, engine ConsentEngine) {
+	TestWithPostgresEngine(t, "CreateConsent", func(t *testing.T, engine ConsentEngine) {
 
 		req := ConsentRequest{
 			AppID: "passport-app",
@@ -52,7 +52,7 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 
 // TestConsentEngine_GetConsentStatus tests retrieving consent status
 func TestConsentEngine_GetConsentStatus(t *testing.T) {
-	TestWithBothEngines(t, "GetConsentStatus", func(t *testing.T, engine ConsentEngine) {
+	TestWithPostgresEngine(t, "GetConsentStatus", func(t *testing.T, engine ConsentEngine) {
 
 		// Create a consent record first
 		req := ConsentRequest{
@@ -94,7 +94,7 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 
 // TestConsentEngine_UpdateConsent tests updating consent status
 func TestConsentEngine_UpdateConsent(t *testing.T) {
-	TestWithBothEngines(t, "UpdateConsent", func(t *testing.T, engine ConsentEngine) {
+	TestWithPostgresEngine(t, "UpdateConsent", func(t *testing.T, engine ConsentEngine) {
 
 		// Create a consent record first
 		req := ConsentRequest{
@@ -148,7 +148,7 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 
 // TestConsentEngine_FindExistingConsent tests finding existing consents
 func TestConsentEngine_FindExistingConsent(t *testing.T) {
-	TestWithBothEngines(t, "FindExistingConsent", func(t *testing.T, engine ConsentEngine) {
+	TestWithPostgresEngine(t, "FindExistingConsent", func(t *testing.T, engine ConsentEngine) {
 
 		// Create a consent record first
 		req := ConsentRequest{

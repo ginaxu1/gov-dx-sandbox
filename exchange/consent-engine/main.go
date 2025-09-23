@@ -895,59 +895,6 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
 }
 
-// Simple endpoint for consent website to approve/reject consent
-func (s *apiServer) updateConsentStatus(w http.ResponseWriter, r *http.Request, req struct {
-	ConsentID string `json:"consent_id"`
-	Status    string `json:"status"` // "approved" or "rejected"
-}) {
-	if req.ConsentID == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "consent_id is required"})
-		return
-	}
-
-	if req.Status != "approved" && req.Status != "rejected" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be 'approved' or 'rejected'"})
-		return
-	}
-
-	// Update the status using the proper UpdateConsent method
-	var newStatus ConsentStatus
-	if req.Status == "approved" {
-		newStatus = StatusApproved
-	} else {
-		newStatus = StatusRejected
-	}
-
-	updateReq := UpdateConsentRequest{
-		Status:    newStatus,
-		UpdatedBy: "consent-portal", // This comes from the consent portal
-	}
-
-	updatedRecord, err := s.engine.UpdateConsent(req.ConsentID, updateReq)
-	if err != nil {
-		utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "consent record not found"})
-		return
-	}
-
-	response := map[string]interface{}{
-		"id":                      updatedRecord.ConsentID,
-		"status":                  string(updatedRecord.Status),
-		"updated_at":              updatedRecord.UpdatedAt.Format(time.RFC3339),
-		"approved_at":             updatedRecord.UpdatedAt.Format(time.RFC3339),
-		"data_owner_confirmation": true,
-	}
-
-	// If approved, redirect to orchestration engine's redirect endpoint
-	if req.Status == "approved" {
-		orchestrationEngineURL := getEnvOrDefault("ORCHESTRATION_ENGINE_URL", "http://localhost:4000")
-		redirectURL := fmt.Sprintf("%s/consent-redirect?consent_id=%s", orchestrationEngineURL, req.ConsentID)
-		http.Redirect(w, r, redirectURL, http.StatusFound)
-		return
-	}
-
-	utils.RespondWithJSON(w, http.StatusOK, response)
-}
-
 func (s *apiServer) getConsentPortalInfo(w http.ResponseWriter, r *http.Request) {
 	utils.GenericHandler(w, r, func() (interface{}, int, error) {
 		consentID, err := utils.ExtractQueryParam(r, "consent_id")

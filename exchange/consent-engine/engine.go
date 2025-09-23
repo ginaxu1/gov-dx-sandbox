@@ -117,6 +117,7 @@ type ConsentRequest struct {
 
 // DataField represents a data field that requires consent
 type DataField struct {
+	OwnerType  string   `json:"owner_type,omitempty"`
 	OwnerID    string   `json:"owner_id"`
 	OwnerEmail string   `json:"owner_email"`
 	Fields     []string `json:"fields"`

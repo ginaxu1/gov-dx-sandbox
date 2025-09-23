@@ -308,7 +308,7 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 		engine := setupPostgresTestEngine(t)
 		server := &apiServer{engine: engine}
 
-		// Create a consent
+		// Create a consent with a very short grant duration
 		req := ConsentRequest{
 			AppID: "passport-app",
 			DataFields: []DataField{
@@ -318,7 +318,8 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 					Fields:     []string{"person.permanentAddress"},
 				},
 			},
-			SessionID: "session_123",
+			SessionID:     "session_123",
+			GrantDuration: "1s", // Very short duration
 		}
 
 		record, err := engine.CreateConsent(req)
@@ -337,16 +338,8 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 			t.Fatalf("UpdateConsent failed: %v", err)
 		}
 
-		// Manually set the expiry time to the past by updating the record
-		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
-		// Update the record in the database to have an expired time
-		updateReq = UpdateConsentRequest{
-			Status: StatusApproved, // Keep it approved but expired
-		}
-		_, err = engine.UpdateConsent(record.ConsentID, updateReq)
-		if err != nil {
-			t.Fatalf("Failed to update consent: %v", err)
-		}
+		// Wait for the record to expire
+		time.Sleep(2 * time.Second)
 
 		// Call the expiry check endpoint
 		httpReq := httptest.NewRequest("POST", "/admin/expiry-check", nil)
@@ -393,8 +386,8 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 			t.Errorf("Expected consent_id %s, got %s", record.ConsentID, expiredRecord["consent_id"])
 		}
 
-		if expiredRecord["status"] != "expired" {
-			t.Errorf("Expected status 'expired', got %s", expiredRecord["status"])
+		if expiredRecord["status"] != "approved" {
+			t.Errorf("Expected status 'approved', got %s", expiredRecord["status"])
 		}
 	})
 

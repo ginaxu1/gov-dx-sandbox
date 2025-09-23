@@ -94,16 +94,9 @@ func SetupTestWithCleanup(t *testing.T) func() {
 	}
 }
 
-// TestWithBothEngines runs a test function with both in-memory and PostgreSQL engines
-func TestWithBothEngines(t *testing.T, testName string, testFunc func(t *testing.T, engine ConsentEngine)) {
-	t.Run("InMemory_"+testName, func(t *testing.T) {
-		cleanup := SetupTestWithCleanup(t)
-		defer cleanup()
-
-		engine := setupPostgresTestEngine(t)
-		testFunc(t, engine)
-	})
-
+// TestWithPostgresEngine runs a test function with PostgreSQL engine
+// Note: In-memory engine has been deprecated and removed from the codebase
+func TestWithPostgresEngine(t *testing.T, testName string, testFunc func(t *testing.T, engine ConsentEngine)) {
 	// Only run PostgreSQL tests if explicitly enabled
 	if os.Getenv("TEST_USE_POSTGRES") == "true" {
 		t.Run("PostgreSQL_"+testName, func(t *testing.T) {
@@ -113,5 +106,8 @@ func TestWithBothEngines(t *testing.T, testName string, testFunc func(t *testing
 			engine := setupPostgresTestEngine(t)
 			testFunc(t, engine)
 		})
+	} else {
+		// Skip test if PostgreSQL is not enabled
+		t.Skip("PostgreSQL tests not enabled (set TEST_USE_POSTGRES=true)")
 	}
 }

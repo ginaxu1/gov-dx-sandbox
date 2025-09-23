@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
   title: Consent Engine API
   description: |
@@ -524,7 +524,7 @@ paths:
         '500':
           description: Internal server error
 
-  /consent-portal/:
+  /consent-portal:
     post:
       summary: Create Consent via Portal
       description: Create a new consent record via the consent portal
@@ -753,13 +753,12 @@ components:
     DataField:
       type: object
       required:
-        - owner_type
         - owner_id
         - fields
       properties:
         owner_type:
           type: string
-          description: Type of data owner (citizen, organization, etc.)
+          description: Type of data owner (citizen, organization, etc.). Optional field.
           example: citizen
         owner_id:
           type: string
