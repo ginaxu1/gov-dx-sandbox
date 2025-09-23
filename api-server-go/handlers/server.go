@@ -575,8 +575,9 @@ func (s *APIServer) handleProviderSchemas(w http.ResponseWriter, r *http.Request
 func (s *APIServer) handleProviderSubmissions(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		// GET /provider-submissions - List all provider submissions
-		submissions, err := s.providerService.GetAllProviderSubmissions()
+		// GET /provider-submissions - List all provider submissions with optional status filter
+		status := r.URL.Query().Get("status")
+		submissions, err := s.providerService.GetProviderSubmissionsByStatus(status)
 		if err != nil {
 			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve provider submissions")
 			return
