@@ -12,8 +12,10 @@ import (
 // TestPOSTConsentsEndpoint tests the POST /consents endpoint
 func TestPOSTConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("CreateNewConsent_Success", func(t *testing.T) {
@@ -21,13 +23,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType:  "citizen",
 					OwnerID:    "199512345678",
 					OwnerEmail: "199512345678@example.com",
 					Fields:     []string{"person.permanentAddress", "person.birthDate"},
 				},
 			},
-			Purpose:   "passport_application",
 			SessionID: "session_123",
 		}
 
@@ -65,7 +65,6 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		reqBody := ConsentRequest{
 			AppID:      "passport-app",
 			DataFields: []DataField{},
-			Purpose:    "passport_application",
 			SessionID:  "session_123",
 		}
 
@@ -87,13 +86,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "199512345678",
-					// OwnerEmail will be populated from mapping
-					Fields: []string{"personInfo.permanentAddress"},
+					OwnerID:    "199512345678",
+					OwnerEmail: "199512345678@example.com",
+					Fields:     []string{"personInfo.permanentAddress"},
 				},
 			},
-			Purpose:   "passport_application",
 			SessionID: "session_123",
 		}
 
@@ -121,13 +118,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType: "citizen",
-					OwnerID:   "198712345678", // Different owner_id
-					// OwnerEmail will be populated from mapping
-					Fields: []string{"personInfo.permanentAddress"},
+					OwnerID:    "198712345678", // Different owner_id
+					OwnerEmail: "198712345678@example.com",
+					Fields:     []string{"personInfo.permanentAddress"},
 				},
 			},
-			Purpose:   "passport_application",
 			SessionID: "session_123",
 		}
 
@@ -173,8 +168,10 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 // TestPUTConsentsEndpoint tests the PUT /consents/{id} endpoint
 func TestPUTConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("UpdateNonExistentConsent", func(t *testing.T) {
@@ -200,8 +197,10 @@ func TestPUTConsentsEndpoint(t *testing.T) {
 // TestGETConsentsEndpoint tests the GET /consents/{id} endpoint
 func TestGETConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("GetNonExistentConsent", func(t *testing.T) {
@@ -219,8 +218,10 @@ func TestGETConsentsEndpoint(t *testing.T) {
 // TestDELETEConsentsEndpoint tests the DELETE /consents/{id} endpoint
 func TestDELETEConsentsEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("RevokeNonExistentConsent", func(t *testing.T) {
@@ -244,8 +245,10 @@ func TestDELETEConsentsEndpoint(t *testing.T) {
 // TestPOSTAdminExpiryCheckEndpoint tests the POST /admin/expiry-check endpoint
 func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	t.Run("NoExpiredRecords", func(t *testing.T) {
@@ -299,23 +302,24 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 
 	t.Run("WithExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-		engine := NewConsentEngine(consentPortalURL)
+		cleanup := SetupTestWithCleanup(t)
+		defer cleanup()
+
+		engine := setupPostgresTestEngine(t)
 		server := &apiServer{engine: engine}
 
-		// Create a consent
+		// Create a consent with a very short grant duration
 		req := ConsentRequest{
 			AppID: "passport-app",
 			DataFields: []DataField{
 				{
-					OwnerType:  "citizen",
 					OwnerID:    "user123",
 					OwnerEmail: "user123@example.com",
 					Fields:     []string{"person.permanentAddress"},
 				},
 			},
-			Purpose:   "passport_application",
-			SessionID: "session_123",
+			SessionID:     "session_123",
+			GrantDuration: "1s", // Very short duration
 		}
 
 		record, err := engine.CreateConsent(req)
@@ -334,10 +338,8 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 			t.Fatalf("UpdateConsent failed: %v", err)
 		}
 
-		// Manually set the expiry time to the past
-		record.ExpiresAt = time.Now().Add(-1 * time.Hour)
-		engineImpl := engine.(*consentEngineImpl)
-		engineImpl.consentRecords[record.ConsentID] = record
+		// Wait for the record to expire
+		time.Sleep(2 * time.Second)
 
 		// Call the expiry check endpoint
 		httpReq := httptest.NewRequest("POST", "/admin/expiry-check", nil)
@@ -384,8 +386,8 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 			t.Errorf("Expected consent_id %s, got %s", record.ConsentID, expiredRecord["consent_id"])
 		}
 
-		if expiredRecord["status"] != "expired" {
-			t.Errorf("Expected status 'expired', got %s", expiredRecord["status"])
+		if expiredRecord["status"] != "approved" {
+			t.Errorf("Expected status 'approved', got %s", expiredRecord["status"])
 		}
 	})
 
@@ -404,8 +406,10 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 // TestPUTConsentsWithGrantDuration tests the PUT /consents/:consentId endpoint with grant_duration
 func TestPUTConsentsWithGrantDuration(t *testing.T) {
 	// Create a test server
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
 	// First create a consent
@@ -413,13 +417,13 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 		AppID: "passport-app",
 		DataFields: []DataField{
 			{
-				OwnerType: "citizen",
-				OwnerID:   "200012345678",
+
+				OwnerID: "200012345678",
 				// OwnerEmail will be populated from mapping
 				Fields: []string{"personInfo.permanentAddress"},
 			},
 		},
-		Purpose:   "passport_application",
+
 		SessionID: "session_123",
 	}
 

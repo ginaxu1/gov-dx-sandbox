@@ -4,7 +4,6 @@ package models
 type ConsentWorkflowRequest struct {
 	AppID      string      `json:"app_id"`
 	DataFields []DataField `json:"data_fields"`
-	Purpose    string      `json:"purpose"`
 	SessionID  string      `json:"session_id"`
 }
 

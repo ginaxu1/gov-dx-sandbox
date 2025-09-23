@@ -139,8 +139,10 @@ func hybridAuthMiddlewareForTesting(jwtVerifier JWTVerifierInterface, engine Con
 
 // TestHybridAuthMiddleware tests the hybrid authentication middleware
 func TestHybridAuthMiddleware(t *testing.T) {
-	consentPortalURL := getEnvOrDefault("TEST_CONSENT_PORTAL_URL", "http://localhost:5173")
-	engine := NewConsentEngine(consentPortalURL)
+	cleanup := SetupTestWithCleanup(t)
+	defer cleanup()
+
+	engine := setupPostgresTestEngine(t)
 
 	// Create a test consent first
 	consentID := createTestConsent(t, engine)
@@ -447,13 +449,13 @@ func createTestConsent(t *testing.T, engine ConsentEngine) string {
 		AppID: "test-app",
 		DataFields: []DataField{
 			{
-				OwnerType:  "citizen",
+
 				OwnerID:    "test-owner-123",
 				OwnerEmail: "test@example.com",
 				Fields:     []string{"person.name", "person.email"},
 			},
 		},
-		Purpose:   "testing",
+
 		SessionID: "test-session-123",
 	}
 

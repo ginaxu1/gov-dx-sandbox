@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Consent Engine API
   description: |
@@ -133,7 +133,7 @@ paths:
         
         **Example Frontend Request:**
         ```bash
-        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)" \
+        curl -X GET "https://api.example.com/consents/consent_8d255282" \
           -H "Authorization: Bearer YOUR_JWT_TOKEN" \
           -H "X-Requested-With: XMLHttpRequest" \
           -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -141,7 +141,7 @@ paths:
         
         **Example M2M Request:**
         ```bash
-        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)"
+        curl -X GET "https://api.example.com/consents/consent_8d255282"
         # No Authorization header required for M2M requests
         ```
       operationId: getConsentById
@@ -149,7 +149,7 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}
+        - {}: []
       parameters:
         - name: consentId
           in: path
@@ -232,7 +232,7 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}
+        - {}: []
       parameters:
         - name: consentId
           in: path
@@ -284,21 +284,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-    patch:
-      summary: Partially Update Consent
-      description: |
-        Partially update a specific consent record by its ID with hybrid authentication:
-        - **Frontend requests**: Require JWT authentication with email validation
-        - **M2M requests**: JWT authentication is optional
-        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
-        
-        This endpoint allows partial updates to consent records, updating only the fields provided in the request body.
-      operationId: patchConsentById
+    post:
+      summary: Update Consent (Alternative)
+      description: Alternative endpoint to update a specific consent record by its ID (requires JWT authentication)
+      operationId: updateConsentById
       tags:
         - Consents
       security:
         - BearerAuth: []
-        - {}
       parameters:
         - name: consentId
           in: path
@@ -313,35 +306,26 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - status
+                - owner_id
+                - message
               properties:
                 status:
                   type: string
                   enum:
-                    - pending
                     - approved
                     - rejected
-                    - expired
-                    - revoked
-                  description: New status of the consent (optional)
+                  description: New status of the consent
                   example: approved
-                updated_by:
+                owner_id:
                   type: string
-                  description: ID of the user who updated the consent (optional)
+                  description: ID of the data owner
                   example: citizen_199512345678
-                reason:
+                message:
                   type: string
-                  description: Reason for the status update (optional)
+                  description: Message for the status update
                   example: User approved consent via portal
-                grant_duration:
-                  type: string
-                  description: Duration of the granted access (optional)
-                  example: "1d"
-                fields:
-                  type: array
-                  description: List of data fields covered by this consent (optional)
-                  items:
-                    type: string
-                  example: ["personInfo.permanentAddress", "personInfo.photo"]
       responses:
         '200':
           description: Consent updated successfully
@@ -386,7 +370,7 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}
+        - {}: []
       parameters:
         - name: consentId
           in: path
@@ -395,13 +379,12 @@ paths:
           schema:
             type: string
             example: consent_8d255282
-        - name: reason
-          in: query
-          required: true
-          description: Reason for revoking the consent
-          schema:
-            type: string
-            example: User requested revocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeConsentRequest'
       responses:
         '200':
           description: Consent revoked successfully
@@ -537,7 +520,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConsentPortalCreateRequest'
+              $ref: '#/components/schemas/CreateConsentRequest'
       responses:
         '201':
           description: Consent created successfully
@@ -559,7 +542,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     put:
       summary: Update Consent via Portal
-      description: Update a consent record via the consent portal. The consent ID should be included in the URL path after the trailing slash.
+      description: Update a consent record via the consent portal
       operationId: updateConsentViaPortal
       tags:
         - Portal
@@ -577,13 +560,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
         '400':
-          description: Bad request - invalid input data or missing consent ID in path
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Consent not found
+          description: Bad request - invalid input data
           content:
             application/json:
               schema:
@@ -596,7 +573,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     get:
       summary: Get Consent Portal Information
-      description: Retrieve consent information for the portal display. The consent ID should be provided as a query parameter.
+      description: Retrieve consent information for the portal display
       operationId: getConsentPortalInfo
       tags:
         - Portal
@@ -617,6 +594,53 @@ paths:
                 $ref: '#/components/schemas/ConsentPortalView'
         '400':
           description: Bad request - missing consent_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consent-portal/{consentId}:
+    post:
+      summary: Handle Consent Portal Actions
+      description: Process actions from the consent portal (approve/deny)
+      operationId: handleConsentPortalAction
+      tags:
+        - Portal
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: Unique identifier for the consent
+          schema:
+            type: string
+            example: consent_8d255282
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentPortalAction'
+      responses:
+        '200':
+          description: Action processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+        '400':
+          description: Bad request - invalid action
           content:
             application/json:
               schema:
@@ -754,12 +778,13 @@ components:
     DataField:
       type: object
       required:
+        - owner_type
         - owner_id
         - fields
       properties:
         owner_type:
           type: string
-          description: Type of data owner (citizen, organization, etc.). Optional field.
+          description: Type of data owner (citizen, organization, etc.)
           example: citizen
         owner_id:
           type: string
@@ -790,7 +815,7 @@ components:
             - rejected
             - expired
             - revoked
-          description: New status of the consent.
+          description: New status of the consent. Note: Terminal states (rejected, expired, revoked) cannot transition back to active states.
           example: approved
         grant_duration:
           type: string
@@ -810,32 +835,6 @@ components:
           items:
             type: string
           example: ["personInfo.permanentAddress", "personInfo.photo"]
-
-    ConsentPortalCreateRequest:
-      type: object
-      required:
-        - app_id
-        - data_fields
-        - purpose
-        - session_id
-      properties:
-        app_id:
-          type: string
-          description: ID of the consumer application requesting data
-          example: passport-app
-        data_fields:
-          type: array
-          description: List of data field groups with ownership information
-          items:
-            $ref: '#/components/schemas/DataField'
-        purpose:
-          type: string
-          description: Purpose for data access
-          example: passport_application
-        session_id:
-          type: string
-          description: Session identifier for tracking
-          example: test-session-123
 
     ConsentPortalAction:
       type: object
@@ -950,6 +949,16 @@ components:
           type: string
           description: Reason for the status update
           example: User approved consent via portal
+
+    RevokeConsentRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          description: Reason for revoking the consent
+          example: User requested revocation
 
     ConsentPortalView:
       type: object

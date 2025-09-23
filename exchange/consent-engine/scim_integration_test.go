@@ -159,8 +159,8 @@ func TestSCIMIntegration(t *testing.T) {
 		// Test that owner email lookup falls back to hardcoded mapping when M2M credentials are not configured
 		// This test ensures backward compatibility
 
-		// Reset global SCIM client to ensure clean state
-		scimClient = nil
+		cleanup := SetupTestWithCleanup(t)
+		defer cleanup()
 
 		// Test with a known owner_id from hardcoded mapping
 		email, err := getOwnerEmailByID("199512345678")
