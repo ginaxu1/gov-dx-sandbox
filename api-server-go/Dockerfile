@@ -12,17 +12,15 @@ ARG GIT_COMMIT
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# --- FIX STARTS HERE ---
-# Copy go mod files first to leverage Docker layer caching
-COPY go.mod go.sum ./
+# Copy shared packages first
+COPY exchange/shared/ /app/shared/
+
+# Copy go mod files and source code
+COPY api-server-go/go.mod api-server-go/go.sum ./
+COPY api-server-go/ ./
 
 # Download dependencies
 RUN go mod download
-
-# Now copy the rest of your source code
-# Note: The .dockerignore file will control what gets copied
-COPY . .
-# --- FIX ENDS HERE ---
 
 # Build the application with build info
 RUN CGO_ENABLED=0 GOOS=linux go build \
@@ -61,5 +59,5 @@ ENV ENVIRONMENT=production
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
-# Run the application with environment-based flags
+# Run the application standalone
 CMD ["./service_binary"]
