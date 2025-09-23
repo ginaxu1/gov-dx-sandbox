@@ -16,10 +16,9 @@ type AdminService struct {
 }
 
 func NewAdminService() *AdminService {
-	return &AdminService{
-		consumerService: NewConsumerService(),
-		providerService: NewProviderService(),
-	}
+	// This method is deprecated - use NewAdminServiceWithServices instead
+	// as it requires database-backed services
+	return nil
 }
 
 // NewAdminServiceWithServices creates an admin service with existing services
@@ -46,7 +45,13 @@ func (s *AdminService) GetMetrics() (map[string]interface{}, error) {
 	defer s.mutex.RUnlock()
 
 	// Get counts from services
-	applications, err := s.consumerService.GetAllApplications()
+	consumers, err := s.consumerService.GetAllConsumers()
+	if err != nil {
+		slog.Error("Failed to get consumers for metrics", "error", err)
+		return nil, err
+	}
+
+	applications, err := s.consumerService.GetAllConsumerApps()
 	if err != nil {
 		slog.Error("Failed to get applications for metrics", "error", err)
 		return nil, err
@@ -71,6 +76,7 @@ func (s *AdminService) GetMetrics() (map[string]interface{}, error) {
 	}
 
 	metrics := map[string]interface{}{
+		"total_consumers":            len(consumers),
 		"total_consumer_apps":        len(applications),
 		"total_provider_submissions": len(submissions),
 		"total_providers":            len(profiles),

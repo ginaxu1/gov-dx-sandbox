@@ -29,6 +29,7 @@ type ConsumerServiceInterface interface {
 
 type ProviderServiceInterface interface {
 	GetAllProviderSubmissions() ([]*models.ProviderSubmission, error)
+	GetProviderSubmissionsByStatus(status string) ([]*models.ProviderSubmission, error)
 	CreateProviderSubmission(req models.CreateProviderSubmissionRequest) (*models.ProviderSubmission, error)
 	GetProviderSubmission(id string) (*models.ProviderSubmission, error)
 	UpdateProviderSubmission(id string, req models.UpdateProviderSubmissionRequest) (*models.UpdateProviderSubmissionResponse, error)
@@ -71,13 +72,13 @@ type GrantsServiceInterface interface {
 // Service factory functions
 
 func NewConsumerServiceWithDB(db *sql.DB) ConsumerServiceInterface {
-	return &ConsumerServiceDB{db: db}
+	return NewConsumerService(db)
 }
 
 func NewProviderServiceWithDB(db *sql.DB) ProviderServiceInterface {
-	return &ProviderServiceDB{db: db, schemaConverter: NewSchemaConverter()}
+	return NewProviderService(db)
 }
 
 func NewGrantsServiceWithDB(db *sql.DB) GrantsServiceInterface {
-	return &GrantsServiceDB{db: db}
+	return NewGrantsService(db)
 }

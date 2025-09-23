@@ -9,7 +9,7 @@ import (
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
 	"github.com/gov-dx-sandbox/api-server-go/services"
-	"github.com/gov-dx-sandbox/exchange/shared/utils"
+	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 )
 
 // APIServer manages all API routes and handlers
@@ -18,19 +18,6 @@ type APIServer struct {
 	providerService services.ProviderServiceInterface
 	adminService    *services.AdminService
 	grantsService   services.GrantsServiceInterface
-}
-
-// NewAPIServer creates a new API server instance (legacy - uses in-memory storage)
-func NewAPIServer() *APIServer {
-	consumerService := services.NewConsumerService()
-	providerService := services.NewProviderService()
-	grantsService := services.NewGrantsService()
-	return &APIServer{
-		consumerService: consumerService,
-		providerService: providerService,
-		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
-		grantsService:   grantsService,
-	}
 }
 
 // NewAPIServerWithDB creates a new API server instance with database support
@@ -51,9 +38,24 @@ func (s *APIServer) ProviderService() services.ProviderServiceInterface {
 	return s.providerService
 }
 
-// GetProviderService returns the provider service instance (alias for consistency)
+// GetConsumerService returns the consumer service instance
+func (s *APIServer) GetConsumerService() services.ConsumerServiceInterface {
+	return s.consumerService
+}
+
+// GetProviderService returns the provider service instance
 func (s *APIServer) GetProviderService() services.ProviderServiceInterface {
 	return s.providerService
+}
+
+// GetGrantsService returns the grants service instance
+func (s *APIServer) GetGrantsService() services.GrantsServiceInterface {
+	return s.grantsService
+}
+
+// GetAdminService returns the admin service instance
+func (s *APIServer) GetAdminService() *services.AdminService {
+	return s.adminService
 }
 
 // SetupRoutes configures all API routes

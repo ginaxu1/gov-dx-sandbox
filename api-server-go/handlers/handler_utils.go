@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
-	"github.com/gov-dx-sandbox/exchange/shared/utils"
+	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 )
 
 // HandlerFunc represents a function that handles HTTP requests and returns a result or error
