@@ -325,39 +325,71 @@ curl -X DELETE http://localhost:8081/consents/consent_122af00e \
 - `403 Forbidden` - JWT token invalid or email doesn't match consent owner
 - `404 Not Found` - Consent record not found
 
-## Testing
+## How to Run and Test Locally
 
-The consent engine includes comprehensive testing
+This guide will help you set up and test the consent engine locally with PostgreSQL database.
 
-### Test Structure
-- **Unit Tests**: Located in root directory (required for package access)
-- **Integration Tests**: Located in `tests/` directory
-- **Test Utilities**: Located in `testutils/` directory with reusable helpers
+### Prerequisites
 
-### Test Utilities
-The `testutils/test_helpers.go` provides reusable test components:
-- **ConsentRequestBuilder**: Fluent API for building test consent requests
-- **DataFieldBuilder**: Fluent API for building test data fields  
-- **HTTPTestHelper**: Common HTTP testing utilities
-- **JWTTestHelper**: JWT token creation and verification helpers
-- **EngineTestHelper**: Consent engine testing utilities
+- Go 1.21 or later
+- Docker and Docker Compose
+- PostgreSQL client (optional, for direct database access)
 
-### Running Tests
+### 1. Database Setup
+
+The consent engine uses PostgreSQL for persistent storage. Start the test database:
+
 ```bash
-# Run all tests
-go test -v
+# Start the test PostgreSQL container
+make setup-test-db
 
-# Run with coverage
-go test -v -cover
-
-# Run specific test
-go test -v -run TestHybridAuthMiddleware
+# Verify the database is running
+docker ps
 ```
 
-### Test Complete Workflow
+This will start a PostgreSQL container on port `5433` with:
+- Database: `consent_engine_test`
+- Username: `test_user`
+- Password: `test_password`
 
+### 2. Running the Service Locally
+
+Manual Environment Variables
 ```bash
-# 1. Create consent
+# Set environment variables and run
+CHOREO_OPENDIF_DB_HOSTNAME=localhost \
+CHOREO_OPENDIF_DB_PORT=5433 \
+CHOREO_OPENDIF_DB_USERNAME=test_user \
+CHOREO_OPENDIF_DB_PASSWORD=test_password \
+CHOREO_OPENDIF_DB_DATABASENAME=consent_engine_test \
+DB_SSLMODE=disable \
+go run . &
+```
+
+The service will start on `http://localhost:8081` and automatically:
+- Connect to the PostgreSQL database
+- Create necessary tables and indexes
+- Initialize the consent engine
+
+### 3. Testing the Service
+
+#### Health Check
+```bash
+curl http://localhost:8081/health
+```
+
+Expected response:
+```json
+{
+  "service": "consent-engine",
+  "status": "healthy"
+}
+```
+
+#### Complete Test Workflow
+
+1. **Create a consent request:**
+```bash
 CONSENT_RESPONSE=$(curl -s -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
@@ -365,35 +397,150 @@ CONSENT_RESPONSE=$(curl -s -X POST http://localhost:8081/consents \
     "data_fields": [
       {
         "owner_type": "citizen",
-        "owner_id": "test-123",
-        "fields": ["person.fullName"]
+        "owner_id": "199512345678",
+        "fields": ["person.permanentAddress", "person.photo"]
       }
     ],
-    "purpose": "testing",
-    "session_id": "test-session",
-    "redirect_url": "https://example.com"
+    "purpose": "passport_application",
+    "session_id": "session_123",
+    "redirect_url": "https://passport-app.gov.lk/callback"
   }')
 
-# 2. Extract consent ID
+echo "Consent created: $CONSENT_RESPONSE"
+```
+
+2. **Extract consent ID and get consent information:**
+```bash
 CONSENT_ID=$(echo $CONSENT_RESPONSE | jq -r '.consent_id')
+echo "Consent ID: $CONSENT_ID"
 
-# 3. Get consent information
+# Get consent information (no auth required for basic info)
 curl -X GET http://localhost:8081/consents/$CONSENT_ID
+```
 
-# 4. Update consent status
+3. **Update consent status:**
+```bash
 curl -X PUT http://localhost:8081/consents/$CONSENT_ID \
   -H "Content-Type: application/json" \
   -d '{
     "status": "approved",
-    "owner_id": "test-123",
-    "message": "User approved"
+    "owner_id": "199512345678",
+    "message": "User approved consent"
   }'
-
-# 5. Revoke consent
-curl -X DELETE http://localhost:8081/consents/$CONSENT_ID \
-  -H "Content-Type: application/json" \
-  -d '{"reason": "Test revocation"}'
 ```
+
+4. **Get data owner information:**
+```bash
+curl -X GET http://localhost:8081/data-info/$CONSENT_ID
+```
+
+### 4. Database Access
+
+#### Connect to the Local Database
+```bash
+# Connect using psql
+PGPASSWORD=test_password psql -h localhost -p 5433 -U test_user -d consent_engine_test
+
+# Or using docker exec
+docker exec -it $(docker ps -q -f name=postgres-test) psql -U test_user -d consent_engine_test
+```
+
+#### Useful Database Queries
+```sql
+-- View all consent records
+SELECT * FROM consent_records ORDER BY created_at DESC;
+
+-- View consent records by status
+SELECT consent_id, owner_id, status, created_at FROM consent_records WHERE status = 'pending';
+
+-- View consent records by owner
+SELECT * FROM consent_records WHERE owner_id = '199512345678';
+
+-- Check database schema
+\d consent_records
+```
+
+### 5. Running Tests
+
+#### Unit Tests (In-Memory Engine)
+```bash
+# Run all tests with in-memory engine
+make test
+
+# Run with coverage
+go test -v -cover
+```
+
+#### Integration Tests (PostgreSQL)
+```bash
+# Run tests with PostgreSQL database
+make test-local
+
+# Run specific test
+go test -v -run TestHybridAuthMiddleware
+```
+
+#### Test Structure
+- **Unit Tests**: Located in root directory (required for package access)
+- **Integration Tests**: Located in `tests/` directory
+- **Test Utilities**: Located in `testutils/` directory with reusable helpers
+
+### 6. Troubleshooting
+
+#### Database Connection Issues
+```bash
+# Check if PostgreSQL is running
+docker ps | grep postgres
+
+# Check database logs
+docker logs $(docker ps -q -f name=postgres-test)
+
+# Restart database
+make clean
+make setup-test-db
+```
+
+#### Service Issues
+```bash
+# Check if service is running
+curl http://localhost:8081/health
+
+# Check service logs (if running in background)
+ps aux | grep "go run"
+```
+
+#### Port Conflicts
+If port 8081 is already in use:
+```bash
+# Kill existing process
+lsof -ti:8081 | xargs kill -9
+
+# Or use a different port
+PORT=8082 go run .
+```
+
+### 7. Cleanup
+
+```bash
+# Stop and remove test database
+make clean
+
+# Stop the service (if running in background)
+pkill -f "go run"
+```
+
+### Environment Variables Reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHOREO_OPENDIF_DB_HOSTNAME` | `localhost` | Database host |
+| `CHOREO_OPENDIF_DB_PORT` | `5432` | Database port |
+| `CHOREO_OPENDIF_DB_USERNAME` | `postgres` | Database username |
+| `CHOREO_OPENDIF_DB_PASSWORD` | `password` | Database password |
+| `CHOREO_OPENDIF_DB_DATABASENAME` | `consent_engine` | Database name |
+| `DB_SSLMODE` | `require` | SSL mode for database connection |
+| `PORT` | `8081` | Service port |
+| `CONSENT_PORTAL_URL` | `http://localhost:5173` | Consent portal URL |
 
 ## Consent States
 

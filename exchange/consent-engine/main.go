@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -328,13 +329,16 @@ func (c *AsgardeoSCIMClient) getUserByNICUserMgmt(nic string) (*SCIMUser, error)
 	return &user, nil
 }
 
-// Global SCIM client instance
-var scimClient *AsgardeoSCIMClient
+// Global SCIM client instance with thread-safe initialization
+var (
+	scimClient *AsgardeoSCIMClient
+	scimOnce   sync.Once
+)
 
 // getOwnerEmailByID looks up the owner_email for a given owner_id using SCIM API
 func getOwnerEmailByID(ownerID string) (string, error) {
-	// Initialize SCIM client if not already done
-	if scimClient == nil {
+	// Initialize SCIM client thread-safely using sync.Once
+	scimOnce.Do(func() {
 		baseURL := getEnvOrDefault("ASGARDEO_BASE_URL", "https://api.asgardeo.io/t/YOUR_TENANT")
 		clientID := getEnvOrDefault("ASGARDEO_M2M_CLIENT_ID", "")
 		clientSecret := getEnvOrDefault("ASGARDEO_M2M_CLIENT_SECRET", "")
@@ -342,13 +346,19 @@ func getOwnerEmailByID(ownerID string) (string, error) {
 		if clientID == "" || clientSecret == "" {
 			// Fallback to hardcoded mapping for development/testing
 			slog.Warn("M2M credentials not configured, using hardcoded mapping", "owner_id", ownerID)
-			if email, exists := ownerIDToEmailMap[ownerID]; exists {
-				return email, nil
-			}
-			return "", fmt.Errorf("no email mapping found for owner_id: %s", ownerID)
+			// Don't initialize scimClient if credentials are missing
+			return
 		}
 
 		scimClient = NewAsgardeoSCIMClient(baseURL, clientID, clientSecret)
+	})
+
+	// If SCIM client is not initialized (missing credentials), use hardcoded mapping
+	if scimClient == nil {
+		if email, exists := ownerIDToEmailMap[ownerID]; exists {
+			return email, nil
+		}
+		return "", fmt.Errorf("no email mapping found for owner_id: %s", ownerID)
 	}
 
 	// Try SCIM lookup first
@@ -707,10 +717,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "app_id is required and cannot be empty"})
 		return
 	}
-	if req.Purpose == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "purpose is required and cannot be empty"})
-		return
-	}
 	if req.SessionID == "" {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
 		return
@@ -722,10 +728,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 
 	// Validate each data field and populate owner_email from owner_id mapping
 	for i, dataField := range req.DataFields {
-		if dataField.OwnerType == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_type is required and cannot be empty", i)})
-			return
-		}
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
 			return
@@ -893,61 +895,6 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
 }
 
-// Simple endpoint for consent website to approve/reject consent
-func (s *apiServer) updateConsentStatus(w http.ResponseWriter, r *http.Request, req struct {
-	ConsentID string `json:"consent_id"`
-	Status    string `json:"status"` // "approved" or "rejected"
-}) {
-	if req.ConsentID == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "consent_id is required"})
-		return
-	}
-
-	if req.Status != "approved" && req.Status != "rejected" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be 'approved' or 'rejected'"})
-		return
-	}
-
-	// Get the consent record
-	record, err := s.engine.GetConsentStatus(req.ConsentID)
-	if err != nil {
-		utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "consent record not found"})
-		return
-	}
-
-	// Update the status
-	var newStatus string
-	if req.Status == "approved" {
-		newStatus = string(StatusApproved)
-	} else {
-		newStatus = string(StatusRejected)
-	}
-
-	record.Status = newStatus
-	record.UpdatedAt = time.Now()
-
-	// Store the updated record
-	s.engine.(*consentEngineImpl).consentRecords[req.ConsentID] = record
-
-	response := map[string]interface{}{
-		"id":                      record.ConsentID,
-		"status":                  string(record.Status),
-		"updated_at":              record.UpdatedAt.Format(time.RFC3339),
-		"approved_at":             record.UpdatedAt.Format(time.RFC3339),
-		"data_owner_confirmation": true,
-	}
-
-	// If approved, redirect to orchestration engine's redirect endpoint
-	if req.Status == "approved" {
-		orchestrationEngineURL := getEnvOrDefault("ORCHESTRATION_ENGINE_URL", "http://localhost:4000")
-		redirectURL := fmt.Sprintf("%s/consent-redirect?consent_id=%s", orchestrationEngineURL, req.ConsentID)
-		http.Redirect(w, r, redirectURL, http.StatusFound)
-		return
-	}
-
-	utils.RespondWithJSON(w, http.StatusOK, response)
-}
-
 func (s *apiServer) getConsentPortalInfo(w http.ResponseWriter, r *http.Request) {
 	utils.GenericHandler(w, r, func() (interface{}, int, error) {
 		consentID, err := utils.ExtractQueryParam(r, "consent_id")
@@ -1099,10 +1046,6 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 
 	// Validate each data field
 	for i, dataField := range req.DataFields {
-		if dataField.OwnerType == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_type is required and cannot be empty", i)})
-			return
-		}
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
 			return
@@ -1128,7 +1071,6 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 	consentReq := ConsentRequest{
 		AppID:      req.AppID,
 		DataFields: req.DataFields,
-		Purpose:    req.Purpose,
 		SessionID:  req.SessionID,
 	}
 
@@ -1376,13 +1318,42 @@ func main() {
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
 
+	// Initialize database connection
+	dbConfig := NewDatabaseConfig()
+	db, err := ConnectDB(dbConfig)
+	if err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	// Initialize database tables
+	if err := InitDatabase(db); err != nil {
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize consent engine
 	consentPortalUrl := getEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
 
 	slog.Info("Using consent portal URL", "url", consentPortalUrl)
 
-	engine := NewConsentEngine(consentPortalUrl)
+	engine := NewPostgresConsentEngine(db)
 	server := &apiServer{engine: engine}
+
+	// Start background expiry process with context cancellation
+	expiryInterval := getEnvOrDefault("CONSENT_EXPIRY_CHECK_INTERVAL", "24h")
+	interval, err := time.ParseDuration(expiryInterval)
+	if err != nil {
+		slog.Warn("Invalid expiry check interval, using default 24h", "interval", expiryInterval, "error", err)
+		interval = 24 * time.Hour
+	}
+
+	// Create a context for the background process that can be cancelled
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // This will cancel the background process when main exits
+
+	engine.StartBackgroundExpiryProcess(ctx, interval)
 
 	// Initialize JWT verifier with Asgardeo JWKS endpoint
 	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")

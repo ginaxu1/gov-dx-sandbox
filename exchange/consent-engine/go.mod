@@ -8,6 +8,7 @@ require (
 	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/constants v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
+	github.com/lib/pq v1.10.9
 )
 
 replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
