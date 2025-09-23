@@ -18,6 +18,7 @@ type Consumer struct {
 	ContactEmail string    `json:"contactEmail"`
 	PhoneNumber  string    `json:"phoneNumber"`
 	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // ConsumerApp represents a consumer's application to access specific data fields
@@ -27,6 +28,7 @@ type ConsumerApp struct {
 	Status         ApplicationStatus `json:"status"`
 	RequiredFields map[string]bool   `json:"requiredFields"`
 	CreatedAt      time.Time         `json:"createdAt"`
+	UpdatedAt      time.Time         `json:"updatedAt"`
 	Credentials    *Credentials      `json:"credentials,omitempty"`
 }
 

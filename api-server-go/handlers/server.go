@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,13 +14,13 @@ import (
 
 // APIServer manages all API routes and handlers
 type APIServer struct {
-	consumerService *services.ConsumerService
-	providerService *services.ProviderService
+	consumerService services.ConsumerServiceInterface
+	providerService services.ProviderServiceInterface
 	adminService    *services.AdminService
-	grantsService   *services.GrantsService
+	grantsService   services.GrantsServiceInterface
 }
 
-// NewAPIServer creates a new API server instance
+// NewAPIServer creates a new API server instance (legacy - uses in-memory storage)
 func NewAPIServer() *APIServer {
 	consumerService := services.NewConsumerService()
 	providerService := services.NewProviderService()
@@ -32,13 +33,26 @@ func NewAPIServer() *APIServer {
 	}
 }
 
+// NewAPIServerWithDB creates a new API server instance with database support
+func NewAPIServerWithDB(db *sql.DB) *APIServer {
+	consumerService := services.NewConsumerServiceWithDB(db)
+	providerService := services.NewProviderServiceWithDB(db)
+	grantsService := services.NewGrantsServiceWithDB(db)
+	return &APIServer{
+		consumerService: consumerService,
+		providerService: providerService,
+		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
+		grantsService:   grantsService,
+	}
+}
+
 // ProviderService returns the provider service instance
-func (s *APIServer) ProviderService() *services.ProviderService {
+func (s *APIServer) ProviderService() services.ProviderServiceInterface {
 	return s.providerService
 }
 
 // GetProviderService returns the provider service instance (alias for consistency)
-func (s *APIServer) GetProviderService() *services.ProviderService {
+func (s *APIServer) GetProviderService() services.ProviderServiceInterface {
 	return s.providerService
 }
 

@@ -1,0 +1,1034 @@
+openapi: 3.0.3
+info:
+  title: API Server
+  description: |
+    Government Data Exchange API Server for managing consumers, providers, and data access workflows.
+    This service handles consumer applications, provider submissions, schema management, and access control.
+  version: 1.0.0
+  contact:
+    name: OpenDIF Team
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api-server.choreo.dev
+    description: Choreo Production Environment
+  - url: https://api-server-dev.choreo.dev
+    description: Choreo Development Environment
+  - url: http://localhost:3000
+    description: Local Development Environment
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check if the API server is running and healthy
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: api-server
+
+  /consumers:
+    get:
+      summary: List All Consumers
+      description: Retrieve all registered data consumers
+      operationId: listConsumers
+      tags:
+        - Consumers
+      responses:
+        '200':
+          description: List of consumers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Consumer'
+                  count:
+                    type: integer
+    post:
+      summary: Create Consumer
+      description: Register a new data consumer
+      operationId: createConsumer
+      tags:
+        - Consumers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsumerRequest'
+      responses:
+        '201':
+          description: Consumer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+
+  /consumers/{consumerId}:
+    get:
+      summary: Get Consumer
+      description: Retrieve a specific consumer by ID
+      operationId: getConsumer
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consumer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+    put:
+      summary: Update Consumer
+      description: Update consumer information
+      operationId: updateConsumer
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsumerRequest'
+      responses:
+        '200':
+          description: Consumer updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+    delete:
+      summary: Delete Consumer
+      description: Remove a consumer and all associated data
+      operationId: deleteConsumer
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Consumer deleted successfully
+
+  /consumer-applications:
+    get:
+      summary: List All Consumer Applications
+      description: Retrieve all consumer applications (admin view)
+      operationId: listConsumerApplications
+      tags:
+        - Consumer Applications
+      responses:
+        '200':
+          description: List of consumer applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsumerApp'
+                  count:
+                    type: integer
+
+  /consumer-applications/{consumerId}:
+    get:
+      summary: Get Consumer Applications
+      description: Retrieve applications for a specific consumer
+      operationId: getConsumerApplications
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consumer applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsumerApp'
+                  count:
+                    type: integer
+    post:
+      summary: Create Consumer Application
+      description: Create a new application for a consumer
+      operationId: createConsumerApplication
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsumerAppRequest'
+      responses:
+        '201':
+          description: Application created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApp'
+
+  /consumer-applications/{submissionId}:
+    get:
+      summary: Get Consumer Application
+      description: Retrieve a specific consumer application
+      operationId: getConsumerApplication
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApp'
+    put:
+      summary: Update Consumer Application
+      description: Update application status (admin approval)
+      operationId: updateConsumerApplication
+      tags:
+        - Consumer Applications
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsumerAppRequest'
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateConsumerAppResponse'
+
+  /provider-submissions:
+    get:
+      summary: List Provider Submissions
+      description: Retrieve all provider registration submissions
+      operationId: listProviderSubmissions
+      tags:
+        - Provider Submissions
+      responses:
+        '200':
+          description: List of provider submissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderSubmission'
+                  count:
+                    type: integer
+    post:
+      summary: Create Provider Submission
+      description: Submit a new provider registration request
+      operationId: createProviderSubmission
+      tags:
+        - Provider Submissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderSubmissionRequest'
+      responses:
+        '201':
+          description: Submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSubmission'
+
+  /provider-submissions/{submissionId}:
+    get:
+      summary: Get Provider Submission
+      description: Retrieve a specific provider submission
+      operationId: getProviderSubmission
+      tags:
+        - Provider Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSubmission'
+    put:
+      summary: Update Provider Submission
+      description: Update submission status (admin approval)
+      operationId: updateProviderSubmission
+      tags:
+        - Provider Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderSubmissionRequest'
+      responses:
+        '200':
+          description: Submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateProviderSubmissionResponse'
+
+  /providers:
+    get:
+      summary: List Providers
+      description: Retrieve all approved provider profiles
+      operationId: listProviders
+      tags:
+        - Providers
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProviderProfile'
+
+  /providers/{providerId}:
+    get:
+      summary: Get Provider
+      description: Retrieve a specific provider profile
+      operationId: getProvider
+      tags:
+        - Providers
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Provider details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderProfile'
+
+  /providers/{providerId}/schemas:
+    get:
+      summary: List Approved Schemas
+      description: Retrieve approved schemas for a provider
+      operationId: listProviderSchemas
+      tags:
+        - Provider Schemas
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of approved schemas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderSchema'
+                  count:
+                    type: integer
+
+  /providers/{providerId}/schema-submissions:
+    get:
+      summary: List Schema Submissions
+      description: Retrieve all schema submissions for a provider
+      operationId: listProviderSchemaSubmissions
+      tags:
+        - Provider Schemas
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of schema submissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderSchema'
+                  count:
+                    type: integer
+    post:
+      summary: Create Schema Submission
+      description: Create a new schema submission or modify existing
+      operationId: createProviderSchemaSubmission
+      tags:
+        - Provider Schemas
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderSchemaSubmissionRequest'
+      responses:
+        '201':
+          description: Schema submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSchema'
+
+  /providers/{providerId}/schema-submissions/{schemaId}:
+    get:
+      summary: Get Schema Submission
+      description: Retrieve a specific schema submission
+      operationId: getProviderSchemaSubmission
+      tags:
+        - Provider Schemas
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: schemaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Schema submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSchema'
+    put:
+      summary: Update Schema Submission
+      description: Update schema submission (submit for review or admin approval)
+      operationId: updateProviderSchemaSubmission
+      tags:
+        - Provider Schemas
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: schemaId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderSchemaRequest'
+      responses:
+        '200':
+          description: Schema submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSchema'
+
+  /admin/metrics:
+    get:
+      summary: Get System Metrics
+      description: Retrieve system performance metrics
+      operationId: getSystemMetrics
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: System metrics
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /admin/recent-activity:
+    get:
+      summary: Get Recent Activity
+      description: Retrieve recent system activity
+      operationId: getRecentActivity
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /admin/statistics:
+    get:
+      summary: Get Statistics
+      description: Retrieve detailed statistics by resource type
+      operationId: getStatistics
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: System statistics
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /admin/fields/{fieldName}/allow-list:
+    get:
+      summary: Get Allow List
+      description: Retrieve consumers in allow list for a field
+      operationId: getAllowList
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Allow list for field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowListListResponse'
+    post:
+      summary: Add to Allow List
+      description: Add a consumer to allow list for a field
+      operationId: addToAllowList
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllowListManagementRequest'
+      responses:
+        '201':
+          description: Consumer added to allow list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowListManagementResponse'
+
+  /admin/fields/{fieldName}/allow-list/{consumerId}:
+    put:
+      summary: Update Allow List Entry
+      description: Update consumer in allow list for a field
+      operationId: updateAllowListEntry
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllowListManagementRequest'
+      responses:
+        '200':
+          description: Allow list entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowListManagementResponse'
+    delete:
+      summary: Remove from Allow List
+      description: Remove consumer from allow list for a field
+      operationId: removeFromAllowList
+      tags:
+        - Allow List Management
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consumer removed from allow list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowListManagementResponse'
+
+components:
+  schemas:
+    Consumer:
+      type: object
+      properties:
+        consumerId:
+          type: string
+          description: Unique identifier for the consumer
+        consumerName:
+          type: string
+          description: Name of the consumer organization
+        contactEmail:
+          type: string
+          description: Contact email address
+        phoneNumber:
+          type: string
+          description: Phone number
+        createdAt:
+          type: string
+          format: date-time
+          description: When the consumer was created
+
+    CreateConsumerRequest:
+      type: object
+      required:
+        - consumerName
+        - contactEmail
+      properties:
+        consumerName:
+          type: string
+          description: Name of the consumer organization
+        contactEmail:
+          type: string
+          description: Contact email address
+        phoneNumber:
+          type: string
+          description: Phone number
+
+    UpdateConsumerRequest:
+      type: object
+      properties:
+        consumerName:
+          type: string
+          description: Name of the consumer organization
+        contactEmail:
+          type: string
+          description: Contact email address
+        phoneNumber:
+          type: string
+          description: Phone number
+
+    ConsumerApp:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          description: Unique identifier for the application
+        consumerId:
+          type: string
+          description: ID of the consumer
+        status:
+          type: string
+          enum: [pending, approved, denied]
+          description: Application status
+        requiredFields:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Fields required by the consumer
+        credentials:
+          $ref: '#/components/schemas/Credentials'
+        createdAt:
+          type: string
+          format: date-time
+          description: When the application was created
+
+    CreateConsumerAppRequest:
+      type: object
+      required:
+        - requiredFields
+      properties:
+        requiredFields:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Fields required by the consumer
+
+    UpdateConsumerAppRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, denied]
+          description: New application status
+        requiredFields:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Fields required by the consumer
+
+    UpdateConsumerAppResponse:
+      type: object
+      properties:
+        consumerApp:
+          $ref: '#/components/schemas/ConsumerApp'
+        providerId:
+          type: string
+          description: Provider ID (when approved)
+
+    Credentials:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          description: API key for authentication
+        apiSecret:
+          type: string
+          description: API secret for authentication
+
+    ProviderSubmission:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          description: Unique identifier for the submission
+        providerName:
+          type: string
+          description: Name of the provider organization
+        contactEmail:
+          type: string
+          description: Contact email address
+        phoneNumber:
+          type: string
+          description: Phone number
+        providerType:
+          type: string
+          enum: [government, board, business]
+          description: Type of provider
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: Submission status
+        createdAt:
+          type: string
+          format: date-time
+          description: When the submission was created
+
+    CreateProviderSubmissionRequest:
+      type: object
+      required:
+        - providerName
+        - contactEmail
+        - phoneNumber
+        - providerType
+      properties:
+        providerName:
+          type: string
+          description: Name of the provider organization
+        contactEmail:
+          type: string
+          description: Contact email address
+        phoneNumber:
+          type: string
+          description: Phone number
+        providerType:
+          type: string
+          enum: [government, board, business]
+          description: Type of provider
+
+    UpdateProviderSubmissionRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: New submission status
+
+    UpdateProviderSubmissionResponse:
+      type: object
+      properties:
+        providerSubmission:
+          $ref: '#/components/schemas/ProviderSubmission'
+        providerId:
+          type: string
+          description: Provider ID (when approved)
+
+    ProviderProfile:
+      type: object
+      properties:
+        providerId:
+          type: string
+          description: Unique identifier for the provider
+        providerName:
+          type: string
+          description: Name of the provider organization
+        contactEmail:
+          type: string
+          description: Contact email address
+        phoneNumber:
+          type: string
+          description: Phone number
+        providerType:
+          type: string
+          enum: [government, board, business]
+          description: Type of provider
+        approvedAt:
+          type: string
+          format: date-time
+          description: When the provider was approved
+
+    ProviderSchema:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          description: Unique identifier for the schema submission
+        providerId:
+          type: string
+          description: ID of the provider
+        schemaId:
+          type: string
+          description: Schema ID (when approved)
+        status:
+          type: string
+          enum: [draft, pending, approved, rejected]
+          description: Schema status
+        schemaInput:
+          type: object
+          description: Schema input data
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        fieldConfigurations:
+          type: object
+          description: Field configuration data
+        createdAt:
+          type: string
+          format: date-time
+          description: When the schema was created
+
+    CreateProviderSchemaSubmissionRequest:
+      type: object
+      properties:
+        schemaId:
+          type: string
+          description: Existing schema ID (for modifications)
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+
+    UpdateProviderSchemaRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [draft, pending, approved, rejected]
+          description: New schema status
+        fieldConfigurations:
+          type: object
+          description: Field configuration data
+
+    AllowListManagementRequest:
+      type: object
+      required:
+        - consumerId
+        - expiresAt
+      properties:
+        consumerId:
+          type: string
+          description: ID of the consumer
+        expiresAt:
+          type: integer
+          format: int64
+          description: Expiry timestamp
+        grantDuration:
+          type: string
+          description: Duration of the grant
+        reason:
+          type: string
+          description: Reason for the grant
+        updatedBy:
+          type: string
+          description: Who updated the grant
+
+    AllowListManagementResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        operation:
+          type: string
+          description: Type of operation performed
+        fieldName:
+          type: string
+          description: Name of the field
+        consumerId:
+          type: string
+          description: ID of the consumer
+        data:
+          $ref: '#/components/schemas/AllowListEntry'
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    AllowListListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        fieldName:
+          type: string
+          description: Name of the field
+        allowList:
+          type: array
+          items:
+            $ref: '#/components/schemas/AllowListEntry'
+        count:
+          type: integer
+          description: Number of entries
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    AllowListEntry:
+      type: object
+      properties:
+        consumer_id:
+          type: string
+          description: ID of the consumer
+        expiry_time:
+          type: string
+          description: Expiry time
+        created_at:
+          type: string
+          format: date-time
+          description: When the entry was created
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Consumers
+    description: Consumer management operations
+  - name: Consumer Applications
+    description: Consumer application management
+  - name: Provider Submissions
+    description: Provider submission management
+  - name: Providers
+    description: Provider profile management
+  - name: Provider Schemas
+    description: Provider schema management
+  - name: Admin
+    description: Administrative operations
+  - name: Allow List Management
+    description: Access control and allow list management

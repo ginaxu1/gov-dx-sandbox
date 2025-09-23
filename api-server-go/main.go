@@ -13,8 +13,23 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
 	slog.SetDefault(logger)
 
-	// Initialize API server
-	apiServer := handlers.NewAPIServer()
+	// Initialize database connection
+	dbConfig := NewDatabaseConfig()
+	db, err := ConnectDB(dbConfig)
+	if err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	// Initialize database tables
+	if err := InitDatabase(db); err != nil {
+		slog.Error("Failed to initialize database tables", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize API server with database
+	apiServer := handlers.NewAPIServerWithDB(db)
 
 	// Setup routes
 	mux := http.NewServeMux()

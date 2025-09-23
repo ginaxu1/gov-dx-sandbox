@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // ConsumerGrant represents a consumer's approved field access
 type ConsumerGrant struct {
 	ConsumerID     string   `json:"consumerId"`
@@ -34,6 +36,8 @@ type ProviderField struct {
 	Description       string                 `json:"description,omitempty"`
 	ExpiryTime        string                 `json:"expiryTime,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt         time.Time              `json:"createdAt"`
+	UpdatedAt         time.Time              `json:"updatedAt"`
 }
 
 // AllowListEntry represents an entry in the allow list for restricted fields

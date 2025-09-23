@@ -10,8 +10,8 @@ import (
 )
 
 type AdminService struct {
-	consumerService *ConsumerService
-	providerService *ProviderService
+	consumerService ConsumerServiceInterface
+	providerService ProviderServiceInterface
 	mutex           sync.RWMutex
 }
 
@@ -23,7 +23,7 @@ func NewAdminService() *AdminService {
 }
 
 // NewAdminServiceWithServices creates an admin service with existing services
-func NewAdminServiceWithServices(consumerService *ConsumerService, providerService *ProviderService) *AdminService {
+func NewAdminServiceWithServices(consumerService ConsumerServiceInterface, providerService ProviderServiceInterface) *AdminService {
 	return &AdminService{
 		consumerService: consumerService,
 		providerService: providerService,
@@ -31,12 +31,12 @@ func NewAdminServiceWithServices(consumerService *ConsumerService, providerServi
 }
 
 // GetConsumerService returns the consumer service for testing
-func (s *AdminService) GetConsumerService() *ConsumerService {
+func (s *AdminService) GetConsumerService() ConsumerServiceInterface {
 	return s.consumerService
 }
 
 // GetProviderService returns the provider service for testing
-func (s *AdminService) GetProviderService() *ProviderService {
+func (s *AdminService) GetProviderService() ProviderServiceInterface {
 	return s.providerService
 }
 

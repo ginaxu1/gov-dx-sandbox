@@ -1,0 +1,65 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  # REST API Endpoint for API Server Go
+  - name: api-server-go
+    displayName: API Server Go
+    # +required Service section has the user service endpoint details
+    service:
+      # Base path for the REST API endpoint
+      basePath: /
+      port: 3000
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: REST
+    # Network visibility: Public for external API access
+    networkVisibilities:
+      - Public
+      - Organization
+    # +optional Path to the schema definition file. Defaults to wild card route if not provided
+    # This is only applicable to REST or WS endpoint types.
+    # The path should be relative to the docker context.
+    schemaFilePath: openapi.yaml
+
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    - name: PORT
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form, name will be shown in config form if not specified
+          displayName: Port
+          # +optional default value is true if not specified
+          required: true
+          # +optional default value is string if not specified
+          # Allowed types - string, number, boolean, secret
+          type: number
+    - name: ENVIRONMENT
+      valueFrom:
+        configForm:
+          displayName: Environment
+          required: false
+          type: string
+    - name: LOG_LEVEL
+      valueFrom:
+        configForm:
+          displayName: Log Level
+          required: false
+          type: string
+    - name: LOG_FORMAT
+      valueFrom:
+        configForm:
+          displayName: Log Format
+          required: false
+          type: string
+
+# +optional Dependencies for the component
+dependencies:
+  connectionReferences:
+  - name: OpenDIF DB
+    resourceRef: database:opendif-db/defaultdb
