@@ -49,7 +49,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const { state, signIn, signOut, getBasicUserInfo, getAccessToken } = useAuthContext();
 
   // Base API path from environment variable
-  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl || 'http://localhost:8081';
+  const CONSENT_ENGINE_PATH = window?.configs?.apiUrl;
 
   // Helper function to get headers with JWT token
   const getAuthHeaders = async (): Promise<HeadersInit> => {
@@ -437,9 +437,9 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
           <p className="text-gray-600 mb-4">
             You need to sign in to process your consent request.
           </p>
-          <p className="text-sm text-gray-500 mb-6">
+          {/* <p className="text-sm text-gray-500 mb-6">
             Consent ID: <span className="font-mono text-blue-600">{consentId}</span>
-          </p>
+          </p> */}
           <button 
             onClick={handleSignIn} 
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
@@ -564,11 +564,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="font-medium text-gray-600">Application:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.data_consumer}</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.app_display_name}</span>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-600">Owner ID:</span>
-                  <span className="ml-2 text-gray-800">{consentRecord.owner_name}</span>
+                  <span className="font-medium text-gray-600">Owner Email:</span>
+                  <span className="ml-2 text-gray-800">{consentRecord.owner_email}</span>
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Status:</span>
@@ -644,7 +644,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
               <div className="mb-6 p-4 bg-blue-50 rounded-lg">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Application Request</h3>
                 <p className="text-gray-600">
-                  <span className="font-medium">{consentRecord.app_display_name}</span> is requesting access to the following data:
+                  <span className="font-medium">{consentRecord.app_display_name}</span> is requesting access to the following data fields:
                 </p>
               </div>
 
@@ -666,8 +666,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 <h3 className="text-lg font-semibold text-gray-800 mb-3">Consent Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <span className="font-medium text-gray-600">Owner ID:</span>
-                    <span className="ml-2 text-gray-800">{consentRecord.owner_id}</span>
+                    <span className="font-medium text-gray-600">Owner Name:</span>
+                    <span className="ml-2 text-gray-800">{consentRecord.owner_name}</span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-600">Owner Email:</span>
