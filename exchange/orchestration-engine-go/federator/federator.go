@@ -7,9 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/internals/errors"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
@@ -92,7 +96,7 @@ func Initialize(providerHandler *provider.Handler) *Federator {
 
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
-func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
+func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.ConsumerAssertion) (graphql.Response, int) {
 
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
@@ -106,7 +110,149 @@ func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 		logger.Log.Error("Failed to parse query", "Error", err)
 	}
 
-	splitRequests, err := QueryBuilder(doc)
+	var schema = configs.AppConfig.Schema
+
+	// Collect the directives from the query
+	var maps, args, err2 = ProviderSchemaCollector(schema, doc)
+
+	if err2 != nil {
+		logger.Log.Error("Failed to collect provider schema", "Error", err)
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				err.(*graphql.JSONError),
+			},
+		}, http.StatusBadRequest
+	}
+
+	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
+	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
+
+	pdpResponse, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
+		ConsumerId:     consumerInfo.Subscriber,
+		AppId:          consumerInfo.ApplicationId,
+		RequestId:      "request_123",
+		RequiredFields: maps,
+	})
+
+	if err != nil {
+		logger.Log.Info("PDP request failed", "error", err)
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				map[string]interface{}{
+					"message": "PDP request failed",
+					"extensions": map[string]interface{}{
+						"code": errors.CodePDPError,
+					},
+				},
+			},
+		}, http.StatusInternalServerError
+	}
+
+	if pdpResponse == nil {
+		logger.Log.Error("Failed to get response from PDP")
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				map[string]interface{}{
+					"message": "Failed to get response from PDP",
+					"extensions": map[string]interface{}{
+						"code": errors.CodePDPNoResponse,
+					},
+				},
+			},
+		}, http.StatusBadRequest
+	}
+
+	if !pdpResponse.Allowed {
+		logger.Log.Info("Request not allowed by PDP")
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				map[string]interface{}{
+					"message": "Request not allowed by PDP",
+					"extensions": map[string]interface{}{
+						"code": errors.CodePDPNotAllowed,
+					},
+				},
+			},
+		}, http.StatusForbidden
+	}
+
+	// check whether the arguments contain the citizen id
+	if len(args) == 0 || args[0].Value.GetValue() == nil {
+		logger.Log.Info("Citizen ID argument is missing or invalid")
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				map[string]interface{}{
+					"message": "Citizen ID argument is missing or invalid",
+					"extensions": map[string]interface{}{
+						"code": errors.CodeMissingEntityIdentifier,
+					},
+				},
+			},
+		}, http.StatusBadRequest
+	}
+
+	if pdpResponse.ConsentRequired {
+		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
+
+		ceRequest := &consent.CERequest{
+			AppId:     consumerInfo.ApplicationId,
+			Purpose:   "testing",
+			SessionId: "session_123",
+			DataFields: []consent.DataOwnerRecord{
+				{
+					OwnerType: "citizen",
+					OwnerId:   args[0].Value.GetValue().(string),
+					Fields:    pdpResponse.ConsentRequiredFields,
+				},
+			},
+		}
+
+		ceResp, err := ceClient.MakeConsentRequest(ceRequest)
+
+		if err != nil {
+			logger.Log.Info("CE request failed", "error", err)
+			return graphql.Response{
+				Data: nil,
+				Errors: []interface{}{
+					map[string]interface{}{
+						"message": "CE request failed",
+						"extensions": map[string]interface{}{
+							"code": errors.CodeCEError,
+						},
+					},
+				},
+			}, http.StatusInternalServerError
+		}
+
+		// log the consent response
+		logger.Log.Info("Consent Response", "response", ceResp)
+
+		if ceResp.Status != "approved" {
+			logger.Log.Info("Consent not approved")
+			return graphql.Response{
+				Data: nil,
+				Errors: []interface{}{
+					map[string]interface{}{
+						"message": "Consent not approved",
+						"extensions": map[string]interface{}{
+							"code":             errors.CodeCENotApproved,
+							"consentPortalUrl": ceResp.ConsentPortalUrl,
+							"consentStatus":    ceResp.Status,
+						},
+					},
+				},
+			}, http.StatusForbidden
+		}
+	}
+
+	logger.Log.Info("Consent approved, proceeding with query execution")
+
+	splitRequests, err := QueryBuilder(maps, args)
 
 	if err != nil {
 		logger.Log.Error("Failed to build queries", "Error", err)
@@ -115,7 +261,7 @@ func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 			Errors: []interface{}{
 				err.(*graphql.JSONError),
 			},
-		}
+		}, http.StatusBadRequest
 	}
 
 	if len(splitRequests) == 0 {
@@ -127,7 +273,7 @@ func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 					"message": "No valid service queries found in the request",
 				},
 			},
-		}
+		}, http.StatusBadRequest
 	}
 
 	federationRequest := &federationRequest{
@@ -136,12 +282,9 @@ func (f *Federator) FederateQuery(request graphql.Request) graphql.Response {
 	responses := f.performFederation(federationRequest)
 
 	// Transform the federated responses back to the original query structure
-
 	var response = AccumulateResponse(doc, responses)
 
-	return response
-
-	//return f.mergeResponses(responses.Responses)
+	return response, http.StatusOK
 }
 
 func (f *Federator) performFederation(r *federationRequest) *federationResponse {

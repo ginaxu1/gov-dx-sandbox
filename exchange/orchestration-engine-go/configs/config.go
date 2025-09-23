@@ -21,6 +21,7 @@ type Options struct {
 // Cfg defines the configuration structure for the application.
 type Cfg struct {
 	*Options
+	Environment string `json:"environment,omitempty"`
 	*graphql.MappingAST
 	Schema *ast.Document
 	*policy.PdpConfig
