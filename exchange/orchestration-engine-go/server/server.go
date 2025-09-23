@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
@@ -45,10 +46,25 @@ func RunServer(f *federator.Federator) {
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		response := f.FederateQuery(req)
+
+		// decode the token
+		consumerAssertion, err := auth.GetConsumerJwtFromToken(r)
+
+		if err != nil {
+			logger.Log.Error("Failed to get consumer JWT from token", "error", err)
+			http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		response, statusCode := f.FederateQuery(req, consumerAssertion)
+
+		w.WriteHeader(statusCode)
+		// Set content type to application/json
 
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+
+		err = json.NewEncoder(w).Encode(response)
+
 		if err != nil {
 			logger.Log.Error("Failed to write response", "error", err)
 			return
