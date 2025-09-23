@@ -113,7 +113,17 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	var schema = configs.AppConfig.Schema
 
 	// Collect the directives from the query
-	var maps, args = ProviderSchemaCollector(schema, doc)
+	var maps, args, err2 = ProviderSchemaCollector(schema, doc)
+
+	if err2 != nil {
+		logger.Log.Error("Failed to collect provider schema", "Error", err)
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				err.(*graphql.JSONError),
+			},
+		}, http.StatusBadRequest
+	}
 
 	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
 	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
@@ -168,6 +178,22 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 				},
 			},
 		}, http.StatusForbidden
+	}
+
+	// check whether the arguments contain the citizen id
+	if len(args) == 0 || args[0].Value.GetValue() == nil {
+		logger.Log.Info("Citizen ID argument is missing or invalid")
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				map[string]interface{}{
+					"message": "Citizen ID argument is missing or invalid",
+					"extensions": map[string]interface{}{
+						"code": errors.CodeMissingEntityIdentifier,
+					},
+				},
+			},
+		}, http.StatusBadRequest
 	}
 
 	if pdpResponse.ConsentRequired {
