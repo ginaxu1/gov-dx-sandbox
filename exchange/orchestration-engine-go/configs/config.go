@@ -24,6 +24,7 @@ type Cfg struct {
 	Environment string `json:"environment,omitempty"`
 	*graphql.MappingAST
 	Schema *ast.Document
+	Sdl    []byte
 	*policy.PdpConfig
 	*consent.CeConfig
 }
@@ -34,7 +35,7 @@ const SDLFilePath = "./schema.graphql"
 // AppConfig is a global variable to hold the application configuration.
 var AppConfig *Cfg
 
-func LoadSdlSchema() *ast.Document {
+func LoadSdlSchema(AppConfig *Cfg) {
 	schema, err := os.ReadFile(SDLFilePath)
 
 	if err != nil {
@@ -49,7 +50,12 @@ func LoadSdlSchema() *ast.Document {
 
 	doc, err := parser.Parse(parser.ParseParams{Source: src})
 
-	return doc
+	if err != nil {
+		panic(err)
+	}
+
+	AppConfig.Sdl = schema
+	AppConfig.Schema = doc
 }
 
 // LoadConfig reads the configuration from the config.json file and unmarshal it into the AppConfig variable.
@@ -68,9 +74,9 @@ func LoadConfig() {
 
 	err = json.Unmarshal(file, AppConfig)
 
-	AppConfig.Schema = LoadSdlSchema()
-
 	if err != nil {
 		panic(err)
 	}
+
+	LoadSdlSchema(AppConfig)
 }
