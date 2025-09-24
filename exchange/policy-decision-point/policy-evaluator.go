@@ -9,9 +9,33 @@ import (
 	"os"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/open-policy-agent/opa/rego"
+)
+
+// Policy Decision Point specific constants
+const (
+	StatusInvalidJSON  = "Invalid JSON input"
+	StatusPolicyFailed = "Failed to evaluate policy"
+	StatusDebugFailed  = "Failed to check debug data"
+)
+
+// Policy Decision Point specific error messages
+const (
+	ErrConsumerIDRequired     = "consumer ID is required"
+	ErrResourceRequired       = "request resource is required"
+	ErrActionRequired         = "request action is required"
+	ErrDataFieldsRequired     = "data fields are required"
+	ErrNoPolicyRulesMatched   = "No policy rules matched the request"
+	ErrPolicyEvaluationFailed = "policy evaluation failed"
+	ErrInvalidInput           = "Invalid input"
+)
+
+// Policy Decision Point specific log operations
+const (
+	OpPolicyEvaluation = "policy evaluation"
+	OpDebugData        = "debug data check"
+	OpDecisionSent     = "decision sent"
 )
 
 // PolicyEvaluator holds the prepared OPA query, ready for evaluation.
@@ -27,19 +51,17 @@ type PolicyEvaluator struct {
 // AuthorizationRequest represents the input structure for policy evaluation
 type AuthorizationRequest struct {
 	ConsumerID     string    `json:"consumer_id"`
+	AppID          string    `json:"app_id"`
+	RequestID      string    `json:"request_id"`
 	RequiredFields []string  `json:"required_fields"`
 	Timestamp      time.Time `json:"timestamp,omitempty"`
 }
 
 // AuthorizationDecision represents the output of policy evaluation
 type AuthorizationDecision struct {
-	Allow                 bool                   `json:"allow"`
-	DenyReason            string                 `json:"deny_reason,omitempty"`
-	ConsentRequired       bool                   `json:"consent_required"`
-	ConsentRequiredFields []string               `json:"consent_required_fields,omitempty"`
-	DataOwner             string                 `json:"data_owner,omitempty"`
-	ExpiryTime            string                 `json:"expiry_time,omitempty"`
-	Conditions            map[string]interface{} `json:"conditions,omitempty"`
+	Allow                 bool     `json:"allow"`
+	ConsentRequired       bool     `json:"consent_required"`
+	ConsentRequiredFields []string `json:"consent_required_fields,omitempty"`
 }
 
 // NewPolicyEvaluator creates and initializes a new evaluator by loading policies from disk.
@@ -103,8 +125,7 @@ func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (*Au
 	authReq, err := p.validateInput(input)
 	if err != nil {
 		return &AuthorizationDecision{
-			Allow:      false,
-			DenyReason: fmt.Sprintf("Invalid input: %v", err),
+			Allow: false,
 		}, nil
 	}
 
@@ -121,8 +142,7 @@ func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (*Au
 	if len(results) == 0 {
 		slog.Warn("Policy returned no results for the input")
 		return &AuthorizationDecision{
-			Allow:      false,
-			DenyReason: "No policy rules matched the request",
+			Allow: false,
 		}, nil
 	}
 
@@ -134,6 +154,8 @@ func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (*Au
 
 	slog.Info("Policy evaluation completed",
 		"consumer_id", authReq.ConsumerID,
+		"app_id", authReq.AppID,
+		"request_id", authReq.RequestID,
 		"required_fields", authReq.RequiredFields,
 		"allow", decision.Allow,
 		"consent_required", decision.ConsentRequired)
@@ -157,6 +179,12 @@ func (p *PolicyEvaluator) validateInput(input interface{}) (*AuthorizationReques
 	// Validate required fields
 	if authReq.ConsumerID == "" {
 		return nil, fmt.Errorf("consumer_id is required")
+	}
+	if authReq.AppID == "" {
+		return nil, fmt.Errorf("app_id is required")
+	}
+	if authReq.RequestID == "" {
+		return nil, fmt.Errorf("request_id is required")
 	}
 	if len(authReq.RequiredFields) == 0 {
 		return nil, fmt.Errorf("required_fields cannot be empty")
@@ -245,7 +273,7 @@ func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.R
 	// Delegate the core logic to the Authorize method
 	decision, err := p.Authorize(r.Context(), input)
 	if err != nil {
-		utils.HandleError(w, err, http.StatusInternalServerError, constants.OpPolicyEvaluation)
+		utils.HandleError(w, err, http.StatusInternalServerError, OpPolicyEvaluation)
 		return
 	}
 
@@ -255,7 +283,7 @@ func (p *PolicyEvaluator) policyDecisionHandler(w http.ResponseWriter, r *http.R
 		status = http.StatusForbidden
 	}
 
-	utils.HandleSuccess(w, decision, status, constants.OpDecisionSent, map[string]interface{}{
+	utils.HandleSuccess(w, decision, status, OpDecisionSent, map[string]interface{}{
 		"method":           r.Method,
 		"path":             r.URL.Path,
 		"allow":            decision.Allow,
@@ -272,11 +300,11 @@ func (p *PolicyEvaluator) debugHandler(w http.ResponseWriter, r *http.Request) {
 
 	debugResult, err := p.DebugData(r.Context())
 	if err != nil {
-		utils.HandleError(w, err, http.StatusInternalServerError, constants.OpDebugData)
+		utils.HandleError(w, err, http.StatusInternalServerError, OpDebugData)
 		return
 	}
 
-	utils.HandleSuccess(w, debugResult, http.StatusOK, constants.OpDebugData, map[string]interface{}{
+	utils.HandleSuccess(w, debugResult, http.StatusOK, OpDebugData, map[string]interface{}{
 		"result": debugResult,
 	})
 }

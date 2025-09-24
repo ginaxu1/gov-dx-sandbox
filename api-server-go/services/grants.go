@@ -11,9 +11,9 @@ import (
 )
 
 type GrantsService struct {
-	consumerGrants    *models.ConsumerGrantsData
-	providerMetadata  *models.ProviderMetadataData
-	mutex             sync.RWMutex
+	consumerGrants   *models.ConsumerGrantsData
+	providerMetadata *models.ProviderMetadataData
+	mutex            sync.RWMutex
 }
 
 func NewGrantsService() *GrantsService {
@@ -55,7 +55,7 @@ func (s *GrantsService) CreateConsumerGrant(req models.CreateConsumerGrantReques
 	defer s.mutex.Unlock()
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	
+
 	grant := models.ConsumerGrant{
 		ConsumerID:     req.ConsumerID,
 		ApprovedFields: req.ApprovedFields,
@@ -213,9 +213,9 @@ func (s *GrantsService) ConvertSchemaToProviderMetadata(req models.SchemaConvers
 	// This would integrate with the schema converter from the policy-decision-point
 	// For now, we'll return a mock response
 	// In a real implementation, this would call the schema converter service
-	
+
 	now := time.Now().UTC().Format(time.RFC3339)
-	
+
 	// Mock conversion - in reality this would parse the SDL
 	fields := map[string]models.ProviderField{
 		"user.id": {
@@ -235,9 +235,9 @@ func (s *GrantsService) ConvertSchemaToProviderMetadata(req models.SchemaConvers
 	}
 
 	response := &models.SchemaConversionResponse{
-		ProviderID:   req.ProviderID,
-		Fields:       fields,
-		ConvertedAt:  now,
+		ProviderID:  req.ProviderID,
+		Fields:      fields,
+		ConvertedAt: now,
 	}
 
 	slog.Info("Converted schema to provider metadata", "providerId", req.ProviderID, "fields", len(fields))
@@ -289,5 +289,275 @@ func (s *GrantsService) ImportProviderMetadata(data []byte) error {
 
 	s.providerMetadata = &metadata
 	slog.Info("Imported provider metadata", "fields", len(metadata.Fields))
+	return nil
+}
+
+// Allow List Management Methods
+
+// AddConsumerToAllowList adds a consumer to the allow_list for a specific field
+func (s *GrantsService) AddConsumerToAllowList(fieldName string, req models.AllowListManagementRequest) (*models.AllowListManagementResponse, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Get current provider metadata
+	metadata, err := s.GetAllProviderFields()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+	}
+
+	// Check if field exists
+	field, exists := metadata.Fields[fieldName]
+	if !exists {
+		return nil, fmt.Errorf("field '%s' not found", fieldName)
+	}
+
+	// Check if consumer already exists in allow_list
+	for i, entry := range field.AllowList {
+		if entry.ConsumerID == req.ConsumerID {
+			// Update existing entry
+			field.AllowList[i] = models.AllowListEntry{
+				ConsumerID: req.ConsumerID,
+				ExpiryTime: fmt.Sprintf("%d", req.ExpiresAt),
+				CreatedAt:  entry.CreatedAt, // Keep original creation time
+			}
+			slog.Info("Updated consumer in allow_list", "fieldName", fieldName, "consumerId", req.ConsumerID)
+			break
+		}
+	}
+
+	// If consumer not found, add new entry
+	if !s.consumerExistsInAllowList(field.AllowList, req.ConsumerID) {
+		newEntry := models.AllowListEntry{
+			ConsumerID: req.ConsumerID,
+			ExpiryTime: fmt.Sprintf("%d", req.ExpiresAt),
+			CreatedAt:  time.Now().Format(time.RFC3339),
+		}
+		field.AllowList = append(field.AllowList, newEntry)
+		slog.Info("Added consumer to allow_list", "fieldName", fieldName, "consumerId", req.ConsumerID)
+	}
+
+	// Update the field in metadata
+	metadata.Fields[fieldName] = field
+
+	// Save updated metadata by exporting and importing
+	exportData, err := s.ExportProviderMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("failed to export provider metadata: %w", err)
+	}
+	if err := s.ImportProviderMetadata(exportData); err != nil {
+		return nil, fmt.Errorf("failed to save provider metadata: %w", err)
+	}
+
+	// Find the entry for response
+	var responseEntry models.AllowListEntry
+	for _, entry := range field.AllowList {
+		if entry.ConsumerID == req.ConsumerID {
+			responseEntry = entry
+			break
+		}
+	}
+
+	response := &models.AllowListManagementResponse{
+		Success:    true,
+		Operation:  "consumer_added_to_allow_list",
+		FieldName:  fieldName,
+		ConsumerID: req.ConsumerID,
+		Data:       responseEntry,
+		Metadata: map[string]interface{}{
+			"expires_at":     req.ExpiresAt,
+			"grant_duration": req.GrantDuration,
+			"reason":         req.Reason,
+			"updated_by":     req.UpdatedBy,
+			"updated_at":     time.Now().Format(time.RFC3339),
+		},
+	}
+
+	return response, nil
+}
+
+// RemoveConsumerFromAllowList removes a consumer from the allow_list for a specific field
+func (s *GrantsService) RemoveConsumerFromAllowList(fieldName, consumerID string) (*models.AllowListManagementResponse, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Load current provider metadata
+	metadata, err := s.loadProviderMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+	}
+
+	// Check if field exists
+	field, exists := metadata.Fields[fieldName]
+	if !exists {
+		return nil, fmt.Errorf("field '%s' not found", fieldName)
+	}
+
+	// Find and remove consumer from allow_list
+	var removedEntry models.AllowListEntry
+	var newAllowList []models.AllowListEntry
+	found := false
+
+	for _, entry := range field.AllowList {
+		if entry.ConsumerID == consumerID {
+			removedEntry = entry
+			found = true
+		} else {
+			newAllowList = append(newAllowList, entry)
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("consumer '%s' not found in allow_list for field '%s'", consumerID, fieldName)
+	}
+
+	// Update the field
+	field.AllowList = newAllowList
+	metadata.Fields[fieldName] = field
+
+	// Save updated metadata
+	if err := s.saveProviderMetadata(metadata); err != nil {
+		return nil, fmt.Errorf("failed to save provider metadata: %w", err)
+	}
+
+	slog.Info("Removed consumer from allow_list", "fieldName", fieldName, "consumerId", consumerID)
+
+	response := &models.AllowListManagementResponse{
+		Success:    true,
+		Operation:  "consumer_removed_from_allow_list",
+		FieldName:  fieldName,
+		ConsumerID: consumerID,
+		Data:       removedEntry,
+		Metadata: map[string]interface{}{
+			"removed_at": time.Now().Format(time.RFC3339),
+		},
+	}
+
+	return response, nil
+}
+
+// GetAllowListForField retrieves the allow_list for a specific field
+func (s *GrantsService) GetAllowListForField(fieldName string) (*models.AllowListListResponse, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Load current provider metadata
+	metadata, err := s.loadProviderMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+	}
+
+	// Check if field exists
+	field, exists := metadata.Fields[fieldName]
+	if !exists {
+		return nil, fmt.Errorf("field '%s' not found", fieldName)
+	}
+
+	response := &models.AllowListListResponse{
+		Success:   true,
+		FieldName: fieldName,
+		AllowList: field.AllowList,
+		Count:     len(field.AllowList),
+		Metadata: map[string]interface{}{
+			"retrieved_at": time.Now().Format(time.RFC3339),
+		},
+	}
+
+	return response, nil
+}
+
+// UpdateConsumerInAllowList updates an existing consumer in the allow_list
+func (s *GrantsService) UpdateConsumerInAllowList(fieldName, consumerID string, req models.AllowListManagementRequest) (*models.AllowListManagementResponse, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Load current provider metadata
+	metadata, err := s.loadProviderMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+	}
+
+	// Check if field exists
+	field, exists := metadata.Fields[fieldName]
+	if !exists {
+		return nil, fmt.Errorf("field '%s' not found", fieldName)
+	}
+
+	// Find and update consumer in allow_list
+	found := false
+	for i, entry := range field.AllowList {
+		if entry.ConsumerID == consumerID {
+			field.AllowList[i] = models.AllowListEntry{
+				ConsumerID: consumerID,
+				ExpiryTime: fmt.Sprintf("%d", req.ExpiresAt),
+				CreatedAt:  entry.CreatedAt, // Keep original creation time
+			}
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("consumer '%s' not found in allow_list for field '%s'", consumerID, fieldName)
+	}
+
+	// Update the field in metadata
+	metadata.Fields[fieldName] = field
+
+	// Save updated metadata
+	if err := s.saveProviderMetadata(metadata); err != nil {
+		return nil, fmt.Errorf("failed to save provider metadata: %w", err)
+	}
+
+	slog.Info("Updated consumer in allow_list", "fieldName", fieldName, "consumerId", consumerID)
+
+	// Find the updated entry for response
+	var responseEntry models.AllowListEntry
+	for _, entry := range field.AllowList {
+		if entry.ConsumerID == consumerID {
+			responseEntry = entry
+			break
+		}
+	}
+
+	response := &models.AllowListManagementResponse{
+		Success:    true,
+		Operation:  "consumer_updated_in_allow_list",
+		FieldName:  fieldName,
+		ConsumerID: consumerID,
+		Data:       responseEntry,
+		Metadata: map[string]interface{}{
+			"expires_at":     req.ExpiresAt,
+			"grant_duration": req.GrantDuration,
+			"reason":         req.Reason,
+			"updated_by":     req.UpdatedBy,
+			"updated_at":     time.Now().Format(time.RFC3339),
+		},
+	}
+
+	return response, nil
+}
+
+// Helper function to check if consumer exists in allow_list
+func (s *GrantsService) consumerExistsInAllowList(allowList []models.AllowListEntry, consumerID string) bool {
+	for _, entry := range allowList {
+		if entry.ConsumerID == consumerID {
+			return true
+		}
+	}
+	return false
+}
+
+// loadProviderMetadata loads provider metadata from the service
+func (s *GrantsService) loadProviderMetadata() (*models.ProviderMetadataData, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.providerMetadata, nil
+}
+
+// saveProviderMetadata saves provider metadata to the service
+func (s *GrantsService) saveProviderMetadata(metadata *models.ProviderMetadataData) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.providerMetadata = metadata
 	return nil
 }

@@ -1,0 +1,36 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+# +optional Incoming connection details for the component
+endpoints:
+  # GraphQL Endpoint for DMT Subgraph
+  - name: orchestration-engine-go
+    displayName: Orchestration Engine
+    service:
+      # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
+      # Ballerina GraphQL services usually listen on '/' by default.
+      basePath: /
+      port: 4000
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: GraphQL
+    # Network visibility: Organization is generally recommended for backend services
+    # that are consumed internally by your supergraph.
+    networkVisibilities:
+      - Public # Can also be 'Project' for more restricted internal visibility
+configurations:
+  # +optional List of environment variables to be injected into the component.
+  env:
+    - name: PORT
+      # +required value source
+      # Allowed value sources: connectionRef, configForm
+      valueFrom:
+        # +required config form value source
+        configForm:
+          # +optional display name inside the config form, name will be shown in config form if not specified
+          displayName: Port
+          # +optional default value is true if not specified
+          required: true
+          # +optional default value is string if not specified
+          # Allowed types - string, number, boolean, secret
+          type: number

@@ -2,51 +2,38 @@
 
 Microservices-based data exchange platform with policy enforcement and consent management.
 
-## Important: Build State Management
-
-**Before running any commands, ensure you're in the correct build state:**
-
-```bash
-# Local development (default)
-cd /Users/tmp/gov-dx-sandbox/exchange && ./scripts/restore-local-build.sh
-
-# Production/Choreo deployment
-cd /Users/tmp/gov-dx-sandbox/exchange && ./scripts/prepare-docker-build.sh
-```
-
-**Current State Check:**
-- **Local Development**: go.mod files use `../shared/` paths
-- **Production/Choreo**: go.mod files use `/app/shared/` paths
-
 ## Quick Start
 
 ### Prerequisites
 - Docker and Docker Compose
-- Go 1.24+ (for local development)
+- Go 1.21+ (for local development)
 
 ### Start Services
 ```bash
-# Start services
+# Start all services
 docker-compose up -d
 
-# Run tests
+# Run integration tests
 cd integration-tests && ./run-all-tests.sh
 ```
 
 ## Services
 
-# Run individual test suites
-./test-pdp.sh                    # PDP policy tests
-./test-complete-flow.sh          # End-to-end flow tests
-./test-consent-flow.sh           # Basic consent flow tests
-./test-complete-consent-flow.sh  # Full consent flow tests
+| Service | Port | Purpose | Documentation |
+|---------|------|---------|---------------|
+| **Policy Decision Point (PDP)** | 8082 | ABAC authorization using OPA | [PDP README](policy-decision-point/README.md) |
+| **Consent Engine (CE)** | 8081 | Consent management and workflow | [CE README](consent-engine/README.md) |
+| **Orchestration Engine (OE)** | 8080 | Request coordination and routing | [OE README](orchestration-engine-go/README.md) |
+
+## Architecture
+
 ```
-
-## What's in Exchange
-
-### Services
-- **Policy Decision Point (PDP)** - Port 8082: Authorization service using OPA and Rego policies
-- **Consent Engine (CE)** - Port 8081: Consent management and workflow coordination
+Data Consumer → Orchestration Engine → Policy Decision Point (PDP)
+                     ↓
+              Consent Engine (CE) ← (if consent required)
+                     ↓
+              Data Provider
+```
 
 ### Key Features
 - **ABAC Authorization**: Attribute-based access control with field-level permissions
@@ -55,177 +42,148 @@ cd integration-tests && ./run-all-tests.sh
 - **Multi-Environment**: Local development and production deployment support
 - **Docker Ready**: Containerized services with Docker Compose orchestration
 
-## Architecture
-
-The Data Exchange Platform implements a comprehensive consent-based data sharing system with policy enforcement and consent management. The platform consists of three main services coordinated by the Orchestration Engine.
-
-### Service Architecture
-
-- **Orchestration Engine (OE)**: Coordinates data access requests between PDP and Consent Engine
-- **Policy Decision Point (PDP) - Port 8082**: ABAC authorization using Open Policy Agent (OPA)
-- **Consent Engine (CE) - Port 8081**: Manages data owner consent workflow
-
-### Directory Structure
-
-```
-exchange/
-├── policy-decision-point/    # Policy service (Port 8082)
-├── consent-engine/           # Consent service (Port 8081)
-├── shared/                   # Shared utilities and packages
-├── docker-compose.yml        # Multi-environment orchestration
-├── .env.local               # Local environment config
-├── .env.production          # Production environment config
-├── scripts/                 # Essential development scripts
-└── Makefile                 # Convenience commands
-```
-
 ## Data Flow
 
 ### 1. Data Consumer Request
-
-The Data Consumer sends a GetData request to the Orchestration Engine:
+The Data Consumer sends a GraphQL request to the Orchestration Engine:
 
 ```json
 {
-  "dataConsumer": {
-    "id": "passport-app",
-    "type": "application"
-  },
-  "dataOwner": {
-    "id": "user-nuwan-fernando-456"
-  },
-  "request": {
-    "type": "GraphQL",
-    "query_fields": [
-      "fullName",
-      "nic",
-      "birthDate",
-      "permanentAddress"
-    ]
-  }
+  "query": "query GetUser($id: ID!) { user(id: $id) { id name address profession }",
+  "variables": { "id": "123" },
+  "operationName": "GetUser"
 }
 ```
 
 ### 2. Policy Decision Point (PDP) Evaluation
+The Orchestration Engine forwards the request to the PDP for authorization:
 
-The Orchestration Engine forwards the request to the Policy Decision Point (PDP) for authorization:
-
-- **PDP Service**: Embedded OPA engine evaluates Rego policies
-- **Data Sources**: 
-  - `/policies/main.rego` - Authorization rules
-  - `provider-metadata.json` - Field-level metadata and consent requirements
-
-### 3. Authorization Decision Scenarios
-
-#### Access Permitted + Consent Required
+**Request:**
 ```json
 {
-  "decision": {
-    "allow": true,
-    "deny_reason": null,
-    "consent_required": true,
-    "consent_required_fields": [
-      "person.permanentAddress",
-      "person.birthDate"
-    ],
-    "data_owner": "user-nuwan-fernando-456",
-    "expiry_time": "30d",
-    "conditions": {}
-  }
+  "consumer_id": "passport-app",
+  "app_id": "passport-app",
+  "request_id": "req_123",
+  "required_fields": ["person.fullName", "person.photo"]
 }
 ```
 
-#### Access Denied/Insufficient Permissions
+**Response:**
 ```json
 {
-  "decision": {
-    "allow": false,
-    "deny_reason": "Consumer not authorized for requested fields",
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-  }
+  "allow": true,
+  "consent_required": true,
+  "consent_required_fields": ["person.photo"]
 }
 ```
 
-#### Access Permitted + No Consent Required
+### 3. Consent Management (if required)
+When consent is required, the Orchestration Engine calls the Consent Engine:
+
+**Request:**
 ```json
 {
-  "decision": {
-    "allow": true,
-    "deny_reason": null,
-    "consent_required": false,
-    "consent_required_fields": [],
-    "data_owner": "",
-    "expiry_time": "",
-    "conditions": {}
-  }
+  "app_id": "passport-app",
+  "data_fields": [
+    {
+      "owner_type": "citizen",
+      "owner_id": "199512345678",
+      "fields": ["person.photo"]
+    }
+  ],
+  "purpose": "passport_application",
+  "session_id": "session_123",
+  "redirect_url": "https://passport-app.gov.lk/callback"
 }
 ```
 
-### 4. Orchestration Engine Response
+**Response:**
+```json
+{
+  "id": "consent_abc123",
+  "status": "pending",
+  "consent_portal_url": "/consent-portal/consent_abc123",
+  "expires_at": "2025-10-10T10:20:00Z"
+}
+```
 
-Based on the PDP decision, the Orchestration Engine:
-
-- **If `allow: false`**: Immediately rejects the request and sends an error back to the Data Consumer
-- **If `allow: true` and consent required**: Makes a second API call to the Consent Management Engine (CE)
-- **If `allow: true` and no consent needed**: Proceeds to fetch data from Data Providers
+### 4. Data Access
+Once authorized (and consented if required), the Orchestration Engine proceeds to fetch data from the appropriate Data Provider.
 
 ## API Reference
 
-| Service | Port | Endpoints | Documentation |
-|---------|------|-----------|---------------|
-| **Policy Decision Point** | 8082 | `/decide`, `/health`, `/debug` | [PDP README](policy-decision-point/README.md) |
-| **Consent Engine** | 8081 | `/consent`, `/consent/{id}`, `/consent/portal`, `/data-owner/{owner}`, `/consumer/{consumer}`, `/admin/expiry-check`, `/health` | [CE README](consent-engine/README.md) |
+### Policy Decision Point (Port 8082)
+- `POST /decide` - Authorization decision
+- `GET /health` - Health check
 
-### Quick API Examples
+### Consent Engine (Port 8081)
+- `POST /consent` - Process consent workflow request
+- `GET /consents/{id}` - Get consent status
+- `PUT /consents/{id}` - Update consent status
+- `DELETE /consents/{id}` - Revoke consent
+- `GET /data-owner/{owner}` - Get consents by data owner
+- `GET /consumer/{consumer}` - Get consents by consumer
+- `GET /health` - Health check
+
+### Orchestration Engine (Port 8080)
+- `POST /graphql` - GraphQL endpoint for data requests
+- `GET /health` - Health check
+
+## Quick API Examples
 
 ```bash
 # Policy Decision
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
-  -d '{"consumer": {"id": "passport-app"}, "request": {"resource": "person_data", "action": "read", "data_fields": ["person.fullName"]}}'
+  -d '{
+    "consumer_id": "passport-app",
+    "app_id": "passport-app",
+    "request_id": "req_123",
+    "required_fields": ["person.fullName", "person.photo"]
+  }'
 
-# Consent Management  
-curl -X POST http://localhost:8081/consent \
+# Consent Management
+curl -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
-  -d '{"consumer_id": "passport-app", "data_owner": "user-123", "data_fields": ["person.permanentAddress"], "purpose": "passport application", "expiry_days": 30}'
+  -d '{
+    "app_id": "passport-app",
+    "data_fields": [
+      {
+        "owner_type": "citizen",
+        "owner_id": "199512345678",
+        "fields": ["person.permanentAddress"]
+      }
+    ],
+    "purpose": "passport_application",
+    "session_id": "session_123",
+    "redirect_url": "https://passport-app.gov.lk/callback"
+  }'
 ```
 
-> **For detailed API documentation and examples, see individual service READMEs.**
+## Development
 
-## Building for Local Development
-
-### Prerequisites
-- Docker and Docker Compose
-- Go 1.24+ (for local development)
-
-### Quick Commands
+### Local Development
 ```bash
 # Start services
-make start              # Local (default)
-make start-prod         # Production
+make start
 
-# Management
-make stop              # Stop all services
-make status            # Check service status
-make logs              # View logs
-make test              # Run API tests
-make clean             # Clean up containers
+# Run tests
+make test
+
+# Stop services
+make stop
+
+# View logs
+make logs
 ```
 
 ### Environment Configuration
 ```bash
-# Local Development
+# Local development
 docker compose --env-file .env.local up --build
 
-# Production Testing
+# Production testing
 docker compose --env-file .env.production up --build
-
-# Stop services
-docker compose down
 ```
 
 ### Testing
@@ -235,7 +193,7 @@ docker compose down
 # Policy Decision Point
 cd policy-decision-point && go test -v
 
-# Consent Engine  
+# Consent Engine
 cd consent-engine && go test -v
 ```
 
@@ -248,51 +206,26 @@ cd integration-tests && ./run-all-tests.sh
 ./test-pdp.sh                    # PDP policy tests
 ./test-consent-flow.sh           # Basic consent flow tests
 ./test-complete-flow.sh          # End-to-end flow tests
-./test-complete-consent-flow.sh  # Full consent flow tests
 ```
 
-#### API Tests
+## Production Deployment
+
+### Choreo Deployment
 ```bash
-# Basic API tests
-./scripts/test.sh
-
-# Service management
-./scripts/manage.sh status       # Check service health
-./scripts/manage.sh logs         # View service logs
-```
-
-> **For detailed testing information, see [Integration Tests README](integration-tests/README.md)**
-
-## Building for Production (Choreo)
-
-### Step 1: Prepare for Choreo
-```bash
+# Prepare for Choreo
 ./scripts/prepare-docker-build.sh
-```
 
-### Step 2: Commit and Push
-```bash
-git add .
-git commit -m "Prepare for Choreo deployment"
-git push origin main
-```
+# Commit and push
+git add . && git commit -m "Deploy to Choreo" && git push
 
-### Step 3: Deploy to Choreo
-
-**Choreo Console Configuration:**
-- **Component Directory (build context)**: `.` (repository root)
-- **Dockerfile Path**: `exchange/consent-engine/Dockerfile` or `exchange/policy-decision-point/Dockerfile`
-
-**Why Root Build Context:**
-- Allows access to `shared/` directory from repository root
-- Uses single `Dockerfile` for both local and Choreo deployment
-- Shared utilities copied via `COPY shared/ /app/shared/`
-- No code duplication required
-
-### Step 4: Restore Local Development
-```bash
+# Restore local development
 ./scripts/restore-local-build.sh
 ```
+
+### Docker Configuration
+- **Build Context**: Repository root (`.`)
+- **Dockerfile Path**: `exchange/{service}/Dockerfile`
+- **Shared Dependencies**: Copied from `shared/` directory
 
 ## Configuration
 
@@ -301,7 +234,6 @@ git push origin main
 **Local (`.env.local`):**
 ```bash
 ENVIRONMENT=local
-BUILD_VERSION=dev
 LOG_LEVEL=debug
 LOG_FORMAT=text
 ```
@@ -309,45 +241,18 @@ LOG_FORMAT=text
 **Production (`.env.production`):**
 ```bash
 ENVIRONMENT=production
-BUILD_VERSION=latest
 LOG_LEVEL=warn
 LOG_FORMAT=json
 ```
 
-### Environment Files
-
-| File | Purpose |
-|------|---------|
-| `.env.local` | Local development (debug logging) |
-| `.env.production` | Production (warn logging, JSON format) |
-
 ## Scripts
-
-Essential management scripts in `scripts/` directory:
 
 | Script | Purpose |
 |--------|---------|
-| `common.sh` | Common configuration and functions |
-| `manage.sh` | Consolidated service management |
-| `test.sh` | API testing with help functionality |
+| `manage.sh` | Service management (start/stop/status/logs) |
+| `test.sh` | API testing |
 | `restore-local-build.sh` | Restore to local development state |
-| `prepare-docker-build.sh` | Prepare for production/Choreo deployment |
-
-### Quick Commands
-```bash
-# Service management
-./scripts/manage.sh start-local    # Start local environment
-./scripts/manage.sh start-prod     # Start production environment
-./scripts/manage.sh stop           # Stop all services
-./scripts/manage.sh status         # Check service status and health
-./scripts/manage.sh logs [service] # View logs (all or specific service)
-
-# Testing
-./scripts/test.sh                  # Run API tests
-./scripts/test.sh help             # Show test help
-```
-
-> **For detailed script documentation, see [Scripts README](scripts/README.md)**
+| `prepare-docker-build.sh` | Prepare for production deployment |
 
 ## Troubleshooting
 
@@ -360,20 +265,24 @@ Essential management scripts in `scripts/` directory:
 **Issue: Docker build fails with go.mod errors**
 - **Solution**: Run `./scripts/prepare-docker-build.sh` before building for Choreo
 
-**Issue: Choreo build fails with COPY errors**
-- **Solution**: Verify Component Directory is set to `.` (repository root) in Choreo console
+## Directory Structure
 
-## Development
+```
+exchange/
+├── policy-decision-point/    # Policy service (Port 8082)
+├── consent-engine/           # Consent service (Port 8081)
+├── orchestration-engine-go/  # Orchestration service (Port 8080)
+├── shared/                   # Shared utilities and packages
+├── integration-tests/        # Integration test suites
+├── scripts/                  # Management scripts
+├── docker-compose.yml        # Multi-environment orchestration
+└── Makefile                  # Convenience commands
+```
 
-### Adding New Services
-1. Create service directory with `Dockerfile`
-2. Add to `docker-compose.yml`
-3. Add health checks
-4. Update environment files if needed
+## Related Documentation
 
-### Environment Switching Best Practices
-1. Use `docker compose --env-file .env.local up --build` for local development
-2. Use `docker compose --env-file .env.production up --build` for production testing
-3. Always stop services before switching environments: `docker compose down`
-4. Use `make clean` to remove old containers when switching
-5. Check status with `make status` after switching
+- [Policy Decision Point README](policy-decision-point/README.md)
+- [Consent Engine README](consent-engine/README.md)
+- [Orchestration Engine README](orchestration-engine-go/README.md)
+- [Integration Tests README](integration-tests/README.md)
+- [Scripts README](scripts/README.md)
