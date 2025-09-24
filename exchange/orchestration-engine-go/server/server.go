@@ -40,8 +40,15 @@ func RunServer(f *federator.Federator) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		if configs.AppConfig == nil || configs.AppConfig.Sdl == nil {
+			http.Error(w, "SDL not configured", http.StatusInternalServerError)
+			return
+		}
+
 		sdl := configs.AppConfig.Sdl
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 		response := map[string]string{"sdl": string(sdl)}
 
 		err := json.NewEncoder(w).Encode(response)
