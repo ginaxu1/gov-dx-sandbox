@@ -6,10 +6,11 @@ info:
     This service handles consent creation, approval, tracking, and management for data access requests.
     
     ## Hybrid Authentication
-    The API uses hybrid authentication that differentiates between frontend and M2M requests:
-    - **Frontend requests**: Require JWT authentication with email validation
-    - **M2M requests**: JWT authentication is optional
-    - **Detection**: Based on HTTP headers (X-Requested-With, User-Agent)
+    The API uses hybrid authentication that differentiates between user and M2M JWT tokens:
+    - **User JWT Tokens**: From Asgardeo identity provider, require email validation and ownership checks
+    - **M2M JWT Tokens**: From Choreo internal services, trusted for all consent operations
+    - **Token Detection**: Automatically determined by issuer and claims validation
+    - **Security**: All protected endpoints require valid JWT authentication
     
     ## SCIM Integration
     The API integrates with WSO2 Asgardeo's SCIM API to automatically resolve user email addresses 
@@ -126,30 +127,27 @@ paths:
     get:
       summary: Get Consent by ID
       description: |
-        Retrieve a specific consent record by its ID with hybrid authentication:
-        - **Frontend requests**: Require JWT authentication with email validation
-        - **M2M requests**: JWT authentication is optional
-        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        Retrieve a specific consent record by its ID with hybrid JWT authentication:
+        - **User JWT Tokens**: From Asgardeo, require email validation and ownership checks
+        - **M2M JWT Tokens**: From Choreo, trusted for all consent operations
+        - **Token Detection**: Automatically determined by issuer and claims validation
         
-        **Example Frontend Request:**
+        **Example User Request (Consent Portal):**
         ```bash
-        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)" \
-          -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-          -H "X-Requested-With: XMLHttpRequest" \
-          -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        curl -X GET "https://api.example.com/consents/consent_8d255282" \
+          -H "Authorization: Bearer <asgardeo_user_jwt_token>"
         ```
         
-        **Example M2M Request:**
+        **Example M2M Request (Orchestration Engine):**
         ```bash
-        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)"
-        # No Authorization header required for M2M requests
+        curl -X GET "https://api.example.com/consents/consent_8d255282" \
+          -H "Authorization: Bearer <choreo_m2m_jwt_token>"
         ```
       operationId: getConsentById
       tags:
         - Consents
       security:
         - BearerAuth: []
-        - {}
       parameters:
         - name: consentId
           in: path
@@ -160,31 +158,15 @@ paths:
             example: consent_8d255282
         - name: Authorization
           in: header
-          required: false
+          required: true
           description: |
-            JWT Bearer token for authentication. Required for frontend requests, optional for M2M requests.
+            JWT Bearer token for authentication. Required for all requests.
+            - **User JWT**: From Asgardeo identity provider, requires email validation
+            - **M2M JWT**: From Choreo internal services, trusted for all operations
             Format: 'Bearer <jwt_token>'
           schema:
             type: string
             example: "Bearer eyJ4NXQiOiJCU19FeUwwZ0ZMMU82WTB6Vnh2RllRVlB3bUEiLCJraWQiOiJabU0wTUdFd05EQm1OR0pqTUdZeU1EaGhORFEyWTJJelltSmxaVFEzTWjsbU16YzBNV1pqTmpBelpHWmxPREE0TVRGak9XRmhNbVJqTm1ZNVlXWTRPUV9SUzI1NiIsImFsZyI6IlJTMjU2In0..."
-        - name: X-Requested-With
-          in: header
-          required: false
-          description: |
-            Header to identify frontend requests. Set to 'XMLHttpRequest' for frontend calls.
-            When present, JWT authentication becomes mandatory.
-          schema:
-            type: string
-            example: "XMLHttpRequest"
-        - name: User-Agent
-          in: header
-          required: false
-          description: |
-            Browser user agent string. Used to detect frontend requests.
-            When containing browser names (Mozilla, Chrome, Safari, Firefox), JWT authentication becomes mandatory.
-          schema:
-            type: string
-            example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       responses:
         '200':
           description: Consent found and returned
@@ -214,10 +196,10 @@ paths:
     put:
       summary: Update Consent
       description: |
-        Update a specific consent record by its ID with hybrid authentication:
-        - **Frontend requests**: Require JWT authentication with email validation
-        - **M2M requests**: JWT authentication is optional
-        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        Update a specific consent record by its ID with hybrid JWT authentication:
+        - **User JWT Tokens**: From Asgardeo, require email validation and ownership checks
+        - **M2M JWT Tokens**: From Choreo, trusted for all consent operations
+        - **Token Detection**: Automatically determined by issuer and claims validation
         
         **Status Transitions:**
         - **Pending**: Can transition to `approved`, `rejected`, or `expired`
@@ -232,7 +214,6 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}
       parameters:
         - name: consentId
           in: path
@@ -298,7 +279,6 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}
       parameters:
         - name: consentId
           in: path
@@ -386,7 +366,6 @@ paths:
         - Consents
       security:
         - BearerAuth: []
-        - {}
       parameters:
         - name: consentId
           in: path
@@ -1009,9 +988,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        JWT token obtained from Asgardeo authentication service.
+        Hybrid JWT authentication supporting both user and M2M tokens:
+        - **User JWT**: From Asgardeo identity provider, requires email validation and ownership checks
+        - **M2M JWT**: From Choreo internal services, trusted for all consent operations
         The token must be included in the Authorization header as 'Bearer <token>'.
-        The JWT must contain a valid email claim that matches the consent owner's email.
+        Token type is automatically detected based on issuer and claims.
 
 # Security is applied per endpoint - not all endpoints require authentication
 

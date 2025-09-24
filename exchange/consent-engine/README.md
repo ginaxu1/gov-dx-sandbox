@@ -7,7 +7,7 @@ Service that manages data owner consent workflows for data access requests with 
 - **Technology**: Go + In-memory storage
 - **Port**: 8081
 - **Purpose**: Consent management and workflow coordination
-- **Authentication**: Hybrid JWT authentication (Frontend requires JWT, M2M optional)
+- **Authentication**: Hybrid JWT authentication (User JWT with ownership checks, M2M JWT trusted)
 - **Test Coverage**: 34% with comprehensive unit and integration tests
 
 ## Quick Start
@@ -69,40 +69,45 @@ docker build -t ce . && docker run -p 8081:8081 ce
 | `/admin/expiry-check` | POST | Check expired consents | None |
 | `/health` | GET | Health check | None |
 
-**Hybrid Auth**: Frontend requests require JWT, M2M requests are optional
+**Hybrid Auth**: All requests require JWT - User tokens need ownership validation, M2M tokens are trusted
 
 ## Hybrid Authentication
 
-The Consent Engine uses a hybrid authentication system that differentiates between frontend and M2M (Machine-to-Machine) requests:
+The Consent Engine uses a hybrid JWT authentication system that differentiates between user and M2M (Machine-to-Machine) tokens:
 
-### Frontend Requests
+### User JWT Tokens (From Asgardeo)
 - **Require JWT authentication** with valid email claim
-- **Email must match** the consent owner's email
-- **Detected by** browser headers (`X-Requested-With: XMLHttpRequest` or `User-Agent` containing browser names)
+- **Email must match** the consent owner's email for ownership validation
+- **Detected by** issuer and claims validation (Asgardeo issuer)
+- **Used by** Consent Portal for user-facing operations
 
-### M2M Requests  
-- **JWT authentication is optional**
-- **No email validation required**
-- **Detected by** absence of browser headers
+### M2M JWT Tokens (From Choreo)
+- **Require JWT authentication** with valid Choreo token
+- **No email validation required** - trusted for all consent operations
+- **Detected by** issuer and claims validation (Choreo issuer)
+- **Used by** Orchestration Engine for service-to-service communication
 
-### Request Detection
-The system automatically detects request type based on HTTP headers:
-- **Frontend**: Contains `X-Requested-With: XMLHttpRequest` or `User-Agent` with browser identifiers
-- **M2M**: No browser-like headers present
+### Token Detection
+The system automatically detects token type based on JWT claims:
+- **User Token**: Issuer from Asgardeo, contains email claim
+- **M2M Token**: Issuer from Choreo, contains client_id or scope claims
 
 ### Environment Variables
 
-#### Required - Asgardeo Configuration
-- `ASGARDEO_BASE_URL` - Your Asgardeo organization URL (e.g., https://api.asgardeo.io/t/YOUR_TENANT)
-- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks)
-- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token)
-- `ASGARDEO_AUDIENCE` - JWT audience (default: YOUR_AUDIENCE)
-- `ASGARDEO_ORG_NAME` - Your organization name (default: YOUR_ORG_NAME)
+#### Required - User JWT Configuration (Asgardeo)
+- `ASGARDEO_JWKS_URL` - JWKS endpoint URL for user token validation
+- `ASGARDEO_ISSUER` - JWT issuer URL for user tokens
+- `ASGARDEO_AUDIENCE` - JWT audience for user tokens
+- `ASGARDEO_ORG_NAME` - Your organization name
+
+#### Required - M2M JWT Configuration (Choreo)
+- `CHOREO_JWKS_URL` - JWKS endpoint URL for Choreo M2M token validation
+- `CHOREO_ISSUER` - JWT issuer URL for Choreo M2M tokens
+- `CHOREO_AUDIENCE` - JWT audience for Choreo M2M tokens
 
 #### Required - Service Configuration
 - `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
 - `ORCHESTRATION_ENGINE_URL` - Orchestration engine URL (default: http://localhost:4000)
-- `M2M_API_KEY` - M2M API key for service-to-service communication
 - `ENVIRONMENT` - Environment (production/development)
 
 #### Optional - Service Configuration
@@ -114,10 +119,13 @@ The system automatically detects request type based on HTTP headers:
 
 #### Test Configuration
 - `TEST_CONSENT_PORTAL_URL` - Test consent portal URL (default: http://localhost:5173)
-- `TEST_JWKS_URL` - Test JWKS URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks)
-- `TEST_ASGARDEO_ISSUER` - Test Asgardeo issuer (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token)
-- `TEST_ASGARDEO_AUDIENCE` - Test Asgardeo audience (default: YOUR_AUDIENCE)
-- `TEST_ASGARDEO_ORG_NAME` - Test organization name (default: YOUR_ORG_NAME)
+- `TEST_ASGARDEO_JWKS_URL` - Test Asgardeo JWKS URL for user token validation
+- `TEST_ASGARDEO_ISSUER` - Test Asgardeo issuer for user tokens
+- `TEST_ASGARDEO_AUDIENCE` - Test Asgardeo audience for user tokens
+- `TEST_ASGARDEO_ORG_NAME` - Test organization name
+- `TEST_CHOREO_JWKS_URL` - Test Choreo JWKS URL for M2M token validation
+- `TEST_CHOREO_ISSUER` - Test Choreo issuer for M2M tokens
+- `TEST_CHOREO_AUDIENCE` - Test Choreo audience for M2M tokens
 
 ### JWT Token Format
 
@@ -125,14 +133,24 @@ The system automatically detects request type based on HTTP headers:
 Authorization: Bearer <jwt_token>
 ```
 
-The JWT token must contain an email claim in one of these fields:
+#### User JWT Tokens (Asgardeo)
+The user JWT token must contain an email claim in one of these fields:
 - `email`
 - `sub` (subject)
 - `preferred_username`
 
-### Email Authorization
+#### M2M JWT Tokens (Choreo)
+The M2M JWT token must contain:
+- `client_id` or `scope` claims
+- Valid Choreo issuer and audience
 
-For protected endpoints (`/consents/{id}`), the JWT email must match the consent owner's email. If they don't match, the request will be rejected with a 403 Forbidden response.
+### Authorization Rules
+
+For protected endpoints (`/consents/{id}`):
+- **User JWT**: Email must match the consent owner's email for ownership validation
+- **M2M JWT**: No ownership validation required - trusted for all operations
+- **Invalid/Unknown tokens**: Rejected with 401 Unauthorized
+- **Ownership mismatch**: Rejected with 403 Forbidden
 
 ## Data Owner Information
 
@@ -214,7 +232,7 @@ curl -X POST http://localhost:8081/consents \
 ## Get Consent Information
 
 **Endpoint:** `GET /consents/{id}`  
-**Authentication:** JWT Required (email must match consent owner)
+**Authentication:** JWT Required (User JWT: email must match consent owner, M2M JWT: trusted)
 
 **Response (User-facing format):**
 ```json
@@ -229,32 +247,27 @@ curl -X POST http://localhost:8081/consents \
 }
 ```
 
-**Frontend Request (JWT Required):**
+**User Request (Consent Portal - JWT Required):**
 ```bash
 curl -X GET http://localhost:8081/consents/consent_122af00e \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "X-Requested-With: XMLHttpRequest" \
-  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+  -H "Authorization: Bearer <asgardeo_user_jwt_token>"
 ```
 
-**M2M Request (JWT Optional):**
+**M2M Request (Orchestration Engine - JWT Required):**
 ```bash
-# Without JWT
-curl -X GET http://localhost:8081/consents/consent_122af00e
-
-# With JWT
 curl -X GET http://localhost:8081/consents/consent_122af00e \
-  -H "Authorization: Bearer <jwt_token>"
+  -H "Authorization: Bearer <choreo_m2m_jwt_token>"
 ```
 
 **Error Responses:**
-- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `401 Unauthorized` - Invalid or missing JWT token
+- `403 Forbidden` - User JWT email doesn't match consent owner (user tokens only)
 - `404 Not Found` - Consent record not found
 
 ## Update Consent Status
 
 **Endpoint:** `PUT /consents/{id}`  
-**Authentication:** JWT Required (email must match consent owner)
+**Authentication:** JWT Required (User JWT: email must match consent owner, M2M JWT: trusted)
 
 **Request:**
 ```json
@@ -288,13 +301,14 @@ curl -X PUT http://localhost:8081/consents/consent_122af00e \
 ```
 
 **Error Responses:**
-- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `401 Unauthorized` - Invalid or missing JWT token
+- `403 Forbidden` - User JWT email doesn't match consent owner (user tokens only)
 - `404 Not Found` - Consent record not found
 
 ## Revoke Consent
 
 **Endpoint:** `DELETE /consents/{id}`  
-**Authentication:** JWT Required (email must match consent owner)
+**Authentication:** JWT Required (User JWT: email must match consent owner, M2M JWT: trusted)
 
 **Request:**
 ```json
@@ -322,7 +336,8 @@ curl -X DELETE http://localhost:8081/consents/consent_122af00e \
 ```
 
 **Error Responses:**
-- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `401 Unauthorized` - Invalid or missing JWT token
+- `403 Forbidden` - User JWT email doesn't match consent owner (user tokens only)
 - `404 Not Found` - Consent record not found
 
 ## How to Run and Test Locally
@@ -569,14 +584,15 @@ curl http://localhost:8081/health
 ### Environment Variables
 
 #### Required (for JWT authentication)
-- `ASGARDEO_BASE_URL` - Your Asgardeo organization URL (e.g., https://api.asgardeo.io/t/lankasoftwarefoundation)
-- `ASGARDEO_CLIENT_ID` - Your Asgardeo application client ID
-- `ASGARDEO_CLIENT_SECRET` - Your Asgardeo application client secret
+- `ASGARDEO_JWKS_URL` - JWKS endpoint URL for user token validation
+- `ASGARDEO_ISSUER` - JWT issuer URL for user tokens
+- `ASGARDEO_AUDIENCE` - JWT audience for user tokens
+- `ASGARDEO_ORG_NAME` - Your organization name
+- `CHOREO_JWKS_URL` - JWKS endpoint URL for Choreo M2M token validation
+- `CHOREO_ISSUER` - JWT issuer URL for Choreo M2M tokens
+- `CHOREO_AUDIENCE` - JWT audience for Choreo M2M tokens
 
 #### Optional (with defaults)
-- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks)
-- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation)
-- `ASGARDEO_AUDIENCE` - JWT audience
 - `PORT` - Service port (default: 8081)
 - `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
 
@@ -609,5 +625,20 @@ var ownerIDToEmailMap = map[string]string{
 
 The Consent Engine integrates with:
 - **Policy Decision Point**: Provides consent requirements for authorization decisions
-- **Consent Portal**: Web interface for consent management
+- **Consent Portal**: Web interface for consent management (uses Asgardeo user JWT tokens)
+- **Orchestration Engine**: Service-to-service communication (uses Choreo M2M JWT tokens)
 - **Data Consumer Applications**: Receives consent requests and provides status updates
+
+### Authentication Flow
+
+1. **User Access (Consent Portal)**:
+   - User authenticates with Asgardeo
+   - Consent Portal receives user JWT token
+   - Consent Portal sends requests with `Authorization: Bearer <user_jwt>`
+   - Consent Engine validates user JWT and enforces ownership checks
+
+2. **M2M Access (Orchestration Engine)**:
+   - Orchestration Engine uses Choreo's internal network visibility
+   - Choreo provides M2M JWT token via `CHOREO_API_TOKEN_CONSENT_ENGINE`
+   - Orchestration Engine sends requests with `Authorization: Bearer <m2m_jwt>`
+   - Consent Engine validates M2M JWT and trusts for all operations

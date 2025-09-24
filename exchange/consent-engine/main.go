@@ -28,11 +28,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// Context key type for user email
-type contextKey string
-
-const userEmailKey contextKey = "user_email"
-
 // OwnerIDToEmailMapping represents the mapping from owner_id to owner_email
 type OwnerIDToEmailMapping struct {
 	OwnerID    string `json:"owner_id"`
@@ -280,7 +275,7 @@ func (c *AsgardeoSCIMClient) getUserByNICUserMgmt(nic string) (*SCIMUser, error)
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("User Management request failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("user management request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var scimResp SCIMResponse
@@ -403,26 +398,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// TokenType represents the type of token (user or m2m)
-type TokenType string
-
-const (
-	TokenTypeUser TokenType = "user"
-	TokenTypeM2M  TokenType = "m2m"
-)
-
-// TokenInfo contains information about the verified token
-type TokenInfo struct {
-	Type     TokenType
-	Email    string
-	Subject  string
-	Scopes   []string
-	ClientID string
-	Audience []string
-	Issuer   string
-	AuthType string // "APPLICATION_USER" or "APPLICATION"
-}
-
 // UserTokenValidationConfig holds configuration for user token validation
 type UserTokenValidationConfig struct {
 	ExpectedIssuer   string
@@ -431,8 +406,71 @@ type UserTokenValidationConfig struct {
 	RequiredScopes   []string
 }
 
-// Hybrid authentication middleware that handles both user and M2M tokens
-func hybridAuthMiddleware(jwtVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
+// Context key types to avoid collisions
+type contextKey string
+
+const (
+	userEmailKey contextKey = "user_email"
+	authTypeKey  contextKey = "auth_type"
+	tokenInfoKey contextKey = "token_info"
+)
+
+// Token type detection
+type TokenType string
+
+const (
+	TokenTypeUser    TokenType = "user"
+	TokenTypeM2M     TokenType = "m2m"
+	TokenTypeUnknown TokenType = "unknown"
+)
+
+// TokenInfo contains information about a verified token
+type TokenInfo struct {
+	Type     TokenType
+	Subject  string
+	Email    string
+	ClientID string
+	Issuer   string
+	Audience []string
+	Scopes   []string
+	AuthType string
+}
+
+// detectTokenType determines if a token is a user token or M2M token based on issuer and claims
+func detectTokenType(claims jwt.MapClaims, userIssuer, choreoIssuer string) TokenType {
+	iss, ok := claims["iss"].(string)
+	if !ok {
+		return TokenTypeUnknown
+	}
+
+	// Check if it's a Choreo M2M token
+	if iss == choreoIssuer {
+		// Additional checks for M2M token characteristics
+		if _, hasClientID := claims["client_id"]; hasClientID {
+			return TokenTypeM2M
+		}
+		// Check for M2M-specific claims
+		if _, hasScope := claims["scope"]; hasScope {
+			return TokenTypeM2M
+		}
+	}
+
+	// Check if it's a user token
+	if iss == userIssuer {
+		// User tokens typically have email or sub claims
+		if _, hasEmail := claims["email"]; hasEmail {
+			return TokenTypeUser
+		}
+		if _, hasSub := claims["sub"]; hasSub {
+			return TokenTypeUser
+		}
+	}
+
+	return TokenTypeUnknown
+}
+
+// Hybrid authentication middleware that handles both user JWT and Choreo M2M JWT authentication
+func hybridAuthMiddleware(userJWTVerifier *JWTVerifier, choreoJWTVerifier *ChoreoJWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract consent ID from the URL path
@@ -449,60 +487,98 @@ func hybridAuthMiddleware(jwtVerifier *JWTVerifier, engine ConsentEngine, userTo
 				return
 			}
 
-			// Check if this is a frontend request (has browser-like headers)
-			isFrontendRequest := r.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
-				strings.Contains(r.Header.Get("User-Agent"), "Mozilla") ||
-				strings.Contains(r.Header.Get("User-Agent"), "Chrome") ||
-				strings.Contains(r.Header.Get("User-Agent"), "Safari") ||
-				strings.Contains(r.Header.Get("User-Agent"), "Firefox")
-
 			// Extract the Authorization header
 			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Authorization header is required"})
+				return
+			}
 
-			// If it's a frontend request, JWT authentication is required
-			if isFrontendRequest {
-				if authHeader == "" {
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Authorization header is required"})
-					return
-				}
+			// Check if it's a Bearer token
+			const bearerPrefix = "Bearer "
+			if !strings.HasPrefix(authHeader, bearerPrefix) {
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid authorization format. Expected 'Bearer <token>'"})
+				return
+			}
 
-				// Check if it's a Bearer token
-				const bearerPrefix = "Bearer "
-				if !strings.HasPrefix(authHeader, bearerPrefix) {
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid authorization format. Expected 'Bearer <token>'"})
-					return
-				}
+			// Extract the token
+			tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
+			if tokenString == "" {
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Token is required"})
+				return
+			}
 
-				// Extract the token
-				tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
-				if tokenString == "" {
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Token is required"})
-					return
-				}
+			// First, try to decode the token to determine its type
+			parts := strings.Split(tokenString, ".")
+			if len(parts) != 3 {
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid token format"})
+				return
+			}
 
-				// Manually decode JWT token without verification
-				parts := strings.Split(tokenString, ".")
-				if len(parts) != 3 {
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid token format"})
-					return
-				}
+			// Decode claims to determine token type
+			claimsBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+			if err != nil {
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to decode token claims"})
+				return
+			}
 
-				// Decode claims
-				claimsBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+			var claims jwt.MapClaims
+			if err := json.Unmarshal(claimsBytes, &claims); err != nil {
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to parse token claims"})
+				return
+			}
+
+			// Determine token type based on issuer and claims
+			userIssuer := userTokenConfig.ExpectedIssuer
+			choreoIssuer := getEnvOrDefault("CHOREO_ISSUER", "https://sts.choreo.dev/oauth2/token")
+			tokenType := detectTokenType(claims, userIssuer, choreoIssuer)
+
+			if tokenType == TokenTypeUnknown {
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Unknown token type. Token must be from a recognized issuer"})
+				return
+			}
+
+			// Handle M2M tokens (from Choreo)
+			if tokenType == TokenTypeM2M {
+				// Verify the token using Choreo JWT verifier
+				token, err := choreoJWTVerifier.VerifyToken(tokenString)
 				if err != nil {
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to decode token claims"})
+					slog.Warn("Choreo M2M token verification failed", "error", err, "consent_id", consentID)
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid M2M token"})
 					return
 				}
 
-				var claims map[string]interface{}
-				if err := json.Unmarshal(claimsBytes, &claims); err != nil {
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to parse token claims"})
+				// Extract token information
+				tokenInfo, err := extractTokenInfo(token)
+				if err != nil {
+					slog.Warn("Failed to extract M2M token info", "error", err, "consent_id", consentID)
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid M2M token format"})
 					return
 				}
 
-				// Get email from token
-				email, ok := claims["email"].(string)
-				if !ok || email == "" {
+				// Add M2M auth type to the request context
+				ctx := context.WithValue(r.Context(), authTypeKey, "m2m")
+				ctx = context.WithValue(ctx, tokenInfoKey, tokenInfo)
+				r = r.WithContext(ctx)
+
+				slog.Info("M2M authentication successful",
+					"client_id", tokenInfo.ClientID,
+					"consent_id", consentID)
+
+			} else if tokenType == TokenTypeUser {
+				// Handle user tokens (from Asgardeo)
+				// Verify the token using user JWT verifier
+				token, err := userJWTVerifier.VerifyToken(tokenString)
+				if err != nil {
+					slog.Warn("User token verification failed", "error", err, "consent_id", consentID)
+					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid user token"})
+					return
+				}
+
+				// Extract email from token
+				email, err := userJWTVerifier.ExtractEmailFromToken(token)
+				if err != nil {
+					slog.Warn("Failed to extract email from user token", "error", err, "consent_id", consentID)
 					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Token missing email claim"})
 					return
 				}
@@ -517,53 +593,14 @@ func hybridAuthMiddleware(jwtVerifier *JWTVerifier, engine ConsentEngine, userTo
 					return
 				}
 
-				// Add email to the request context
-				ctx := context.WithValue(r.Context(), userEmailKey, email)
+				// Add user auth type and email to the request context
+				ctx := context.WithValue(r.Context(), authTypeKey, "user")
+				ctx = context.WithValue(ctx, userEmailKey, email)
 				r = r.WithContext(ctx)
 
-				slog.Info("Frontend authentication successful",
+				slog.Info("User authentication successful",
 					"email", email,
 					"consent_id", consentID)
-
-			} else {
-				// This is an M2M request - JWT authentication is optional
-				if authHeader != "" {
-					// If JWT is provided, verify it
-					const bearerPrefix = "Bearer "
-					if strings.HasPrefix(authHeader, bearerPrefix) {
-						tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
-						if tokenString != "" {
-							// Verify the token
-							token, err := jwtVerifier.VerifyToken(tokenString)
-							if err == nil {
-								// Extract token information and determine type
-								tokenInfo, err := extractTokenInfo(token)
-								if err == nil && tokenInfo.Type == TokenTypeM2M {
-									// For M2M tokens, no additional scope validation required
-									// M2M tokens are trusted for all consent operations
-
-									// Add token information to the request context
-									ctx := context.WithValue(r.Context(), "token_info", tokenInfo)
-									ctx = context.WithValue(ctx, "auth_type", string(tokenInfo.Type))
-									r = r.WithContext(ctx)
-
-									slog.Info("M2M authentication with JWT successful",
-										"client_id", tokenInfo.ClientID,
-										"consent_id", consentID)
-								}
-							}
-						}
-					}
-				}
-
-				// For M2M without JWT, set auth type to M2M
-				if r.Context().Value("auth_type") == nil {
-					ctx := context.WithValue(r.Context(), "auth_type", "m2m")
-					r = r.WithContext(ctx)
-
-					slog.Info("M2M authentication without JWT successful",
-						"consent_id", consentID)
-				}
 			}
 
 			next.ServeHTTP(w, r)
@@ -585,7 +622,7 @@ func extractTokenInfo(token *jwt.Token) (*TokenInfo, error) {
 		tokenInfo.Subject = sub
 	}
 
-	if aud, ok := claims["aud"].(interface{}); ok {
+	if aud, ok := claims["aud"]; ok {
 		switch v := aud.(type) {
 		case string:
 			tokenInfo.Audience = []string{v}
@@ -1355,12 +1392,19 @@ func main() {
 
 	engine.StartBackgroundExpiryProcess(ctx, interval)
 
-	// Initialize JWT verifier with Asgardeo JWKS endpoint
-	jwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
-	issuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
-	audience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
-	jwtVerifier := NewJWTVerifier(jwksURL, issuer, audience)
-	slog.Info("Initialized JWT verifier", "jwks_url", jwksURL, "issuer", issuer, "audience", audience)
+	// Initialize user JWT verifier with Asgardeo JWKS endpoint
+	userJwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	userIssuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	userJWTVerifier := NewJWTVerifier(userJwksURL, userIssuer, userAudience)
+	slog.Info("Initialized user JWT verifier", "jwks_url", userJwksURL, "issuer", userIssuer, "audience", userAudience)
+
+	// Initialize Choreo M2M JWT verifier
+	choreoJwksURL := getEnvOrDefault("CHOREO_JWKS_URL", "https://sts.choreo.dev/oauth2/jwks")
+	choreoIssuer := getEnvOrDefault("CHOREO_ISSUER", "https://sts.choreo.dev/oauth2/token")
+	choreoAudience := getEnvOrDefault("CHOREO_AUDIENCE", "YOUR_CHOREO_AUDIENCE")
+	choreoJWTVerifier := NewChoreoJWTVerifier(choreoJwksURL, choreoIssuer, choreoAudience)
+	slog.Info("Initialized Choreo M2M JWT verifier", "jwks_url", choreoJwksURL, "issuer", choreoIssuer, "audience", choreoAudience)
 
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
@@ -1384,7 +1428,7 @@ func main() {
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 
 	// Routes that require hybrid authentication (both user and M2M tokens)
-	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(hybridAuthMiddleware(jwtVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
+	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(hybridAuthMiddleware(userJWTVerifier, choreoJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
 
 	// Create server using utils
 	serverConfig := &utils.ServerConfig{
