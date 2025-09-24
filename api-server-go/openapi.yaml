@@ -94,6 +94,73 @@ paths:
                     format: int64
                     example: 1640995200
 
+  /debug:
+    get:
+      summary: Debug Information
+      description: Get basic debug information about the API server
+      operationId: debugInfo
+      tags:
+        - Debug
+      responses:
+        '200':
+          description: Debug information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path:
+                    type: string
+                    example: /debug
+                  method:
+                    type: string
+                    example: GET
+
+  /debug/db:
+    get:
+      summary: Database Debug Information
+      description: Get detailed database connection and table information for debugging
+      operationId: debugDatabase
+      tags:
+        - Debug
+      responses:
+        '200':
+          description: Database debug information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  database_connected:
+                    type: boolean
+                    example: true
+                  consumers_table_exists:
+                    type: boolean
+                    example: true
+                  consumers_count:
+                    type: integer
+                    example: 0
+        '503':
+          description: Database connection failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "database ping failed: connection refused"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "failed to check table existence: permission denied"
+
   /consumers:
     get:
       summary: List All Consumers
@@ -1070,6 +1137,8 @@ components:
 tags:
   - name: Health
     description: Health check endpoints
+  - name: Debug
+    description: Debug and diagnostic endpoints
   - name: Consumers
     description: Consumer management operations
   - name: Consumer Applications
