@@ -140,6 +140,12 @@ paths:
                   consumers_count:
                     type: integer
                     example: 0
+                  table_structure:
+                    type: string
+                    example: "Columns: consumer_id (character varying), entity_id (character varying), created_at (timestamp with time zone), updated_at (timestamp with time zone)"
+                  select_query_test:
+                    type: string
+                    example: "SELECT query succeeded"
         '503':
           description: Database connection failed
           content:
@@ -176,12 +182,22 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
+                  items:
                     type: array
                     items:
                       $ref: '#/components/schemas/Consumer'
                   count:
                     type: integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to retrieve items: Database operation failed"
     post:
       summary: Create Consumer
       description: Register a new data consumer
@@ -201,6 +217,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Consumer'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid request body"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to retrieve items: Database operation failed"
 
   /consumers/{consumerId}:
     get:
@@ -278,7 +314,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
+                  items:
                     type: array
                     items:
                       $ref: '#/components/schemas/ConsumerApp'
@@ -306,7 +342,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
+                  items:
                     type: array
                     items:
                       $ref: '#/components/schemas/ConsumerApp'
@@ -399,7 +435,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
+                  items:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderSubmission'
@@ -530,7 +566,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
+                  items:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderSchema'
@@ -558,7 +594,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
+                  items:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProviderSchema'
@@ -792,6 +828,256 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AllowListManagementResponse'
+
+  # Consumer Grants endpoints
+  /consumer-grants:
+    get:
+      summary: List All Consumer Grants
+      description: Retrieve all consumer grants
+      operationId: listConsumerGrants
+      tags:
+        - Consumer Grants
+      responses:
+        '200':
+          description: List of consumer grants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsumerGrant'
+                  count:
+                    type: integer
+    post:
+      summary: Create Consumer Grant
+      description: Create a new consumer grant
+      operationId: createConsumerGrant
+      tags:
+        - Consumer Grants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsumerGrantRequest'
+      responses:
+        '201':
+          description: Consumer grant created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerGrant'
+
+  /consumer-grants/{consumerId}:
+    get:
+      summary: Get Consumer Grant
+      description: Retrieve a specific consumer grant
+      operationId: getConsumerGrant
+      tags:
+        - Consumer Grants
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consumer grant details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerGrant'
+    put:
+      summary: Update Consumer Grant
+      description: Update a consumer grant
+      operationId: updateConsumerGrant
+      tags:
+        - Consumer Grants
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsumerGrantRequest'
+      responses:
+        '200':
+          description: Consumer grant updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerGrant'
+    delete:
+      summary: Delete Consumer Grant
+      description: Delete a consumer grant
+      operationId: deleteConsumerGrant
+      tags:
+        - Consumer Grants
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Consumer grant deleted successfully
+
+  # Provider Fields endpoints
+  /provider-fields:
+    get:
+      summary: List All Provider Fields
+      description: Retrieve all provider field metadata
+      operationId: listProviderFields
+      tags:
+        - Provider Fields
+      responses:
+        '200':
+          description: List of provider fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProviderField'
+                  count:
+                    type: integer
+    post:
+      summary: Create Provider Field
+      description: Create a new provider field metadata
+      operationId: createProviderField
+      tags:
+        - Provider Fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderFieldRequest'
+      responses:
+        '201':
+          description: Provider field created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderField'
+
+  /provider-fields/{fieldName}:
+    get:
+      summary: Get Provider Field
+      description: Retrieve a specific provider field metadata
+      operationId: getProviderField
+      tags:
+        - Provider Fields
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Provider field details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderField'
+    put:
+      summary: Update Provider Field
+      description: Update a provider field metadata
+      operationId: updateProviderField
+      tags:
+        - Provider Fields
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderFieldRequest'
+      responses:
+        '200':
+          description: Provider field updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderField'
+    delete:
+      summary: Delete Provider Field
+      description: Delete a provider field metadata
+      operationId: deleteProviderField
+      tags:
+        - Provider Fields
+      parameters:
+        - name: fieldName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Provider field deleted successfully
+
+  # Consent Records endpoints
+  /consent-records:
+    get:
+      summary: List All Consent Records
+      description: Retrieve all consent records
+      operationId: listConsentRecords
+      tags:
+        - Consent Records
+      responses:
+        '200':
+          description: List of consent records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsentRecord'
+                  count:
+                    type: integer
+
+  /consent-records/{consentId}:
+    get:
+      summary: Get Consent Record
+      description: Retrieve a specific consent record
+      operationId: getConsentRecord
+      tags:
+        - Consent Records
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Consent record details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentRecord'
 
 components:
   schemas:
@@ -1134,6 +1420,206 @@ components:
           format: date-time
           description: When the entry was created
 
+    ConsumerGrant:
+      type: object
+      properties:
+        consumerId:
+          type: string
+          description: Unique identifier for the consumer
+        approvedFields:
+          type: object
+          additionalProperties: true
+          description: Fields approved for the consumer
+        createdAt:
+          type: string
+          format: date-time
+          description: When the grant was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the grant was last updated
+
+    CreateConsumerGrantRequest:
+      type: object
+      required:
+        - consumerId
+        - approvedFields
+      properties:
+        consumerId:
+          type: string
+          description: ID of the consumer
+        approvedFields:
+          type: object
+          additionalProperties: true
+          description: Fields to approve for the consumer
+
+    UpdateConsumerGrantRequest:
+      type: object
+      properties:
+        approvedFields:
+          type: object
+          additionalProperties: true
+          description: Updated approved fields
+
+    ProviderField:
+      type: object
+      properties:
+        fieldName:
+          type: string
+          description: Name of the field
+        owner:
+          type: string
+          description: Owner of the field
+        provider:
+          type: string
+          description: Provider of the field
+        consentRequired:
+          type: boolean
+          description: Whether consent is required
+        accessControlType:
+          type: string
+          enum: [public, private, restricted]
+          description: Type of access control
+        allowList:
+          type: object
+          additionalProperties: true
+          description: Allow list for restricted access
+        description:
+          type: string
+          description: Description of the field
+        expiryTime:
+          type: string
+          description: Expiry time for the field
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+        createdAt:
+          type: string
+          format: date-time
+          description: When the field was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the field was last updated
+
+    CreateProviderFieldRequest:
+      type: object
+      required:
+        - fieldName
+        - owner
+        - provider
+      properties:
+        fieldName:
+          type: string
+          description: Name of the field
+        owner:
+          type: string
+          description: Owner of the field
+        provider:
+          type: string
+          description: Provider of the field
+        consentRequired:
+          type: boolean
+          default: false
+          description: Whether consent is required
+        accessControlType:
+          type: string
+          enum: [public, private, restricted]
+          default: public
+          description: Type of access control
+        allowList:
+          type: object
+          additionalProperties: true
+          description: Allow list for restricted access
+        description:
+          type: string
+          description: Description of the field
+        expiryTime:
+          type: string
+          description: Expiry time for the field
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    UpdateProviderFieldRequest:
+      type: object
+      properties:
+        consentRequired:
+          type: boolean
+          description: Whether consent is required
+        accessControlType:
+          type: string
+          enum: [public, private, restricted]
+          description: Type of access control
+        allowList:
+          type: object
+          additionalProperties: true
+          description: Allow list for restricted access
+        description:
+          type: string
+          description: Description of the field
+        expiryTime:
+          type: string
+          description: Expiry time for the field
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    ConsentRecord:
+      type: object
+      properties:
+        consentId:
+          type: string
+          description: Unique identifier for the consent record
+        ownerId:
+          type: string
+          description: ID of the owner
+        ownerEmail:
+          type: string
+          description: Email of the owner
+        appId:
+          type: string
+          description: ID of the application
+        status:
+          type: string
+          enum: [pending, granted, denied, expired, revoked]
+          description: Status of the consent
+        type:
+          type: string
+          description: Type of consent
+        createdAt:
+          type: string
+          format: date-time
+          description: When the consent was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the consent was last updated
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the consent expires
+        grantDuration:
+          type: string
+          description: Duration of the grant
+        fields:
+          type: array
+          items:
+            type: string
+          description: Fields covered by this consent
+        sessionId:
+          type: string
+          description: Session ID for the consent
+        consentPortalUrl:
+          type: string
+          description: URL to the consent portal
+        updatedBy:
+          type: string
+          description: Who last updated the consent
+
 tags:
   - name: Health
     description: Health check endpoints
@@ -1153,3 +1639,9 @@ tags:
     description: Administrative operations
   - name: Allow List Management
     description: Access control and allow list management
+  - name: Consumer Grants
+    description: Consumer grant management operations
+  - name: Provider Fields
+    description: Provider field metadata management
+  - name: Consent Records
+    description: Consent record management operations

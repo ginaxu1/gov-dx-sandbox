@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"time"
@@ -41,13 +42,24 @@ func NewDatabaseConfig() *DatabaseConfig {
 	retryAttempts := parseIntOrDefault("DB_RETRY_ATTEMPTS", 3)
 	retryDelay := parseDurationOrDefault("DB_RETRY_DELAY", "1s")
 
+	host := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", "localhost")
+	port := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432")
+	username := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres")
+	password := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password")
+	database := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "api_server")
+	sslMode := getEnvOrDefault("DB_SSLMODE", "require")
+
+	// Debug logging
+	log.Printf("Environment variables - Host: %s, Port: %s, Username: %s, Database: %s, SSLMode: %s",
+		host, port, username, database, sslMode)
+
 	return &DatabaseConfig{
-		Host:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", "localhost"),
-		Port:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432"),
-		Username:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres"),
-		Password:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password"),
-		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "api_server"),
-		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
+		Host:            host,
+		Port:            port,
+		Username:        username,
+		Password:        password,
+		Database:        database,
+		SSLMode:         sslMode,
 		MaxOpenConns:    maxOpenConns,
 		MaxIdleConns:    maxIdleConns,
 		ConnMaxLifetime: connMaxLifetime,

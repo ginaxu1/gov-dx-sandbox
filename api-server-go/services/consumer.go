@@ -48,14 +48,58 @@ func (s *ConsumerService) CreateConsumer(req models.CreateConsumerRequest) (*mod
 		return nil, errors.InternalErrorWithCause("database connection validation failed", err)
 	}
 
-	// Generate unique consumer ID
+	// Generate unique IDs
 	consumerID, err := s.generateConsumerID()
 	if err != nil {
 		slog.Error("Failed to generate consumer ID", "error", err)
 		return nil, errors.InternalErrorWithCause("failed to generate consumer ID", err)
 	}
 
+	entityID, err := s.generateEntityID()
+	if err != nil {
+		slog.Error("Failed to generate entity ID", "error", err)
+		return nil, errors.InternalErrorWithCause("failed to generate entity ID", err)
+	}
+
 	now := time.Now()
+
+	// Start transaction
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		slog.Error("Failed to begin transaction", "error", err)
+		return nil, errors.HandleDatabaseError(err, "begin transaction")
+	}
+	defer tx.Rollback()
+
+	// Insert entity first
+	entityQuery := `INSERT INTO entities (entity_id, entity_name, contact_email, phone_number, entity_type, created_at, updated_at) 
+					VALUES ($1, $2, $3, $4, $5, $6, $7)`
+
+	slog.Debug("Executing entity insert", "entityId", entityID)
+	_, err = tx.ExecContext(context.Background(), entityQuery, entityID, req.ConsumerName, req.ContactEmail, req.PhoneNumber, "consumer", now, now)
+	if err != nil {
+		slog.Error("Failed to insert entity", "error", err, "entityId", entityID, "query", entityQuery)
+		return nil, errors.HandleDatabaseError(err, "create entity")
+	}
+
+	// Insert consumer
+	consumerQuery := `INSERT INTO consumers (consumer_id, entity_id, created_at, updated_at) 
+					  VALUES ($1, $2, $3, $4)`
+
+	slog.Debug("Executing consumer insert", "consumerId", consumerID, "entityId", entityID)
+	_, err = tx.ExecContext(context.Background(), consumerQuery, consumerID, entityID, now, now)
+	if err != nil {
+		slog.Error("Failed to insert consumer", "error", err, "consumerId", consumerID, "query", consumerQuery)
+		return nil, errors.HandleDatabaseError(err, "create consumer")
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		slog.Error("Failed to commit transaction", "error", err)
+		return nil, errors.HandleDatabaseError(err, "commit transaction")
+	}
+
+	// Create response object
 	consumer := &models.Consumer{
 		ConsumerID:   consumerID,
 		ConsumerName: req.ConsumerName,
@@ -65,23 +109,7 @@ func (s *ConsumerService) CreateConsumer(req models.CreateConsumerRequest) (*mod
 		UpdatedAt:    now,
 	}
 
-	query := `INSERT INTO consumers (consumer_id, consumer_name, contact_email, phone_number, created_at, updated_at) 
-			  VALUES ($1, $2, $3, $4, $5, $6)`
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	slog.Debug("Executing database query", "query", "INSERT INTO consumers", "consumerId", consumerID)
-	start := time.Now()
-	_, err = s.db.ExecContext(ctx, query, consumer.ConsumerID, consumer.ConsumerName, consumer.ContactEmail, consumer.PhoneNumber, consumer.CreatedAt, consumer.UpdatedAt)
-	duration := time.Since(start)
-
-	if err != nil {
-		slog.Error("Database query failed", "error", err, "query", "INSERT INTO consumers", "consumerId", consumerID, "duration", duration)
-		return nil, errors.HandleDatabaseError(err, "create consumer")
-	}
-
-	slog.Info("Successfully created consumer", "consumerId", consumerID, "consumerName", req.ConsumerName, "duration", duration)
+	slog.Info("Successfully created consumer", "consumerId", consumerID, "entityId", entityID, "consumerName", req.ConsumerName)
 	return consumer, nil
 }
 
@@ -95,8 +123,10 @@ func (s *ConsumerService) GetConsumer(id string) (*models.Consumer, error) {
 		return nil, errors.InternalErrorWithCause("database connection validation failed", err)
 	}
 
-	query := `SELECT consumer_id, consumer_name, contact_email, phone_number, created_at, updated_at 
-			  FROM consumers WHERE consumer_id = $1`
+	query := `SELECT c.consumer_id, e.entity_name, e.contact_email, e.phone_number, c.created_at, c.updated_at 
+			  FROM consumers c 
+			  JOIN entities e ON c.entity_id = e.entity_id 
+			  WHERE c.consumer_id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -132,8 +162,10 @@ func (s *ConsumerService) GetAllConsumers() ([]*models.Consumer, error) {
 		return nil, errors.HandleDatabaseError(err, "validate connection")
 	}
 
-	query := `SELECT consumer_id, consumer_name, contact_email, phone_number, created_at, updated_at 
-			  FROM consumers ORDER BY created_at DESC`
+	query := `SELECT c.consumer_id, e.entity_name, e.contact_email, e.phone_number, c.created_at, c.updated_at 
+			  FROM consumers c 
+			  JOIN entities e ON c.entity_id = e.entity_id 
+			  ORDER BY c.created_at DESC`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -197,15 +229,18 @@ func (s *ConsumerService) UpdateConsumer(id string, req models.UpdateConsumerReq
 
 	consumer.UpdatedAt = time.Now()
 
-	query := `UPDATE consumers SET consumer_name = $1, contact_email = $2, phone_number = $3, updated_at = $4 
-			  WHERE consumer_id = $5`
+	// Update the entity record instead of consumer record
+	query := `UPDATE entities SET entity_name = $1, contact_email = $2, phone_number = $3, updated_at = $4 
+			  WHERE entity_id = (SELECT entity_id FROM consumers WHERE consumer_id = $5)`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	slog.Debug("Executing entity update", "consumerId", id, "query", query)
 	_, err = s.db.ExecContext(ctx, query, consumer.ConsumerName, consumer.ContactEmail, consumer.PhoneNumber, consumer.UpdatedAt, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update consumer: %w", err)
+		slog.Error("Failed to update entity", "error", err, "consumerId", id, "query", query)
+		return nil, errors.HandleDatabaseError(err, "update consumer entity")
 	}
 
 	slog.Info("Updated consumer", "consumerId", id)
@@ -285,9 +320,11 @@ func (s *ConsumerService) CreateConsumerApp(req models.CreateConsumerAppRequest)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	slog.Debug("Executing consumer app insert", "submissionId", application.SubmissionID, "consumerId", application.ConsumerID)
 	_, err = s.db.ExecContext(ctx, query, application.SubmissionID, application.ConsumerID, application.Status, string(requiredFieldsJSON), application.CreatedAt, application.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create consumer application: %w", err)
+		slog.Error("Failed to insert consumer app", "error", err, "submissionId", application.SubmissionID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "create consumer application")
 	}
 
 	slog.Info("Created new consumer application", "submissionId", submissionID, "consumerId", req.ConsumerID)
@@ -385,9 +422,11 @@ func (s *ConsumerService) UpdateConsumerApp(id string, req models.UpdateConsumer
 		credentialsJSON.Valid = true
 	}
 
+	slog.Debug("Executing consumer app update", "submissionId", id, "query", query)
 	_, err = s.db.Exec(query, application.Status, application.RequiredFields, credentialsJSON, application.UpdatedAt, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update consumer application: %w", err)
+		slog.Error("Failed to update consumer app", "error", err, "submissionId", id, "query", query)
+		return nil, errors.HandleDatabaseError(err, "update consumer application")
 	}
 
 	slog.Info("Updated consumer application", "submissionId", id, "status", application.Status)
@@ -519,6 +558,15 @@ func (s *ConsumerService) generateConsumerID() (string, error) {
 		return "", fmt.Errorf("failed to generate UUID: %w", err)
 	}
 	return "consumer_" + id.String(), nil
+}
+
+// generateEntityID generates a unique entity ID
+func (s *ConsumerService) generateEntityID() (string, error) {
+	id, err := uuid.NewUUID()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate UUID: %w", err)
+	}
+	return "entity_" + id.String(), nil
 }
 
 // generateSubmissionID generates a unique submission ID

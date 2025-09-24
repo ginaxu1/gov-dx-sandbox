@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -129,10 +130,30 @@ func main() {
 			}
 		}
 
+		// Check actual table structure
+		var tableStructure string
+		if tableExists {
+			structureQuery := `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'consumers' ORDER BY ordinal_position`
+			rows, err := db.QueryContext(ctx, structureQuery)
+			if err != nil {
+				tableStructure = fmt.Sprintf("Failed to get table structure: %v", err)
+			} else {
+				defer rows.Close()
+				var columns []string
+				for rows.Next() {
+					var colName, dataType string
+					if err := rows.Scan(&colName, &dataType); err == nil {
+						columns = append(columns, fmt.Sprintf("%s (%s)", colName, dataType))
+					}
+				}
+				tableStructure = fmt.Sprintf("Columns: %s", strings.Join(columns, ", "))
+			}
+		}
+
 		// Test the actual SELECT query that's failing
 		var testQueryError string
 		if tableExists {
-			testQuery := `SELECT consumer_id, consumer_name, contact_email, phone_number, created_at, updated_at FROM consumers ORDER BY created_at DESC`
+			testQuery := `SELECT c.consumer_id, e.entity_name, e.contact_email, e.phone_number, c.created_at, c.updated_at FROM consumers c JOIN entities e ON c.entity_id = e.entity_id ORDER BY c.created_at DESC`
 			rows, err := db.QueryContext(ctx, testQuery)
 			if err != nil {
 				testQueryError = fmt.Sprintf("SELECT query failed: %v", err)
@@ -146,6 +167,7 @@ func main() {
 			"database_connected":     true,
 			"consumers_table_exists": tableExists,
 			"consumers_count":        count,
+			"table_structure":        tableStructure,
 			"select_query_test":      testQueryError,
 		})
 	})))

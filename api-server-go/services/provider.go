@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/api-server-go/models"
+	"github.com/gov-dx-sandbox/api-server-go/pkg/errors"
 )
 
 type ProviderService struct {
@@ -162,9 +163,11 @@ func (s *ProviderService) CreateProviderSubmission(req models.CreateProviderSubm
 	query = `INSERT INTO provider_submissions (submission_id, provider_name, contact_email, phone_number, provider_type, status, created_at, updated_at) 
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
+	slog.Debug("Executing provider submission insert", "submissionId", submission.SubmissionID)
 	_, err = s.db.Exec(query, submission.SubmissionID, submission.ProviderName, submission.ContactEmail, submission.PhoneNumber, submission.ProviderType, submission.Status, submission.CreatedAt, submission.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create provider submission: %w", err)
+		slog.Error("Failed to insert provider submission", "error", err, "submissionId", submission.SubmissionID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "create provider submission")
 	}
 
 	slog.Info("Created new provider submission", "submissionId", submissionID)
@@ -216,9 +219,11 @@ func (s *ProviderService) UpdateProviderSubmission(id string, req models.UpdateP
 
 		// Update the submission
 		query := `UPDATE provider_submissions SET status = $1, updated_at = $2 WHERE submission_id = $3`
+		slog.Debug("Executing provider submission update", "submissionId", id, "query", query)
 		_, err = s.db.Exec(query, submission.Status, submission.UpdatedAt, id)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update provider submission: %w", err)
+			slog.Error("Failed to update provider submission", "error", err, "submissionId", id, "query", query)
+			return nil, errors.HandleDatabaseError(err, "update provider submission")
 		}
 	}
 
@@ -345,9 +350,11 @@ func (s *ProviderService) CreateProviderSchema(req models.CreateProviderSchemaRe
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
+	slog.Debug("Executing provider schema insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID)
 	_, err = s.db.Exec(query, *schema.SchemaID, schema.ProviderID, schema.Status, string(schemaInputJSON), string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create provider schema: %w", err)
+		slog.Error("Failed to insert provider schema", "error", err, "schemaId", *schema.SchemaID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "create provider schema")
 	}
 
 	slog.Info("Created new provider schema", "submissionId", schemaID)
@@ -388,9 +395,11 @@ func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
+	slog.Debug("Executing provider schema SDL insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID)
 	_, err = s.db.Exec(query, *schema.SchemaID, schema.ProviderID, schema.Status, schema.SDL, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create provider schema from SDL: %w", err)
+		slog.Error("Failed to insert provider schema from SDL", "error", err, "schemaId", *schema.SchemaID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "create provider schema from SDL")
 	}
 
 	slog.Info("Created new provider schema from SDL", "submissionId", schemaID, "providerId", providerID)
@@ -448,9 +457,11 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
+	slog.Debug("Executing provider schema JSON insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID)
 	_, err = s.db.Exec(query, *schema.SchemaID, schema.ProviderID, schema.Status, schema.SDL, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create schema submission: %w", err)
+		slog.Error("Failed to insert provider schema from JSON", "error", err, "schemaId", *schema.SchemaID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "create schema submission")
 	}
 
 	slog.Info("Created schema submission", "submissionId", schemaID, "providerId", providerID)
@@ -461,9 +472,11 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 func (s *ProviderService) SubmitSchemaForReview(schemaID string) (*models.ProviderSchema, error) {
 	query := `UPDATE provider_schemas SET status = $1, updated_at = $2 WHERE submission_id = $3 AND status = $4`
 
+	slog.Debug("Executing schema review submission", "schemaId", schemaID, "query", query)
 	result, err := s.db.Exec(query, models.SchemaStatusPending, time.Now(), schemaID, models.SchemaStatusDraft)
 	if err != nil {
-		return nil, fmt.Errorf("failed to submit schema for review: %w", err)
+		slog.Error("Failed to submit schema for review", "error", err, "schemaId", schemaID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "submit schema for review")
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -663,9 +676,11 @@ func (s *ProviderService) UpdateProviderSchema(id string, req models.UpdateProvi
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
+	slog.Debug("Executing provider schema update", "submissionId", id, "query", query)
 	_, err = s.db.Exec(query, schema.Status, *schema.SchemaID, string(fieldConfigsJSON), schema.UpdatedAt, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update provider schema: %w", err)
+		slog.Error("Failed to update provider schema", "error", err, "submissionId", id, "query", query)
+		return nil, errors.HandleDatabaseError(err, "update provider schema")
 	}
 
 	slog.Info("Updated provider schema", "submissionId", id, "status", schema.Status, "schemaId", *schema.SchemaID)
@@ -718,9 +733,11 @@ func (s *ProviderService) createProviderProfile(submission *models.ProviderSubmi
 	query := `INSERT INTO provider_profiles (provider_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
+	slog.Debug("Executing provider profile insert", "providerId", profile.ProviderID)
 	_, err = s.db.Exec(query, profile.ProviderID, profile.ProviderName, profile.ContactEmail, profile.PhoneNumber, profile.ProviderType, profile.ApprovedAt, profile.CreatedAt, profile.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create provider profile: %w", err)
+		slog.Error("Failed to insert provider profile", "error", err, "providerId", profile.ProviderID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "create provider profile")
 	}
 
 	return profile, nil
@@ -748,9 +765,11 @@ func (s *ProviderService) CreateProviderProfileForTesting(providerName, contactE
 	query := `INSERT INTO provider_profiles (provider_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
+	slog.Debug("Executing provider profile insert", "providerId", profile.ProviderID)
 	_, err = s.db.Exec(query, profile.ProviderID, profile.ProviderName, profile.ContactEmail, profile.PhoneNumber, profile.ProviderType, profile.ApprovedAt, profile.CreatedAt, profile.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create provider profile: %w", err)
+		slog.Error("Failed to insert provider profile", "error", err, "providerId", profile.ProviderID, "query", query)
+		return nil, errors.HandleDatabaseError(err, "create provider profile")
 	}
 
 	return profile, nil
