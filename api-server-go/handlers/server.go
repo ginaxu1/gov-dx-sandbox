@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -89,7 +90,9 @@ func (s *APIServer) handleCollection(w http.ResponseWriter, r *http.Request, get
 	case http.MethodGet:
 		items, err := getter()
 		if err != nil {
-			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve items")
+			// Log the actual error for debugging
+			slog.Error("Failed to retrieve items", "error", err, "path", r.URL.Path)
+			utils.RespondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to retrieve items: %v", err))
 			return
 		}
 		utils.RespondWithSuccess(w, http.StatusOK, items)

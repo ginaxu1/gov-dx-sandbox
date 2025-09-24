@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -79,6 +80,60 @@ func main() {
 	// Debug endpoint
 	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusOK, map[string]string{"path": r.URL.Path, "method": r.Method})
+	})))
+
+	// Database debug endpoint
+	mux.Handle("/debug/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if db == nil {
+			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"error": "database connection is nil",
+			})
+			return
+		}
+
+		// Test database connection
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := db.PingContext(ctx); err != nil {
+			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"error": fmt.Sprintf("database ping failed: %v", err),
+			})
+			return
+		}
+
+		// Check if consumers table exists
+		var tableExists bool
+		checkTableQuery := `SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'consumers'
+		)`
+
+		if err := db.QueryRowContext(ctx, checkTableQuery).Scan(&tableExists); err != nil {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("failed to check table existence: %v", err),
+			})
+			return
+		}
+
+		// Get table count if it exists
+		var count int
+		if tableExists {
+			countQuery := `SELECT COUNT(*) FROM consumers`
+			if err := db.QueryRowContext(ctx, countQuery).Scan(&count); err != nil {
+				utils.RespondWithJSON(w, http.StatusInternalServerError, map[string]string{
+					"error": fmt.Sprintf("failed to count consumers: %v", err),
+				})
+				return
+			}
+		}
+
+		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+			"database_connected":     true,
+			"consumers_table_exists": tableExists,
+			"consumers_count":        count,
+		})
 	})))
 
 	// Start server

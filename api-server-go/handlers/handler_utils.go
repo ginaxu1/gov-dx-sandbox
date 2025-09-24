@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -133,7 +134,9 @@ func ListHandler(w http.ResponseWriter, r *http.Request, serviceMethod ServiceMe
 
 	result, err := serviceMethod(nil)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve items")
+		// Log the actual error for debugging
+		slog.Error("Failed to retrieve items in ListHandler", "error", err, "path", r.URL.Path)
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to retrieve items: %v", err))
 		return
 	}
 
