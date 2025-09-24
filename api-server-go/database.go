@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -14,23 +13,20 @@ import (
 
 // DatabaseConfig holds database connection configuration
 type DatabaseConfig struct {
-	Host                string
-	Port                string
-	Username            string
-	Password            string
-	Database            string
-	SSLMode             string
-	MaxOpenConns        int           // Maximum number of open connections
-	MaxIdleConns        int           // Maximum number of idle connections
-	ConnMaxLifetime     time.Duration // Maximum lifetime of a connection
-	ConnMaxIdleTime     time.Duration // Maximum idle time of a connection
-	QueryTimeout        time.Duration // Timeout for individual queries
-	ConnectTimeout      time.Duration // Timeout for initial connection
-	RetryAttempts       int           // Number of retry attempts for connection
-	RetryDelay          time.Duration // Delay between retry attempts
-	TransactionTimeout  time.Duration // Timeout for transactions
-	EnableMonitoring    bool          // Enable connection pool monitoring
-	HealthCheckInterval time.Duration // Interval for health checks
+	Host            string
+	Port            string
+	Username        string
+	Password        string
+	Database        string
+	SSLMode         string
+	MaxOpenConns    int           // Maximum number of open connections
+	MaxIdleConns    int           // Maximum number of idle connections
+	ConnMaxLifetime time.Duration // Maximum lifetime of a connection
+	ConnMaxIdleTime time.Duration // Maximum idle time of a connection
+	QueryTimeout    time.Duration // Timeout for individual queries
+	ConnectTimeout  time.Duration // Timeout for initial connection
+	RetryAttempts   int           // Number of retry attempts for connection
+	RetryDelay      time.Duration // Delay between retry attempts
 }
 
 // NewDatabaseConfig creates a new database configuration from environment variables
@@ -44,36 +40,30 @@ func NewDatabaseConfig() *DatabaseConfig {
 	connectTimeout := parseDurationOrDefault("DB_CONNECT_TIMEOUT", "10s")
 	retryAttempts := parseIntOrDefault("DB_RETRY_ATTEMPTS", 3)
 	retryDelay := parseDurationOrDefault("DB_RETRY_DELAY", "1s")
-	transactionTimeout := parseDurationOrDefault("DB_TRANSACTION_TIMEOUT", "60s")
-	healthCheckInterval := parseDurationOrDefault("DB_HEALTH_CHECK_INTERVAL", "30s")
-	enableMonitoring := getEnvOrDefault("DB_ENABLE_MONITORING", "true") == "true"
 
 	return &DatabaseConfig{
-		Host:                getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_HOST", getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost")),
-		Port:                getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_PORT", getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432")),
-		Username:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_USERNAME", getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres")),
-		Password:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_PASSWORD", getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password")),
-		Database:            getEnvOrDefault("CHOREO_CONNECTION_OPEN_DIF_DB_DATABASE", getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "api_server")),
-		SSLMode:             getEnvOrDefault("DB_SSLMODE", "require"),
-		MaxOpenConns:        maxOpenConns,
-		MaxIdleConns:        maxIdleConns,
-		ConnMaxLifetime:     connMaxLifetime,
-		ConnMaxIdleTime:     connMaxIdleTime,
-		QueryTimeout:        queryTimeout,
-		ConnectTimeout:      connectTimeout,
-		RetryAttempts:       retryAttempts,
-		RetryDelay:          retryDelay,
-		TransactionTimeout:  transactionTimeout,
-		EnableMonitoring:    enableMonitoring,
-		HealthCheckInterval: healthCheckInterval,
+		Host:            getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost"),
+		Port:            getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432"),
+		Username:        getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres"),
+		Password:        getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password"),
+		Database:        getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "api_server"),
+		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
+		MaxOpenConns:    maxOpenConns,
+		MaxIdleConns:    maxIdleConns,
+		ConnMaxLifetime: connMaxLifetime,
+		ConnMaxIdleTime: connMaxIdleTime,
+		QueryTimeout:    queryTimeout,
+		ConnectTimeout:  connectTimeout,
+		RetryAttempts:   retryAttempts,
+		RetryDelay:      retryDelay,
 	}
 }
 
 // parseIntOrDefault parses an integer from environment variable or returns default
 func parseIntOrDefault(key string, defaultValue int) int {
 	if value := getEnvOrDefault(key, ""); value != "" {
-		if parsed, err := strconv.Atoi(value); err == nil {
-			return parsed
+		if parsed, err := fmt.Sscanf(value, "%d", &defaultValue); err == nil && parsed == 1 {
+			return defaultValue
 		}
 	}
 	return defaultValue
@@ -90,7 +80,8 @@ func parseDurationOrDefault(key, defaultValue string) time.Duration {
 	if parsed, err := time.ParseDuration(defaultValue); err == nil {
 		return parsed
 	}
-	return time.Hour // Ultimate fallback
+	// Ultimate fallback
+	return time.Hour
 }
 
 // getEnvOrDefault gets environment variable or returns default value
@@ -101,13 +92,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// ConnectDB establishes a connection to the PostgreSQL database
+// ConnectDB establishes a connection to the PostgreSQL database with retry logic
 func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
-	// Build connection string
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
-
-	slog.Info("Connecting to PostgreSQL database", "host", config.Host, "port", config.Port, "database", config.Database)
+	// Build connection string with timeout
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s connect_timeout=%d",
+		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode, int(config.ConnectTimeout.Seconds()))
 
 	var db *sql.DB
 	var err error
@@ -133,14 +122,6 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 		db.SetConnMaxLifetime(config.ConnMaxLifetime)
 		db.SetConnMaxIdleTime(config.ConnMaxIdleTime)
 
-		// Log connection pool configuration for cloud databases
-		slog.Info("Database connection pool configured for cloud database",
-			"max_open_conns", config.MaxOpenConns,
-			"max_idle_conns", config.MaxIdleConns,
-			"conn_max_lifetime", config.ConnMaxLifetime,
-			"conn_max_idle_time", config.ConnMaxIdleTime,
-			"host", config.Host)
-
 		// Test connection with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
 		err = db.PingContext(ctx)
@@ -160,11 +141,7 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 		slog.Info("Successfully connected to PostgreSQL database",
 			"host", config.Host,
 			"port", config.Port,
-			"database", config.Database,
-			"max_open_conns", config.MaxOpenConns,
-			"max_idle_conns", config.MaxIdleConns,
-			"conn_max_lifetime", config.ConnMaxLifetime,
-			"conn_max_idle_time", config.ConnMaxIdleTime)
+			"database", config.Database)
 
 		return db, nil
 	}
@@ -333,310 +310,4 @@ func GracefulShutdown(db *sql.DB) error {
 
 	slog.Info("Database connection closed successfully")
 	return nil
-}
-
-// ConnectionPoolStats represents database connection pool statistics
-type ConnectionPoolStats struct {
-	OpenConnections int           `json:"open_connections"`
-	InUse           int           `json:"in_use"`
-	Idle            int           `json:"idle"`
-	WaitCount       int64         `json:"wait_count"`
-	WaitDuration    time.Duration `json:"wait_duration"`
-	MaxOpenConns    int           `json:"max_open_conns"`
-	MaxIdleConns    int           `json:"max_idle_conns"`
-	ConnMaxLifetime time.Duration `json:"conn_max_lifetime"`
-	ConnMaxIdleTime time.Duration `json:"conn_max_idle_time"`
-}
-
-// GetConnectionPoolStats returns current database connection pool statistics
-func GetConnectionPoolStats(db *sql.DB) *ConnectionPoolStats {
-	stats := db.Stats()
-	return &ConnectionPoolStats{
-		OpenConnections: stats.OpenConnections,
-		InUse:           stats.InUse,
-		Idle:            stats.Idle,
-		WaitCount:       stats.WaitCount,
-		WaitDuration:    stats.WaitDuration,
-		// Note: MaxOpenConns, MaxIdleConns, ConnMaxLifetime, ConnMaxIdleTime are configuration values,
-		// not available in sql.DBStats. These would need to be stored separately if needed.
-		MaxOpenConns:    0, // Not available in stats
-		MaxIdleConns:    0, // Not available in stats
-		ConnMaxLifetime: 0, // Not available in stats
-		ConnMaxIdleTime: 0, // Not available in stats
-	}
-}
-
-// LogConnectionPoolStats logs current connection pool statistics
-func LogConnectionPoolStats(db *sql.DB) {
-	stats := GetConnectionPoolStats(db)
-	slog.Info("Database connection pool statistics",
-		"open_connections", stats.OpenConnections,
-		"in_use", stats.InUse,
-		"idle", stats.Idle,
-		"wait_count", stats.WaitCount,
-		"wait_duration", stats.WaitDuration,
-		"max_open_conns", stats.MaxOpenConns,
-		"max_idle_conns", stats.MaxIdleConns,
-		"conn_max_lifetime", stats.ConnMaxLifetime,
-		"conn_max_idle_time", stats.ConnMaxIdleTime)
-}
-
-// HealthCheck performs a comprehensive database health check optimized for cloud databases
-func HealthCheck(db *sql.DB) error {
-	if db == nil {
-		return fmt.Errorf("database connection is nil")
-	}
-
-	// Check if database is reachable with shorter timeout for cloud databases
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	start := time.Now()
-	if err := db.PingContext(ctx); err != nil {
-		duration := time.Since(start)
-		slog.Error("Database ping failed", "error", err, "duration", duration)
-		return fmt.Errorf("database ping failed after %v: %w", duration, err)
-	}
-	duration := time.Since(start)
-
-	// Check connection pool health
-	stats := GetConnectionPoolStats(db)
-
-	// Calculate utilization percentage
-	utilization := float64(stats.InUse) / float64(stats.MaxOpenConns) * 100
-
-	// More aggressive warnings for cloud databases
-	if utilization > 70 {
-		slog.Warn("Database connection pool utilization is high (cloud database)",
-			"utilization_percent", utilization,
-			"in_use", stats.InUse,
-			"max_open_conns", stats.MaxOpenConns,
-			"ping_duration", duration)
-	}
-
-	// Critical warning if approaching limits
-	if utilization > 90 {
-		slog.Error("Database connection pool utilization is critical (cloud database)",
-			"utilization_percent", utilization,
-			"in_use", stats.InUse,
-			"max_open_conns", stats.MaxOpenConns)
-	}
-
-	// Warn if there are waiters (indicates connection pool exhaustion)
-	if stats.WaitCount > 0 {
-		slog.Warn("Database connection pool has waiters (potential connection limit reached)",
-			"wait_count", stats.WaitCount,
-			"wait_duration", stats.WaitDuration,
-			"utilization_percent", utilization)
-	}
-
-	// Log slow ping times (common with cloud databases)
-	if duration > 1*time.Second {
-		slog.Warn("Database ping is slow (cloud database latency)",
-			"ping_duration", duration,
-			"utilization_percent", utilization)
-	}
-
-	slog.Debug("Database health check passed",
-		"open_connections", stats.OpenConnections,
-		"in_use", stats.InUse,
-		"idle", stats.Idle,
-		"utilization_percent", utilization,
-		"ping_duration", duration)
-
-	return nil
-}
-
-// ExecuteWithTimeout executes a query with timeout using the provided context
-func ExecuteWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) (sql.Result, error) {
-	// Create a context with timeout
-	timeoutCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
-	defer cancel()
-
-	return db.ExecContext(timeoutCtx, query, args...)
-}
-
-// QueryWithTimeout executes a query with timeout using the provided context
-func QueryWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) (*sql.Rows, error) {
-	// Create a context with timeout
-	timeoutCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
-	defer cancel()
-
-	return db.QueryContext(timeoutCtx, query, args...)
-}
-
-// QueryRowWithTimeout executes a query with timeout using the provided context
-func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) *sql.Row {
-	// Create a context with timeout
-	timeoutCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
-	defer cancel()
-
-	return db.QueryRowContext(timeoutCtx, query, args...)
-}
-
-// Transaction represents a database transaction with timeout support
-type Transaction struct {
-	tx     *sql.Tx
-	config *DatabaseConfig
-	db     *sql.DB
-}
-
-// BeginTransaction starts a new database transaction with timeout
-func BeginTransaction(db *sql.DB, config *DatabaseConfig) (*Transaction, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), config.TransactionTimeout)
-	defer cancel()
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-
-	return &Transaction{
-		tx:     tx,
-		config: config,
-		db:     db,
-	}, nil
-}
-
-// BeginTransactionWithIsolation starts a new database transaction with specific isolation level
-func BeginTransactionWithIsolation(db *sql.DB, config *DatabaseConfig, isolation sql.IsolationLevel) (*Transaction, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), config.TransactionTimeout)
-	defer cancel()
-
-	opts := &sql.TxOptions{
-		Isolation: isolation,
-		ReadOnly:  false,
-	}
-
-	tx, err := db.BeginTx(ctx, opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction with isolation level %d: %w", isolation, err)
-	}
-
-	return &Transaction{
-		tx:     tx,
-		config: config,
-		db:     db,
-	}, nil
-}
-
-// Commit commits the transaction
-func (t *Transaction) Commit() error {
-	slog.Debug("Committing database transaction")
-	if err := t.tx.Commit(); err != nil {
-		slog.Error("Failed to commit transaction", "error", err)
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-	slog.Debug("Transaction committed successfully")
-	return nil
-}
-
-// Rollback rolls back the transaction
-func (t *Transaction) Rollback() error {
-	slog.Debug("Rolling back database transaction")
-	if err := t.tx.Rollback(); err != nil {
-		slog.Error("Failed to rollback transaction", "error", err)
-		return fmt.Errorf("failed to rollback transaction: %w", err)
-	}
-	slog.Debug("Transaction rolled back successfully")
-	return nil
-}
-
-// Query executes a query that returns rows within the transaction
-func (t *Transaction) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), t.config.QueryTimeout)
-	defer cancel()
-
-	slog.Debug("Querying in transaction", "query", query)
-	rows, err := t.tx.QueryContext(ctx, query, args...)
-	if err != nil {
-		slog.Error("Failed to query in transaction", "error", err, "query", query)
-		return nil, fmt.Errorf("failed to query in transaction: %w", err)
-	}
-	return rows, nil
-}
-
-// QueryRow executes a query that returns a single row within the transaction
-func (t *Transaction) QueryRow(query string, args ...interface{}) *sql.Row {
-	ctx, cancel := context.WithTimeout(context.Background(), t.config.QueryTimeout)
-	defer cancel()
-
-	slog.Debug("Querying single row in transaction", "query", query)
-	return t.tx.QueryRowContext(ctx, query, args...)
-}
-
-// WithTransaction executes a function within a transaction
-func WithTransaction(db *sql.DB, config *DatabaseConfig, fn func(*Transaction) error) error {
-	tx, err := BeginTransaction(db, config)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-
-	defer func() {
-		if p := recover(); p != nil {
-			// Rollback on panic
-			if rollbackErr := tx.Rollback(); rollbackErr != nil {
-				slog.Error("Failed to rollback transaction after panic", "error", rollbackErr)
-			}
-			panic(p) // Re-throw the panic
-		}
-	}()
-
-	if err := fn(tx); err != nil {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			slog.Error("Failed to rollback transaction", "error", rollbackErr)
-			return fmt.Errorf("transaction failed and rollback failed: %w (rollback error: %v)", err, rollbackErr)
-		}
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
-}
-
-// Exec executes a query within the transaction
-func (t *Transaction) Exec(query string, args ...interface{}) (sql.Result, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), t.config.QueryTimeout)
-	defer cancel()
-
-	return t.tx.ExecContext(ctx, query, args...)
-}
-
-// GetDatabaseStats returns current database connection pool statistics
-func GetDatabaseStats(db *sql.DB) *DatabaseStats {
-	stats := db.Stats()
-	return &DatabaseStats{
-		OpenConnections:   stats.OpenConnections,
-		InUse:             stats.InUse,
-		Idle:              stats.Idle,
-		WaitCount:         stats.WaitCount,
-		WaitDuration:      stats.WaitDuration,
-		MaxIdleClosed:     stats.MaxIdleClosed,
-		MaxIdleTimeClosed: stats.MaxIdleTimeClosed,
-		MaxLifetimeClosed: stats.MaxLifetimeClosed,
-		LastChecked:       time.Now(),
-	}
-}
-
-// StartHealthCheckMonitor starts a background health check monitor
-func StartHealthCheckMonitor(db *sql.DB, config *DatabaseConfig) {
-	if !config.EnableMonitoring {
-		return
-	}
-
-	go func() {
-		ticker := time.NewTicker(config.HealthCheckInterval)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			if err := HealthCheck(db); err != nil {
-				slog.Error("Database health check failed", "error", err)
-			} else {
-				slog.Debug("Database health check passed")
-			}
-		}
-	}()
 }

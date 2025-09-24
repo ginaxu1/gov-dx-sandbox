@@ -45,46 +45,34 @@ func main() {
 	mux := http.NewServeMux()
 	apiServer.SetupRoutes(mux)
 
-	// Consolidated health check endpoint
+	// Health check endpoint (matching consent-engine approach)
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Perform database health check
-		if err := HealthCheck(db); err != nil {
-			duration := time.Since(start)
-			slog.Error("Health check failed", "error", err, "duration", duration)
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
-				"status":    "unhealthy",
-				"service":   "api-server",
-				"database":  "unavailable",
-				"error":     err.Error(),
-				"duration":  duration.String(),
-				"timestamp": time.Now().Unix(),
+		// Simple health check - just verify database connection
+		if db == nil {
+			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"status":  "unhealthy",
+				"service": "api-server",
+				"error":   "database connection is nil",
 			})
 			return
 		}
 
-		// Get connection pool stats
-		poolStats := GetConnectionPoolStats(db)
-		utilization := float64(poolStats.InUse) / float64(poolStats.MaxOpenConns) * 100
-		duration := time.Since(start)
+		// Test database connection
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-		// Determine overall status based on utilization
-		status := "healthy"
-		if utilization > 90 {
-			status = "critical"
-		} else if utilization > 70 {
-			status = "warning"
+		if err := db.PingContext(ctx); err != nil {
+			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"status":  "unhealthy",
+				"service": "api-server",
+				"error":   err.Error(),
+			})
+			return
 		}
 
-		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"status":              status,
-			"service":             "api-server",
-			"database":            "available",
-			"connection_pool":     poolStats,
-			"utilization_percent": utilization,
-			"duration":            duration.String(),
-			"timestamp":           time.Now().Unix(),
+		utils.RespondWithJSON(w, http.StatusOK, map[string]string{
+			"status":  "healthy",
+			"service": "api-server",
 		})
 	})))
 
@@ -107,16 +95,6 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-
-	// Start periodic connection pool monitoring
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute) // Log every 5 minutes
-		defer ticker.Stop()
-
-		for range ticker.C {
-			LogConnectionPoolStats(db)
-		}
-	}()
 
 	// Start server in a goroutine
 	go func() {
