@@ -129,10 +129,24 @@ func main() {
 			}
 		}
 
+		// Test the actual SELECT query that's failing
+		var testQueryError string
+		if tableExists {
+			testQuery := `SELECT consumer_id, consumer_name, contact_email, phone_number, created_at, updated_at FROM consumers ORDER BY created_at DESC`
+			rows, err := db.QueryContext(ctx, testQuery)
+			if err != nil {
+				testQueryError = fmt.Sprintf("SELECT query failed: %v", err)
+			} else {
+				rows.Close()
+				testQueryError = "SELECT query succeeded"
+			}
+		}
+
 		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 			"database_connected":     true,
 			"consumers_table_exists": tableExists,
 			"consumers_count":        count,
+			"select_query_test":      testQueryError,
 		})
 	})))
 

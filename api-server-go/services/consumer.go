@@ -142,7 +142,7 @@ func (s *ConsumerService) GetAllConsumers() ([]*models.Consumer, error) {
 	start := time.Now()
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
-		slog.Error("Database query failed", "error", err, "query", "SELECT FROM consumers", "duration", time.Since(start))
+		slog.Error("Database query failed", "error", err, "query", query, "duration", time.Since(start))
 		return nil, errors.HandleDatabaseError(err, "get all consumers")
 	}
 	defer rows.Close()
