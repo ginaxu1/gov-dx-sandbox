@@ -22,6 +22,24 @@ endpoints:
     # The path should be relative to the docker context.
     schemaFilePath: openapi.yaml
 
+  - name: consent-portal
+    displayName: Consent Portal
+    # +required Service section has the user service endpoint details
+    service:
+      # Base path for the REST API endpoint
+      basePath: /consent-portal
+      port: 8081
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: REST
+    # Network visibility: Public for external API access
+    networkVisibilities:
+      - Public
+    # +optional Path to the schema definition file. Defaults to wild card route if not provided
+    # This is only applicable to REST or WS endpoint types.
+    # The path should be relative to the docker context.
+    schemaFilePath: openapi.yaml
+    
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
