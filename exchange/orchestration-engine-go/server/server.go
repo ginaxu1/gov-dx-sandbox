@@ -48,6 +48,7 @@ func RunServer(f *federator.Federator) {
 
 		if err != nil {
 			logger.Log.Error("Failed to write SDL response", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 	})
