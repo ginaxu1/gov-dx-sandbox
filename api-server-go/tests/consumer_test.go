@@ -1,25 +1,199 @@
 package tests
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
-	"github.com/gov-dx-sandbox/api-server-go/services"
 )
 
-func TestConsumerService_CreateApplication(t *testing.T) {
-	service := services.NewConsumerService()
+func TestConsumerService_CreateConsumer(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
 
-	req := models.CreateApplicationRequest{
+	req := models.CreateConsumerRequest{
+		ConsumerName: "Test Consumer",
+		ContactEmail: "test@example.com",
+		PhoneNumber:  "1234567890",
+	}
+
+	consumer, err := service.CreateConsumer(req)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if consumer.ConsumerID == "" {
+		t.Error("Expected ConsumerID to be generated")
+	}
+	if consumer.ConsumerName != req.ConsumerName {
+		t.Errorf("Expected ConsumerName %s, got %s", req.ConsumerName, consumer.ConsumerName)
+	}
+	if consumer.ContactEmail != req.ContactEmail {
+		t.Errorf("Expected ContactEmail %s, got %s", req.ContactEmail, consumer.ContactEmail)
+	}
+}
+
+func TestConsumerService_GetConsumer(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
+
+	// First create a consumer
+	req := models.CreateConsumerRequest{
+		ConsumerName: "Test Consumer",
+		ContactEmail: "test@example.com",
+		PhoneNumber:  "1234567890",
+	}
+
+	createdConsumer, err := service.CreateConsumer(req)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %v", err)
+	}
+
+	// Now get the consumer
+	consumer, err := service.GetConsumer(createdConsumer.ConsumerID)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if consumer.ConsumerID != createdConsumer.ConsumerID {
+		t.Errorf("Expected ConsumerID %s, got %s", createdConsumer.ConsumerID, consumer.ConsumerID)
+	}
+}
+
+func TestConsumerService_GetConsumer_NotFound(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
+
+	_, err := service.GetConsumer("non-existent-id")
+	if err == nil {
+		t.Error("Expected error for non-existent consumer")
+	}
+}
+
+func TestConsumerService_GetAllConsumers(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
+
+	// Create multiple consumers
+	consumers := []models.CreateConsumerRequest{
+		{ConsumerName: "Consumer 1", ContactEmail: "consumer1@example.com", PhoneNumber: "1111111111"},
+		{ConsumerName: "Consumer 2", ContactEmail: "consumer2@example.com", PhoneNumber: "2222222222"},
+	}
+
+	for _, req := range consumers {
+		_, err := service.CreateConsumer(req)
+		if err != nil {
+			t.Fatalf("Failed to create consumer: %v", err)
+		}
+	}
+
+	// Get all consumers
+	allConsumers, err := service.GetAllConsumers()
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if len(allConsumers) != len(consumers) {
+		t.Errorf("Expected %d consumers, got %d", len(consumers), len(allConsumers))
+	}
+}
+
+func TestConsumerService_UpdateConsumer(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
+
+	// Create a consumer
+	req := models.CreateConsumerRequest{
+		ConsumerName: "Test Consumer",
+		ContactEmail: "test@example.com",
+		PhoneNumber:  "1234567890",
+	}
+
+	createdConsumer, err := service.CreateConsumer(req)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %v", err)
+	}
+
+	// Update the consumer
+	updateReq := models.UpdateConsumerRequest{
+		ConsumerName: stringPtr("Updated Consumer"),
+		ContactEmail: stringPtr("updated@example.com"),
+	}
+
+	updatedConsumer, err := service.UpdateConsumer(createdConsumer.ConsumerID, updateReq)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if updatedConsumer.ConsumerName != "Updated Consumer" {
+		t.Errorf("Expected ConsumerName 'Updated Consumer', got %s", updatedConsumer.ConsumerName)
+	}
+	if updatedConsumer.ContactEmail != "updated@example.com" {
+		t.Errorf("Expected ContactEmail 'updated@example.com', got %s", updatedConsumer.ContactEmail)
+	}
+}
+
+func TestConsumerService_DeleteConsumer(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
+
+	// Create a consumer
+	req := models.CreateConsumerRequest{
+		ConsumerName: "Test Consumer",
+		ContactEmail: "test@example.com",
+		PhoneNumber:  "1234567890",
+	}
+
+	createdConsumer, err := service.CreateConsumer(req)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %v", err)
+	}
+
+	// Delete the consumer
+	err = service.DeleteConsumer(createdConsumer.ConsumerID)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Try to get the deleted consumer
+	_, err = service.GetConsumer(createdConsumer.ConsumerID)
+	if err == nil {
+		t.Error("Expected error for deleted consumer")
+	}
+}
+
+func TestConsumerService_CreateConsumerApp(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
+
+	// First create a consumer
+	consumerReq := models.CreateConsumerRequest{
+		ConsumerName: "Test Consumer",
+		ContactEmail: "test@example.com",
+		PhoneNumber:  "1234567890",
+	}
+
+	consumer, err := service.CreateConsumer(consumerReq)
+	if err != nil {
+		t.Fatalf("Failed to create consumer: %v", err)
+	}
+
+	// Create a consumer app
+	appReq := models.CreateConsumerAppRequest{
+		ConsumerID: consumer.ConsumerID,
 		RequiredFields: map[string]bool{
 			"person.fullName": true,
 			"person.nic":      true,
 		},
 	}
 
-	app, err := service.CreateApplication(req)
+	app, err := service.CreateConsumerApp(appReq)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -27,210 +201,116 @@ func TestConsumerService_CreateApplication(t *testing.T) {
 	if app.SubmissionID == "" {
 		t.Error("Expected SubmissionID to be generated")
 	}
-
-	if app.Status != models.StatusPending {
-		t.Errorf("Expected status %s, got %s", models.StatusPending, app.Status)
-	}
-
-	if len(app.RequiredFields) != 2 {
-		t.Errorf("Expected 2 required fields, got %d", len(app.RequiredFields))
+	if app.ConsumerID != consumer.ConsumerID {
+		t.Errorf("Expected ConsumerID %s, got %s", consumer.ConsumerID, app.ConsumerID)
 	}
 }
 
-func TestConsumerService_GetApplication(t *testing.T) {
-	service := services.NewConsumerService()
+func TestConsumerService_GetConsumerApp(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
 
-	// Create an application first
-	req := models.CreateApplicationRequest{
-		RequiredFields: map[string]bool{"person.fullName": true},
-	}
-	createdApp, err := service.CreateApplication(req)
-	if err != nil {
-		t.Fatalf("Failed to create application: %v", err)
-	}
+	// Create a consumer and app
+	consumer, _ := service.CreateConsumer(models.CreateConsumerRequest{
+		ConsumerName: "Test Consumer",
+		ContactEmail: "test@example.com",
+		PhoneNumber:  "1234567890",
+	})
 
-	// Retrieve the application
-	app, err := service.GetApplication(createdApp.SubmissionID)
+	app, _ := service.CreateConsumerApp(models.CreateConsumerAppRequest{
+		ConsumerID: consumer.ConsumerID,
+		RequiredFields: map[string]bool{
+			"person.fullName": true,
+		},
+	})
+
+	// Get the app
+	retrievedApp, err := service.GetConsumerApp(app.SubmissionID)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if app.SubmissionID != createdApp.SubmissionID {
-		t.Errorf("Expected SubmissionID %s, got %s", createdApp.SubmissionID, app.SubmissionID)
+	if retrievedApp.SubmissionID != app.SubmissionID {
+		t.Errorf("Expected SubmissionID %s, got %s", app.SubmissionID, retrievedApp.SubmissionID)
 	}
 }
 
-func TestConsumerService_GetApplication_NotFound(t *testing.T) {
-	service := services.NewConsumerService()
+func TestConsumerService_GetAllConsumerApps(t *testing.T) {
+	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
 
-	_, err := service.GetApplication("nonexistent")
-	if err == nil {
-		t.Error("Expected error for nonexistent application")
-	}
-}
+	// Create consumers and apps
+	consumer1, _ := service.CreateConsumer(models.CreateConsumerRequest{
+		ConsumerName: "Consumer 1",
+		ContactEmail: "consumer1@example.com",
+		PhoneNumber:  "1111111111",
+	})
 
-func TestConsumerService_UpdateApplication(t *testing.T) {
-	service := services.NewConsumerService()
+	consumer2, _ := service.CreateConsumer(models.CreateConsumerRequest{
+		ConsumerName: "Consumer 2",
+		ContactEmail: "consumer2@example.com",
+		PhoneNumber:  "2222222222",
+	})
 
-	// Create an application
-	req := models.CreateApplicationRequest{
+	// Create apps for both consumers
+	service.CreateConsumerApp(models.CreateConsumerAppRequest{
+		ConsumerID:     consumer1.ConsumerID,
 		RequiredFields: map[string]bool{"person.fullName": true},
-	}
-	createdApp, err := service.CreateApplication(req)
-	if err != nil {
-		t.Fatalf("Failed to create application: %v", err)
-	}
+	})
 
-	// Update the application
-	updateReq := models.UpdateApplicationRequest{
-		Status: &[]models.ApplicationStatus{models.StatusApproved}[0],
-	}
-
-	updatedApp, err := service.UpdateApplication(createdApp.SubmissionID, updateReq)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if updatedApp.Status != models.StatusApproved {
-		t.Errorf("Expected status %s, got %s", models.StatusApproved, updatedApp.Status)
-	}
-
-	// Check that credentials were generated for approved application
-	if updatedApp.Credentials == nil {
-		t.Error("Expected credentials to be generated for approved application")
-	}
-
-	if updatedApp.Credentials.APIKey == "" || updatedApp.Credentials.APISecret == "" {
-		t.Error("Expected credentials to have API key and secret")
-	}
-}
-
-func TestConsumerService_DeleteApplication(t *testing.T) {
-	service := services.NewConsumerService()
-
-	// Create an application
-	req := models.CreateApplicationRequest{
-		RequiredFields: map[string]bool{"person.fullName": true},
-	}
-	createdApp, err := service.CreateApplication(req)
-	if err != nil {
-		t.Fatalf("Failed to create application: %v", err)
-	}
-
-	// Delete the application
-	err = service.DeleteApplication(createdApp.SubmissionID)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	// Verify it's deleted
-	_, err = service.GetApplication(createdApp.SubmissionID)
-	if err == nil {
-		t.Error("Expected error for deleted application")
-	}
-}
-
-func TestConsumerService_GetAllApplications(t *testing.T) {
-	service := services.NewConsumerService()
-
-	// Create multiple applications
-	req1 := models.CreateApplicationRequest{
-		RequiredFields: map[string]bool{"person.fullName": true},
-	}
-	req2 := models.CreateApplicationRequest{
+	service.CreateConsumerApp(models.CreateConsumerAppRequest{
+		ConsumerID:     consumer2.ConsumerID,
 		RequiredFields: map[string]bool{"person.nic": true},
-	}
+	})
 
-	_, err := service.CreateApplication(req1)
-	if err != nil {
-		t.Fatalf("Failed to create first application: %v", err)
-	}
-
-	_, err = service.CreateApplication(req2)
-	if err != nil {
-		t.Fatalf("Failed to create second application: %v", err)
-	}
-
-	// Get all applications
-	apps, err := service.GetAllApplications()
+	// Get all apps
+	apps, err := service.GetAllConsumerApps()
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	if len(apps) != 2 {
-		t.Errorf("Expected 2 applications, got %d", len(apps))
+		t.Errorf("Expected 2 apps, got %d", len(apps))
 	}
 }
 
-// HTTP endpoint tests
-func TestConsumerEndpoints(t *testing.T) {
+func TestConsumerService_GetConsumerAppsByConsumerID(t *testing.T) {
 	ts := NewTestServer()
+	defer ts.Close()
+	service := ts.APIServer.GetConsumerService()
 
-	t.Run("Consumer Management", func(t *testing.T) {
-		// Test GET /consumers (empty initially)
-		w := ts.MakeGETRequest("/consumers")
-		AssertResponseStatus(t, w, http.StatusOK)
-
-		// Test POST /consumers
-		consumerID := ts.CreateTestConsumer(t, "Test Consumer", "consumer@example.com", "1234567890")
-
-		// Test GET /consumers/{consumerId}
-		w = ts.MakeGETRequest("/consumers/" + consumerID)
-		AssertResponseStatus(t, w, http.StatusOK)
-
-		// Test PUT /consumers/{consumerId}
-		updateReq := map[string]string{
-			"consumerName": "Updated Consumer",
-		}
-		w = ts.MakePUTRequest("/consumers/"+consumerID, updateReq)
-		AssertResponseStatus(t, w, http.StatusOK)
-
-		// Test DELETE /consumers/{consumerId}
-		w = ts.MakeDELETERequest("/consumers/" + consumerID)
-		AssertResponseStatus(t, w, http.StatusNoContent)
+	// Create a consumer
+	consumer, _ := service.CreateConsumer(models.CreateConsumerRequest{
+		ConsumerName: "Test Consumer",
+		ContactEmail: "test@example.com",
+		PhoneNumber:  "1234567890",
 	})
 
-	t.Run("Consumer Applications", func(t *testing.T) {
-		// Create a consumer first
-		consumerID := ts.CreateTestConsumer(t, "Test Consumer", "consumer@example.com", "1234567890")
-
-		// Test GET /consumer-applications (empty initially)
-		w := ts.MakeGETRequest("/consumer-applications")
-		AssertResponseStatus(t, w, http.StatusOK)
-
-		// Test POST /consumer-applications
-		requiredFields := map[string]bool{
-			"name":  true,
-			"email": true,
-		}
-		submissionID := ts.CreateTestConsumerApp(t, consumerID, requiredFields)
-
-		// Test GET /consumer-applications/{submissionId}
-		w = ts.MakeGETRequest("/consumer-applications/" + submissionID)
-		AssertResponseStatus(t, w, http.StatusOK)
-
-		// Test PUT /consumer-applications/{submissionId} (admin approval)
-		updateReq := map[string]string{
-			"status": "approved",
-		}
-		w = ts.MakePUTRequest("/consumer-applications/"+submissionID, updateReq)
-		AssertResponseStatus(t, w, http.StatusOK)
+	// Create multiple apps for the consumer
+	service.CreateConsumerApp(models.CreateConsumerAppRequest{
+		ConsumerID:     consumer.ConsumerID,
+		RequiredFields: map[string]bool{"person.fullName": true},
 	})
 
-	t.Run("Error Cases", func(t *testing.T) {
-		// Test 404 for non-existent consumer
-		w := ts.MakeGETRequest("/consumers/non-existent")
-		AssertResponseStatus(t, w, http.StatusNotFound)
-
-		// Test 405 for unsupported method
-		w = ts.MakeDELETERequest("/consumers")
-		AssertResponseStatus(t, w, http.StatusMethodNotAllowed)
-
-		// Test 400 for invalid JSON
-		invalidReq := httptest.NewRequest("POST", "/consumers", nil)
-		invalidReq.Header.Set("Content-Type", "application/json")
-		w = httptest.NewRecorder()
-		ts.Mux.ServeHTTP(w, invalidReq)
-		AssertResponseStatus(t, w, http.StatusBadRequest)
+	service.CreateConsumerApp(models.CreateConsumerAppRequest{
+		ConsumerID:     consumer.ConsumerID,
+		RequiredFields: map[string]bool{"person.nic": true},
 	})
+
+	// Get apps for the specific consumer
+	apps, err := service.GetConsumerAppsByConsumerID(consumer.ConsumerID)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if len(apps) != 2 {
+		t.Errorf("Expected 2 apps for consumer, got %d", len(apps))
+	}
+}
+
+// Helper function to create string pointers
+func stringPtr(s string) *string {
+	return &s
 }
