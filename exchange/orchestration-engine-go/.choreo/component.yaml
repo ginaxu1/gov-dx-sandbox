@@ -18,6 +18,7 @@ endpoints:
     # that are consumed internally by your supergraph.
     networkVisibilities:
       - Public # Can also be 'Project' for more restricted internal visibility
+    schemaFilePath: openapi.yaml
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
