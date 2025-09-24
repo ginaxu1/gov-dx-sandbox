@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
@@ -30,6 +31,31 @@ func RunServer(f *federator.Federator) {
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(resp)
 		if err != nil {
+			return
+		}
+	})
+
+	mux.HandleFunc("/sdl", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if configs.AppConfig == nil || configs.AppConfig.Sdl == nil {
+			http.Error(w, "SDL not configured", http.StatusInternalServerError)
+			return
+		}
+
+		sdl := configs.AppConfig.Sdl
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		response := map[string]string{"sdl": string(sdl)}
+
+		err := json.NewEncoder(w).Encode(response)
+
+		if err != nil {
+			logger.Log.Error("Failed to write SDL response", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 	})
