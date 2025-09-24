@@ -4,8 +4,8 @@ schemaVersion: 1.2
 # +optional Incoming connection details for the component
 endpoints:
   # GraphQL Endpoint for DRP Subgraph
-  - name: drp-adapter-service
-    displayName: DRP Provider Wrapper
+  - name: drp-adapter
+    displayName: DRP Adapter
     service:
       # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
       # Ballerina GraphQL services usually listen on '/' by default.
@@ -17,12 +17,7 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Organization # Can also be 'Project' for more restricted internal visibility
-# +optional Defines runtime configurations
-dependencies:
-    connectionReferences:
-    - name: drp-adapter-connection
-      resourceRef: service:/drp-provider/mock-drp-backend/v1/803f0/PUBLIC
+      - Public # Can also be 'Project' for more restricted internal visibility
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:

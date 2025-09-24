@@ -16,16 +16,19 @@ type APIServer struct {
 	consumerService *services.ConsumerService
 	providerService *services.ProviderService
 	adminService    *services.AdminService
+	grantsService   *services.GrantsService
 }
 
 // NewAPIServer creates a new API server instance
 func NewAPIServer() *APIServer {
 	consumerService := services.NewConsumerService()
 	providerService := services.NewProviderService()
+	grantsService := services.NewGrantsService()
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
+		grantsService:   grantsService,
 	}
 }
 
@@ -53,12 +56,15 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	mux.Handle("/provider-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSubmissions)))
 	mux.Handle("/provider-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviderSubmissionByID)))
 
-	// RESTful provider routes
+	// provider routes
 	mux.Handle("/providers", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProvidersCollection)))
 	mux.Handle("/providers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleProviders)))
 
 	// Admin routes
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAdmin)))
+
+	// Allow List Management routes
+	mux.Handle("/admin/fields/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAllowListRoutes)))
 }
 
 // Generic handler for collection endpoints (GET all, POST create)
@@ -348,7 +354,7 @@ func (s *APIServer) handleProviderByID(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
-// handleProviders handles RESTful provider routes
+// handleProviders handles provider routes
 func (s *APIServer) handleProviders(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
@@ -615,4 +621,105 @@ func (s *APIServer) handleProviderSubmissionByID(w http.ResponseWriter, r *http.
 	default:
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
+}
+
+// Allow List Management Handlers
+
+// handleAllowListManagement handles /admin/fields/{fieldName}/allow-list
+func (s *APIServer) handleAllowListManagement(w http.ResponseWriter, r *http.Request) {
+	fieldName := ExtractFieldNameFromPath(r.URL.Path)
+	if fieldName == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Field name is required")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// GET /admin/fields/{fieldName}/allow-list - List consumers in allow_list
+		response, err := s.grantsService.GetAllowListForField(fieldName)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, response)
+
+	case http.MethodPost:
+		// POST /admin/fields/{fieldName}/allow-list - Add consumer to allow_list
+		var req models.AllowListManagementRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		response, err := s.grantsService.AddConsumerToAllowList(fieldName, req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusCreated, response)
+
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// handleAllowListConsumerManagement handles /admin/fields/{fieldName}/allow-list/{consumerId}
+func (s *APIServer) handleAllowListConsumerManagement(w http.ResponseWriter, r *http.Request) {
+	fieldName := ExtractFieldNameFromPath(r.URL.Path)
+	consumerID := ExtractConsumerIDFromPath(r.URL.Path)
+
+	if fieldName == "" || consumerID == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Field name and consumer ID are required")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		// PUT /admin/fields/{fieldName}/allow-list/{consumerId} - Update consumer in allow_list
+		var req models.AllowListManagementRequest
+		if err := utils.ParseJSONRequest(r, &req); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+
+		response, err := s.grantsService.UpdateConsumerInAllowList(fieldName, consumerID, req)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, response)
+
+	case http.MethodDelete:
+		// DELETE /admin/fields/{fieldName}/allow-list/{consumerId} - Remove consumer from allow_list
+		response, err := s.grantsService.RemoveConsumerFromAllowList(fieldName, consumerID)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		utils.RespondWithSuccess(w, http.StatusOK, response)
+
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// handleAllowListRoutes routes allow_list management requests
+func (s *APIServer) handleAllowListRoutes(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+
+	// Check if this is a consumer-specific allow_list request
+	// Pattern: /admin/fields/{fieldName}/allow-list/{consumerId}
+	if strings.Contains(path, "/allow-list/") && len(strings.Split(path, "/")) >= 6 {
+		s.handleAllowListConsumerManagement(w, r)
+		return
+	}
+
+	// Pattern: /admin/fields/{fieldName}/allow-list
+	if strings.HasSuffix(path, "/allow-list") {
+		s.handleAllowListManagement(w, r)
+		return
+	}
+
+	// If no pattern matches, return 404
+	utils.RespondWithError(w, http.StatusNotFound, "Allow list endpoint not found")
 }
