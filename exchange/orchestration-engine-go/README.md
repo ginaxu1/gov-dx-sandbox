@@ -31,7 +31,7 @@ To set up the development environment for the Orchestration Engine, follow these
    We have placed the sample schema in it.
     - It should include `@sourceInfo` the directives in each of its leaf fields along with the following fields.
         - `providerKey` - A unique identifier for the data provider.
-        - `providerField` - The URL of the data provider's graphql endpoint.
+        - `providerField` - The field name in the provider's schema that corresponds to this field.
 4. **`config.json` File**: Refer to the sample `config.example.json` file
    and create your own `config.json` file based on it. This file lists out the following information.
     - `pdpUrl` - The URL of the Policy Decision Point which handles authorization.
