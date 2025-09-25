@@ -79,7 +79,6 @@ func TestWithPostgresEngine(t *testing.T, testName string, testFunc func(t *test
 	// Only run PostgreSQL tests if explicitly enabled
 	if os.Getenv("TEST_USE_POSTGRES") == "true" {
 		t.Run("PostgreSQL_"+testName, func(t *testing.T) {
-
 			engine := setupPostgresTestEngine(t)
 			testFunc(t, engine)
 		})
