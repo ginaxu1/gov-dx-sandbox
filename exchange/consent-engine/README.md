@@ -1,13 +1,13 @@
 # Consent Engine (CE)
 
-Service that manages data owner consent workflows for data access requests with hybrid authentication support.
+Service that manages data owner consent workflows for data access requests with user JWT authentication support for public endpoints and internal access for service-to-service communication.
 
 ## Overview
 
 - **Technology**: Go + In-memory storage
 - **Port**: 8081
 - **Purpose**: Consent management and workflow coordination
-- **Authentication**: Hybrid JWT authentication (Frontend requires JWT, M2M optional)
+- **Authentication**: User JWT authentication with ownership checks for public endpoints, internal endpoints for service-to-service communication
 - **Test Coverage**: 34% with comprehensive unit and integration tests
 
 ## Quick Start
@@ -54,11 +54,11 @@ docker build -t ce . && docker run -p 8081:8081 ce
 
 | Endpoint | Method | Description | Authentication |
 |----------|--------|-------------|----------------|
-| `/consents` | POST | Create new consent | None |
-| `/consents/{id}` | GET | Get consent information | **Hybrid Auth** |
-| `/consents/{id}` | PUT | Update consent status | **Hybrid Auth** |
-| `/consents/{id}` | POST | Update consent status (alternative) | **Hybrid Auth** |
-| `/consents/{id}` | DELETE | Revoke consent | **Hybrid Auth** |
+| `/consents` | POST | Create new consent (Internal - Service-to-Service) | None |
+| `/consents/{id}` | GET | Get consent information | **User JWT Auth** |
+| `/consents/{id}` | PUT | Update consent status | **User JWT Auth** |
+| `/consents/{id}` | POST | Update consent status (alternative) | **User JWT Auth** |
+| `/consents/{id}` | DELETE | Revoke consent | **User JWT Auth** |
 | `/data-info/{id}` | GET | Get data owner information | None |
 | `/consent-portal` | POST | Create consent via portal | None |
 | `/consent-portal` | PUT | Update consent via portal | None |
@@ -69,40 +69,36 @@ docker build -t ce . && docker run -p 8081:8081 ce
 | `/admin/expiry-check` | POST | Check expired consents | None |
 | `/health` | GET | Health check | None |
 
-**Hybrid Auth**: Frontend requests require JWT, M2M requests are optional
+**User JWT Auth**: All requests require user JWT with email ownership validation  
+**Internal Access**: POST /consents endpoint is for internal service-to-service communication only
 
-## Hybrid Authentication
+## Authentication
 
-The Consent Engine uses a hybrid authentication system that differentiates between frontend and M2M (Machine-to-Machine) requests:
+The Consent Engine uses two types of access patterns:
 
-### Frontend Requests
-- **Require JWT authentication** with valid email claim
-- **Email must match** the consent owner's email
-- **Detected by** browser headers (`X-Requested-With: XMLHttpRequest` or `User-Agent` containing browser names)
+### User JWT Authentication (Public Endpoints)
+- **Require JWT authentication** with valid email claim from Asgardeo
+- **Email must match** the consent owner's email for ownership validation
+- **Used by** Consent Portal for user-facing operations
+- **Protected endpoints**: GET, PUT, PATCH, DELETE `/consents/{id}`
 
-### M2M Requests  
-- **JWT authentication is optional**
-- **No email validation required**
-- **Detected by** absence of browser headers
-
-### Request Detection
-The system automatically detects request type based on HTTP headers:
-- **Frontend**: Contains `X-Requested-With: XMLHttpRequest` or `User-Agent` with browser identifiers
-- **M2M**: No browser-like headers present
+### Internal Service Access
+- **POST `/consents`**: Internal endpoint for service-to-service communication
+- **No authentication required** - accessed via internal network only
+- **Used by** Orchestration Engine and other internal services
+- **Access**: Project-internal only, not exposed to external clients
 
 ### Environment Variables
 
-#### Required - Asgardeo Configuration
-- `ASGARDEO_BASE_URL` - Your Asgardeo organization URL (e.g., https://api.asgardeo.io/t/YOUR_TENANT)
-- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks)
-- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token)
-- `ASGARDEO_AUDIENCE` - JWT audience (default: YOUR_AUDIENCE)
-- `ASGARDEO_ORG_NAME` - Your organization name (default: YOUR_ORG_NAME)
+#### Required - User JWT Configuration (Asgardeo)
+- `ASGARDEO_JWKS_URL` - JWKS endpoint URL for user token validation
+- `ASGARDEO_ISSUER` - JWT issuer URL for user tokens
+- `ASGARDEO_AUDIENCE` - JWT audience for user tokens
+- `ASGARDEO_ORG_NAME` - Your organization name
 
 #### Required - Service Configuration
 - `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
 - `ORCHESTRATION_ENGINE_URL` - Orchestration engine URL (default: http://localhost:4000)
-- `M2M_API_KEY` - M2M API key for service-to-service communication
 - `ENVIRONMENT` - Environment (production/development)
 
 #### Optional - Service Configuration
@@ -114,10 +110,10 @@ The system automatically detects request type based on HTTP headers:
 
 #### Test Configuration
 - `TEST_CONSENT_PORTAL_URL` - Test consent portal URL (default: http://localhost:5173)
-- `TEST_JWKS_URL` - Test JWKS URL (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks)
-- `TEST_ASGARDEO_ISSUER` - Test Asgardeo issuer (default: https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token)
-- `TEST_ASGARDEO_AUDIENCE` - Test Asgardeo audience (default: YOUR_AUDIENCE)
-- `TEST_ASGARDEO_ORG_NAME` - Test organization name (default: YOUR_ORG_NAME)
+- `TEST_ASGARDEO_JWKS_URL` - Test Asgardeo JWKS URL for user token validation
+- `TEST_ASGARDEO_ISSUER` - Test Asgardeo issuer for user tokens
+- `TEST_ASGARDEO_AUDIENCE` - Test Asgardeo audience for user tokens
+- `TEST_ASGARDEO_ORG_NAME` - Test organization name
 
 ### JWT Token Format
 
@@ -125,14 +121,22 @@ The system automatically detects request type based on HTTP headers:
 Authorization: Bearer <jwt_token>
 ```
 
-The JWT token must contain an email claim in one of these fields:
+#### User JWT Tokens (Asgardeo)
+The user JWT token must contain an email claim in one of these fields:
 - `email`
 - `sub` (subject)
 - `preferred_username`
 
-### Email Authorization
+### Authorization Rules
 
-For protected endpoints (`/consents/{id}`), the JWT email must match the consent owner's email. If they don't match, the request will be rejected with a 403 Forbidden response.
+For protected endpoints (`/consents/{id}`):
+- **User JWT**: Email must match the consent owner's email for ownership validation
+- **Invalid/Unknown tokens**: Rejected with 401 Unauthorized
+- **Ownership mismatch**: Rejected with 403 Forbidden
+
+For internal endpoints (`POST /consents`):
+- **No authentication required** - internal service-to-service access only
+- **Network access**: Must be accessed from within the project's internal network
 
 ## Data Owner Information
 
@@ -153,9 +157,10 @@ Retrieves only the owner ID and email for a specific consent record. This endpoi
 curl -X GET http://localhost:8081/data-info/consent_122af00e
 ```
 
-## Create Consent
+## Create Consent (Internal)
 
-**Endpoint:** `POST /consents`
+**Endpoint:** `POST /consents`  
+**Access:** Internal service-to-service communication only
 
 **Request:**
 ```json
@@ -192,8 +197,9 @@ curl -X GET http://localhost:8081/data-info/consent_122af00e
 }
 ```
 
-**cURL Example:**
+**cURL Example (Internal Access):**
 ```bash
+# Note: This endpoint is for internal service-to-service communication only
 curl -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
@@ -214,7 +220,7 @@ curl -X POST http://localhost:8081/consents \
 ## Get Consent Information
 
 **Endpoint:** `GET /consents/{id}`  
-**Authentication:** JWT Required (email must match consent owner)
+**Authentication:** User JWT Required (email must match consent owner)
 
 **Response (User-facing format):**
 ```json
@@ -229,32 +235,21 @@ curl -X POST http://localhost:8081/consents \
 }
 ```
 
-**Frontend Request (JWT Required):**
+**User Request (Consent Portal - JWT Required):**
 ```bash
 curl -X GET http://localhost:8081/consents/consent_122af00e \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "X-Requested-With: XMLHttpRequest" \
-  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-```
-
-**M2M Request (JWT Optional):**
-```bash
-# Without JWT
-curl -X GET http://localhost:8081/consents/consent_122af00e
-
-# With JWT
-curl -X GET http://localhost:8081/consents/consent_122af00e \
-  -H "Authorization: Bearer <jwt_token>"
+  -H "Authorization: Bearer <asgardeo_user_jwt_token>"
 ```
 
 **Error Responses:**
-- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `401 Unauthorized` - Invalid or missing JWT token
+- `403 Forbidden` - User JWT email doesn't match consent owner
 - `404 Not Found` - Consent record not found
 
 ## Update Consent Status
 
 **Endpoint:** `PUT /consents/{id}`  
-**Authentication:** JWT Required (email must match consent owner)
+**Authentication:** User JWT Required (email must match consent owner)
 
 **Request:**
 ```json
@@ -288,13 +283,14 @@ curl -X PUT http://localhost:8081/consents/consent_122af00e \
 ```
 
 **Error Responses:**
-- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `401 Unauthorized` - Invalid or missing JWT token
+- `403 Forbidden` - User JWT email doesn't match consent owner
 - `404 Not Found` - Consent record not found
 
 ## Revoke Consent
 
 **Endpoint:** `DELETE /consents/{id}`  
-**Authentication:** JWT Required (email must match consent owner)
+**Authentication:** User JWT Required (email must match consent owner)
 
 **Request:**
 ```json
@@ -322,7 +318,8 @@ curl -X DELETE http://localhost:8081/consents/consent_122af00e \
 ```
 
 **Error Responses:**
-- `403 Forbidden` - JWT token invalid or email doesn't match consent owner
+- `401 Unauthorized` - Invalid or missing JWT token
+- `403 Forbidden` - User JWT email doesn't match consent owner
 - `404 Not Found` - Consent record not found
 
 ## How to Run and Test Locally
@@ -388,8 +385,9 @@ Expected response:
 
 #### Complete Test Workflow
 
-1. **Create a consent request:**
+1. **Create a consent request (Internal endpoint):**
 ```bash
+# Note: This endpoint is for internal service-to-service communication
 CONSENT_RESPONSE=$(curl -s -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
@@ -569,14 +567,12 @@ curl http://localhost:8081/health
 ### Environment Variables
 
 #### Required (for JWT authentication)
-- `ASGARDEO_BASE_URL` - Your Asgardeo organization URL (e.g., https://api.asgardeo.io/t/lankasoftwarefoundation)
-- `ASGARDEO_CLIENT_ID` - Your Asgardeo application client ID
-- `ASGARDEO_CLIENT_SECRET` - Your Asgardeo application client secret
+- `ASGARDEO_JWKS_URL` - JWKS endpoint URL for user token validation
+- `ASGARDEO_ISSUER` - JWT issuer URL for user tokens
+- `ASGARDEO_AUDIENCE` - JWT audience for user tokens
+- `ASGARDEO_ORG_NAME` - Your organization name
 
 #### Optional (with defaults)
-- `ASGARDEO_JWKS_URL` - JWKS endpoint URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks)
-- `ASGARDEO_ISSUER` - JWT issuer URL (default: https://api.asgardeo.io/t/lankasoftwarefoundation)
-- `ASGARDEO_AUDIENCE` - JWT audience
 - `PORT` - Service port (default: 8081)
 - `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
 
@@ -609,5 +605,20 @@ var ownerIDToEmailMap = map[string]string{
 
 The Consent Engine integrates with:
 - **Policy Decision Point**: Provides consent requirements for authorization decisions
-- **Consent Portal**: Web interface for consent management
+- **Consent Portal**: Web interface for consent management (uses Asgardeo user JWT tokens)
+- **Orchestration Engine**: Service-to-service communication (uses internal endpoint access)
 - **Data Consumer Applications**: Receives consent requests and provides status updates
+
+### Authentication Flow
+
+1. **User Access (Consent Portal)**:
+   - User authenticates with Asgardeo
+   - Consent Portal receives user JWT token
+   - Consent Portal sends requests with `Authorization: Bearer <user_jwt>`
+   - Consent Engine validates user JWT and enforces ownership checks
+
+2. **Internal Access (Orchestration Engine)**:
+   - Orchestration Engine uses project-internal network access
+   - Orchestration Engine calls `POST /consents` without authentication
+   - Consent Engine processes internal requests without JWT validation
+   - Access is restricted to internal services only, not exposed to external clients
