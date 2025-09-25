@@ -5,7 +5,7 @@ import { SchemasPage } from './pages/Schemas';
 import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
 import { Logs } from "./pages/Logs";
 import { Applications } from "./pages/Applications";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 interface EntityProps {
   id: string;
@@ -15,7 +15,7 @@ interface EntityProps {
 }
 
 function App() {
-  const [view, setView] = useState<'provider' | 'consumer'>('provider');
+  const [view, setView] = useState<'provider' | 'consumer' | null>(null);
   const [entityData, setEntityData] = useState<EntityProps | null>(null);
 
   useEffect(() => {
@@ -32,7 +32,27 @@ function App() {
     fetchEntityInfo();
   }, []);
 
+  useEffect(() => {
+    if (entityData) {
+      if (entityData.providerId) {
+        setView('provider');
+      } else if (entityData.consumerId) {
+        setView('consumer');
+      } else {
+        setView(null);
+      }
+    }
+  }, [entityData]);
+
+  const canSwitchView = () => {
+    return entityData?.providerId && entityData?.consumerId;
+  };
+
   const handleViewChange = (newView: 'provider' | 'consumer') => {
+    if (!canSwitchView() && newView !== view) {
+      alert(`Cannot switch to ${newView} view. You're not registered as a ${newView === 'provider' ? 'provider' : 'consumer'}.`);
+      return;
+    }
     setView(newView);
   };
 
@@ -54,8 +74,8 @@ function App() {
                 path="/provider/schemas/new" 
                 element={
                   <SchemaRegistrationPage 
-                    providerId={entityData?.providerId} 
-                    providerName={entityData?.name} 
+                    providerId={entityData?.providerId || ''}
+                    providerName={entityData?.name || ''}
                   />
                 } 
               />
