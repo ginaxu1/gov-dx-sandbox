@@ -23,113 +23,15 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// OwnerIDToEmailMapping represents the mapping from owner_id to owner_email
-type OwnerIDToEmailMapping struct {
-	OwnerID    string `json:"owner_id"`
-	OwnerEmail string `json:"owner_email"`
-}
-
-// SCIM User structures
-type SCIMUser struct {
-	ID       string `json:"id"`
-	UserName string `json:"userName"`
-	Emails   []struct {
-		Value   string `json:"value"`
-		Primary bool   `json:"primary"`
-		Type    string `json:"type"`
-	} `json:"emails"`
-	Schemas []string `json:"schemas"`
-	Meta    struct {
-		ResourceType string `json:"resourceType"`
-	} `json:"meta"`
-}
-
-type SCIMResponse struct {
-	TotalResults int        `json:"totalResults"`
-	ItemsPerPage int        `json:"itemsPerPage"`
-	StartIndex   int        `json:"startIndex"`
-	Resources    []SCIMUser `json:"Resources"`
-	Schemas      []string   `json:"schemas"`
-}
-
-// AsgardeoSCIMClient handles SCIM API interactions
-type AsgardeoSCIMClient struct {
-	baseURL      string
-	clientID     string
-	clientSecret string
-	httpClient   *http.Client
-}
-
-// NewAsgardeoSCIMClient creates a new SCIM client
-func NewAsgardeoSCIMClient(baseURL, clientID, clientSecret string) *AsgardeoSCIMClient {
-	return &AsgardeoSCIMClient{
-		baseURL:      baseURL,
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		httpClient:   &http.Client{Timeout: 30 * time.Second},
-	}
-}
-
-// getUserByNIC fetches user information by NIC using hardcoded mapping
-// Note: M2M authentication removed - using hardcoded mapping for simplicity
-func (c *AsgardeoSCIMClient) getUserByNIC(nic string) (*SCIMUser, error) {
-	// Use hardcoded mapping since M2M authentication is removed
-	// This can be replaced with a database lookup or other mechanism
-	hardcodedMappings := map[string]string{
-		"199512345678": "regina@opensource.lk",
-		"198012345678": "john@example.com",
-		"199012345678": "jane@example.com",
-	}
-
-	email, exists := hardcodedMappings[nic]
-	if !exists {
-		return nil, fmt.Errorf("no email found for owner_id: %s", nic)
-	}
-
-	// Return a mock SCIM user
-	user := &SCIMUser{
-		ID:       nic,
-		UserName: email,
-		Emails: []struct {
-			Value   string `json:"value"`
-			Primary bool   `json:"primary"`
-			Type    string `json:"type"`
-		}{
-			{
-				Value:   email,
-				Primary: true,
-				Type:    "work",
-			},
-		},
-		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
-		Meta: struct {
-			ResourceType string `json:"resourceType"`
-		}{
-			ResourceType: "User",
-		},
-	}
-
-	slog.Info("User found via hardcoded mapping", "nic", nic, "email", email)
-	return user, nil
-}
-
-// getOwnerEmailByID looks up the owner_email for a given owner_id using hardcoded mapping
-// Note: M2M authentication removed - using hardcoded mapping for simplicity
+// getOwnerEmailByID returns the owner_email for a given owner_id
+// Since orchestration-engine-go now uses email as the primary ID, owner_id is the same as owner_email
 func getOwnerEmailByID(ownerID string) (string, error) {
-	// Use hardcoded mapping since M2M authentication is removed
-	hardcodedMappings := map[string]string{
-		"199512345678": "regina@opensource.lk",
-		"198012345678": "john@example.com",
-		"199012345678": "jane@example.com",
+	if ownerID == "" {
+		return "", fmt.Errorf("owner_id cannot be empty")
 	}
 
-	email, exists := hardcodedMappings[ownerID]
-	if !exists {
-		return "", fmt.Errorf("no email found for owner_id: %s", ownerID)
-	}
-
-	slog.Info("Owner email found via hardcoded mapping", "owner_id", ownerID, "email", email)
-	return email, nil
+	// For MVP with Google Auth, owner_id is the same as email
+	return ownerID, nil
 }
 
 // Build information - set during build
@@ -332,7 +234,7 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate each data field and populate owner_email from owner_id mapping
+	// Validate each data field and set owner_email to owner_id (they are the same value)
 	for i, dataField := range req.DataFields {
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
@@ -350,10 +252,10 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Look up owner_email from owner_id mapping
+		// Set owner_email to owner_id (they are the same value)
 		ownerEmail, err := getOwnerEmailByID(dataField.OwnerID)
 		if err != nil {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id '%s' not found in mapping: %v", i, dataField.OwnerID, err)})
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id '%s' is invalid: %v", i, dataField.OwnerID, err)})
 			return
 		}
 
@@ -650,14 +552,10 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Validate each data field
+	// Validate each data field and set owner_email to owner_id (they are the same value)
 	for i, dataField := range req.DataFields {
 		if dataField.OwnerID == "" {
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
-			return
-		}
-		if dataField.OwnerEmail == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_email is required and cannot be empty", i)})
 			return
 		}
 		if len(dataField.Fields) == 0 {
@@ -671,6 +569,16 @@ func (s *apiServer) processConsentPortalRequest(w http.ResponseWriter, r *http.R
 				return
 			}
 		}
+
+		// Set owner_email to owner_id (they are the same value)
+		ownerEmail, err := getOwnerEmailByID(dataField.OwnerID)
+		if err != nil {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id '%s' is invalid: %v", i, dataField.OwnerID, err)})
+			return
+		}
+
+		// Set the owner_email in the data field
+		req.DataFields[i].OwnerEmail = ownerEmail
 	}
 
 	// Convert to ConsentRequest format
