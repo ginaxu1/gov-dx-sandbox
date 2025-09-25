@@ -1338,7 +1338,7 @@ func main() {
 
 	slog.Info("Using consent portal URL", "url", consentPortalUrl)
 
-	engine := NewPostgresConsentEngine(db)
+	engine := NewPostgresConsentEngine(db, consentPortalUrl)
 	server := &apiServer{engine: engine}
 
 	// Start background expiry process with context cancellation

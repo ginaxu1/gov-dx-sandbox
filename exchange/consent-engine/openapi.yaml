@@ -97,7 +97,7 @@ paths:
                 grant_duration: "30d"
                 fields: ["personInfo.permanentAddress", "personInfo.photo"]
                 session_id: "session_123"
-                consent_portal_url: "http://localhost:5173/?consent_id=consent_8d255282"
+                consent_portal_url: "https://consent-portal.example.com/?consent_id=consent_8d255282"
                 purpose: "passport_application"
                 message: "Consent created successfully"
         '400':
@@ -919,7 +919,7 @@ components:
         consent_portal_url:
           type: string
           description: URL to redirect after consent approval/denial
-          example: "http://localhost:5173/?consent_id=consent_8d255282"
+          example: "https://consent-portal.example.com/?consent_id=consent_8d255282"
         purpose:
           type: string
           description: Purpose for data access
