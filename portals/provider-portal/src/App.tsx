@@ -87,8 +87,14 @@ function App() {
             <>
               <Route path="/" element={<Dashboard />} />
               <Route path="/consumer/applications" element={<Applications />} />
-              <Route path="/consumer/applications/new" element={<ApplicationRegistration 
-              />} />
+              <Route 
+                path="/consumer/applications/new" 
+                element={
+                  <ApplicationRegistration 
+                    consumerId={entityData?.consumerId || ''}
+                  />
+                } 
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}

@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Settings, CheckCircle } from 'lucide-react';
 import  { GraphQLSchemaExplorer } from '../components/GraphQLSchemaExplorer';
 
+interface ApplicationRegistrationProps {
+    consumerId: string;
+}
+
 // Sample SDL for demonstration purposes
 const sampleSDL = `directive @deprecated(
     reason: String = "No longer supported"
@@ -57,7 +61,9 @@ type BirthInfo {
 }`;
 
 
-export const ApplicationRegistration: React.FC = () => {
+export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = ({ 
+    consumerId
+}) => {
     const navigate = useNavigate();
     const [applicationName, setApplicationName] = useState('');
     const [description, setDescription] = useState('');
@@ -118,6 +124,21 @@ export const ApplicationRegistration: React.FC = () => {
                         <div className="p-6 sm:p-8">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="lg:col-span-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="consumerId">
+                                        Consumer ID
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="consumerId"
+                                        value={consumerId}
+                                        readOnly
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed transition-all duration-200"
+                                    />
+                                    <p className="mt-2 text-sm text-gray-500">
+                                        Your unique consumer identifier (automatically assigned)
+                                    </p>
+                                </div>
+                                <div className="lg:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="applicationName">
                                         Application Name *
                                     </label>
@@ -134,7 +155,7 @@ export const ApplicationRegistration: React.FC = () => {
                                         Choose a clear, descriptive name that identifies your application's purpose
                                     </p>
                                 </div>
-                                <div className="lg:col-span-1">
+                                <div className="lg:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="description">
                                         Description
                                     </label>
