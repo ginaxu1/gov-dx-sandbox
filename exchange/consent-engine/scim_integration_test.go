@@ -111,56 +111,9 @@ func TestSCIMIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("M2M_Token_Request_Structure", func(t *testing.T) {
-		// Test M2M token request structure
-		tokenReq := M2MTokenRequest{
-			ClientID:     "test-client-id",
-			ClientSecret: "test-client-secret",
-			GrantType:    "client_credentials",
-			Scope:        "internal_user_mgt_view",
-		}
-
-		if tokenReq.ClientID != "test-client-id" {
-			t.Errorf("Expected ClientID %s, got %s", "test-client-id", tokenReq.ClientID)
-		}
-
-		if tokenReq.GrantType != "client_credentials" {
-			t.Errorf("Expected GrantType %s, got %s", "client_credentials", tokenReq.GrantType)
-		}
-
-		if tokenReq.Scope != "internal_user_mgt_view" {
-			t.Errorf("Expected Scope %s, got %s", "internal_user_mgt_view", tokenReq.Scope)
-		}
-	})
-
-	t.Run("M2M_Token_Response_Structure", func(t *testing.T) {
-		// Test M2M token response structure
-		tokenResp := M2MTokenResponse{
-			AccessToken: "test-access-token",
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-			Scope:       "internal_user_mgt_view",
-		}
-
-		if tokenResp.AccessToken != "test-access-token" {
-			t.Errorf("Expected AccessToken %s, got %s", "test-access-token", tokenResp.AccessToken)
-		}
-
-		if tokenResp.TokenType != "Bearer" {
-			t.Errorf("Expected TokenType %s, got %s", "Bearer", tokenResp.TokenType)
-		}
-
-		if tokenResp.ExpiresIn != 3600 {
-			t.Errorf("Expected ExpiresIn %d, got %d", 3600, tokenResp.ExpiresIn)
-		}
-	})
-
-	t.Run("Owner_Email_Lookup_Fallback", func(t *testing.T) {
-		// Test that owner email lookup falls back to hardcoded mapping when M2M credentials are not configured
-		// This test ensures backward compatibility
-
-		cleanup := SetupTestWithCleanup(t)
-		defer cleanup()
+	t.Run("Owner_Email_Lookup_Hardcoded_Mapping", func(t *testing.T) {
+		// Test that owner email lookup uses hardcoded mapping
+		// Since M2M authentication was removed, we now use hardcoded mapping for simplicity
 
 		// Test with a known owner_id from hardcoded mapping
 		email, err := getOwnerEmailByID("199512345678")
@@ -176,9 +129,6 @@ func TestSCIMIntegration(t *testing.T) {
 
 	t.Run("Owner_Email_Lookup_Unknown_ID", func(t *testing.T) {
 		// Test that owner email lookup returns error for unknown owner_id
-
-		// Reset global SCIM client to ensure clean state
-		scimClient = nil
 
 		// Test with an unknown owner_id
 		email, err := getOwnerEmailByID("unknown-id")
