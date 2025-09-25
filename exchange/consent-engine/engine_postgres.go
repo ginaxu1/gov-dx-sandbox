@@ -12,12 +12,13 @@ import (
 
 // postgresConsentEngine implements ConsentEngine interface using PostgreSQL
 type postgresConsentEngine struct {
-	db *sql.DB
+	db               *sql.DB
+	consentPortalURL string
 }
 
 // NewPostgresConsentEngine creates a new PostgreSQL-based consent engine
-func NewPostgresConsentEngine(db *sql.DB) ConsentEngine {
-	return &postgresConsentEngine{db: db}
+func NewPostgresConsentEngine(db *sql.DB, consentPortalURL string) ConsentEngine {
+	return &postgresConsentEngine{db: db, consentPortalURL: consentPortalURL}
 }
 
 // ProcessConsentRequest processes a consent request and creates a consent record
@@ -109,7 +110,7 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	}
 
 	// Generate consent portal URL
-	consentPortalURL := fmt.Sprintf("http://localhost:5173/?consent_id=%s", consentID)
+	consentPortalURL := fmt.Sprintf("%s/?consent_id=%s", pce.consentPortalURL, consentID)
 
 	// Insert new consent record
 	insertSQL := `
