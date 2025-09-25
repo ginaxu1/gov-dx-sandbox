@@ -1,5 +1,6 @@
 // components/Navbar.tsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface NavItem {
   label: string;
@@ -20,7 +21,7 @@ const ProviderNavItems: NavItem[] = [
   },
   {
     label: 'Schemas',
-    path: '/schemas',
+    path: '/provider/schemas',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -29,7 +30,7 @@ const ProviderNavItems: NavItem[] = [
   },
   {
     label: 'Logs',
-    path: '/logs',
+    path: '/provider/logs',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 8V7a3 3 0 013-3h10a3 3 0 013 3v1m-16 0a3 3 0 003 3h10a3 3 0 003-3m-16 8a3 3 0 003 3h10a3 3 0 003-3m-16-8a3 3 0 003-3h10a3 3 0 003 3" />
@@ -37,6 +38,7 @@ const ProviderNavItems: NavItem[] = [
     ),
   },
 ];
+
 const ConsumerNavItems: NavItem[] = [
   {
     label: 'Dashboard',
@@ -50,38 +52,35 @@ const ConsumerNavItems: NavItem[] = [
   },
   {
     label: 'Applications',
-    path: '/applications',
+    path: '/consumer/applications',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
       </svg>
     ),
-  },
-  {
-    label: 'Logs',
-    path: '/logs',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 8V7a3 3 0 013-3h10a3 3 0 013 3v1m-16 0a3 3 0 003 3h10a3 3 0 003-3m-16 8a3 3 0 003 3h10a3 3 0 003-3m-16-8a3 3 0 003-3h10a3 3 0 003 3" />
-      </svg>
-    ),
-  },
+  }
 ];
 
 interface NavbarProps {
   onViewChange: (view: 'provider' | 'consumer') => void;
   providerId?: string;
   consumerId?: string;
+  currentView: 'provider' | 'consumer';
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onViewChange, providerId, consumerId }) => {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
-  const [currentView, setCurrentView] = useState<'Provider' | 'Consumer'>('Provider');
+export const Navbar: React.FC<NavbarProps> = ({ 
+  onViewChange, 
+  providerId, 
+  consumerId, 
+  currentView 
+}) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const canSwitchView = () => {
-    if (currentView === 'Provider' && consumerId) return true;
-    if (currentView === 'Consumer' && providerId) return true;
+    if (currentView === 'provider' && consumerId) return true;
+    if (currentView === 'consumer' && providerId) return true;
     return false;
   };
 
@@ -91,47 +90,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onViewChange, providerId, consum
       return;
     }
     onViewChange(newView);
-    setCurrentView(newView === 'provider' ? 'Provider' : 'Consumer');
     setDropdownOpen(false);
-  };
-
-
-  useEffect(() => {
-    const handleLocationChange = () => {
-      setCurrentPath(window.location.pathname);
-    };
-
-    // Listen for popstate events (browser back/forward)
-    window.addEventListener('popstate', handleLocationChange);
-
-    // Listen for custom navigation events
-    const handleCustomNavigation = () => {
-      setCurrentPath(window.location.pathname);
-    };
-
-    window.addEventListener('navigate', handleCustomNavigation);
-
-    return () => {
-      window.removeEventListener('popstate', handleLocationChange);
-      window.removeEventListener('navigate', handleCustomNavigation);
-    };
-  }, []);
-
-  const navigate = (path: string) => {
-    if (path === currentPath) return;
-    
-    window.history.pushState({}, '', path);
-    setCurrentPath(path);
-    
-    // Dispatch custom event for components to listen to
-    window.dispatchEvent(new Event('navigate'));
+    navigate('/'); // Navigate to home when switching views
   };
 
   const isActive = (path: string) => {
     if (path === '/') {
-      return currentPath === '/';
+      return location.pathname === '/';
     }
-    return currentPath.startsWith(path);
+    return location.pathname.startsWith(path);
   };
 
   return (
@@ -142,39 +109,30 @@ export const Navbar: React.FC<NavbarProps> = ({ onViewChange, providerId, consum
           <div className="flex items-center">
             <div className="relative">
               <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex-shrink-0 flex items-center space-x-2 text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="flex-shrink-0 flex items-center space-x-2 text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors"
               >
-              {/* <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <span>{currentView === 'provider' ? 'Provider' : 'Consumer'}</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-              </div> */}
-              <span>{currentView}</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
               </button>
               
               {dropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 z-10">
-                <button
-                onClick={() => {
-                  handleViewChange('provider');
-                }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-md"
-                >
-                Provider
-                </button>
-                <button
-                onClick={() => {
-                  handleViewChange('consumer');
-                }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-md"
-                >
-                Consumer
-                </button>
-              </div>
+                <div className="absolute top-full left-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                  <button
+                    onClick={() => handleViewChange('provider')}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-md"
+                  >
+                    Provider
+                  </button>
+                  <button
+                    onClick={() => handleViewChange('consumer')}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-b-md"
+                  >
+                    Consumer
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -182,7 +140,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onViewChange, providerId, consum
           {/* Desktop Navigation */}
           <div className="flex items-center">
             <div className="flex items-baseline space-x-4">
-              {(currentView === 'Provider' ? ProviderNavItems : ConsumerNavItems).map((item) => (
+              {(currentView === 'provider' ? ProviderNavItems : ConsumerNavItems).map((item) => (
                 <button
                   key={item.path}
                   onClick={() => navigate(item.path)}
