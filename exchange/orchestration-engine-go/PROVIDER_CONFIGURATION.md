@@ -62,8 +62,8 @@ new provider, Registrar General Department of Farajaland (RGDF), as an example.
      ```  
    And the provider (rgdf) expects the query to look like this.
     ```graphql
-    query getPersonInfo {
-        person(nic: "12") {
+    query GetPersonInforgdf {
+        getPersonInfo(nic: "12") {
             fullName
             permanentAddress
             birthRegistrationNumber
@@ -77,7 +77,7 @@ new provider, Registrar General Department of Farajaland (RGDF), as an example.
      "providerKey": "rgdf",
      "targetArgName": "nic",
      "sourceArgPath": "personInfo-nic",
-     "targetArgPath": "person-nic"
+     "targetArgPath": "rgdf.person"
    }
    ```
 2. Repeat this process for all arguments that need to be mapped.
@@ -92,7 +92,7 @@ new provider, Registrar General Department of Farajaland (RGDF), as an example.
       Example:
    ```graphql
    type PersonInfo {
-        name: String @sourceInfo(providerKey: "rgdf", providerField: "getPersonInfo.name")
+        name: String @sourceInfo(providerKey: "rgdf", providerField: "getPersonInfo.fullName")
         birthInfo: BirthInfo
    }
    
