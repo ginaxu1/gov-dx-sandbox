@@ -76,7 +76,7 @@ type PersonData record {|
 // This is an in-memory table that simulates a database for the mock API.
 isolated final table<PersonData> key(nic) mockPersonDataTable = table [
     {
-        nic: "199512345678",
+        nic: "nayana@opensource.lk",
         fullName: "Nuwan Fernando",
         otherNames: "Nuwan",
         sex: MALE,
@@ -84,12 +84,63 @@ isolated final table<PersonData> key(nic) mockPersonDataTable = table [
         permanentAddress: "105 Bauddhaloka Mawatha, Colombo 00400",
         profession: "Software Engineer",
         photo: "https://example.com/photo.jpg"
+    },
+    {
+        nic: "mohamed@opensource.lk",
+        fullName: "Mohamed Ali",
+        otherNames: "Mohamed",
+        sex: MALE,
+        dateOfBirth: "1995-12-01",
+        permanentAddress: "10 Sinha Mawatha, Colombo 00400",
+        profession: "Pilot",
+        photo: "https://example.com/photo.jpg"
+    },
+    {
+        nic: "regina@opensource.lk",
+        fullName: "Regina George",
+        otherNames: "Regina",
+        sex: FEMALE,
+        dateOfBirth: "1995-12-01",
+        permanentAddress: "1034 Sinha Mawatha, Colombo 00400",
+        profession: "Army Commander",
+        photo: "https://example.com/photo.jpg"
+    },
+    {
+        nic: "thanikan@opensource.lk",
+        fullName: "Thanikan Jayasuriya",
+        otherNames: "Thanikan",
+        sex: MALE,
+        dateOfBirth: "1995-12-01",
+        permanentAddress: "1034 Sinha Mawatha, Colombo 00400",
+        profession: "Civil Engineer",
+        photo: "https://example.com/photo.jpg"
+    },
+    {
+        nic: "sanjiva@opensource.lk",
+        fullName: "Sanjiva Edirisinghe",
+        otherNames: "Sanjiva",
+        sex: MALE,
+        dateOfBirth: "1995-12-01",
+        permanentAddress: "14 Anuruddha Mawatha, Colombo 00400",
+        profession: "CEO of OSW2",
+        photo: "https://example.com/photo.jpg"
+    },
+    {
+        nic: "thushara@opensource.lk",
+        fullName: "Thushara Perera",
+        otherNames: "Thushara",
+        sex: MALE,
+        dateOfBirth: "1995-12-01",
+        permanentAddress: "14 Araliya Mawatha, Wattala",
+        profession: "Politician",
+        photo: "https://example.com/photo.jpg"
     }
 ];
 
 // --- Mock HTTP Service ---
 // This service simulates the actual DRP backend API.
 configurable int PORT = ?;
+
 // The main GraphQL service (provider-wrappers/drp/main.bal) will communicate with this.
 isolated service / on new http:Listener(PORT) {
 
