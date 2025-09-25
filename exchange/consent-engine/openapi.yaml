@@ -5,16 +5,15 @@ info:
     Consent Engine API for managing data consent workflows in the Data Exchange Platform.
     This service handles consent creation, approval, tracking, and management for data access requests.
     
-    ## Hybrid Authentication
-    The API uses hybrid authentication that differentiates between user and M2M JWT tokens:
+    ## Authentication
+    The API uses user JWT authentication for public endpoints:
     - **User JWT Tokens**: From Asgardeo identity provider, require email validation and ownership checks
-    - **M2M JWT Tokens**: From Choreo internal services, trusted for all consent operations
-    - **Token Detection**: Automatically determined by issuer and claims validation
-    - **Security**: All protected endpoints require valid JWT authentication
+    - **Internal Endpoints**: Project-internal endpoints (like POST /consents) require no authentication
+    - **Security**: Public endpoints require valid JWT authentication with email ownership validation
     
     ## SCIM Integration
-    The API integrates with WSO2 Asgardeo's SCIM API to automatically resolve user email addresses 
-    from National ID (NIC) values. When creating consents, only the owner_id (NIC) is required - 
+    The API automatically resolves user email addresses from National ID (NIC) values using 
+    hardcoded mapping. When creating consents, only the owner_id (NIC) is required - 
     the owner_email is automatically looked up and populated.
   version: 1.1.0
   contact:
@@ -61,9 +60,13 @@ paths:
         Create a new consent record for data access. The owner's email address is automatically resolved 
         from the owner_id using SCIM integration with Asgardeo. Only owner_id is required in the request - 
         owner_email will be populated automatically.
+        
+        **Internal Endpoint**: This endpoint is restricted to project-internal access only and is not exposed publicly.
       operationId: createConsent
       tags:
         - Consents
+      x-choreo:
+        internal: true
       requestBody:
         required: true
         content:
@@ -127,21 +130,14 @@ paths:
     get:
       summary: Get Consent by ID
       description: |
-        Retrieve a specific consent record by its ID with hybrid JWT authentication:
+        Retrieve a specific consent record by its ID with user JWT authentication:
         - **User JWT Tokens**: From Asgardeo, require email validation and ownership checks
-        - **M2M JWT Tokens**: From Choreo, trusted for all consent operations
-        - **Token Detection**: Automatically determined by issuer and claims validation
+        - **Security**: Email in JWT token must match the consent owner's email
         
-        **Example User Request (Consent Portal):**
+        **Example Request (Consent Portal):**
         ```bash
         curl -X GET "https://api.example.com/consents/consent_8d255282" \
           -H "Authorization: Bearer <asgardeo_user_jwt_token>"
-        ```
-        
-        **Example M2M Request (Orchestration Engine):**
-        ```bash
-        curl -X GET "https://api.example.com/consents/consent_8d255282" \
-          -H "Authorization: Bearer <choreo_m2m_jwt_token>"
         ```
       operationId: getConsentById
       tags:
@@ -202,13 +198,13 @@ paths:
         - **Token Detection**: Automatically determined by issuer and claims validation
         
         **Status Transitions:**
-        - **Pending**: Can transition to `approved`, `rejected`, or `expired`
-        - **Approved**: Can transition to `approved`, `rejected`, `revoked`, or `expired`
-        - **Rejected**: Can only transition to `expired` (terminal state)
-        - **Expired**: Can only stay `expired` (terminal state)
-        - **Revoked**: Can only transition to `expired` (terminal state)
+        - **Pending**: Can transition to approved, rejected, or expired
+        - **Approved**: Can transition to approved, rejected, revoked, or expired
+        - **Rejected**: Can only transition to expired (terminal state)
+        - **Expired**: Can only stay expired (terminal state)
+        - **Revoked**: Can only transition to expired (terminal state)
         
-        **Terminal States:** Once a consent reaches `rejected`, `expired`, or `revoked` status, it cannot transition back to active states like `pending` or `approved`. This ensures a clear, unalterable audit trail of consent decisions.
+        **Terminal States:** Once a consent reaches rejected, expired, or revoked status, it cannot transition back to active states like `pending` or approved. This ensures a clear, unalterable audit trail of consent decisions.
       operationId: updateConsent
       tags:
         - Consents

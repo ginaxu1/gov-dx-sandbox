@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -75,22 +74,12 @@ func cleanupTestData(t *testing.T, db *sql.DB) {
 	}
 }
 
-// ResetGlobalState resets all global state for testing
-func ResetGlobalState() {
-	// Reset SCIM client and sync.Once to allow reinitialization
-	scimClient = nil
-	scimOnce = sync.Once{}
-}
-
 // SetupTestWithCleanup sets up a test with proper cleanup of global state
 func SetupTestWithCleanup(t *testing.T) func() {
-	// Reset global state before test
-	ResetGlobalState()
 
 	// Return cleanup function
 	return func() {
-		// Reset global state after test
-		ResetGlobalState()
+		// No global state to reset since M2M authentication was removed
 	}
 }
 

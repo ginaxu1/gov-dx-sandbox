@@ -2,19 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -32,21 +27,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 type OwnerIDToEmailMapping struct {
 	OwnerID    string `json:"owner_id"`
 	OwnerEmail string `json:"owner_email"`
-}
-
-// M2M Token structures
-type M2MTokenRequest struct {
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	GrantType    string `json:"grant_type"`
-	Scope        string `json:"scope"`
-}
-
-type M2MTokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-	Scope       string `json:"scope"`
 }
 
 // SCIM User structures
@@ -77,8 +57,6 @@ type AsgardeoSCIMClient struct {
 	baseURL      string
 	clientID     string
 	clientSecret string
-	accessToken  string
-	tokenExpiry  time.Time
 	httpClient   *http.Client
 }
 
@@ -92,282 +70,66 @@ func NewAsgardeoSCIMClient(baseURL, clientID, clientSecret string) *AsgardeoSCIM
 	}
 }
 
-// getM2MToken fetches an M2M access token from Asgardeo
-func (c *AsgardeoSCIMClient) getM2MToken() error {
-	// Check if we have a valid token
-	if c.accessToken != "" && time.Now().Before(c.tokenExpiry) {
-		return nil
-	}
-
-	tokenURL := fmt.Sprintf("%s/oauth2/token", c.baseURL)
-
-	// Prepare the token request
-	tokenReq := M2MTokenRequest{
-		ClientID:     c.clientID,
-		ClientSecret: c.clientSecret,
-		GrantType:    "client_credentials",
-		Scope:        "internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update",
-	}
-
-	// Convert to form data
-	formData := url.Values{}
-	formData.Set("client_id", tokenReq.ClientID)
-	formData.Set("client_secret", tokenReq.ClientSecret)
-	formData.Set("grant_type", tokenReq.GrantType)
-	formData.Set("scope", tokenReq.Scope)
-
-	// Make the request
-	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(formData.Encode()))
-	if err != nil {
-		return fmt.Errorf("failed to create token request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to make token request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("token request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var tokenResp M2MTokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return fmt.Errorf("failed to decode token response: %w", err)
-	}
-
-	c.accessToken = tokenResp.AccessToken
-	c.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
-
-	slog.Info("M2M token obtained successfully", "expires_in", tokenResp.ExpiresIn)
-	return nil
-}
-
-// getUserByNIC fetches user information by NIC using SCIM API
+// getUserByNIC fetches user information by NIC using hardcoded mapping
+// Note: M2M authentication removed - using hardcoded mapping for simplicity
 func (c *AsgardeoSCIMClient) getUserByNIC(nic string) (*SCIMUser, error) {
-	// Ensure we have a valid token
-	if err := c.getM2MToken(); err != nil {
-		return nil, fmt.Errorf("failed to get M2M token: %w", err)
+	// Use hardcoded mapping since M2M authentication is removed
+	// This can be replaced with a database lookup or other mechanism
+	hardcodedMappings := map[string]string{
+		"199512345678": "regina@opensource.lk",
+		"198012345678": "john@example.com",
+		"199012345678": "jane@example.com",
 	}
 
-	// Try SCIM API first
-	user, err := c.getUserByNICSCIM(nic)
-	if err == nil {
-		return user, nil
+	email, exists := hardcodedMappings[nic]
+	if !exists {
+		return nil, fmt.Errorf("no email found for owner_id: %s", nic)
 	}
 
-	// If SCIM fails, try User Management API as fallback
-	slog.Warn("SCIM API failed, trying User Management API", "error", err)
-	return c.getUserByNICUserMgmt(nic)
+	// Return a mock SCIM user
+	user := &SCIMUser{
+		ID:       nic,
+		UserName: email,
+		Emails: []struct {
+			Value   string `json:"value"`
+			Primary bool   `json:"primary"`
+			Type    string `json:"type"`
+		}{
+			{
+				Value:   email,
+				Primary: true,
+				Type:    "work",
+			},
+		},
+		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
+		Meta: struct {
+			ResourceType string `json:"resourceType"`
+		}{
+			ResourceType: "User",
+		},
+	}
+
+	slog.Info("User found via hardcoded mapping", "nic", nic, "email", email)
+	return user, nil
 }
 
-// getUserByNICSCIM tries to get user via SCIM API
-func (c *AsgardeoSCIMClient) getUserByNICSCIM(nic string) (*SCIMUser, error) {
-	// Construct SCIM query URL
-	scimURL := fmt.Sprintf("%s/scim2/Users", c.baseURL)
-
-	// Create query parameters for NIC search
-	params := url.Values{}
-	params.Set("filter", fmt.Sprintf("urn:scim:schemas:extension:custom:User:nic eq \"%s\"", nic))
-	params.Set("attributes", "id,userName,emails")
-
-	queryURL := fmt.Sprintf("%s?%s", scimURL, params.Encode())
-
-	// Make the SCIM request
-	req, err := http.NewRequest("GET", queryURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SCIM request: %w", err)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
-	req.Header.Set("Accept", "application/scim+json")
-	req.Header.Set("Content-Type", "application/scim+json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make SCIM request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("SCIM request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var scimResp SCIMResponse
-	if err := json.NewDecoder(resp.Body).Decode(&scimResp); err != nil {
-		return nil, fmt.Errorf("failed to decode SCIM response: %w", err)
-	}
-
-	if scimResp.TotalResults == 0 {
-		return nil, fmt.Errorf("no user found with NIC: %s", nic)
-	}
-
-	if len(scimResp.Resources) == 0 {
-		return nil, fmt.Errorf("no user resources found for NIC: %s", nic)
-	}
-
-	user := scimResp.Resources[0]
-
-	// Validate that the user has an email
-	if len(user.Emails) == 0 {
-		return nil, fmt.Errorf("user with NIC %s has no email address", nic)
-	}
-
-	// Find the primary email or use the first one
-	var email string
-	for _, e := range user.Emails {
-		if e.Primary {
-			email = e.Value
-			break
-		}
-	}
-	if email == "" {
-		email = user.Emails[0].Value
-	}
-
-	user.Emails = []struct {
-		Value   string `json:"value"`
-		Primary bool   `json:"primary"`
-		Type    string `json:"type"`
-	}{{
-		Value:   email,
-		Primary: true,
-		Type:    "work",
-	}}
-
-	slog.Info("User found via SCIM", "nic", nic, "email", email, "username", user.UserName)
-	return &user, nil
-}
-
-// getUserByNICUserMgmt tries to get user via User Management API
-func (c *AsgardeoSCIMClient) getUserByNICUserMgmt(nic string) (*SCIMUser, error) {
-	// Construct User Management API query URL
-	userMgmtURL := fmt.Sprintf("%s/scim2/Users", c.baseURL)
-
-	// Create query parameters for NIC search
-	params := url.Values{}
-	params.Set("filter", fmt.Sprintf("urn:scim:schemas:extension:custom:User:nic eq \"%s\"", nic))
-	params.Set("attributes", "id,userName,emails")
-
-	queryURL := fmt.Sprintf("%s?%s", userMgmtURL, params.Encode())
-
-	// Make the request
-	req, err := http.NewRequest("GET", queryURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create User Management request: %w", err)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make User Management request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("user management request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var scimResp SCIMResponse
-	if err := json.NewDecoder(resp.Body).Decode(&scimResp); err != nil {
-		return nil, fmt.Errorf("failed to decode User Management response: %w", err)
-	}
-
-	if scimResp.TotalResults == 0 {
-		return nil, fmt.Errorf("no user found with NIC: %s", nic)
-	}
-
-	if len(scimResp.Resources) == 0 {
-		return nil, fmt.Errorf("no user resources found for NIC: %s", nic)
-	}
-
-	user := scimResp.Resources[0]
-
-	// Validate that the user has an email
-	if len(user.Emails) == 0 {
-		return nil, fmt.Errorf("user with NIC %s has no email address", nic)
-	}
-
-	// Find the primary email or use the first one
-	var email string
-	for _, e := range user.Emails {
-		if e.Primary {
-			email = e.Value
-			break
-		}
-	}
-	if email == "" {
-		email = user.Emails[0].Value
-	}
-
-	user.Emails = []struct {
-		Value   string `json:"value"`
-		Primary bool   `json:"primary"`
-		Type    string `json:"type"`
-	}{{
-		Value:   email,
-		Primary: true,
-		Type:    "work",
-	}}
-
-	slog.Info("User found via User Management API", "nic", nic, "email", email, "username", user.UserName)
-	return &user, nil
-}
-
-// Global SCIM client instance with thread-safe initialization
-var (
-	scimClient *AsgardeoSCIMClient
-	scimOnce   sync.Once
-)
-
-// getOwnerEmailByID looks up the owner_email for a given owner_id using SCIM API
+// getOwnerEmailByID looks up the owner_email for a given owner_id using hardcoded mapping
+// Note: M2M authentication removed - using hardcoded mapping for simplicity
 func getOwnerEmailByID(ownerID string) (string, error) {
-	// Initialize SCIM client thread-safely using sync.Once
-	scimOnce.Do(func() {
-		baseURL := getEnvOrDefault("ASGARDEO_BASE_URL", "https://api.asgardeo.io/t/YOUR_TENANT")
-		clientID := getEnvOrDefault("ASGARDEO_M2M_CLIENT_ID", "")
-		clientSecret := getEnvOrDefault("ASGARDEO_M2M_CLIENT_SECRET", "")
-
-		if clientID == "" || clientSecret == "" {
-			// Fallback to hardcoded mapping for development/testing
-			slog.Warn("M2M credentials not configured, using hardcoded mapping", "owner_id", ownerID)
-			// Don't initialize scimClient if credentials are missing
-			return
-		}
-
-		scimClient = NewAsgardeoSCIMClient(baseURL, clientID, clientSecret)
-	})
-
-	// If SCIM client is not initialized (missing credentials), use hardcoded mapping
-	if scimClient == nil {
-		if email, exists := ownerIDToEmailMap[ownerID]; exists {
-			return email, nil
-		}
-		return "", fmt.Errorf("no email mapping found for owner_id: %s", ownerID)
+	// Use hardcoded mapping since M2M authentication is removed
+	hardcodedMappings := map[string]string{
+		"199512345678": "regina@opensource.lk",
+		"198012345678": "john@example.com",
+		"199012345678": "jane@example.com",
 	}
 
-	// Try SCIM lookup first
-	user, err := scimClient.getUserByNIC(ownerID)
-	if err != nil {
-		slog.Warn("SCIM lookup failed, falling back to hardcoded mapping", "owner_id", ownerID, "error", err)
-		// Fallback to hardcoded mapping
-		if email, exists := ownerIDToEmailMap[ownerID]; exists {
-			return email, nil
-		}
-		return "", fmt.Errorf("no email found for owner_id: %s (SCIM error: %v)", ownerID, err)
+	email, exists := hardcodedMappings[ownerID]
+	if !exists {
+		return "", fmt.Errorf("no email found for owner_id: %s", ownerID)
 	}
 
-	return user.Emails[0].Value, nil
+	slog.Info("Owner email found via hardcoded mapping", "owner_id", ownerID, "email", email)
+	return email, nil
 }
 
 // Build information - set during build
@@ -420,7 +182,6 @@ type TokenType string
 
 const (
 	TokenTypeUser    TokenType = "user"
-	TokenTypeM2M     TokenType = "m2m"
 	TokenTypeUnknown TokenType = "unknown"
 )
 
@@ -436,41 +197,8 @@ type TokenInfo struct {
 	AuthType string
 }
 
-// detectTokenType determines if a token is a user token or M2M token based on issuer and claims
-func detectTokenType(claims jwt.MapClaims, userIssuer, choreoIssuer string) TokenType {
-	iss, ok := claims["iss"].(string)
-	if !ok {
-		return TokenTypeUnknown
-	}
-
-	// Check if it's a Choreo M2M token
-	if iss == choreoIssuer {
-		// Additional checks for M2M token characteristics
-		if _, hasClientID := claims["client_id"]; hasClientID {
-			return TokenTypeM2M
-		}
-		// Check for M2M-specific claims
-		if _, hasScope := claims["scope"]; hasScope {
-			return TokenTypeM2M
-		}
-	}
-
-	// Check if it's a user token
-	if iss == userIssuer {
-		// User tokens typically have email or sub claims
-		if _, hasEmail := claims["email"]; hasEmail {
-			return TokenTypeUser
-		}
-		if _, hasSub := claims["sub"]; hasSub {
-			return TokenTypeUser
-		}
-	}
-
-	return TokenTypeUnknown
-}
-
-// Hybrid authentication middleware that handles both user JWT and Choreo M2M JWT authentication
-func hybridAuthMiddleware(userJWTVerifier *JWTVerifier, choreoJWTVerifier *ChoreoJWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
+// User authentication middleware that handles user JWT authentication only
+func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract consent ID from the URL path
@@ -508,203 +236,44 @@ func hybridAuthMiddleware(userJWTVerifier *JWTVerifier, choreoJWTVerifier *Chore
 				return
 			}
 
-			// First, try to decode the token to determine its type
-			parts := strings.Split(tokenString, ".")
-			if len(parts) != 3 {
-				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid token format"})
-				return
-			}
-
-			// Decode claims to determine token type
-			claimsBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+			// Verify the token using user JWT verifier
+			token, err := userJWTVerifier.VerifyToken(tokenString)
 			if err != nil {
-				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to decode token claims"})
+				slog.Warn("User token verification failed", "error", err, "consent_id", consentID)
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid user token"})
 				return
 			}
 
-			var claims jwt.MapClaims
-			if err := json.Unmarshal(claimsBytes, &claims); err != nil {
-				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Failed to parse token claims"})
+			// Extract email from token
+			email, err := userJWTVerifier.ExtractEmailFromToken(token)
+			if err != nil {
+				slog.Warn("Failed to extract email from user token", "error", err, "consent_id", consentID)
+				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Token missing email claim"})
 				return
 			}
 
-			// Determine token type based on issuer and claims
-			userIssuer := userTokenConfig.ExpectedIssuer
-			choreoIssuer := getEnvOrDefault("CHOREO_ISSUER", "https://sts.choreo.dev/oauth2/token")
-			tokenType := detectTokenType(claims, userIssuer, choreoIssuer)
-
-			if tokenType == TokenTypeUnknown {
-				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Unknown token type. Token must be from a recognized issuer"})
-				return
-			}
-
-			// Handle M2M tokens (from Choreo)
-			if tokenType == TokenTypeM2M {
-				// Verify the token using Choreo JWT verifier
-				token, err := choreoJWTVerifier.VerifyToken(tokenString)
-				if err != nil {
-					slog.Warn("Choreo M2M token verification failed", "error", err, "consent_id", consentID)
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid M2M token"})
-					return
-				}
-
-				// Extract token information
-				tokenInfo, err := extractTokenInfo(token)
-				if err != nil {
-					slog.Warn("Failed to extract M2M token info", "error", err, "consent_id", consentID)
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid M2M token format"})
-					return
-				}
-
-				// Add M2M auth type to the request context
-				ctx := context.WithValue(r.Context(), authTypeKey, "m2m")
-				ctx = context.WithValue(ctx, tokenInfoKey, tokenInfo)
-				r = r.WithContext(ctx)
-
-				slog.Info("M2M authentication successful",
-					"client_id", tokenInfo.ClientID,
+			// Check if the email matches the consent owner email
+			if consentRecord.OwnerEmail != email {
+				slog.Warn("User email does not match consent owner email",
+					"user_email", email,
+					"consent_owner_email", consentRecord.OwnerEmail,
 					"consent_id", consentID)
-
-			} else if tokenType == TokenTypeUser {
-				// Handle user tokens (from Asgardeo)
-				// Verify the token using user JWT verifier
-				token, err := userJWTVerifier.VerifyToken(tokenString)
-				if err != nil {
-					slog.Warn("User token verification failed", "error", err, "consent_id", consentID)
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid user token"})
-					return
-				}
-
-				// Extract email from token
-				email, err := userJWTVerifier.ExtractEmailFromToken(token)
-				if err != nil {
-					slog.Warn("Failed to extract email from user token", "error", err, "consent_id", consentID)
-					utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Token missing email claim"})
-					return
-				}
-
-				// Check if the email matches the consent owner email
-				if consentRecord.OwnerEmail != email {
-					slog.Warn("User email does not match consent owner email",
-						"user_email", email,
-						"consent_owner_email", consentRecord.OwnerEmail,
-						"consent_id", consentID)
-					utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Access denied: email does not match consent owner"})
-					return
-				}
-
-				// Add user auth type and email to the request context
-				ctx := context.WithValue(r.Context(), authTypeKey, "user")
-				ctx = context.WithValue(ctx, userEmailKey, email)
-				r = r.WithContext(ctx)
-
-				slog.Info("User authentication successful",
-					"email", email,
-					"consent_id", consentID)
+				utils.RespondWithJSON(w, http.StatusForbidden, utils.ErrorResponse{Error: "Access denied: email does not match consent owner"})
+				return
 			}
+
+			// Add user auth type and email to the request context
+			ctx := context.WithValue(r.Context(), authTypeKey, "user")
+			ctx = context.WithValue(ctx, userEmailKey, email)
+			r = r.WithContext(ctx)
+
+			slog.Info("User authentication successful",
+				"email", email,
+				"consent_id", consentID)
 
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// extractTokenInfo extracts token information and determines the token type
-func extractTokenInfo(token *jwt.Token) (*TokenInfo, error) {
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, fmt.Errorf("invalid token claims")
-	}
-
-	tokenInfo := &TokenInfo{}
-
-	// Extract basic claims
-	if sub, ok := claims["sub"].(string); ok {
-		tokenInfo.Subject = sub
-	}
-
-	if aud, ok := claims["aud"]; ok {
-		switch v := aud.(type) {
-		case string:
-			tokenInfo.Audience = []string{v}
-		case []interface{}:
-			for _, a := range v {
-				if s, ok := a.(string); ok {
-					tokenInfo.Audience = append(tokenInfo.Audience, s)
-				}
-			}
-		}
-	}
-
-	if iss, ok := claims["iss"].(string); ok {
-		tokenInfo.Issuer = iss
-	}
-
-	if clientID, ok := claims["client_id"].(string); ok {
-		tokenInfo.ClientID = clientID
-	}
-
-	// Extract scopes
-	if scope, ok := claims["scope"].(string); ok {
-		tokenInfo.Scopes = strings.Fields(scope)
-	}
-
-	// Extract email
-	emailFields := []string{"email", "preferred_username"}
-	for _, field := range emailFields {
-		if email, ok := claims[field].(string); ok && email != "" {
-			tokenInfo.Email = email
-			break
-		}
-	}
-
-	// Extract auth type
-	if authType, ok := claims["aut"].(string); ok {
-		tokenInfo.AuthType = authType
-	}
-
-	// Determine token type based on claims
-	tokenInfo.Type = determineTokenType(claims)
-
-	return tokenInfo, nil
-}
-
-// determineTokenType determines if a token is a user token or M2M token
-func determineTokenType(claims jwt.MapClaims) TokenType {
-	// Check for auth type first
-	if authType, ok := claims["aut"].(string); ok {
-		if authType == "APPLICATION_USER" {
-			return TokenTypeUser
-		}
-		if authType == "APPLICATION" {
-			return TokenTypeM2M
-		}
-	}
-
-	// Fallback to legacy logic
-	clientID, hasClientID := claims["client_id"].(string)
-	sub, hasSub := claims["sub"].(string)
-	scope, hasScope := claims["scope"].(string)
-
-	// If it has client_id and either no sub or sub matches client_id, it's likely M2M
-	if hasClientID && (!hasSub || sub == clientID) {
-		// Additional check: M2M tokens usually have scopes like "consent:read consent:write"
-		if hasScope && strings.Contains(scope, "consent:") {
-			return TokenTypeM2M
-		}
-	}
-
-	// If it has a sub claim that doesn't match client_id, it's likely a user token
-	if hasSub && (clientID == "" || sub != clientID) {
-		return TokenTypeUser
-	}
-
-	// If it has an email claim, it's likely a user token
-	if email, ok := claims["email"].(string); ok && email != "" {
-		return TokenTypeUser
-	}
-
-	// Default to user token if we can't determine
-	return TokenTypeUser
 }
 
 // apiServer holds dependencies for the HTTP handlers
@@ -1399,13 +968,6 @@ func main() {
 	userJWTVerifier := NewJWTVerifier(userJwksURL, userIssuer, userAudience)
 	slog.Info("Initialized user JWT verifier", "jwks_url", userJwksURL, "issuer", userIssuer, "audience", userAudience)
 
-	// Initialize Choreo M2M JWT verifier
-	choreoJwksURL := getEnvOrDefault("CHOREO_JWKS_URL", "https://sts.choreo.dev/oauth2/jwks")
-	choreoIssuer := getEnvOrDefault("CHOREO_ISSUER", "https://sts.choreo.dev/oauth2/token")
-	choreoAudience := getEnvOrDefault("CHOREO_AUDIENCE", "YOUR_CHOREO_AUDIENCE")
-	choreoJWTVerifier := NewChoreoJWTVerifier(choreoJwksURL, choreoIssuer, choreoAudience)
-	slog.Info("Initialized Choreo M2M JWT verifier", "jwks_url", choreoJwksURL, "issuer", choreoIssuer, "audience", choreoAudience)
-
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
 		ExpectedIssuer:   getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token"),
@@ -1427,8 +989,8 @@ func main() {
 	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 
-	// Routes that require hybrid authentication (both user and M2M tokens)
-	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(hybridAuthMiddleware(userJWTVerifier, choreoJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
+	// Routes that require user authentication
+	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(userAuthMiddleware(userJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
 
 	// Create server using utils
 	serverConfig := &utils.ServerConfig{

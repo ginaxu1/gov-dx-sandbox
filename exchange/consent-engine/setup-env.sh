@@ -17,15 +17,9 @@ ASGARDEO_ISSUER=https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/token
 ASGARDEO_AUDIENCE=YOUR_AUDIENCE
 ASGARDEO_ORG_NAME=lankasoftwarefoundation
 
-# Required - Asgardeo M2M Configuration for SCIM API
-# Get these from your consumer-auth-backend application in Asgardeo
-ASGARDEO_M2M_CLIENT_ID=your-m2m-client-id
-ASGARDEO_M2M_CLIENT_SECRET=your-m2m-client-secret
-
 # Required - Service Configuration
 CONSENT_PORTAL_URL=https://your-frontend-domain.com
 ORCHESTRATION_ENGINE_URL=https://your-orchestration-engine.com
-M2M_API_KEY=your-m2m-api-key-here
 ENVIRONMENT=production
 
 # Optional - Service Configuration (with defaults)
@@ -59,12 +53,9 @@ echo "   - ASGARDEO_JWKS_URL: JWKS endpoint URL"
 echo "   - ASGARDEO_ISSUER: JWT issuer URL"
 echo "   - ASGARDEO_AUDIENCE: JWT audience"
 echo "   - ASGARDEO_ORG_NAME: Your organization name"
-echo "   - ASGARDEO_M2M_CLIENT_ID: M2M client ID for SCIM API access"
-echo "   - ASGARDEO_M2M_CLIENT_SECRET: M2M client secret for SCIM API access"
 echo ""
 echo "🔍 Required Service values:"
 echo "   - CONSENT_PORTAL_URL: Your frontend URL"
 echo "   - ORCHESTRATION_ENGINE_URL: Your orchestration engine URL"
-echo "   - M2M_API_KEY: Your M2M API key"
 echo ""
 echo "📚 For more information, see README.md"
