@@ -253,6 +253,19 @@ func InitDatabase(db *sql.DB) error {
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);`
 
+	// Create audit_logs table for transaction auditing
+	createAuditLogsTable := `
+	CREATE TABLE IF NOT EXISTS audit_logs (
+		event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		consumer_id TEXT NOT NULL,
+		provider_id TEXT NOT NULL,
+		requested_data JSONB NOT NULL,
+		response_data JSONB,
+		transaction_status TEXT NOT NULL,
+		citizen_hash TEXT NOT NULL
+	);`
+
 	// Create indexes for better performance
 	createIndexes := []string{
 		"CREATE INDEX IF NOT EXISTS idx_consumer_apps_consumer_id ON consumer_apps(consumer_id);",
@@ -262,6 +275,15 @@ func InitDatabase(db *sql.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_provider_schemas_status ON provider_schemas(status);",
 		"CREATE INDEX IF NOT EXISTS idx_provider_metadata_owner ON provider_metadata(owner);",
 		"CREATE INDEX IF NOT EXISTS idx_provider_metadata_provider ON provider_metadata(provider);",
+		// Audit logs indexes
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_id ON audit_logs(consumer_id);",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_provider_id ON audit_logs(provider_id);",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_citizen_hash ON audit_logs(citizen_hash);",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_transaction_status ON audit_logs(transaction_status);",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_timestamp ON audit_logs(consumer_id, timestamp);",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_provider_timestamp ON audit_logs(provider_id, timestamp);",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_citizen_timestamp ON audit_logs(citizen_hash, timestamp);",
 	}
 
 	// Execute table creation queries
@@ -273,6 +295,7 @@ func InitDatabase(db *sql.DB) error {
 		createProviderSchemasTable,
 		createConsumerGrantsTable,
 		createProviderMetadataTable,
+		createAuditLogsTable,
 	}
 
 	for _, query := range tables {

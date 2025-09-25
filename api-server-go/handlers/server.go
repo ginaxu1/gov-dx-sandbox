@@ -19,6 +19,8 @@ type APIServer struct {
 	providerService services.ProviderServiceInterface
 	adminService    *services.AdminService
 	grantsService   services.GrantsServiceInterface
+	auditService    *services.AuditService
+	auditHandler    *AuditHandler
 }
 
 // NewAPIServerWithDB creates a new API server instance with database support
@@ -26,11 +28,16 @@ func NewAPIServerWithDB(db *sql.DB) *APIServer {
 	consumerService := services.NewConsumerServiceWithDB(db)
 	providerService := services.NewProviderServiceWithDB(db)
 	grantsService := services.NewGrantsServiceWithDB(db)
+	auditService := services.NewAuditService(db)
+	auditHandler := NewAuditHandler(auditService)
+
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
 		grantsService:   grantsService,
+		auditService:    auditService,
+		auditHandler:    auditHandler,
 	}
 }
 
@@ -82,6 +89,13 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 
 	// Allow List Management routes
 	mux.Handle("/admin/fields/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAllowListRoutes)))
+
+	// Audit routes
+	mux.Handle("/audit/logs", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.CreateAuditLog)))
+	mux.Handle("/audit/provider", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForProvider)))
+	mux.Handle("/audit/admin", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForAdmin)))
+	mux.Handle("/audit/citizen", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForCitizen)))
+	mux.Handle("/audit/summary", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogSummary)))
 }
 
 // Generic handler for collection endpoints (GET all, POST create)
