@@ -65,7 +65,7 @@ interface NavbarProps {
   onViewChange: (view: 'provider' | 'consumer') => void;
   providerId?: string;
   consumerId?: string;
-  currentView: 'provider' | 'consumer';
+  currentView: 'provider' | 'consumer' | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -85,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleViewChange = (newView: 'provider' | 'consumer') => {
-    if (!canSwitchView()) {
+    if (!canSwitchView() && newView !== currentView) {
       alert(`Cannot switch to ${newView} view. You're not registered as a ${newView === 'provider' ? 'provider' : 'consumer'}.`);
       return;
     }
