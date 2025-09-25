@@ -64,7 +64,7 @@ func setupPostgresTestEngine(t *testing.T) ConsentEngine {
 	// Clean up test data before each test
 	cleanupTestData(t, db)
 
-	return NewPostgresConsentEngine(db)
+	return NewPostgresConsentEngine(db, "http://localhost:5173")
 }
 
 // cleanupTestData removes all test data from the database
