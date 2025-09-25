@@ -1,13 +1,13 @@
 # Consent Engine (CE)
 
-Service that manages data owner consent workflows for data access requests with user JWT authentication support.
+Service that manages data owner consent workflows for data access requests with user JWT authentication support for public endpoints and internal access for service-to-service communication.
 
 ## Overview
 
 - **Technology**: Go + In-memory storage
 - **Port**: 8081
 - **Purpose**: Consent management and workflow coordination
-- **Authentication**: User JWT authentication with ownership checks for public endpoints, internal endpoints require no authentication
+- **Authentication**: User JWT authentication with ownership checks for public endpoints, internal endpoints for service-to-service communication
 - **Test Coverage**: 34% with comprehensive unit and integration tests
 
 ## Quick Start
@@ -54,7 +54,7 @@ docker build -t ce . && docker run -p 8081:8081 ce
 
 | Endpoint | Method | Description | Authentication |
 |----------|--------|-------------|----------------|
-| `/consents` | POST | Create new consent (Internal) | None |
+| `/consents` | POST | Create new consent (Internal - Service-to-Service) | None |
 | `/consents/{id}` | GET | Get consent information | **User JWT Auth** |
 | `/consents/{id}` | PUT | Update consent status | **User JWT Auth** |
 | `/consents/{id}` | POST | Update consent status (alternative) | **User JWT Auth** |
@@ -69,22 +69,24 @@ docker build -t ce . && docker run -p 8081:8081 ce
 | `/admin/expiry-check` | POST | Check expired consents | None |
 | `/health` | GET | Health check | None |
 
-**User JWT Auth**: All requests require user JWT with email ownership validation
+**User JWT Auth**: All requests require user JWT with email ownership validation  
+**Internal Access**: POST /consents endpoint is for internal service-to-service communication only
 
-## User JWT Authentication
+## Authentication
 
-The Consent Engine uses user JWT authentication for public endpoints with email ownership validation:
+The Consent Engine uses two types of access patterns:
 
-### User JWT Tokens (From Asgardeo)
-- **Require JWT authentication** with valid email claim
+### User JWT Authentication (Public Endpoints)
+- **Require JWT authentication** with valid email claim from Asgardeo
 - **Email must match** the consent owner's email for ownership validation
 - **Used by** Consent Portal for user-facing operations
 - **Protected endpoints**: GET, PUT, PATCH, DELETE `/consents/{id}`
 
-### Internal Endpoints
-- **POST `/consents`**: Internal endpoint, no authentication required
-- **Used by** Orchestration Engine for service-to-service communication
-- **Access**: Project-internal only, not exposed publicly
+### Internal Service Access
+- **POST `/consents`**: Internal endpoint for service-to-service communication
+- **No authentication required** - accessed via internal network only
+- **Used by** Orchestration Engine and other internal services
+- **Access**: Project-internal only, not exposed to external clients
 
 ### Environment Variables
 
@@ -133,7 +135,8 @@ For protected endpoints (`/consents/{id}`):
 - **Ownership mismatch**: Rejected with 403 Forbidden
 
 For internal endpoints (`POST /consents`):
-- **No authentication required** - project-internal access only
+- **No authentication required** - internal service-to-service access only
+- **Network access**: Must be accessed from within the project's internal network
 
 ## Data Owner Information
 
@@ -154,9 +157,10 @@ Retrieves only the owner ID and email for a specific consent record. This endpoi
 curl -X GET http://localhost:8081/data-info/consent_122af00e
 ```
 
-## Create Consent
+## Create Consent (Internal)
 
-**Endpoint:** `POST /consents`
+**Endpoint:** `POST /consents`  
+**Access:** Internal service-to-service communication only
 
 **Request:**
 ```json
@@ -193,8 +197,9 @@ curl -X GET http://localhost:8081/data-info/consent_122af00e
 }
 ```
 
-**cURL Example:**
+**cURL Example (Internal Access):**
 ```bash
+# Note: This endpoint is for internal service-to-service communication only
 curl -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
@@ -380,8 +385,9 @@ Expected response:
 
 #### Complete Test Workflow
 
-1. **Create a consent request:**
+1. **Create a consent request (Internal endpoint):**
 ```bash
+# Note: This endpoint is for internal service-to-service communication
 CONSENT_RESPONSE=$(curl -s -X POST http://localhost:8081/consents \
   -H "Content-Type: application/json" \
   -d '{
@@ -615,3 +621,4 @@ The Consent Engine integrates with:
    - Orchestration Engine uses project-internal network access
    - Orchestration Engine calls `POST /consents` without authentication
    - Consent Engine processes internal requests without JWT validation
+   - Access is restricted to internal services only, not exposed to external clients

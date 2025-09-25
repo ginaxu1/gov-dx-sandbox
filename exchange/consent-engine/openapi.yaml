@@ -12,9 +12,8 @@ info:
     - **Security**: Public endpoints require valid JWT authentication with email ownership validation
     
     ## SCIM Integration
-    The API automatically resolves user email addresses from National ID (NIC) values using 
-    hardcoded mapping. When creating consents, only the owner_id (NIC) is required - 
-    the owner_email is automatically looked up and populated.
+    The API automatically resolves user email addresses from National ID (NIC) values. 
+    When creating consents, only the owner_id (NIC) is required - the owner_email is automatically looked up and populated.
   version: 1.1.0
   contact:
     name: OpenDIF Team
@@ -156,9 +155,8 @@ paths:
           in: header
           required: true
           description: |
-            JWT Bearer token for authentication. Required for all requests.
-            - **User JWT**: From Asgardeo identity provider, requires email validation
-            - **M2M JWT**: From Choreo internal services, trusted for all operations
+            JWT Bearer token for authentication. Required for all protected endpoints.
+            - **User JWT**: From Asgardeo identity provider, requires email validation and ownership checks
             Format: 'Bearer <jwt_token>'
           schema:
             type: string
@@ -192,10 +190,9 @@ paths:
     put:
       summary: Update Consent
       description: |
-        Update a specific consent record by its ID with hybrid JWT authentication:
+        Update a specific consent record by its ID with user JWT authentication:
         - **User JWT Tokens**: From Asgardeo, require email validation and ownership checks
-        - **M2M JWT Tokens**: From Choreo, trusted for all consent operations
-        - **Token Detection**: Automatically determined by issuer and claims validation
+        - **Email Validation**: User's email must match the consent owner's email for access
         
         **Status Transitions:**
         - **Pending**: Can transition to approved, rejected, or expired
@@ -264,10 +261,9 @@ paths:
     patch:
       summary: Partially Update Consent
       description: |
-        Partially update a specific consent record by its ID with hybrid authentication:
-        - **Frontend requests**: Require JWT authentication with email validation
-        - **M2M requests**: JWT authentication is optional
-        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        Partially update a specific consent record by its ID with user JWT authentication:
+        - **User JWT Authentication**: Required with email validation and ownership checks
+        - **Email Validation**: User's email must match the consent owner's email for access
         
         This endpoint allows partial updates to consent records, updating only the fields provided in the request body.
       operationId: patchConsentById
@@ -353,10 +349,9 @@ paths:
     delete:
       summary: Revoke Consent
       description: |
-        Revoke a specific consent record by its ID with hybrid authentication:
-        - **Frontend requests**: Require JWT authentication with email validation
-        - **M2M requests**: JWT authentication is optional
-        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        Revoke a specific consent record by its ID with user JWT authentication:
+        - **User JWT Authentication**: Required with email validation and ownership checks
+        - **Email Validation**: User's email must match the consent owner's email for access
       operationId: revokeConsent
       tags:
         - Consents
@@ -984,11 +979,10 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: |
-        Hybrid JWT authentication supporting both user and M2M tokens:
+        User JWT authentication for public endpoints:
         - **User JWT**: From Asgardeo identity provider, requires email validation and ownership checks
-        - **M2M JWT**: From Choreo internal services, trusted for all consent operations
+        - **Email Validation**: User's email must match the consent owner's email for access
         The token must be included in the Authorization header as 'Bearer <token>'.
-        Token type is automatically detected based on issuer and claims.
 
 # Security is applied per endpoint - not all endpoints require authentication
 
