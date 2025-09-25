@@ -1,0 +1,49 @@
+{
+  "ceUrl": "http://localhost:8081",
+  "pdpUrl": "http://localhost:8082",
+  "providers": [
+    {
+      "providerKey": "drp",
+      "providerUrl": "http://localhost:9091",
+      "auth": {
+        "type": "apiKey",
+        "apiKeyName": "Test-Key",
+        "apiKeyValue": "eyJraWQiOiJn"
+      }
+    },
+    {
+      "providerKey": "dmt",
+      "providerUrl": "http://localhost:9090"
+    },
+    {
+      "providerKey": "rgd",
+      "providerUrl": "http://localhost:8080/graphql",
+      "auth": {
+        "type": "oauth2",
+        "tokenUrl": "https://example.com/oauth2/token",
+        "clientId": "SOME_CLIENT_ID",
+        "clientSecret": "SOME_CLIENT_SECRET"
+      }
+    }
+  ],
+  "argMappings": [
+    {
+      "providerKey": "drp",
+      "targetArgName": "nic",
+      "sourceArgPath": "personInfo-nic",
+      "targetArgPath": "drp.person"
+    },
+    {
+      "providerKey": "rgd",
+      "targetArgName": "nic",
+      "sourceArgPath": "personInfo-nic",
+      "targetArgPath": "rgd.getPersonInfo"
+    },
+    {
+      "providerKey": "dmt",
+      "targetArgName": "ownerNic",
+      "sourceArgPath": "personInfo-nic",
+      "targetArgPath": "dmt.vehicle.getVehicleInfos"
+    }
+  ]
+}

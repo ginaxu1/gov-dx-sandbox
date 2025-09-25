@@ -10,20 +10,13 @@ import (
 )
 
 type AdminService struct {
-	consumerService *ConsumerService
-	providerService *ProviderService
+	consumerService ConsumerServiceInterface
+	providerService ProviderServiceInterface
 	mutex           sync.RWMutex
 }
 
-func NewAdminService() *AdminService {
-	return &AdminService{
-		consumerService: NewConsumerService(),
-		providerService: NewProviderService(),
-	}
-}
-
 // NewAdminServiceWithServices creates an admin service with existing services
-func NewAdminServiceWithServices(consumerService *ConsumerService, providerService *ProviderService) *AdminService {
+func NewAdminServiceWithServices(consumerService ConsumerServiceInterface, providerService ProviderServiceInterface) *AdminService {
 	return &AdminService{
 		consumerService: consumerService,
 		providerService: providerService,
@@ -31,12 +24,12 @@ func NewAdminServiceWithServices(consumerService *ConsumerService, providerServi
 }
 
 // GetConsumerService returns the consumer service for testing
-func (s *AdminService) GetConsumerService() *ConsumerService {
+func (s *AdminService) GetConsumerService() ConsumerServiceInterface {
 	return s.consumerService
 }
 
 // GetProviderService returns the provider service for testing
-func (s *AdminService) GetProviderService() *ProviderService {
+func (s *AdminService) GetProviderService() ProviderServiceInterface {
 	return s.providerService
 }
 
@@ -46,7 +39,13 @@ func (s *AdminService) GetMetrics() (map[string]interface{}, error) {
 	defer s.mutex.RUnlock()
 
 	// Get counts from services
-	applications, err := s.consumerService.GetAllApplications()
+	consumers, err := s.consumerService.GetAllConsumers()
+	if err != nil {
+		slog.Error("Failed to get consumers for metrics", "error", err)
+		return nil, err
+	}
+
+	applications, err := s.consumerService.GetAllConsumerApps()
 	if err != nil {
 		slog.Error("Failed to get applications for metrics", "error", err)
 		return nil, err
@@ -71,6 +70,7 @@ func (s *AdminService) GetMetrics() (map[string]interface{}, error) {
 	}
 
 	metrics := map[string]interface{}{
+		"total_consumers":            len(consumers),
 		"total_consumer_apps":        len(applications),
 		"total_provider_submissions": len(submissions),
 		"total_providers":            len(profiles),
@@ -86,9 +86,9 @@ func (s *AdminService) GetRecentActivity() ([]map[string]interface{}, error) {
 	defer s.mutex.RUnlock()
 
 	// Get data from services
-	applications, err := s.consumerService.GetAllApplications()
+	applications, err := s.consumerService.GetAllConsumerApps()
 	if err != nil {
-		slog.Error("Failed to get applications for recent activity", "error", err)
+		slog.Error("Failed to get consumer apps for recent activity", "error", err)
 		return nil, err
 	}
 
@@ -122,7 +122,7 @@ func (s *AdminService) GetStatistics() (map[string]interface{}, error) {
 	defer s.mutex.RUnlock()
 
 	// Get data from services
-	applications, err := s.consumerService.GetAllApplications()
+	applications, err := s.consumerService.GetAllConsumerApps()
 	if err != nil {
 		slog.Error("Failed to get applications for statistics", "error", err)
 		return nil, err
@@ -155,7 +155,7 @@ func (s *AdminService) GetStatistics() (map[string]interface{}, error) {
 }
 
 // countApplicationsByStatus counts applications by their status
-func (s *AdminService) countApplicationsByStatus(applications []*models.Application) map[string]int {
+func (s *AdminService) countApplicationsByStatus(applications []*models.ConsumerApp) map[string]int {
 	stats := make(map[string]int)
 	for _, app := range applications {
 		stats[string(app.Status)]++
@@ -190,7 +190,7 @@ type ActivityItem struct {
 }
 
 // generateRecentActivity creates a list of recent activities from all data sources
-func (s *AdminService) generateRecentActivity(applications []*models.Application, submissions []*models.ProviderSubmission, profiles []*models.ProviderProfile, schemas []*models.ProviderSchema) []map[string]interface{} {
+func (s *AdminService) generateRecentActivity(applications []*models.ConsumerApp, submissions []*models.ProviderSubmission, profiles []*models.ProviderProfile, schemas []*models.ProviderSchema) []map[string]interface{} {
 	var activities []ActivityItem
 
 	// Add application activities

@@ -39,6 +39,7 @@ type ProviderSubmission struct {
 	ProviderType ProviderType             `json:"providerType"`
 	Status       ProviderSubmissionStatus `json:"status"`
 	CreatedAt    time.Time                `json:"createdAt"`
+	UpdatedAt    time.Time                `json:"updatedAt"`
 }
 
 // ProviderProfile represents the official, approved profile of a Data Provider
@@ -49,6 +50,8 @@ type ProviderProfile struct {
 	PhoneNumber  string       `json:"phoneNumber"`
 	ProviderType ProviderType `json:"providerType"`
 	ApprovedAt   time.Time    `json:"approvedAt"`
+	CreatedAt    time.Time    `json:"createdAt"`
+	UpdatedAt    time.Time    `json:"updatedAt"`
 }
 
 // FieldConfiguration defines the metadata for a single field in a provider's schema
@@ -70,6 +73,8 @@ type ProviderSchema struct {
 	SchemaInput         *SchemaInput         `json:"schemaInput,omitempty"`
 	FieldConfigurations FieldConfigurations  `json:"fieldConfigurations"`
 	SDL                 string               `json:"sdl,omitempty"` // Store SDL directly
+	CreatedAt           time.Time            `json:"createdAt"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
 }
 
 // SchemaInput represents the original schema source

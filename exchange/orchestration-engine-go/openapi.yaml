@@ -1,0 +1,39 @@
+openapi: 3.0.3
+info:
+  title: Orchestration Engine API
+  version: 1.0.0
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns a health check message.
+      responses:
+        '200':
+          description: Successful health response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                example:
+                  message: "OK"
+
+  /sdl:
+    get:
+      summary: Get GraphQL SDL
+      description: Returns the SDL (Schema Definition Language) string of the GraphQL API.
+      responses:
+        '200':
+          description: Successful SDL response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sdl:
+                    type: string
+                example:
+                  sdl: "type Query { hello: String }"

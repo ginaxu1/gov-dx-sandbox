@@ -1,29 +1,31 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
 	"github.com/gov-dx-sandbox/api-server-go/services"
-	"github.com/gov-dx-sandbox/exchange/shared/utils"
+	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 )
 
 // APIServer manages all API routes and handlers
 type APIServer struct {
-	consumerService *services.ConsumerService
-	providerService *services.ProviderService
+	consumerService services.ConsumerServiceInterface
+	providerService services.ProviderServiceInterface
 	adminService    *services.AdminService
-	grantsService   *services.GrantsService
+	grantsService   services.GrantsServiceInterface
 }
 
-// NewAPIServer creates a new API server instance
-func NewAPIServer() *APIServer {
-	consumerService := services.NewConsumerService()
-	providerService := services.NewProviderService()
-	grantsService := services.NewGrantsService()
+// NewAPIServerWithDB creates a new API server instance with database support
+func NewAPIServerWithDB(db *sql.DB) *APIServer {
+	consumerService := services.NewConsumerServiceWithDB(db)
+	providerService := services.NewProviderServiceWithDB(db)
+	grantsService := services.NewGrantsServiceWithDB(db)
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
@@ -33,13 +35,28 @@ func NewAPIServer() *APIServer {
 }
 
 // ProviderService returns the provider service instance
-func (s *APIServer) ProviderService() *services.ProviderService {
+func (s *APIServer) ProviderService() services.ProviderServiceInterface {
 	return s.providerService
 }
 
-// GetProviderService returns the provider service instance (alias for consistency)
-func (s *APIServer) GetProviderService() *services.ProviderService {
+// GetConsumerService returns the consumer service instance
+func (s *APIServer) GetConsumerService() services.ConsumerServiceInterface {
+	return s.consumerService
+}
+
+// GetProviderService returns the provider service instance
+func (s *APIServer) GetProviderService() services.ProviderServiceInterface {
 	return s.providerService
+}
+
+// GetGrantsService returns the grants service instance
+func (s *APIServer) GetGrantsService() services.GrantsServiceInterface {
+	return s.grantsService
+}
+
+// GetAdminService returns the admin service instance
+func (s *APIServer) GetAdminService() *services.AdminService {
+	return s.adminService
 }
 
 // SetupRoutes configures all API routes
@@ -73,7 +90,9 @@ func (s *APIServer) handleCollection(w http.ResponseWriter, r *http.Request, get
 	case http.MethodGet:
 		items, err := getter()
 		if err != nil {
-			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve items")
+			// Log the actual error for debugging
+			slog.Error("Failed to retrieve items", "error", err, "path", r.URL.Path)
+			utils.RespondWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to retrieve items: %v", err))
 			return
 		}
 		utils.RespondWithSuccess(w, http.StatusOK, items)
@@ -559,8 +578,9 @@ func (s *APIServer) handleProviderSchemas(w http.ResponseWriter, r *http.Request
 func (s *APIServer) handleProviderSubmissions(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		// GET /provider-submissions - List all provider submissions
-		submissions, err := s.providerService.GetAllProviderSubmissions()
+		// GET /provider-submissions - List all provider submissions with optional status filter
+		status := r.URL.Query().Get("status")
+		submissions, err := s.providerService.GetProviderSubmissionsByStatus(status)
 		if err != nil {
 			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve provider submissions")
 			return

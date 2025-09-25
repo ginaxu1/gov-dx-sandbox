@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
@@ -33,6 +35,31 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
+	mux.HandleFunc("/public/sdl", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if configs.AppConfig == nil || configs.AppConfig.Sdl == nil {
+			http.Error(w, "SDL not configured", http.StatusInternalServerError)
+			return
+		}
+
+		sdl := configs.AppConfig.Sdl
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		response := map[string]string{"sdl": string(sdl)}
+
+		err := json.NewEncoder(w).Encode(response)
+
+		if err != nil {
+			logger.Log.Error("Failed to write SDL response", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	})
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -45,10 +72,25 @@ func RunServer(f *federator.Federator) {
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		response := f.FederateQuery(req)
+
+		// decode the token
+		consumerAssertion, err := auth.GetConsumerJwtFromToken(r)
+
+		if err != nil {
+			logger.Log.Error("Failed to get consumer JWT from token", "error", err)
+			http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		response, statusCode := f.FederateQuery(req, consumerAssertion)
+
+		w.WriteHeader(statusCode)
+		// Set content type to application/json
 
 		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(response)
+
+		err = json.NewEncoder(w).Encode(response)
+
 		if err != nil {
 			logger.Log.Error("Failed to write response", "error", err)
 			return
@@ -87,7 +129,9 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// Allow specific methods
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		// Allow specific headers
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
 
 		// Handle preflight (OPTIONS) requests
 		if r.Method == http.MethodOptions {
