@@ -4,8 +4,9 @@ import { Dashboard } from './pages/Dashboard';
 import { SchemasPage } from './pages/Schemas';
 import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
 import { Logs } from "./pages/Logs";
-import { Applications } from "./pages/Applications";
-import { use, useEffect, useState } from "react";
+import { ApplicationsPage as Applications } from "./pages/Applications";
+import { useEffect, useState } from "react";
+import { ApplicationRegistration } from './pages/ApplicationRegistration';
 
 interface EntityProps {
   id: string;
@@ -86,6 +87,8 @@ function App() {
             <>
               <Route path="/" element={<Dashboard />} />
               <Route path="/consumer/applications" element={<Applications />} />
+              <Route path="/consumer/applications/new" element={<ApplicationRegistration 
+              />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}
