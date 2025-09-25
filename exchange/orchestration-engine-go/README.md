@@ -36,16 +36,9 @@ To set up the development environment for the Orchestration Engine, follow these
    and create your own `config.json` file based on it. This file lists out the following information.
     - `pdpUrl` - The URL of the Policy Decision Point which handles authorization.
     - `ceUrl` - The URL of the Consent Engine which handles consent management.
-    - `providers` - An array of data providers, each with a `providerKey` and `providerUrl`.
-    - `argMappings` - Arg Mappings is an array of objects that define how to map arguments from the consumer's request
-      to the provider's expected arguments.
-        - `providerKey` - The argument name expected by the provider.
-        - `targetArgName` - The argument name in the consumer's request that should be mapped to the provider's
-          argument.
-        - `sourceArgPath` - The path to the argument in the consumer's request, which can be a nested path using dot
-          notation.
-        - `targetArgPath` - The path to the argument in the provider's request, which can also be a nested path using
-          dot notation.
+    - `providers` - An array of data providers, each with a `providerKey` and `providerUrl`. 
+      For detailed provider integration steps, see the [Provider Onboarding Guide](PROVIDER_CONFIGURATION.md).
+
 5. **Run the Server**: You can run the Orchestration Engine server using the following command:
    ```bash
    go run main.go
