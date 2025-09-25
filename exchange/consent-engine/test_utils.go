@@ -74,23 +74,11 @@ func cleanupTestData(t *testing.T, db *sql.DB) {
 	}
 }
 
-// SetupTestWithCleanup sets up a test with proper cleanup of global state
-func SetupTestWithCleanup(t *testing.T) func() {
-
-	// Return cleanup function
-	return func() {
-		// No global state to reset since M2M authentication was removed
-	}
-}
-
 // TestWithPostgresEngine runs a test function with PostgreSQL engine
-// Note: In-memory engine has been deprecated and removed from the codebase
 func TestWithPostgresEngine(t *testing.T, testName string, testFunc func(t *testing.T, engine ConsentEngine)) {
 	// Only run PostgreSQL tests if explicitly enabled
 	if os.Getenv("TEST_USE_POSTGRES") == "true" {
 		t.Run("PostgreSQL_"+testName, func(t *testing.T) {
-			cleanup := SetupTestWithCleanup(t)
-			defer cleanup()
 
 			engine := setupPostgresTestEngine(t)
 			testFunc(t, engine)

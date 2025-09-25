@@ -115,9 +115,6 @@ func TestSCIMIntegration(t *testing.T) {
 		// Test that owner email lookup uses hardcoded mapping
 		// Since M2M authentication was removed, we now use hardcoded mapping for simplicity
 
-		cleanup := SetupTestWithCleanup(t)
-		defer cleanup()
-
 		// Test with a known owner_id from hardcoded mapping
 		email, err := getOwnerEmailByID("199512345678")
 		if err != nil {
