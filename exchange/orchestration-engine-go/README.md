@@ -39,7 +39,7 @@ To set up the development environment for the Orchestration Engine, follow these
     - `providers` - An array of data providers, each with a `providerKey` and `providerUrl`.
     - `argMappings` - Arg Mappings is an array of objects that define how to map arguments from the consumer's request
       to the provider's expected arguments.
-        - `providerArg` - The argument name expected by the provider.
+        - `providerKey` - The argument name expected by the provider.
         - `targetArgName` - The argument name in the consumer's request that should be mapped to the provider's
           argument.
         - `sourceArgPath` - The path to the argument in the consumer's request, which can be a nested path using dot
