@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from 'react-router-dom';
 
 interface SchemaProps {
     id: number;
     name: string;
 }
 
-interface SchemasPageProps {
-    // Define any props if needed
-}
-
-export const SchemasPage: React.FC<SchemasPageProps> = () => {
-
+export const SchemasPage: React.FC = () => {
+    const navigate = useNavigate();
     const [registeredSchemas, setRegisteredSchemas] = useState<SchemaProps[]>([]);
     const [pendingSchemas, setPendingSchemas] = useState<SchemaProps[]>([]);
 
@@ -42,14 +39,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = () => {
     }, []);
 
     const handleCreateNewSchema = () => {
-        // Use the global navigate function instead of window.location.href
-        if ((window as any).navigate) {
-            (window as any).navigate('/schemas/new');
-        } else {
-            // Fallback if navigate function is not available
-            window.history.pushState({}, '', '/schemas/new');
-            window.dispatchEvent(new Event('navigate'));
-        }
+        navigate('/provider/schemas/new');
     };
 
     return (
@@ -84,7 +74,6 @@ export const SchemasPage: React.FC<SchemasPageProps> = () => {
                         ))}
                     </ul>
                 </div>
-
             </div>
         </div>
     );

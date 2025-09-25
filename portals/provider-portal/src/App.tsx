@@ -1,10 +1,10 @@
-// App.tsx
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from "./components/Navbar";
 import { Dashboard } from './pages/Dashboard';
-import { SchemasPage as Schemas } from './pages/Schemas';
+import { SchemasPage } from './pages/Schemas';
 import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
 import { Logs } from "./pages/Logs";
-import { Router, type Route } from "./Router";
+import { Applications } from "./pages/Applications";
 import { useEffect, useState } from "react";
 
 interface EntityProps {
@@ -16,23 +16,16 @@ interface EntityProps {
 
 function App() {
   const [view, setView] = useState<'provider' | 'consumer'>('provider');
-  const [entityData, setEntityData] = useState<any>(null);
-
-  // const providerId = "prov_bd7fa213a556e7105677313c";
-  // const providerName = "Department Registrar of Persons";
+  const [entityData, setEntityData] = useState<EntityProps | null>(null);
 
   useEffect(() => {
-    // Fetch entity type and ID from an API or configuration
     const fetchEntityInfo = async () => {
-      // Simulate an API call
-      // Replace this with actual API call to fetch entity info
       const entityInfo: EntityProps = {
         id: "prov_bd7fa213a556e7105677313c",
         name: "Department Registrar of Persons",
         providerId: "prov_bd7fa213a556e7105677313c",
         consumerId: "cons_1234567890abcdef",
       };
-
       setEntityData(entityInfo);
     };
 
@@ -41,25 +34,44 @@ function App() {
 
   const handleViewChange = (newView: 'provider' | 'consumer') => {
     setView(newView);
-  }
-
-  const SchemaRegistrationRoute: React.FC = () => (
-    <SchemaRegistrationPage providerId={entityData?.providerId} providerName={entityData?.name} />
-  );
-
-  // Fixed route order - more specific routes first
-  const routes: Route[] = [
-    { path: "/schemas/new", component: SchemaRegistrationRoute, exact: true },
-    { path: "/schemas", component: Schemas, exact: true },
-    { path: "/logs", component: Logs, exact: true },
-    { path: "/", component: Dashboard, exact: true },
-  ];
+  };
 
   return (
-    <div className="App">
-      <Navbar onViewChange={handleViewChange} providerId={entityData?.providerId} consumerId={entityData?.consumerId} />
-      <Router routes={routes} />
-    </div>
+    <Router>
+      <div className="App">
+        <Navbar 
+          onViewChange={handleViewChange} 
+          providerId={entityData?.providerId} 
+          consumerId={entityData?.consumerId}
+          currentView={view}
+        />
+        <Routes>
+          {view === 'provider' ? (
+            <>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/provider/schemas" element={<SchemasPage />} />
+              <Route 
+                path="/provider/schemas/new" 
+                element={
+                  <SchemaRegistrationPage 
+                    providerId={entityData?.providerId} 
+                    providerName={entityData?.name} 
+                  />
+                } 
+              />
+              <Route path="/provider/logs" element={<Logs />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/consumer/applications" element={<Applications />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
