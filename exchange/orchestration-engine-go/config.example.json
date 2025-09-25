@@ -4,7 +4,12 @@
   "providers": [
     {
       "providerKey": "drp",
-      "providerUrl": "http://localhost:9091"
+      "providerUrl": "http://localhost:9091",
+      "auth": {
+        "type": "apiKey",
+        "apiKeyName": "Test-Key",
+        "apiKeyValue": "eyJraWQiOiJn"
+      }
     },
     {
       "providerKey": "dmt",
@@ -12,7 +17,13 @@
     },
     {
       "providerKey": "rgd",
-      "providerUrl": "http://localhost:8080/graphql"
+      "providerUrl": "http://localhost:8080/graphql",
+      "auth": {
+        "type": "oauth2",
+        "tokenUrl": "https://example.com/oauth2/token",
+        "clientId": "SOME_CLIENT_ID",
+        "clientSecret": "SOME_CLIENT_SECRET"
+      }
     }
   ],
   "argMappings": [
