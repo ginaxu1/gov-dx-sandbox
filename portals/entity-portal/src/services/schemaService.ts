@@ -103,7 +103,6 @@ export class SchemaService {
 
   static async registerSchema(providerId: string, registration: SchemaRegistration): Promise<void> {
     const baseUrl = import.meta.env.VITE_BASE_PATH || '';
-    console.log('Registering schema at:', `${baseUrl}providers/${providerId}/schema-submissions`);
     try {
       const response = await fetch(`${baseUrl}providers/${providerId}/schema-submissions`, {
         method: 'POST',
