@@ -248,7 +248,7 @@ func (j *JWTVerifier) validateClaims(token *jwt.Token) error {
 
 // ExtractEmailFromToken extracts the email from a verified JWT token
 func (j *JWTVerifier) ExtractEmailFromToken(token *jwt.Token) (string, error) {
-	claims, ok := token.Claims.(jwt.MapClaims)
+	claims, ok := token.Claims.(*jwt.MapClaims)
 	if !ok {
 		return "", fmt.Errorf("invalid token claims")
 	}
@@ -257,7 +257,7 @@ func (j *JWTVerifier) ExtractEmailFromToken(token *jwt.Token) (string, error) {
 	emailFields := []string{"email", "sub", "preferred_username"}
 
 	for _, field := range emailFields {
-		if email, ok := claims[field].(string); ok && email != "" {
+		if email, ok := (*claims)[field].(string); ok && email != "" {
 			return email, nil
 		}
 	}
