@@ -100,7 +100,7 @@ type TokenInfo struct {
 }
 
 // User authentication middleware that handles user JWT authentication only
-func userAuthMiddleware(userJWTVerifier *SimpleJWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
+func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract consent ID from the URL path
@@ -896,15 +896,31 @@ func main() {
 
 	engine.StartBackgroundExpiryProcess(ctx, interval)
 
-	// Initialize JWT verifier
+	// Initialize JWT verifier with proper signature verification
 	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME")
 	userIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
 	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+	userJwksURL := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/jwks", orgName)
 
-	slog.Info("JWT verifier initialized successfully")
+	slog.Info("JWT verifier configuration",
+		"org_name", orgName,
+		"issuer", userIssuer,
+		"audience", userAudience,
+		"jwks_url", userJwksURL)
 
-	userJWTVerifier := NewSimpleJWTVerifier(userIssuer, userAudience, orgName)
-	slog.Info("Initialized simple JWT verifier (no network calls)")
+	// Test JWKS endpoint accessibility
+	slog.Info("Testing JWKS endpoint accessibility...")
+	resp, err := http.Get(userJwksURL)
+	if err != nil {
+		slog.Error("JWKS endpoint test failed", "error", err, "jwks_url", userJwksURL)
+	} else {
+		slog.Info("JWKS endpoint test result", "status_code", resp.StatusCode, "jwks_url", userJwksURL)
+		resp.Body.Close()
+	}
+
+	// Initialize JWT verifier with proper signature verification
+	userJWTVerifier := NewJWTVerifier(userJwksURL, userIssuer, userAudience)
+	slog.Info("Initialized JWT verifier with proper signature verification")
 
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
