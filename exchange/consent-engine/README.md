@@ -7,8 +7,7 @@ Service that manages data owner consent workflows for data access requests with 
 - **Technology**: Go + In-memory storage
 - **Port**: 8081
 - **Purpose**: Consent management and workflow coordination
-- **Authentication**: User JWT authentication with ownership checks for public endpoints, internal endpoints for service-to-service communication
-- **Test Coverage**: 34% with comprehensive unit and integration tests
+- **Authentication**: JWT authentication for user-facing endpoints
 
 ## Quick Start
 
@@ -69,24 +68,22 @@ docker build -t ce . && docker run -p 8081:8081 ce
 | `/admin/expiry-check` | POST | Check expired consents | None |
 | `/health` | GET | Health check | None |
 
-**User JWT Auth**: All requests require user JWT with email ownership validation  
-**Internal Access**: POST /consents endpoint is for internal service-to-service communication only
+**JWT Authentication**: User-facing endpoints require JWT authentication
 
 ## Authentication
 
-The Consent Engine uses two types of access patterns:
+The Consent Engine uses JWT authentication for user-facing endpoints:
 
-### User JWT Authentication (Public Endpoints)
-- **Require JWT authentication** with valid email claim from Asgardeo
-- **Email must match** the consent owner's email for ownership validation
-- **Used by** Consent Portal for user-facing operations
-- **Protected endpoints**: GET, PUT, PATCH, DELETE `/consents/{id}`
+### User-facing Endpoints
+- **Requires**: Valid JWT token with email claim
+- **Detection**: `X-Requested-With: XMLHttpRequest` header or browser User-Agent
+- **Validation**: Email in JWT must match consent owner's email
+- **Endpoints**: GET/PUT/PATCH/DELETE `/consents/{id}`
 
-### Internal Service Access
-- **POST `/consents`**: Internal endpoint for service-to-service communication
-- **No authentication required** - accessed via internal network only
-- **Used by** Orchestration Engine and other internal services
-- **Access**: Project-internal only, not exposed to external clients
+### Internal Endpoints
+- **Requires**: No authentication
+- **Use Case**: Service-to-service communication
+- **Endpoints**: POST `/consents`
 
 ### Environment Variables
 
@@ -110,10 +107,7 @@ The Consent Engine uses two types of access patterns:
 
 #### Test Configuration
 - `TEST_CONSENT_PORTAL_URL` - Test consent portal URL (default: http://localhost:5173)
-- `TEST_ASGARDEO_JWKS_URL` - Test Asgardeo JWKS URL for user token validation
-- `TEST_ASGARDEO_ISSUER` - Test Asgardeo issuer for user tokens
-- `TEST_ASGARDEO_AUDIENCE` - Test Asgardeo audience for user tokens
-- `TEST_ASGARDEO_ORG_NAME` - Test organization name
+- `TEST_ASGARDEO_ORG_NAME` - Test organization name (default: YOUR_ORG_NAME)
 
 ### JWT Token Format
 
@@ -238,7 +232,25 @@ curl -X POST http://localhost:8081/consents \
 **User Request (Consent Portal - JWT Required):**
 ```bash
 curl -X GET http://localhost:8081/consents/consent_122af00e \
-  -H "Authorization: Bearer <asgardeo_user_jwt_token>"
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+```
+
+**Internal Service Request (No Authentication):**
+```bash
+# Create consent (internal endpoint)
+curl -X POST http://localhost:8081/consents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_id": "test-app",
+    "data_fields": [{
+      "owner_id": "user@example.com",
+      "fields": ["personInfo.name"]
+    }],
+    "purpose": "test",
+    "session_id": "session_123"
+  }'
 ```
 
 **Error Responses:**
@@ -567,39 +579,14 @@ curl http://localhost:8081/health
 ### Environment Variables
 
 #### Required (for JWT authentication)
-- `ASGARDEO_JWKS_URL` - JWKS endpoint URL for user token validation
-- `ASGARDEO_ISSUER` - JWT issuer URL for user tokens
-- `ASGARDEO_AUDIENCE` - JWT audience for user tokens
-- `ASGARDEO_ORG_NAME` - Your organization name
 
 #### Optional (with defaults)
 - `PORT` - Service port (default: 8081)
 - `CONSENT_PORTAL_URL` - Consent portal URL (default: http://localhost:5173)
 
-### Development Constants
+### Email-based Authentication
 
-The `constants.go` file contains a fallback mapping for local development and testing:
-
-```go
-// ownerIDToEmailMap - Fallback mapping for development
-// TODO: Remove this file once SCIM integration is fully tested and deployed
-var ownerIDToEmailMap = map[string]string{
-    "199512345678": "test@opensource.lk",
-    // ... more mappings
-}
-```
-
-**Important**: This file is temporary and will be removed once the SCIM integration is fully tested and deployed. In production, `owner_email` is resolved via Asgardeo's SCIM API using the `owner_id` (NIC).
-
-### Getting Asgardeo Credentials
-
-1. Go to [Asgardeo Console](https://console.asgardeo.io/)
-2. Navigate to your organization
-3. Go to Applications → Your App → Settings
-4. Copy the following values:
-   - **Base URL**: Your organization URL
-   - **Client ID**: From the application settings
-   - **Client Secret**: From the application settings (if using confidential client)
+The service now uses email addresses as the primary identifier for data owners. When creating consents, the `owner_id` should be the user's email address, which will also be used as the `owner_email`. This simplifies the authentication flow and removes the need for external SCIM lookups.
 
 ## Integration
 
