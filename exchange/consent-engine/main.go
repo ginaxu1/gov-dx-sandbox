@@ -943,7 +943,7 @@ func main() {
 	}
 
 	// Initialize JWT verifier with proper signature verification
-	userJWTVerifier := NewJWTVerifier(userJwksURL, userIssuer, userAudience)
+	userJWTVerifier := NewJWTVerifier(userJwksURL, userAudience, orgName)
 	slog.Info("Initialized JWT verifier with proper signature verification")
 
 	// Configure user token validation
