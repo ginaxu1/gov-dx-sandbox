@@ -13,6 +13,7 @@ import { Shield } from 'lucide-react';
 interface EntityProps {
   id: string;
   name: string;
+  userName: string;
   providerId?: string;
   consumerId?: string;
 }
@@ -20,25 +21,25 @@ interface EntityProps {
 function App() {
   const [view, setView] = useState<'provider' | 'consumer' | null>(null);
   const [entityData, setEntityData] = useState<EntityProps | null>(null);
-  const [userName, setUserName] = useState<string>('');
-  const [userEmail, setUserEmail] = useState<string>('');
+  // const [userName, setUserName] = useState<string>('');
+  // const [userEmail, setUserEmail] = useState<string>('');
 
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
 
   // Fetch user info when authenticated
-  const fetchUserInfo = async () => {
-    try {
-      const userBasicInfo = await getBasicUserInfo();
-      console.log('User Basic Info:', userBasicInfo);
+  // const fetchUserInfo = async () => {
+  //   try {
+  //     const userBasicInfo = await getBasicUserInfo();
+  //     console.log('User Basic Info:', userBasicInfo);
       
-      if (userBasicInfo) {
-        setUserName(userBasicInfo.name || '');
-        setUserEmail(userBasicInfo.email || '');
-      }
-    } catch (error) {
-      console.error('Failed to fetch user info:', error);
-    }
-  };
+  //     if (userBasicInfo) {
+  //       setUserName(userBasicInfo.name || '');
+  //       setUserEmail(userBasicInfo.email || '');
+  //     }
+  //   } catch (error) {
+  //     console.error('Failed to fetch user info:', error);
+  //   }
+  // };
 
   // Save entity state to localStorage to persist through auth redirects
   const saveEntityStateToStorage = (entityInfo: EntityProps, viewType: 'provider' | 'consumer' | null) => {
@@ -72,25 +73,45 @@ function App() {
 
   useEffect(() => {
     const fetchEntityInfo = async () => {
-      const entityInfo: EntityProps = {
-        id: "prov_bd7fa213a556e7105677313c",
-        name: "Department Registrar of Persons",
-        providerId: "prov_bd7fa213a556e7105677313c",
-        consumerId: "cons_1234567890abcdef",
-      };
-      setEntityData(entityInfo);
-      
-      // Determine initial view
-      let initialView: 'provider' | 'consumer' | null = null;
-      if (entityInfo.providerId) {
-        initialView = 'provider';
-      } else if (entityInfo.consumerId) {
-        initialView = 'consumer';
+      try {
+        const userBasicInfo = await getBasicUserInfo();
+        console.log('Fetching entity info from user attributes:', userBasicInfo);
+        
+        if (userBasicInfo) {
+          const entityInfo: EntityProps = {
+            id: userBasicInfo.userid || '', // User ID -> id
+            name: userBasicInfo.displayName || userBasicInfo.name || '', // Last Name -> name
+            userName: userBasicInfo.username || '', // Email -> userEmail
+            providerId: userBasicInfo.providerId || '', // Provider ID -> providerId
+            consumerId: userBasicInfo.consumerId || '', // ConsumerID -> consumerId
+          };
+          
+          console.log('Parsed entity info:', entityInfo);
+          setEntityData(entityInfo);
+          
+          // Determine initial view based on available IDs
+          let initialView: 'provider' | 'consumer' | null = null;
+          if (entityInfo.providerId) {
+            initialView = 'provider';
+          } else if (entityInfo.consumerId) {
+            initialView = 'consumer';
+          }
+          setView(initialView);
+          
+          // Save to localStorage for auth redirect recovery
+          saveEntityStateToStorage(entityInfo, initialView);
+        }
+      } catch (error) {
+        console.error('Failed to fetch entity info:', error);
+        // Fallback to empty entity data if fetch fails
+        setEntityData({
+          id: '',
+          name: '',
+          userName: '',
+          providerId: undefined,
+          consumerId: undefined,
+        });
       }
-      setView(initialView);
-      
-      // Save to localStorage for auth redirect recovery
-      saveEntityStateToStorage(entityInfo, initialView);
     };
 
     // Check if we have stored entity data (after auth redirect)
@@ -102,29 +123,28 @@ function App() {
       } else {
         fetchEntityInfo();
       }
-    } else if (!state.isAuthenticated) {
-      fetchEntityInfo();
-    }
-  }, [state.isAuthenticated, entityData]);
-
-  useEffect(() => {
-    if (entityData) {
-      if (entityData.providerId) {
-        setView('provider');
-      } else if (entityData.consumerId) {
-        setView('consumer');
-      } else {
-        setView(null);
-      }
-    }
-  }, [entityData]);
-
-  // Update user info when authentication state changes
-  useEffect(() => {
-    if (state.isAuthenticated) {
-      fetchUserInfo();
     }
   }, [state.isAuthenticated]);
+
+  // Remove this useEffect - it's causing the circular dependency
+  // useEffect(() => {
+  //   if (entityData) {
+  //     if (entityData.providerId) {
+  //       setView('provider');
+  //     } else if (entityData.consumerId) {
+  //       setView('consumer');
+  //     } else {
+  //       setView(null);
+  //     }
+  //   }
+  // }, [entityData]);
+
+  // Update user info when authentication state changes
+  // useEffect(() => {
+  //   if (state.isAuthenticated) {
+  //     fetchUserInfo();
+  //   }
+  // }, [state.isAuthenticated]);
 
   const canSwitchView = () => {
     return entityData?.providerId && entityData?.consumerId;
@@ -199,7 +219,7 @@ function App() {
           providerId={entityData?.providerId} 
           consumerId={entityData?.consumerId}
           currentView={view}
-          userName={userName}
+          userName={entityData.name}
           onSignOut={handleSignOut}
         />
         <Routes>
