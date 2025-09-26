@@ -3,7 +3,7 @@ package graphql
 import "fmt"
 
 type Response struct {
-	Data   map[string]interface{} `json:"data,omitempty"`
+	Data   map[string]interface{} `json:"data"`
 	Errors []interface{}          `json:"errors,omitempty"`
 }
 
