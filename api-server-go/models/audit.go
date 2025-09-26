@@ -66,6 +66,16 @@ type AuditLogSummary struct {
 	} `json:"date_range"`
 }
 
+// AuditLogSummaryResponse represents a simplified audit log response for easy consumption
+type AuditLogSummaryResponse struct {
+	ConsumerApp string   `json:"consumerApp"`
+	Citizen     string   `json:"citizen"`
+	Fields      []string `json:"fields"`
+	Providers   []string `json:"providers"`
+	Timestamp   string   `json:"timestamp"`
+	Status      string   `json:"status"`
+}
+
 // Constants for audit log status values
 const (
 	// Transaction Status

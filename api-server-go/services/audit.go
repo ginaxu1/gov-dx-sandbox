@@ -2,8 +2,11 @@ package services
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -266,6 +269,173 @@ func (s *AuditService) DeleteOldAuditLogs(olderThan time.Time) (int64, error) {
 		"rows_deleted", rowsAffected)
 
 	return rowsAffected, nil
+}
+
+// GetAuditLogsSummaryForProvider retrieves simplified audit logs for a specific provider
+func (s *AuditService) GetAuditLogsSummaryForProvider(providerID string, limit, offset int) ([]*models.AuditLogSummaryResponse, error) {
+	logs, err := s.GetAuditLogsByProviderID(providerID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.ConvertToSummaryResponse(logs), nil
+}
+
+// GetAuditLogsSummaryForAdmin retrieves simplified audit logs for admin oversight
+func (s *AuditService) GetAuditLogsSummaryForAdmin(limit, offset int) ([]*models.AuditLogSummaryResponse, error) {
+	logs, err := s.GetAuditLogsForAdmin(limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.ConvertToSummaryResponse(logs), nil
+}
+
+// GetAuditLogsSummaryForCitizen retrieves simplified audit logs for a specific citizen
+func (s *AuditService) GetAuditLogsSummaryForCitizen(citizenHash string, limit, offset int) ([]*models.AuditLogSummaryResponse, error) {
+	logs, err := s.GetAuditLogsByCitizenHash(citizenHash, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.ConvertToSummaryResponse(logs), nil
+}
+
+// ConvertToSummaryResponse converts detailed audit logs to simplified summary format
+func (s *AuditService) ConvertToSummaryResponse(logs []*models.AuditLogResponse) []*models.AuditLogSummaryResponse {
+	var summaryLogs []*models.AuditLogSummaryResponse
+
+	for _, log := range logs {
+		summary := &models.AuditLogSummaryResponse{
+			ConsumerApp: log.ConsumerID,
+			Citizen:     log.CitizenHash,
+			Providers:   []string{log.ProviderID},
+			Timestamp:   log.Timestamp.Format(time.RFC3339),
+			Status:      log.TransactionStatus,
+		}
+
+		// Extract fields from requested_data
+		fields := s.extractFieldsFromRequestedData(log.RequestedData)
+		summary.Fields = fields
+
+		summaryLogs = append(summaryLogs, summary)
+	}
+
+	return summaryLogs
+}
+
+// extractFieldsFromRequestedData extracts field names from GraphQL query in requested_data
+func (s *AuditService) extractFieldsFromRequestedData(requestedData json.RawMessage) []string {
+	var fields []string
+
+	// Parse the requested data JSON
+	var data map[string]interface{}
+	if err := json.Unmarshal(requestedData, &data); err != nil {
+		slog.Warn("Failed to parse requested_data JSON", "error", err)
+		return fields
+	}
+
+	// Extract query from the data
+	query, ok := data["query"].(string)
+	if !ok {
+		return fields
+	}
+
+	// Extract field names from GraphQL query
+	fields = s.extractFieldsFromGraphQLQuery(query)
+
+	return fields
+}
+
+// extractFieldsFromGraphQLQuery extracts field names from a GraphQL query string
+func (s *AuditService) extractFieldsFromGraphQLQuery(query string) []string {
+	var fields []string
+	fieldSet := make(map[string]bool)
+
+	// Remove comments and normalize whitespace
+	query = s.removeGraphQLComments(query)
+	query = strings.ReplaceAll(query, "\n", " ")
+	query = strings.ReplaceAll(query, "\t", " ")
+	query = regexp.MustCompile(`\s+`).ReplaceAllString(query, " ")
+
+	// Find field patterns in GraphQL query
+	// Pattern 1: fieldName { ... } - nested fields
+	nestedFieldRegex := regexp.MustCompile(`(\w+)\s*\{`)
+	matches := nestedFieldRegex.FindAllStringSubmatch(query, -1)
+	for _, match := range matches {
+		if len(match) > 1 {
+			fieldSet[match[1]] = true
+		}
+	}
+
+	// Pattern 2: fieldName - simple fields (not inside braces)
+	// This is more complex as we need to avoid fields inside nested objects
+	simpleFieldRegex := regexp.MustCompile(`\b(\w+)(?:\s*\([^)]*\))?\s*(?:\{|,|$)`)
+	allMatches := simpleFieldRegex.FindAllStringSubmatch(query, -1)
+
+	// Filter out GraphQL keywords and fields that are likely nested
+	graphqlKeywords := map[string]bool{
+		"query": true, "mutation": true, "subscription": true,
+		"fragment": true, "on": true, "type": true, "interface": true,
+		"union": true, "enum": true, "input": true, "scalar": true,
+		"directive": true, "schema": true, "extend": true,
+	}
+
+	for _, match := range allMatches {
+		if len(match) > 1 {
+			fieldName := match[1]
+			if !graphqlKeywords[fieldName] && !fieldSet[fieldName] {
+				// Check if this field is not inside a nested object
+				if s.isTopLevelField(query, fieldName) {
+					fieldSet[fieldName] = true
+				}
+			}
+		}
+	}
+
+	// Convert set to slice
+	for field := range fieldSet {
+		fields = append(fields, field)
+	}
+
+	return fields
+}
+
+// removeGraphQLComments removes comments from GraphQL query
+func (s *AuditService) removeGraphQLComments(query string) string {
+	// Remove # comments
+	lines := strings.Split(query, "\n")
+	var cleanLines []string
+	for _, line := range lines {
+		if commentIndex := strings.Index(line, "#"); commentIndex != -1 {
+			line = line[:commentIndex]
+		}
+		cleanLines = append(cleanLines, strings.TrimSpace(line))
+	}
+	return strings.Join(cleanLines, "\n")
+}
+
+// isTopLevelField checks if a field is at the top level of the query
+func (s *AuditService) isTopLevelField(query, fieldName string) bool {
+	// Find all occurrences of the field name
+	fieldRegex := regexp.MustCompile(`\b` + regexp.QuoteMeta(fieldName) + `\b`)
+	matches := fieldRegex.FindAllStringIndex(query, -1)
+
+	for _, match := range matches {
+		start := match[0]
+
+		// Count opening and closing braces before this position
+		beforeText := query[:start]
+		openBraces := strings.Count(beforeText, "{")
+		closeBraces := strings.Count(beforeText, "}")
+
+		// If we're at the top level (no unmatched opening braces)
+		if openBraces == closeBraces {
+			return true
+		}
+	}
+
+	return false
 }
 
 // scanAuditLogs is a helper function to scan audit log rows

@@ -95,7 +95,6 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	mux.Handle("/audit/provider", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForProvider)))
 	mux.Handle("/audit/admin", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForAdmin)))
 	mux.Handle("/audit/citizen", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForCitizen)))
-	mux.Handle("/audit/summary", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogSummary)))
 }
 
 // Generic handler for collection endpoints (GET all, POST create)

@@ -17,7 +17,7 @@ type PIIRedactionService struct {
 // NewPIIRedactionService creates a new PII redaction service
 func NewPIIRedactionService() *PIIRedactionService {
 	// Compile regex pattern to match fields ending with Id or _id (case-insensitive)
-	pattern := regexp.MustCompile(`(?i)(id|_id)$`)
+	pattern := regexp.MustCompile(`(?i)(^id$|_id$|[a-zA-Z]Id$)`)
 
 	return &PIIRedactionService{
 		idPattern: pattern,
@@ -105,8 +105,8 @@ func (s *PIIRedactionService) extractCitizenID(data interface{}) string {
 	case map[string]interface{}:
 		// Look for common citizen ID field names
 		citizenIDFields := []string{
-			"citizenId", "citizen_id", "nationalId", "national_id",
-			"nic", "nicNumber", "nic_number", "personId", "person_id",
+			"citizenId", "citizen_id", "provider_id", "consumer_id", "consent_id",
+			"providerId", "consumerId", "consentId",
 			"userId", "user_id", "ownerId", "owner_id",
 		}
 

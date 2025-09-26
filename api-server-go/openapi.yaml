@@ -1108,7 +1108,7 @@ paths:
   /audit/provider:
     get:
       summary: Get Provider Audit Logs
-      description: Retrieve audit logs for a specific provider (Provider Portal)
+      description: Retrieve simplified audit logs for a specific provider (Provider Portal)
       operationId: getProviderAuditLogs
       tags:
         - Audit
@@ -1138,18 +1138,9 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  logs:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLogResponse'
-                  count:
-                    type: integer
-                  limit:
-                    type: integer
-                  offset:
-                    type: integer
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLogSummaryResponse'
         '400':
           description: Bad request - missing provider_id
         '500':
@@ -1158,7 +1149,7 @@ paths:
   /audit/admin:
     get:
       summary: Get Admin Audit Logs
-      description: Retrieve all audit logs with filtering options (Admin Portal)
+      description: Retrieve simplified audit logs with filtering options (Admin Portal)
       operationId: getAdminAuditLogs
       tags:
         - Audit
@@ -1215,25 +1206,16 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  logs:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLogResponse'
-                  count:
-                    type: integer
-                  limit:
-                    type: integer
-                  offset:
-                    type: integer
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLogSummaryResponse'
         '500':
           description: Internal server error
 
   /audit/citizen:
     get:
       summary: Get Citizen Audit Logs
-      description: Retrieve audit logs for a specific citizen (Citizen Portal)
+      description: Retrieve simplified audit logs for a specific citizen (Citizen Portal)
       operationId: getCitizenAuditLogs
       tags:
         - Audit
@@ -1263,18 +1245,9 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  logs:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLogResponse'
-                  count:
-                    type: integer
-                  limit:
-                    type: integer
-                  offset:
-                    type: integer
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLogSummaryResponse'
         '400':
           description: Bad request - missing citizen_id
         '500':

@@ -63,20 +63,14 @@ func (h *AuditHandler) GetAuditLogsForProvider(w http.ResponseWriter, r *http.Re
 
 	limit, offset := h.parsePaginationParams(r)
 
-	logs, err := h.auditService.GetAuditLogsByProviderID(providerID, limit, offset)
+	logs, err := h.auditService.GetAuditLogsSummaryForProvider(providerID, limit, offset)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve audit logs")
 		return
 	}
 
-	response := map[string]interface{}{
-		"logs":   logs,
-		"count":  len(logs),
-		"limit":  limit,
-		"offset": offset,
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, response)
+	// Return the simplified array format as requested
+	utils.RespondWithSuccess(w, http.StatusOK, logs)
 }
 
 // GetAuditLogsForAdmin handles GET /audit/admin
@@ -86,13 +80,19 @@ func (h *AuditHandler) GetAuditLogsForAdmin(w http.ResponseWriter, r *http.Reque
 	// Parse filters from query parameters
 	filter := h.parseFilterParams(r)
 
-	var logs []*models.AuditLogResponse
+	var logs []*models.AuditLogSummaryResponse
 	var err error
 
 	if filter != nil && h.hasFilters(filter) {
-		logs, err = h.auditService.GetAuditLogsWithFilter(filter)
+		// For filtered queries, we need to get detailed logs first, then convert
+		detailedLogs, err := h.auditService.GetAuditLogsWithFilter(filter)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve audit logs")
+			return
+		}
+		logs = h.auditService.ConvertToSummaryResponse(detailedLogs)
 	} else {
-		logs, err = h.auditService.GetAuditLogsForAdmin(limit, offset)
+		logs, err = h.auditService.GetAuditLogsSummaryForAdmin(limit, offset)
 	}
 
 	if err != nil {
@@ -100,14 +100,8 @@ func (h *AuditHandler) GetAuditLogsForAdmin(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	response := map[string]interface{}{
-		"logs":   logs,
-		"count":  len(logs),
-		"limit":  limit,
-		"offset": offset,
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, response)
+	// Return the simplified array format as requested
+	utils.RespondWithSuccess(w, http.StatusOK, logs)
 }
 
 // GetAuditLogsForCitizen handles GET /audit/citizen
@@ -124,59 +118,14 @@ func (h *AuditHandler) GetAuditLogsForCitizen(w http.ResponseWriter, r *http.Req
 
 	limit, offset := h.parsePaginationParams(r)
 
-	logs, err := h.auditService.GetAuditLogsByCitizenHash(citizenHash, limit, offset)
+	logs, err := h.auditService.GetAuditLogsSummaryForCitizen(citizenHash, limit, offset)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve audit logs")
 		return
 	}
 
-	response := map[string]interface{}{
-		"logs":   logs,
-		"count":  len(logs),
-		"limit":  limit,
-		"offset": offset,
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-// GetAuditLogSummary handles GET /audit/summary
-func (h *AuditHandler) GetAuditLogSummary(w http.ResponseWriter, r *http.Request) {
-	startDateStr := r.URL.Query().Get("start_date")
-	endDateStr := r.URL.Query().Get("end_date")
-
-	var startDate, endDate time.Time
-	var err error
-
-	if startDateStr != "" {
-		startDate, err = time.Parse("2006-01-02", startDateStr)
-		if err != nil {
-			utils.RespondWithError(w, http.StatusBadRequest, "Invalid start_date format. Use YYYY-MM-DD")
-			return
-		}
-	} else {
-		// Default to 30 days ago
-		startDate = time.Now().AddDate(0, 0, -30)
-	}
-
-	if endDateStr != "" {
-		endDate, err = time.Parse("2006-01-02", endDateStr)
-		if err != nil {
-			utils.RespondWithError(w, http.StatusBadRequest, "Invalid end_date format. Use YYYY-MM-DD")
-			return
-		}
-	} else {
-		// Default to now
-		endDate = time.Now()
-	}
-
-	summary, err := h.auditService.GetAuditLogSummary(startDate, endDate)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve audit summary")
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, summary)
+	// Return the simplified array format as requested
+	utils.RespondWithSuccess(w, http.StatusOK, logs)
 }
 
 // parsePaginationParams parses limit and offset from query parameters
