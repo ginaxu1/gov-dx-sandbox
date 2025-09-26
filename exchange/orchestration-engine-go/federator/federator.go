@@ -96,7 +96,7 @@ func Initialize(providerHandler *provider.Handler) *Federator {
 
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
-func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.ConsumerAssertion) (graphql.Response, int) {
+func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
 
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
@@ -122,7 +122,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 			Errors: []interface{}{
 				err.(*graphql.JSONError),
 			},
-		}, http.StatusBadRequest
+		}
 	}
 
 	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
@@ -147,7 +147,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 					},
 				},
 			},
-		}, http.StatusInternalServerError
+		}
 	}
 
 	if pdpResponse == nil {
@@ -162,7 +162,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 					},
 				},
 			},
-		}, http.StatusBadRequest
+		}
 	}
 
 	if !pdpResponse.Allowed {
@@ -177,7 +177,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 					},
 				},
 			},
-		}, http.StatusForbidden
+		}
 	}
 
 	// check whether the arguments contain the citizen id
@@ -193,7 +193,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 					},
 				},
 			},
-		}, http.StatusBadRequest
+		}
 	}
 
 	if pdpResponse.ConsentRequired {
@@ -226,7 +226,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 						},
 					},
 				},
-			}, http.StatusInternalServerError
+			}
 		}
 
 		// log the consent response
@@ -246,7 +246,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 						},
 					},
 				},
-			}, http.StatusForbidden
+			}
 		}
 	}
 
@@ -261,7 +261,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 			Errors: []interface{}{
 				err.(*graphql.JSONError),
 			},
-		}, http.StatusBadRequest
+		}
 	}
 
 	if len(splitRequests) == 0 {
@@ -273,7 +273,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 					"message": "No valid service queries found in the request",
 				},
 			},
-		}, http.StatusBadRequest
+		}
 	}
 
 	federationRequest := &federationRequest{
@@ -284,7 +284,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	// Transform the federated responses back to the original query structure
 	var response = AccumulateResponse(doc, responses)
 
-	return response, http.StatusOK
+	return response
 }
 
 func (f *Federator) performFederation(r *federationRequest) *federationResponse {
