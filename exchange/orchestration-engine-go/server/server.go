@@ -82,9 +82,9 @@ func RunServer(f *federator.Federator) {
 			return
 		}
 
-		response, statusCode := f.FederateQuery(req, consumerAssertion)
+		response := f.FederateQuery(req, consumerAssertion)
 
-		w.WriteHeader(statusCode)
+		w.WriteHeader(http.StatusOK)
 		// Set content type to application/json
 
 		w.Header().Set("Content-Type", "application/json")

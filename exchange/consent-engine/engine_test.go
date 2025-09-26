@@ -234,9 +234,6 @@ func TestConsentEngine_StatusTransitions(t *testing.T) {
 
 // TestConsentEngine_CheckConsentExpiry tests the CheckConsentExpiry functionality
 func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
-	cleanup := SetupTestWithCleanup(t)
-	defer cleanup()
-
 	engine := setupPostgresTestEngine(t)
 
 	t.Run("NoExpiredRecords", func(t *testing.T) {
@@ -283,9 +280,6 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("HasExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		cleanup := SetupTestWithCleanup(t)
-		defer cleanup()
-
 		engine := setupPostgresTestEngine(t)
 
 		// Create a consent
@@ -374,9 +368,6 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("OnlyApprovedRecordsExpire", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		cleanup := SetupTestWithCleanup(t)
-		defer cleanup()
-
 		engine := setupPostgresTestEngine(t)
 
 		// Create a consent
@@ -452,9 +443,6 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 	t.Run("MultipleExpiredRecords", func(t *testing.T) {
 		// Create a new engine to avoid interference
-		cleanup := SetupTestWithCleanup(t)
-		defer cleanup()
-
 		engine := setupPostgresTestEngine(t)
 
 		// Create multiple consents with short grant durations
@@ -517,9 +505,6 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 
 // TestConsentEngine_UpdateConsentWithGrantDuration tests updating consent with grant_duration
 func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
-	cleanup := SetupTestWithCleanup(t)
-	defer cleanup()
-
 	engine := setupPostgresTestEngine(t)
 
 	// Create a consent
@@ -576,9 +561,6 @@ func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
 // TestRejectedConsentReuseIssue tests that rejected consents are reused and updated
 func TestRejectedConsentReuseIssue(t *testing.T) {
 	// Create a new consent engine
-	cleanup := SetupTestWithCleanup(t)
-	defer cleanup()
-
 	engine := setupPostgresTestEngine(t)
 
 	// Create initial consent request
@@ -673,9 +655,6 @@ func TestRejectedConsentReuseIssue(t *testing.T) {
 // TestConsentReuseLogic tests the correct behavior for consent record reuse based on status
 func TestConsentReuseLogic(t *testing.T) {
 	// Create a new consent engine
-	cleanup := SetupTestWithCleanup(t)
-	defer cleanup()
-
 	engine := setupPostgresTestEngine(t)
 
 	baseReq := ConsentRequest{

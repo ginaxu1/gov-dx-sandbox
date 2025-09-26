@@ -168,11 +168,6 @@ type ConsentEngine interface {
 	StopBackgroundExpiryProcess()
 }
 
-// NewConsentEngine creates a new instance of the consent engine (PostgreSQL implementation)
-func NewConsentEngine(consentPortalUrl string) ConsentEngine {
-	// This function is deprecated - use NewPostgresConsentEngine instead
-	panic("NewConsentEngine is deprecated. Use NewPostgresConsentEngine instead.")
-}
 
 // Utility functions for consent management
 
