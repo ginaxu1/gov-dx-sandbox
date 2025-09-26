@@ -23,6 +23,14 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // getOwnerEmailByID returns the owner_email for a given owner_id
 // Since orchestration-engine-go now uses email as the primary ID, owner_id is the same as owner_email
 func getOwnerEmailByID(ownerID string) (string, error) {
@@ -104,7 +112,16 @@ func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, user
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract consent ID from the URL path
-			consentID := strings.TrimPrefix(r.URL.Path, "/consents/")
+			// Handle both /consents/{id} and /consents/{id}/ patterns
+			path := strings.TrimPrefix(r.URL.Path, "/consents")
+			path = strings.TrimPrefix(path, "/")
+			if path == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
+				return
+			}
+
+			// Remove any trailing slashes and additional path segments
+			consentID := strings.Split(path, "/")[0]
 			if consentID == "" {
 				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
 				return
@@ -139,10 +156,17 @@ func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, user
 			}
 
 			// Verify the token using user JWT verifier
-			slog.Info("Attempting JWT verification", "consent_id", consentID, "token_length", len(tokenString))
+			slog.Info("Attempting JWT verification",
+				"consent_id", consentID,
+				"token_length", len(tokenString),
+				"token_preview", tokenString[:min(50, len(tokenString))]+"...")
 			token, err := userJWTVerifier.VerifyToken(tokenString)
 			if err != nil {
-				slog.Error("User token verification failed", "error", err, "consent_id", consentID, "error_type", fmt.Sprintf("%T", err))
+				slog.Error("User token verification failed",
+					"error", err,
+					"consent_id", consentID,
+					"error_type", fmt.Sprintf("%T", err),
+					"token_preview", tokenString[:min(50, len(tokenString))]+"...")
 				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid user token"})
 				return
 			}
@@ -944,7 +968,7 @@ func main() {
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 	mux.Handle("/env-check", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.envCheckHandler)))
 
-	// Routes that require user authentication
+	// Routes that require user authentication (individual consent operations)
 	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(userAuthMiddleware(userJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
 
 	// Create server using utils

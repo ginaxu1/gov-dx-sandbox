@@ -61,7 +61,6 @@ paths:
                     - "personInfo.permanentAddress"
                     - "personInfo.fullName"
                     - "personInfo.nic"
-              purpose: "passport_application"
               session_id: "session_123"
               grant_duration: "1h"
       responses:
@@ -74,7 +73,7 @@ paths:
               example:
                 consent_id: "consent_8d255282"
                 owner_id: "199512345678"
-                owner_email: "regina@opensource.lk"
+                owner_email: "test@opensource.lk"
                 app_id: "passport-app"
                 status: "pending"
                 type: "data_sharing"
@@ -154,17 +153,40 @@ paths:
               $ref: '#/components/schemas/UpdateConsentRequest'
             example:
               status: "approved"
+              updated_by: "user@example.com"
+              grant_duration: "30d"
+              reason: "User approved consent via portal"
       responses:
         '200':
           description: Consent updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
         '400':
           description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden.
+          description: Forbidden - JWT token invalid or does not match consent owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Consent not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     patch:
       summary: Partially Update Consent (User)
@@ -186,18 +208,44 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateConsentRequest' # Can be same as PUT
+              $ref: '#/components/schemas/PatchConsentRequest'
+            example:
+              status: "approved"
+              updated_by: "user@example.com"
+              grant_duration: "30d"
+              reason: "User approved consent via portal"
+              fields: ["personInfo.permanentAddress", "personInfo.fullName"]
       responses:
         '200':
           description: Consent updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
         '400':
           description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden.
+          description: Forbidden - JWT token invalid or does not match consent owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Consent not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     delete:
       summary: Revoke Consent (User)
@@ -214,23 +262,37 @@ paths:
           description: Unique identifier for the consent.
           schema:
             type: string
-        - name: reason
-          in: query
-          required: true
-          description: Reason for revoking the consent.
-          schema:
-            type: string
       responses:
         '200':
           description: Consent revoked successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
         '400':
           description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden.
+          description: Forbidden - JWT token invalid or does not match consent owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Consent not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /data-owner/{ownerId}:
     get:
@@ -272,7 +334,6 @@ components:
       required:
         - app_id
         - data_fields
-        - purpose
         - session_id
       properties:
         app_id:
@@ -283,11 +344,7 @@ components:
           type: array
           description: List of data fields that require consent
           items:
-            $ref: '#/components/schemas/DataOwnerRecord'
-        purpose:
-          type: string
-          description: Purpose for which the data is being requested
-          example: passport_application
+            $ref: '#/components/schemas/DataField'
         session_id:
           type: string
           description: Unique session identifier for tracking the consent request
@@ -297,20 +354,23 @@ components:
           description: Duration for which the consent is valid (optional)
           example: 1h
           default: 1h
-    DataOwnerRecord:
+    DataField:
       type: object
       required:
-        - owner_type
         - owner_id
         - fields
       properties:
         owner_type:
           type: string
-          description: Type of data owner
+          description: Type of data owner (optional)
           example: citizen
         owner_id:
           type: string
           description: Unique identifier of the data owner (email address)
+          example: test@opensource.lk
+        owner_email:
+          type: string
+          description: Email address of the data owner (set automatically from owner_id)
           example: test@opensource.lk
         fields:
           type: array
@@ -326,11 +386,56 @@ components:
         status:
           type: string
           enum:
+            - pending
             - approved
             - rejected
+            - expired
             - revoked
           description: New status for the consent
           example: approved
+        updated_by:
+          type: string
+          description: ID of the user updating the consent (optional)
+          example: user@example.com
+        grant_duration:
+          type: string
+          description: Duration of the granted access (optional)
+          example: 30d
+        reason:
+          type: string
+          description: Reason for the status update (optional)
+          example: User approved consent via portal
+    PatchConsentRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
+          description: New status for the consent (optional)
+          example: approved
+        updated_by:
+          type: string
+          description: ID of the user updating the consent (optional)
+          example: user@example.com
+        grant_duration:
+          type: string
+          description: Duration of the granted access (optional)
+          example: 30d
+        reason:
+          type: string
+          description: Reason for the status update (optional)
+          example: User approved consent via portal
+        fields:
+          type: array
+          description: List of data fields covered by this consent (optional)
+          items:
+            type: string
+          example: ["personInfo.permanentAddress", "personInfo.fullName"]
     ConsentResponse:
       type: object
       properties:
@@ -432,7 +537,47 @@ components:
           example: User approved consent via portal
     ConsentPortalView:
       type: object
-      # ...
+      properties:
+        app_display_name:
+          type: string
+          description: Human-readable name of the application
+          example: "Passport App"
+        created_at:
+          type: string
+          format: date-time
+          description: When the consent was created
+          example: "2025-09-15T14:51:14.395412+05:30"
+        fields:
+          type: array
+          description: List of data fields covered by this consent
+          items:
+            type: string
+          example: ["personInfo.permanentAddress", "personInfo.fullName"]
+        owner_name:
+          type: string
+          description: Human-readable name of the data owner
+          example: "Test User"
+        owner_email:
+          type: string
+          description: Email address of the data owner
+          example: "test@opensource.lk"
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
+          description: Current status of the consent
+          example: "pending"
+        type:
+          type: string
+          enum:
+            - realtime
+            - offline
+          description: Type of consent workflow
+          example: "realtime"
     ErrorResponse:
       type: object
       properties:

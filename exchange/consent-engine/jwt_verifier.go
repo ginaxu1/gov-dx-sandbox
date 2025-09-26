@@ -253,11 +253,15 @@ func (j *JWTVerifier) ExtractEmailFromToken(token *jwt.Token) (string, error) {
 		return "", fmt.Errorf("invalid token claims")
 	}
 
+	// Debug: Log all available claims
+	fmt.Printf("DEBUG: Available claims in token: %+v\n", claims)
+
 	// Try different possible email claim names
 	emailFields := []string{"email", "sub", "preferred_username"}
 
 	for _, field := range emailFields {
 		if email, ok := claims[field].(string); ok && email != "" {
+			fmt.Printf("DEBUG: Found email in field '%s': %s\n", field, email)
 			return email, nil
 		}
 	}
