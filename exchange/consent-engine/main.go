@@ -100,7 +100,7 @@ type TokenInfo struct {
 }
 
 // User authentication middleware that handles user JWT authentication only
-func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
+func userAuthMiddleware(userJWTVerifier *SimpleJWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract consent ID from the URL path
@@ -830,6 +830,62 @@ func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
+
+func (s *apiServer) testConnectivityHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+
+	slog.Info("Testing network connectivity from deployed service")
+
+	// Test URLs to check
+	testURLs := []string{
+		"https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks",
+		"https://api.asgardeo.io",
+		"https://httpbin.org/get", // Basic connectivity test
+	}
+
+	results := make(map[string]interface{})
+
+	for _, url := range testURLs {
+		slog.Info("Testing connectivity to", "url", url)
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(url)
+
+		if err != nil {
+			results[url] = map[string]interface{}{
+				"status": "error",
+				"error":  err.Error(),
+			}
+			slog.Error("Connectivity test failed", "url", url, "error", err)
+		} else {
+			resp.Body.Close()
+			results[url] = map[string]interface{}{
+				"status":      "success",
+				"status_code": resp.StatusCode,
+			}
+			slog.Info("Connectivity test successful", "url", url, "status_code", resp.StatusCode)
+		}
+	}
+
+	// Test environment variables
+	envVars := map[string]string{
+		"ASGARDEO_JWKS_URL": getEnvOrDefault("ASGARDEO_JWKS_URL", "NOT_SET"),
+		"ASGARDEO_ISSUER":   getEnvOrDefault("ASGARDEO_ISSUER", "NOT_SET"),
+		"ASGARDEO_AUDIENCE": getEnvOrDefault("ASGARDEO_AUDIENCE", "NOT_SET"),
+		"ASGARDEO_ORG_NAME": getEnvOrDefault("ASGARDEO_ORG_NAME", "NOT_SET"),
+	}
+
+	response := map[string]interface{}{
+		"connectivity_tests": results,
+		"environment_vars":   envVars,
+		"timestamp":          time.Now().Format(time.RFC3339),
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, response)
+}
 func main() {
 	// Load configuration using flags
 	cfg := config.LoadConfig("consent-engine")
@@ -881,18 +937,16 @@ func main() {
 
 	engine.StartBackgroundExpiryProcess(ctx, interval)
 
-	// Initialize user JWT verifier with Asgardeo JWKS endpoint
-	userJwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
+	// Initialize JWT verifier
 	userIssuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
 	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
 
 	slog.Info("Environment variables loaded",
-		"ASGARDEO_JWKS_URL", userJwksURL,
 		"ASGARDEO_ISSUER", userIssuer,
 		"ASGARDEO_AUDIENCE", userAudience)
 
-	userJWTVerifier := NewJWTVerifier(userJwksURL, userIssuer, userAudience)
-	slog.Info("Initialized user JWT verifier", "jwks_url", userJwksURL, "issuer", userIssuer, "audience", userAudience)
+	userJWTVerifier := NewSimpleJWTVerifier(userIssuer, userAudience)
+	slog.Info("Initialized simple JWT verifier (no network calls)", "issuer", userIssuer, "audience", userAudience)
 
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
@@ -914,6 +968,7 @@ func main() {
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
 	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+	mux.Handle("/test-connectivity", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.testConnectivityHandler)))
 
 	// Routes that require user authentication
 	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(userAuthMiddleware(userJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
