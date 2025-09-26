@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Settings, CheckCircle } from 'lucide-react';
-import  { GraphQLSchemaExplorer } from '../components/GraphQLSchemaExplorer';
+import { GraphQLSchemaExplorer } from '../components/GraphQLSchemaExplorer';
 
 interface ApplicationRegistrationProps {
     consumerId: string;
@@ -69,13 +69,26 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
     const [description, setDescription] = useState('');
     const [selectedFields, setSelectedFields] = useState<string[]>([]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Handle form submission logic here
-        console.log('Application Name:', applicationName);
-        console.log('Description:', description);
-        console.log('Selected Fields:', selectedFields);
-        navigate('/consumer/applications');
+        
+        try {
+            // TODO: Replace with actual API call
+            // const applicationData = {
+            //     name: applicationName,
+            //     description: description,
+            //     selectedFields: selectedFields,
+            //     consumerId: consumerId
+            // };
+            
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Navigate back to applications page on success
+            navigate('/consumer/applications');
+        } catch (error) {
+            console.error('Error registering application:', error);
+        }
     };
 
     const handleBack = () => {

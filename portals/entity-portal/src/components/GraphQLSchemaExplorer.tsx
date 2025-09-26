@@ -325,10 +325,7 @@ export const GraphQLSchemaExplorer: React.FC<GraphQLSchemaExplorerProps> = ({
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   
   const schema = useMemo(() => {
-    console.log('Parsing SDL:', sdl.substring(0, 200) + '...');
-    const parsed = parseSDL(sdl);
-    console.log('Parsed schema:', parsed);
-    return parsed;
+    return parseSDL(sdl);
   }, [sdl]);
   
   const handleFieldToggle = (path: string, isSelected: boolean, field: Field) => {
