@@ -139,12 +139,14 @@ func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, user
 			}
 
 			// Verify the token using user JWT verifier
+			slog.Info("Attempting JWT verification", "consent_id", consentID, "token_length", len(tokenString))
 			token, err := userJWTVerifier.VerifyToken(tokenString)
 			if err != nil {
-				slog.Warn("User token verification failed", "error", err, "consent_id", consentID)
+				slog.Error("User token verification failed", "error", err, "consent_id", consentID, "error_type", fmt.Sprintf("%T", err))
 				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid user token"})
 				return
 			}
+			slog.Info("JWT verification successful", "consent_id", consentID)
 
 			// Extract email from token
 			email, err := userJWTVerifier.ExtractEmailFromToken(token)
@@ -215,10 +217,20 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log the raw request body for debugging
+	slog.Info("POST /consents request body", "body", string(body))
+
 	if err := json.Unmarshal(body, &req); err != nil {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
 		return
 	}
+
+	// Log the parsed request structure for debugging
+	slog.Info("POST /consents parsed request",
+		"app_id", req.AppID,
+		"session_id", req.SessionID,
+		"data_fields_count", len(req.DataFields),
+		"grant_duration", req.GrantDuration)
 
 	// Validate that all required fields are present and not empty
 	if req.AppID == "" {
@@ -873,6 +885,12 @@ func main() {
 	userJwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
 	userIssuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
 	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
+
+	slog.Info("Environment variables loaded",
+		"ASGARDEO_JWKS_URL", userJwksURL,
+		"ASGARDEO_ISSUER", userIssuer,
+		"ASGARDEO_AUDIENCE", userAudience)
+
 	userJWTVerifier := NewJWTVerifier(userJwksURL, userIssuer, userAudience)
 	slog.Info("Initialized user JWT verifier", "jwks_url", userJwksURL, "issuer", userIssuer, "audience", userAudience)
 
