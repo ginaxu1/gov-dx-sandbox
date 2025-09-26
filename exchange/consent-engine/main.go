@@ -886,6 +886,28 @@ func (s *apiServer) testConnectivityHandler(w http.ResponseWriter, r *http.Reque
 
 	utils.RespondWithJSON(w, http.StatusOK, response)
 }
+
+func (s *apiServer) envCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+
+	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "NOT_SET")
+	constructedIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
+
+	envVars := map[string]string{
+		"ASGARDEO_ORG_NAME":  orgName,
+		"constructed_issuer": constructedIssuer,
+		"ASGARDEO_AUDIENCE":  getEnvOrDefault("ASGARDEO_AUDIENCE", "NOT_SET"),
+		"CONSENT_PORTAL_URL": getEnvOrDefault("CONSENT_PORTAL_URL", "NOT_SET"),
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"environment_vars": envVars,
+		"timestamp":        time.Now().Format(time.RFC3339),
+	})
+}
 func main() {
 	// Load configuration using flags
 	cfg := config.LoadConfig("consent-engine")
@@ -938,21 +960,23 @@ func main() {
 	engine.StartBackgroundExpiryProcess(ctx, interval)
 
 	// Initialize JWT verifier
-	userIssuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME")
+	userIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
 	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
 
 	slog.Info("Environment variables loaded",
-		"ASGARDEO_ISSUER", userIssuer,
+		"ASGARDEO_ORG_NAME", orgName,
+		"constructed_issuer", userIssuer,
 		"ASGARDEO_AUDIENCE", userAudience)
 
-	userJWTVerifier := NewSimpleJWTVerifier(userIssuer, userAudience)
+	userJWTVerifier := NewSimpleJWTVerifier(userIssuer, userAudience, orgName)
 	slog.Info("Initialized simple JWT verifier (no network calls)", "issuer", userIssuer, "audience", userAudience)
 
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
-		ExpectedIssuer:   getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token"),
-		ExpectedAudience: getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE"),
-		ExpectedOrgName:  getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME"),
+		ExpectedIssuer:   userIssuer, // Use the constructed issuer
+		ExpectedAudience: userAudience,
+		ExpectedOrgName:  orgName,
 		RequiredScopes:   []string{}, // No required scopes for basic consent access
 	}
 
@@ -969,6 +993,7 @@ func main() {
 	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 	mux.Handle("/test-connectivity", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.testConnectivityHandler)))
+	mux.Handle("/env-check", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.envCheckHandler)))
 
 	// Routes that require user authentication
 	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(userAuthMiddleware(userJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))

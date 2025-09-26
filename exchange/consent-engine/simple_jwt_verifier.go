@@ -12,13 +12,15 @@ import (
 type SimpleJWTVerifier struct {
 	expectedIssuer   string
 	expectedAudience string
+	expectedOrgName  string
 }
 
 // NewSimpleJWTVerifier creates a new simple JWT verifier
-func NewSimpleJWTVerifier(expectedIssuer, expectedAudience string) *SimpleJWTVerifier {
+func NewSimpleJWTVerifier(expectedIssuer, expectedAudience, expectedOrgName string) *SimpleJWTVerifier {
 	return &SimpleJWTVerifier{
 		expectedIssuer:   expectedIssuer,
 		expectedAudience: expectedAudience,
+		expectedOrgName:  expectedOrgName,
 	}
 }
 
@@ -61,7 +63,14 @@ func (j *SimpleJWTVerifier) validateClaims(token *jwt.Token) error {
 		return fmt.Errorf("invalid token claims")
 	}
 
-	slog.Debug("Validating claims", "iss", (*claims)["iss"], "aud", (*claims)["aud"], "exp", (*claims)["exp"])
+	slog.Info("Validating claims",
+		"iss", (*claims)["iss"],
+		"aud", (*claims)["aud"],
+		"exp", (*claims)["exp"],
+		"org_name", (*claims)["org_name"],
+		"expected_issuer", j.expectedIssuer,
+		"expected_audience", j.expectedAudience,
+		"expected_org_name", j.expectedOrgName)
 
 	// Validate issuer (iss)
 	if iss, ok := (*claims)["iss"].(string); ok {
@@ -121,6 +130,18 @@ func (j *SimpleJWTVerifier) validateClaims(token *jwt.Token) error {
 	} else {
 		slog.Error("Missing or invalid expiry claim", "exp", (*claims)["exp"])
 		return fmt.Errorf("missing or invalid expiry claim")
+	}
+
+	// Validate org_name
+	if orgName, ok := (*claims)["org_name"].(string); ok {
+		if orgName != j.expectedOrgName {
+			slog.Error("Invalid org_name", "expected", j.expectedOrgName, "got", orgName)
+			return fmt.Errorf("invalid org_name: expected %s, got %s", j.expectedOrgName, orgName)
+		}
+		slog.Debug("Org name validation passed", "org_name", orgName)
+	} else {
+		slog.Error("Missing or invalid org_name claim", "org_name", (*claims)["org_name"])
+		return fmt.Errorf("missing or invalid org_name claim")
 	}
 
 	return nil
