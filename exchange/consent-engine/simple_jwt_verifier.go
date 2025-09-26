@@ -24,9 +24,10 @@ func NewSimpleJWTVerifier(expectedIssuer, expectedAudience string) *SimpleJWTVer
 
 // VerifyToken verifies a JWT token without signature verification
 func (j *SimpleJWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) {
-	slog.Debug("Verifying JWT token without signature verification",
+	slog.Info("Verifying JWT token without signature verification",
 		"expected_issuer", j.expectedIssuer,
-		"expected_audience", j.expectedAudience)
+		"expected_audience", j.expectedAudience,
+		"token_length", len(tokenString))
 
 	// Parse the token
 	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
@@ -37,13 +38,18 @@ func (j *SimpleJWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) 
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
+	// Log all claims for debugging
+	if claims, ok := token.Claims.(*jwt.MapClaims); ok {
+		slog.Info("JWT token claims", "claims", *claims)
+	}
+
 	// Validate basic claims
 	if err := j.validateClaims(token); err != nil {
 		slog.Error("Token claims validation failed", "error", err)
 		return nil, fmt.Errorf("token claims validation failed: %w", err)
 	}
 
-	slog.Debug("JWT token verification completed successfully")
+	slog.Info("JWT token verification completed successfully")
 	return token, nil
 }
 

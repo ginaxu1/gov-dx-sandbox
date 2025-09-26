@@ -52,6 +52,18 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateConsentRequest'
+            example:
+              app_id: "passport-app"
+              data_fields:
+                - owner_type: "citizen"
+                  owner_id: "test@opensource.lk"
+                  fields:
+                    - "personInfo.permanentAddress"
+                    - "personInfo.fullName"
+                    - "personInfo.nic"
+              purpose: "passport_application"
+              session_id: "session_123"
+              grant_duration: "1h"
       responses:
         '201':
           description: Consent created successfully.
@@ -140,6 +152,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateConsentRequest'
+            example:
+              status: "approved"
       responses:
         '200':
           description: Consent updated successfully.
@@ -255,10 +269,68 @@ components:
   schemas:
     CreateConsentRequest:
       type: object
-      # ...git
+      required:
+        - app_id
+        - data_fields
+        - purpose
+        - session_id
+      properties:
+        app_id:
+          type: string
+          description: ID of the consumer application requesting consent
+          example: passport-app
+        data_fields:
+          type: array
+          description: List of data fields that require consent
+          items:
+            $ref: '#/components/schemas/DataOwnerRecord'
+        purpose:
+          type: string
+          description: Purpose for which the data is being requested
+          example: passport_application
+        session_id:
+          type: string
+          description: Unique session identifier for tracking the consent request
+          example: session_123
+        grant_duration:
+          type: string
+          description: Duration for which the consent is valid (optional)
+          example: 1h
+          default: 1h
+    DataOwnerRecord:
+      type: object
+      required:
+        - owner_type
+        - owner_id
+        - fields
+      properties:
+        owner_type:
+          type: string
+          description: Type of data owner
+          example: citizen
+        owner_id:
+          type: string
+          description: Unique identifier of the data owner (email address)
+          example: test@opensource.lk
+        fields:
+          type: array
+          description: List of specific data fields being requested
+          items:
+            type: string
+          example: ["personInfo.permanentAddress", "personInfo.fullName", "personInfo.nic"]
     UpdateConsentRequest:
       type: object
-      # ...
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - approved
+            - rejected
+            - revoked
+          description: New status for the consent
+          example: approved
     ConsentResponse:
       type: object
       properties:
