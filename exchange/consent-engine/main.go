@@ -100,7 +100,7 @@ type TokenInfo struct {
 }
 
 // User authentication middleware that handles user JWT authentication only
-func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
+func userAuthMiddleware(userJWTVerifier *SimpleJWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract consent ID from the URL path
@@ -139,12 +139,14 @@ func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, user
 			}
 
 			// Verify the token using user JWT verifier
+			slog.Info("Attempting JWT verification", "consent_id", consentID, "token_length", len(tokenString))
 			token, err := userJWTVerifier.VerifyToken(tokenString)
 			if err != nil {
-				slog.Warn("User token verification failed", "error", err, "consent_id", consentID)
+				slog.Error("User token verification failed", "error", err, "consent_id", consentID, "error_type", fmt.Sprintf("%T", err))
 				utils.RespondWithJSON(w, http.StatusUnauthorized, utils.ErrorResponse{Error: "Invalid user token"})
 				return
 			}
+			slog.Info("JWT verification successful", "consent_id", consentID)
 
 			// Extract email from token
 			email, err := userJWTVerifier.ExtractEmailFromToken(token)
@@ -214,6 +216,9 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Failed to read request body"})
 		return
 	}
+
+	// Log the raw request body for debugging
+	slog.Info("POST /consents request body", "body", string(body))
 
 	if err := json.Unmarshal(body, &req); err != nil {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
@@ -818,6 +823,28 @@ func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
+
+func (s *apiServer) envCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+
+	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "NOT_SET")
+	constructedIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
+
+	envVars := map[string]string{
+		"ASGARDEO_ORG_NAME":  orgName,
+		"constructed_issuer": constructedIssuer,
+		"ASGARDEO_AUDIENCE":  getEnvOrDefault("ASGARDEO_AUDIENCE", "NOT_SET"),
+		"CONSENT_PORTAL_URL": getEnvOrDefault("CONSENT_PORTAL_URL", "NOT_SET"),
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"environment_vars": envVars,
+		"timestamp":        time.Now().Format(time.RFC3339),
+	})
+}
 func main() {
 	// Load configuration using flags
 	cfg := config.LoadConfig("consent-engine")
@@ -869,18 +896,21 @@ func main() {
 
 	engine.StartBackgroundExpiryProcess(ctx, interval)
 
-	// Initialize user JWT verifier with Asgardeo JWKS endpoint
-	userJwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/jwks")
-	userIssuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token")
+	// Initialize JWT verifier
+	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME")
+	userIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
 	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
-	userJWTVerifier := NewJWTVerifier(userJwksURL, userIssuer, userAudience)
-	slog.Info("Initialized user JWT verifier", "jwks_url", userJwksURL, "issuer", userIssuer, "audience", userAudience)
+
+	slog.Info("JWT verifier initialized successfully")
+
+	userJWTVerifier := NewSimpleJWTVerifier(userIssuer, userAudience, orgName)
+	slog.Info("Initialized simple JWT verifier (no network calls)")
 
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
-		ExpectedIssuer:   getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/YOUR_TENANT/oauth2/token"),
-		ExpectedAudience: getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE"),
-		ExpectedOrgName:  getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME"),
+		ExpectedIssuer:   userIssuer, // Use the constructed issuer
+		ExpectedAudience: userAudience,
+		ExpectedOrgName:  orgName,
 		RequiredScopes:   []string{}, // No required scopes for basic consent access
 	}
 
@@ -896,6 +926,7 @@ func main() {
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
 	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+	mux.Handle("/env-check", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.envCheckHandler)))
 
 	// Routes that require user authentication
 	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(userAuthMiddleware(userJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
