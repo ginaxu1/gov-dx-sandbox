@@ -2,10 +2,18 @@ openapi: 3.0.3
 info:
   title: Consent Engine API
   description: |
-    Handles consent creation, approval, and management for the OpenDIF Data Exchange Platform. 
-    It uses a hybrid security model:
-    - **User-facing endpoints** (GET/PUT/PATCH/DELETE /consents/{id}) are protected by User JWTs from an identity provider for consent-portal access.
-    - **Internal endpoints** (POST /consents) require no authentication for service-to-service communication.
+    Consent Engine API for managing data consent workflows in the Data Exchange Platform.
+    This service handles consent creation, approval, tracking, and management for data access requests.
+    
+    ## Hybrid Authentication
+    The API uses hybrid authentication that differentiates between frontend and M2M requests:
+    - **Frontend requests**: Require JWT authentication with email validation
+    - **M2M requests**: JWT authentication is optional
+    - **Detection**: Based on HTTP headers (X-Requested-With, User-Agent)
+    
+    ## Email-based Authentication
+    The API uses email addresses as the primary identifier for data owners. When creating consents, 
+    the owner_id should be the user's email address, which will also be used as the owner_email.
   version: 1.1.0
   contact:
     name: OpenDIF Team
@@ -14,6 +22,8 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
+  - url: https://consent-engine.choreo.dev
+    description: Choreo Production Environment
   - url: https://consent-engine-dev.choreo.dev
     description: Choreo Development Environment
   - url: http://localhost:8081
@@ -23,7 +33,7 @@ paths:
   /health:
     get:
       summary: Health Check
-      description: Check if the service is running and healthy.
+      description: Check if the consent engine service is running and healthy
       operationId: healthCheck
       tags:
         - Health
@@ -35,14 +45,19 @@ paths:
               schema:
                 type: object
                 properties:
+                  service:
+                    type: string
+                    example: consent-engine
                   status:
                     type: string
                     example: healthy
 
   /consents:
     post:
-      summary: Create Consent (Internal)
-      description: Creates a new consent record. This is an internal endpoint intended to be called by other services like the Orchestration Engine. No authentication required.
+      summary: Create Consent
+      description: |
+        Create a new consent record for data access. The owner_id should be the user's email address, 
+        which will also be used as the owner_email. Both owner_id and owner_email should be the same value.
       operationId: createConsent
       tags:
         - Consents
@@ -52,17 +67,25 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateConsentRequest'
+            example:
+              app_id: "passport-app"
+              data_fields:
+                - owner_type: "citizen"
+                  owner_id: "user@example.com"
+                  fields: ["personInfo.permanentAddress", "personInfo.photo"]
+              purpose: "passport_application"
+              session_id: "session_123"
       responses:
         '201':
-          description: Consent created successfully.
+          description: Consent created successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
               example:
                 consent_id: "consent_8d255282"
-                owner_id: "199512345678"
-                owner_email: "regina@opensource.lk"
+                owner_id: "user@example.com"
+                owner_email: "user@example.com"
                 app_id: "passport-app"
                 status: "pending"
                 type: "data_sharing"
@@ -76,13 +99,22 @@ paths:
                 purpose: "passport_application"
                 message: "Consent created successfully"
         '400':
-          description: Bad request.
+          description: Bad request - invalid input data
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_data:
+                  summary: Invalid input data
+                  value:
+                    error: "data_fields[0].owner_id is required and cannot be empty"
+                invalid_owner_id:
+                  summary: Invalid owner ID format
+                  value:
+                    error: "data_fields[0].owner_id 'invalid_id' is not a valid email address"
         '500':
-          description: Internal server error.
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -90,179 +122,733 @@ paths:
 
   /consents/{consentId}:
     get:
-      summary: Get Consent by ID (User)
-      description: Retrieves a specific consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
+      summary: Get Consent by ID
+      description: |
+        Retrieve a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        
+        **Example Frontend Request:**
+        ```bash
+        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)" \
+          -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+          -H "X-Requested-With: XMLHttpRequest" \
+          -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        ```
+        
+        **Example M2M Request:**
+        ```bash
+        curl -X GET "[https://api.example.com/consents/consent_8d255282](https://api.example.com/consents/consent_8d255282)"
+        # No Authorization header required for M2M requests
+        ```
       operationId: getConsentById
       tags:
         - Consents
       security:
-        - UserJWTAuth: []
+        - BearerAuth: []
+        - {}
       parameters:
         - name: consentId
           in: path
           required: true
-          description: Unique identifier for the consent.
+          description: Unique identifier for the consent
           schema:
             type: string
-            example: "consent_8d255282"
+            example: consent_8d255282
+        - name: Authorization
+          in: header
+          required: false
+          description: |
+            JWT Bearer token for authentication. Required for frontend requests, optional for M2M requests.
+            Format: 'Bearer <jwt_token>'
+          schema:
+            type: string
+            example: "Bearer eyJ4NXQiOiJCU19FeUwwZ0ZMMU82WTB6Vnh2RllRVlB3bUEiLCJraWQiOiJabU0wTUdFd05EQm1OR0pqTUdZeU1EaGhORFEyWTJJelltSmxaVFEzTWjsbU16YzBNV1pqTmpBelpHWmxPREE0TVRGak9XRmhNbVJqTm1ZNVlXWTRPUV9SUzI1NiIsImFsZyI6IlJTMjU2In0..."
+        - name: X-Requested-With
+          in: header
+          required: false
+          description: |
+            Header to identify frontend requests. Set to 'XMLHttpRequest' for frontend calls.
+            When present, JWT authentication becomes mandatory.
+          schema:
+            type: string
+            example: "XMLHttpRequest"
+        - name: User-Agent
+          in: header
+          required: false
+          description: |
+            Browser user agent string. Used to detect frontend requests.
+            When containing browser names (Mozilla, Chrome, Safari, Firefox), JWT authentication becomes mandatory.
+          schema:
+            type: string
+            example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       responses:
         '200':
-          description: Consent found and returned.
+          description: Consent found and returned
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentPortalView'
         '403':
-          description: Forbidden - JWT token invalid or does not match consent owner.
+          description: Forbidden - JWT token invalid or email doesn't match consent owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Consent not found.
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Internal server error.
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     put:
-      summary: Update Consent (User)
-      description: Updates a consent record's status (e.g., approve, reject). Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
+      summary: Update Consent
+      description: |
+        Update a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        
+        **Status Transitions:**
+        - **Pending**: Can transition to `approved`, `rejected`, or `expired`
+        - **Approved**: Can transition to `approved`, `rejected`, `revoked`, or `expired`
+        - **Rejected**: Can only transition to `expired` (terminal state)
+        - **Expired**: Can only stay `expired` (terminal state)
+        - **Revoked**: Can only transition to `expired` (terminal state)
+        
+        **Terminal States:** Once a consent reaches `rejected`, `expired`, or `revoked` status, it cannot transition back to active states like `pending` or `approved`. This ensures a clear, unalterable audit trail of consent decisions.
       operationId: updateConsent
       tags:
         - Consents
       security:
-        - UserJWTAuth: []
+        - BearerAuth: []
+        - {}
       parameters:
         - name: consentId
           in: path
           required: true
-          description: Unique identifier for the consent.
+          description: Unique identifier for the consent
           schema:
             type: string
+            example: consent_8d255282
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateConsentRequest'
+            example:
+              status: "approved"
+              updated_by: "citizen_199512345678"
+              grant_duration: "1h"
+              reason: "User approved consent via portal"
       responses:
         '200':
-          description: Consent updated successfully.
+          description: Consent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
         '400':
-          description: Bad request.
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden.
+          description: Forbidden - JWT token invalid or email doesn't match consent owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Consent not found.
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Internal server error.
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     patch:
-      summary: Partially Update Consent (User)
-      description: Partially updates a consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
+      summary: Partially Update Consent
+      description: |
+        Partially update a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
+        
+        This endpoint allows partial updates to consent records, updating only the fields provided in the request body.
       operationId: patchConsentById
       tags:
         - Consents
       security:
-        - UserJWTAuth: []
+        - BearerAuth: []
+        - {}
       parameters:
         - name: consentId
           in: path
           required: true
-          description: Unique identifier for the consent.
+          description: Unique identifier for the consent
           schema:
             type: string
+            example: consent_8d255282
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateConsentRequest' # Can be same as PUT
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - pending
+                    - approved
+                    - rejected
+                    - expired
+                    - revoked
+                  description: New status of the consent (optional)
+                  example: approved
+                updated_by:
+                  type: string
+                  description: ID of the user who updated the consent (optional)
+                  example: citizen_199512345678
+                reason:
+                  type: string
+                  description: Reason for the status update (optional)
+                  example: User approved consent via portal
+                grant_duration:
+                  type: string
+                  description: Duration of the granted access (optional)
+                  example: "1d"
+                fields:
+                  type: array
+                  description: List of data fields covered by this consent (optional)
+                  items:
+                    type: string
+                  example: ["personInfo.permanentAddress", "personInfo.photo"]
       responses:
         '200':
-          description: Consent updated successfully.
+          description: Consent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
         '400':
-          description: Bad request.
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden.
+          description: Forbidden - JWT token invalid or email doesn't match consent owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Consent not found.
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Internal server error.
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     delete:
-      summary: Revoke Consent (User)
-      description: Revokes an active consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
+      summary: Revoke Consent
+      description: |
+        Revoke a specific consent record by its ID with hybrid authentication:
+        - **Frontend requests**: Require JWT authentication with email validation
+        - **M2M requests**: JWT authentication is optional
+        - **Detection**: Based on HTTP headers (X-Requested-With: XMLHttpRequest or User-Agent containing browser names)
       operationId: revokeConsent
       tags:
         - Consents
       security:
-        - UserJWTAuth: []
+        - BearerAuth: []
+        - {}
       parameters:
         - name: consentId
           in: path
           required: true
-          description: Unique identifier for the consent.
+          description: Unique identifier for the consent
           schema:
             type: string
+            example: consent_8d255282
         - name: reason
           in: query
           required: true
-          description: Reason for revoking the consent.
+          description: Reason for revoking the consent
           schema:
             type: string
+            example: User requested revocation
       responses:
         '200':
-          description: Consent revoked successfully.
+          description: Consent revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
         '400':
-          description: Bad request.
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden.
+          description: Forbidden - JWT token invalid or email doesn't match consent owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Consent not found.
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Internal server error.
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /data-owner/{ownerId}:
     get:
-      summary: Get Consents by Data Owner (Internal)
-      description: Retrieves all consents for a specific data owner. Internal use only.
+      summary: Get Consents by Data Owner
+      description: Retrieve all consents for a specific data owner
       operationId: getConsentsByDataOwner
       tags:
         - Data Owner
-      security:
-        - ChoreoM2MAuth: []
       parameters:
         - name: ownerId
           in: path
           required: true
-          description: Unique identifier for the data owner.
+          description: Unique identifier for the data owner
           schema:
             type: string
+            example: test-owner-123
       responses:
         '200':
-          description: Consents found and returned.
+          description: Consents found and returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsentResponse'
+                  count:
+                    type: integer
+                    example: 5
         '500':
-          description: Internal server error.
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consumer/{consumerId}:
+    get:
+      summary: Get Consents by Consumer
+      description: Retrieve all consents for a specific consumer application
+      operationId: getConsentsByConsumer
+      tags:
+        - Consumer
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer application
+          schema:
+            type: string
+            example: passport-app
+      responses:
+        '200':
+          description: Consents found and returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsentResponse'
+                  count:
+                    type: integer
+                    example: 3
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consent-website:
+    get:
+      summary: Consent Portal Website
+      description: Serve the consent portal website for data owners to approve/deny consents
+      operationId: getConsentWebsite
+      tags:
+        - Portal
+      responses:
+        '200':
+          description: Consent portal website
+          content:
+            text/html:
+              schema:
+                type: string
+        '500':
+          description: Internal server error
+
+  /consent-portal:
+    post:
+      summary: Create Consent via Portal
+      description: Create a new consent record via the consent portal
+      operationId: createConsentViaPortal
+      tags:
+        - Portal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentPortalCreateRequest'
+      responses:
+        '201':
+          description: Consent created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update Consent via Portal
+      description: Update a consent record via the consent portal. The consent ID should be included in the URL path after the trailing slash.
+      operationId: updateConsentViaPortal
+      tags:
+        - Portal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentPortalUpdateRequest'
+      responses:
+        '200':
+          description: Consent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponse'
+        '400':
+          description: Bad request - invalid input data or missing consent ID in path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Get Consent Portal Information
+      description: Retrieve consent information for the portal display. The consent ID should be provided as a query parameter.
+      operationId: getConsentPortalInfo
+      tags:
+        - Portal
+      parameters:
+        - name: consent_id
+          in: query
+          required: true
+          description: Unique identifier for the consent
+          schema:
+            type: string
+            example: consent_8d255282
+      responses:
+        '200':
+          description: Consent information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentPortalView'
+        '400':
+          description: Bad request - missing consent_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /data-info/{consentId}:
+    get:
+      summary: Get Data Owner Information
+      description: Retrieve owner ID and email for a specific consent record
+      operationId: getDataInfo
+      tags:
+        - Data Info
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: Unique identifier for the consent
+          schema:
+            type: string
+            example: consent_8d255282
+      responses:
+        '200':
+          description: Data owner information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  owner_id:
+                    type: string
+                    description: ID of the data owner
+                    example: test-owner-123
+                  owner_email:
+                    type: string
+                    description: Email address of the data owner
+                    example: owner@example.com
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /admin/expiry-check:
     post:
-      summary: Check for Expired Consents (Internal)
-      description: A protected admin endpoint to trigger a check for expired consents.
+      summary: Check Expired Consents
+      description: Check for and update expired consent records
       operationId: checkConsentExpiry
       tags:
         - Admin
-      security:
-        - ChoreoM2MAuth: []
       responses:
         '200':
-          description: Expiry check completed successfully.
+          description: Expiry check completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expired_records:
+                    type: array
+                    description: List of expired consent records
+                    items:
+                      $ref: '#/components/schemas/ConsentResponse'
+                  count:
+                    type: integer
+                    description: Number of expired records found
+                    example: 0
+                  checked_at:
+                    type: string
+                    format: date-time
+                    description: When the expiry check was performed
+                    example: "2025-09-16T16:22:12.38733+05:30"
         '500':
-          description: Internal server error.
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   schemas:
     CreateConsentRequest:
       type: object
-      # ...
+      required:
+        - app_id
+        - data_fields
+        - purpose
+        - session_id
+      properties:
+        app_id:
+          type: string
+          description: ID of the consumer application requesting data
+          example: passport-app
+        data_fields:
+          type: array
+          description: List of data field groups with ownership information.
+          items:
+            $ref: '#/components/schemas/DataField'
+        purpose:
+          type: string
+          description: Purpose for data access
+          example: passport_application
+        session_id:
+          type: string
+          description: Session identifier for tracking
+          example: test-session-123
+        expires_at:
+          type: integer
+          format: int64
+          description: Expiry time as epoch timestamp (optional)
+          example: 1694875200
+        grant_duration:
+          type: string
+          description: Duration of consent grant (e.g., "30d", "1h") (optional)
+          example: "30d"
+
+    DataField:
+      type: object
+      required:
+        - owner_id
+        - fields
+      properties:
+        owner_type:
+          type: string
+          description: Type of data owner (citizen, organization, etc.). Optional field.
+          example: citizen
+        owner_id:
+           type: string
+           description: Email address of the data owner (used as both owner_id and owner_email)
+           example: user@example.com
+        owner_email:
+           type: string
+           description: Email address of the data owner (same as owner_id)
+           example: user@example.com
+           readOnly: true
+        fields:
+          type: array
+          description: List of data fields requiring consent
+          items:
+            type: string
+          example: ["person.permanentAddress", "person.photo"]
+
     UpdateConsentRequest:
       type: object
-      # ...
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
+          description: New status of the consent.
+          example: approved
+        grant_duration:
+          type: string
+          description: Duration of the granted access (e.g., "1h", "1d", "30d"). If not provided, existing grant_duration will be used.
+          example: "1d"
+        updated_by:
+          type: string
+          description: ID of the user who updated the consent. If not provided, will use the existing owner_id.
+          example: citizen_199512345678
+        reason:
+          type: string
+          description: Reason for the status update. If not provided, a default reason will be generated based on the status.
+          example: User approved consent via portal
+        fields:
+          type: array
+          description: List of data fields covered by this consent. If not provided, existing fields will be maintained.
+          items:
+            type: string
+          example: ["personInfo.permanentAddress", "personInfo.photo"]
+
+    ConsentPortalCreateRequest:
+      type: object
+      required:
+        - app_id
+        - data_fields
+        - purpose
+        - session_id
+      properties:
+        app_id:
+          type: string
+          description: ID of the consumer application requesting data
+          example: passport-app
+        data_fields:
+          type: array
+          description: List of data field groups with ownership information
+          items:
+            $ref: '#/components/schemas/DataField'
+        purpose:
+          type: string
+          description: Purpose for data access
+          example: passport_application
+        session_id:
+          type: string
+          description: Session identifier for tracking
+          example: test-session-123
+
+    ConsentPortalAction:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - approved
+            - rejected
+            - revoked
+          description: Action to take on the consent
+          example: approved
+
     ConsentResponse:
       type: object
       properties:
@@ -362,33 +948,83 @@ components:
           type: string
           description: Reason for the status update
           example: User approved consent via portal
+
     ConsentPortalView:
       type: object
-      # ...
+      properties:
+        app_display_name:
+          type: string
+          description: Human-readable name of the application
+          example: "Passport App"
+        created_at:
+          type: string
+          format: date-time
+          description: When the consent was created
+          example: "2025-09-15T09:58:34.05668193Z"
+        fields:
+          type: array
+          description: List of data fields covered by this consent
+          items:
+            type: string
+          example: ["person.permanentAddress", "person.photo"]
+        owner_name:
+          type: string
+          description: Human-readable name of the data owner
+          example: "Test Owner 123"
+        owner_email:
+          type: string
+          description: Email address of the data owner
+          example: owner@example.com
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
+          description: Current status of the consent
+          example: pending
+        type:
+          type: string
+          enum:
+            - realtime
+            - offline
+          description: Type of consent workflow
+          example: realtime
+
     ErrorResponse:
       type: object
       properties:
         error:
           type: string
+          description: Error message
+          example: "Invalid consent ID"
 
   securitySchemes:
-    UserJWTAuth:
+    BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: A user-specific JWT obtained from an identity provider (e.g., Asgardeo) after login. Required for all public-facing endpoints that interact with user-specific data.
-    ChoreoM2MAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: A Choreo-managed M2M (machine-to-machine) token used for secure communication between internal components within the project.
+      description: |
+        JWT token obtained from Asgardeo authentication service.
+        The token must be included in the Authorization header as 'Bearer <token>'.
+        The JWT must contain a valid email claim that matches the consent owner's email.
+
+# Security is applied per endpoint - not all endpoints require authentication
 
 tags:
   - name: Health
     description: Health check endpoints
   - name: Consents
-    description: Core consent management operations
+    description: Consent management operations
   - name: Data Owner
-    description: Operations related to data owners
+    description: Data owner related operations
+  - name: Consumer
+    description: Consumer application related operations
+  - name: Portal
+    description: Consent portal operations
+  - name: Data Info
+    description: Data owner information operations
   - name: Admin
-    description: Protected administrative operations
+    description: Administrative operations

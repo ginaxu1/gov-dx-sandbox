@@ -18,7 +18,10 @@ type postgresConsentEngine struct {
 
 // NewPostgresConsentEngine creates a new PostgreSQL-based consent engine
 func NewPostgresConsentEngine(db *sql.DB, consentPortalURL string) ConsentEngine {
-	return &postgresConsentEngine{db: db, consentPortalURL: consentPortalURL}
+	return &postgresConsentEngine{
+		db:               db,
+		consentPortalURL: consentPortalURL,
+	}
 }
 
 // ProcessConsentRequest processes a consent request and creates a consent record
@@ -109,7 +112,7 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 		return nil, fmt.Errorf("failed to calculate expiry time: %w", err)
 	}
 
-	// Generate consent portal URL
+	// Generate consent portal URL using the configured base URL
 	consentPortalURL := fmt.Sprintf("%s/?consent_id=%s", pce.consentPortalURL, consentID)
 
 	// Insert new consent record
