@@ -856,12 +856,16 @@ func (s *apiServer) envCheckHandler(w http.ResponseWriter, r *http.Request) {
 
 	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "NOT_SET")
 	constructedIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
+	constructedJwksURL := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/jwks", orgName)
 
 	envVars := map[string]string{
-		"ASGARDEO_ORG_NAME":  orgName,
-		"constructed_issuer": constructedIssuer,
-		"ASGARDEO_AUDIENCE":  getEnvOrDefault("ASGARDEO_AUDIENCE", "NOT_SET"),
-		"CONSENT_PORTAL_URL": getEnvOrDefault("CONSENT_PORTAL_URL", "NOT_SET"),
+		"ASGARDEO_ORG_NAME":    orgName,
+		"ASGARDEO_ISSUER":      getEnvOrDefault("ASGARDEO_ISSUER", "NOT_SET"),
+		"ASGARDEO_JWKS_URL":    getEnvOrDefault("ASGARDEO_JWKS_URL", "NOT_SET"),
+		"ASGARDEO_AUDIENCE":    getEnvOrDefault("ASGARDEO_AUDIENCE", "NOT_SET"),
+		"constructed_issuer":   constructedIssuer,
+		"constructed_jwks_url": constructedJwksURL,
+		"CONSENT_PORTAL_URL":   getEnvOrDefault("CONSENT_PORTAL_URL", "NOT_SET"),
 	}
 
 	utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
@@ -882,6 +886,8 @@ func main() {
 		"version", Version,
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
+	jwksURL := os.Getenv("ASGARDEO_JWKS_URL")
+	slog.Info("--- !!! DEBUG INFO !!! --- The application is configured with ASGARDEO_JWKS_URL: [%s]", jwksURL)
 
 	// Initialize database connection
 	dbConfig := NewDatabaseConfig()
@@ -922,9 +928,9 @@ func main() {
 
 	// Initialize JWT verifier with proper signature verification
 	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME")
-	userIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
+	userIssuer := getEnvOrDefault("ASGARDEO_ISSUER", fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName))
 	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
-	userJwksURL := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/jwks", orgName)
+	userJwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/jwks", orgName))
 
 	slog.Info("JWT verifier configuration",
 		"org_name", orgName,
