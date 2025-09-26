@@ -26,9 +26,7 @@ func NewSimpleJWTVerifier(expectedIssuer, expectedAudience, expectedOrgName stri
 
 // VerifyToken verifies a JWT token without signature verification
 func (j *SimpleJWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) {
-	slog.Info("Verifying JWT token without signature verification",
-		"expected_issuer", j.expectedIssuer,
-		"expected_audience", j.expectedAudience,
+	slog.Debug("Verifying JWT token without signature verification",
 		"token_length", len(tokenString))
 
 	// Parse the token
@@ -40,9 +38,13 @@ func (j *SimpleJWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) 
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
-	// Log all claims for debugging
+	// Log basic claims for debugging (without sensitive data)
 	if claims, ok := token.Claims.(*jwt.MapClaims); ok {
-		slog.Info("JWT token claims", "claims", *claims)
+		slog.Debug("JWT token basic claims",
+			"iss", (*claims)["iss"],
+			"aud", (*claims)["aud"],
+			"exp", (*claims)["exp"],
+			"org_name", (*claims)["org_name"])
 	}
 
 	// Validate basic claims
@@ -51,7 +53,7 @@ func (j *SimpleJWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) 
 		return nil, fmt.Errorf("token claims validation failed: %w", err)
 	}
 
-	slog.Info("JWT token verification completed successfully")
+	slog.Debug("JWT token verification completed successfully")
 	return token, nil
 }
 
@@ -63,14 +65,11 @@ func (j *SimpleJWTVerifier) validateClaims(token *jwt.Token) error {
 		return fmt.Errorf("invalid token claims")
 	}
 
-	slog.Info("Validating claims",
+	slog.Debug("Validating claims",
 		"iss", (*claims)["iss"],
 		"aud", (*claims)["aud"],
 		"exp", (*claims)["exp"],
-		"org_name", (*claims)["org_name"],
-		"expected_issuer", j.expectedIssuer,
-		"expected_audience", j.expectedAudience,
-		"expected_org_name", j.expectedOrgName)
+		"org_name", (*claims)["org_name"])
 
 	// Validate issuer (iss)
 	if iss, ok := (*claims)["iss"].(string); ok {

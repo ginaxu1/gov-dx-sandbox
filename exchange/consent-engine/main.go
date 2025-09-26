@@ -225,13 +225,6 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log the parsed request structure for debugging
-	slog.Info("POST /consents parsed request",
-		"app_id", req.AppID,
-		"session_id", req.SessionID,
-		"data_fields_count", len(req.DataFields),
-		"grant_duration", req.GrantDuration)
-
 	// Validate that all required fields are present and not empty
 	if req.AppID == "" {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "app_id is required and cannot be empty"})
@@ -831,62 +824,6 @@ func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *apiServer) testConnectivityHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
-		return
-	}
-
-	slog.Info("Testing network connectivity from deployed service")
-
-	// Test URLs to check
-	testURLs := []string{
-		"https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/jwks",
-		"https://api.asgardeo.io",
-		"https://httpbin.org/get", // Basic connectivity test
-	}
-
-	results := make(map[string]interface{})
-
-	for _, url := range testURLs {
-		slog.Info("Testing connectivity to", "url", url)
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Get(url)
-
-		if err != nil {
-			results[url] = map[string]interface{}{
-				"status": "error",
-				"error":  err.Error(),
-			}
-			slog.Error("Connectivity test failed", "url", url, "error", err)
-		} else {
-			resp.Body.Close()
-			results[url] = map[string]interface{}{
-				"status":      "success",
-				"status_code": resp.StatusCode,
-			}
-			slog.Info("Connectivity test successful", "url", url, "status_code", resp.StatusCode)
-		}
-	}
-
-	// Test environment variables
-	envVars := map[string]string{
-		"ASGARDEO_JWKS_URL": getEnvOrDefault("ASGARDEO_JWKS_URL", "NOT_SET"),
-		"ASGARDEO_ISSUER":   getEnvOrDefault("ASGARDEO_ISSUER", "NOT_SET"),
-		"ASGARDEO_AUDIENCE": getEnvOrDefault("ASGARDEO_AUDIENCE", "NOT_SET"),
-		"ASGARDEO_ORG_NAME": getEnvOrDefault("ASGARDEO_ORG_NAME", "NOT_SET"),
-	}
-
-	response := map[string]interface{}{
-		"connectivity_tests": results,
-		"environment_vars":   envVars,
-		"timestamp":          time.Now().Format(time.RFC3339),
-	}
-
-	utils.RespondWithJSON(w, http.StatusOK, response)
-}
-
 func (s *apiServer) envCheckHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: "Method not allowed"})
@@ -964,13 +901,10 @@ func main() {
 	userIssuer := fmt.Sprintf("https://api.asgardeo.io/t/%s/oauth2/token", orgName)
 	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
 
-	slog.Info("Environment variables loaded",
-		"ASGARDEO_ORG_NAME", orgName,
-		"constructed_issuer", userIssuer,
-		"ASGARDEO_AUDIENCE", userAudience)
+	slog.Info("JWT verifier initialized successfully")
 
 	userJWTVerifier := NewSimpleJWTVerifier(userIssuer, userAudience, orgName)
-	slog.Info("Initialized simple JWT verifier (no network calls)", "issuer", userIssuer, "audience", userAudience)
+	slog.Info("Initialized simple JWT verifier (no network calls)")
 
 	// Configure user token validation
 	userTokenConfig := UserTokenValidationConfig{
@@ -992,7 +926,6 @@ func main() {
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
 	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
-	mux.Handle("/test-connectivity", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.testConnectivityHandler)))
 	mux.Handle("/env-check", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.envCheckHandler)))
 
 	// Routes that require user authentication
