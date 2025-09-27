@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
+	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 )
 
@@ -46,6 +47,11 @@ func main() {
 	// Setup routes
 	mux := http.NewServeMux()
 	apiServer.SetupRoutes(mux)
+
+	// Setup audit middleware
+	auditServiceURL := getEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
+	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
+	handler := auditMiddleware.AuditLoggingMiddleware(mux)
 
 	// Health check endpoint (matching consent-engine approach)
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +187,7 @@ func main() {
 	addr := ":" + port
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
