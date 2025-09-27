@@ -56,7 +56,6 @@ make test-docker
 - `provider_schemas` - Provider data schemas and SDL definitions
 - `consumer_grants` - Consumer access grants and permissions
 - `provider_metadata` - Field-level metadata and access controls
-- `audit_logs` - Data access audit trail with PII protection
 
 ### Database Configuration
 
