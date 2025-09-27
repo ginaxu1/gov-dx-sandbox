@@ -78,6 +78,7 @@ func createTestTables(db *sql.DB) error {
 		"DROP TABLE IF EXISTS consumer_grants CASCADE",
 		"DROP TABLE IF EXISTS consumer_apps CASCADE",
 		"DROP TABLE IF EXISTS consumers CASCADE",
+		"DROP TABLE IF EXISTS entities CASCADE",
 		"DROP TABLE IF EXISTS provider_schemas CASCADE",
 		"DROP TABLE IF EXISTS provider_profiles CASCADE",
 		"DROP TABLE IF EXISTS provider_submissions CASCADE",
@@ -90,13 +91,21 @@ func createTestTables(db *sql.DB) error {
 
 	// Create tables with PostgreSQL syntax
 	tables := []string{
-		`CREATE TABLE consumers (
-			consumer_id VARCHAR(255) PRIMARY KEY,
-			consumer_name VARCHAR(255) NOT NULL,
+		`CREATE TABLE entities (
+			entity_id VARCHAR(255) PRIMARY KEY,
+			entity_name VARCHAR(255) NOT NULL,
 			contact_email VARCHAR(255) NOT NULL,
 			phone_number VARCHAR(50),
+			entity_type VARCHAR(100) NOT NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE consumers (
+			consumer_id VARCHAR(255) PRIMARY KEY,
+			entity_id VARCHAR(255) NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			FOREIGN KEY (entity_id) REFERENCES entities(entity_id) ON DELETE CASCADE
 		)`,
 		`CREATE TABLE consumer_apps (
 			submission_id VARCHAR(255) PRIMARY KEY,

@@ -1,0 +1,483 @@
+openapi: 3.0.3
+info:
+  title: Audit Service API
+  description: |
+    Audit Service API for tracking and retrieving data access audit logs.
+    
+    This service provides endpoints for:
+    - Creating audit log entries (used by api-server-go and manual testing)
+    - Retrieving audit events for different portals (Admin, Provider, Consumer)
+    - Health monitoring
+    
+    The service maintains a comprehensive audit trail of all data access requests
+    with PII redaction for privacy protection. Provider and Consumer endpoints
+    support filtering by ID without requiring authentication.
+  version: 1.0.0
+  contact:
+    name: Gov DX Sandbox Team
+    email: support@gov-dx-sandbox.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+  - url: https://audit-service.gov-dx-sandbox.com
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Check if the audit service is running and healthy
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Audit Service is healthy"
+
+  /audit/logs:
+    post:
+      summary: Create Audit Log Entry (Internal)
+      description: |
+        Create a new audit log entry for tracking data access.
+        This endpoint is primarily used by the api-server-go to send audit logs.
+        For manual testing, use the /audit/create endpoint instead.
+      operationId: createAuditLog
+      tags:
+        - Audit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditLogRequest'
+      responses:
+        '201':
+          description: Audit log created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_id:
+                    type: string
+                    format: uuid
+                    description: Unique identifier for the audit log entry
+                  status:
+                    type: string
+                    example: "created"
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/create:
+    post:
+      summary: Create Audit Log Entry (Manual Testing)
+      description: |
+        Create a new audit log entry manually for testing purposes.
+        This endpoint provides enhanced validation and detailed responses
+        suitable for manual testing and development.
+      operationId: createAuditLogManual
+      tags:
+        - Audit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditLogRequest'
+            example:
+              consumer_id: "test-consumer-001"
+              provider_id: "test-provider-001"
+              requested_data:
+                query: "query { citizen { name age } }"
+                variables: {}
+              response_data:
+                data:
+                  citizen:
+                    name: "John Doe"
+                    age: 30
+                    entity_id: "12345"
+              transaction_status: "SUCCESS"
+      responses:
+        '201':
+          description: Audit log created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  event_id:
+                    type: string
+                    format: uuid
+                    description: Unique identifier for the audit log entry
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: When the audit log was created
+                  consumer_id:
+                    type: string
+                    description: ID of the consuming department/application
+                  provider_id:
+                    type: string
+                    description: ID of the data provider
+                  transaction_status:
+                    type: string
+                    enum: [SUCCESS, FAILURE]
+                    description: Status of the transaction
+                  citizen_hash:
+                    type: string
+                    description: SHA-256 hash of citizen identifier for privacy
+                  status:
+                    type: string
+                    example: "created"
+                  message:
+                    type: string
+                    example: "Audit log created successfully for testing"
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/events:
+    get:
+      summary: Get Admin Audit Events
+      description: |
+        Retrieve audit events for the Admin Portal with comprehensive filtering options.
+        This endpoint provides full audit trail access for administrative purposes.
+      operationId: getAdminAuditEvents
+      tags:
+        - Audit
+      parameters:
+        - name: consumer_id
+          in: query
+          schema:
+            type: string
+          description: Filter by consumer ID
+        - name: provider_id
+          in: query
+          schema:
+            type: string
+          description: Filter by provider ID
+        - name: transaction_status
+          in: query
+          schema:
+            type: string
+            enum: [SUCCESS, FAILURE]
+          description: Filter by transaction status
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date for filtering (YYYY-MM-DD)
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date for filtering (YYYY-MM-DD)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 1000
+          description: Maximum number of records to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of records to skip
+      responses:
+        '200':
+          description: Admin audit events retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/providers:
+    get:
+      summary: Get Provider Audit Events
+      description: |
+        Retrieve audit events for providers (Provider Portal).
+        Filter by provider_id query parameter to get events for a specific provider.
+        Example: /audit/providers?provider_id=dept-immigration
+      operationId: getProviderAuditEvents
+      tags:
+        - Audit
+      parameters:
+        - name: provider_id
+          in: query
+          schema:
+            type: string
+          description: Filter by specific provider ID (e.g., dept-immigration)
+        - name: transaction_status
+          in: query
+          schema:
+            type: string
+            enum: [SUCCESS, FAILURE]
+          description: Filter by transaction status
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date for filtering (YYYY-MM-DD)
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date for filtering (YYYY-MM-DD)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 1000
+          description: Maximum number of records to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of records to skip
+      responses:
+        '200':
+          description: Provider audit events retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/consumers:
+    get:
+      summary: Get Consumer Audit Events
+      description: |
+        Retrieve audit events for consumers (Consumer Portal).
+        Filter by consumer_id query parameter to get events for a specific consumer.
+        Example: /audit/consumers?consumer_id=dept-health
+      operationId: getConsumerAuditEvents
+      tags:
+        - Audit
+      parameters:
+        - name: consumer_id
+          in: query
+          schema:
+            type: string
+          description: Filter by specific consumer ID (e.g., dept-health)
+        - name: transaction_status
+          in: query
+          schema:
+            type: string
+            enum: [SUCCESS, FAILURE]
+          description: Filter by transaction status
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date for filtering (YYYY-MM-DD)
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date for filtering (YYYY-MM-DD)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 1000
+          description: Maximum number of records to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of records to skip
+      responses:
+        '200':
+          description: Consumer audit events retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token containing user claims. Currently not required for any endpoints,
+        but available for future authentication needs.
+
+  schemas:
+    AuditLogRequest:
+      type: object
+      required:
+        - consumer_id
+        - provider_id
+        - requested_data
+        - transaction_status
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the audit log entry (auto-generated if not provided)
+        consumer_id:
+          type: string
+          description: ID of the consuming department/application
+        provider_id:
+          type: string
+          description: ID of the data provider
+        requested_data:
+          type: object
+          description: GraphQL query and variables (PII redacted)
+        response_data:
+          type: object
+          description: Response data returned (PII redacted)
+        transaction_status:
+          type: string
+          enum: [SUCCESS, FAILURE]
+          description: Status of the transaction
+        citizen_hash:
+          type: string
+          description: SHA-256 hash of citizen identifier for privacy (auto-generated from request/response data)
+
+    AuditEvent:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Unique identifier for the audit log entry
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event occurred
+        consumer_id:
+          type: string
+          description: ID of the consuming department/application
+        provider_id:
+          type: string
+          description: ID of the data provider
+        transaction_status:
+          type: string
+          enum: [SUCCESS, FAILURE]
+          description: Status of the transaction
+        citizen_hash:
+          type: string
+          description: SHA-256 hash of citizen identifier for privacy
+      description: |
+        Simplified audit event for API responses. RequestedData and ResponseData
+        are intentionally omitted for security as they contain sensitive information
+        that should not be exposed via API.
+
+    AuditResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+          description: Array of audit events
+        total:
+          type: integer
+          description: Total number of events matching the filter criteria
+        limit:
+          type: integer
+          description: Maximum number of events returned per page
+        offset:
+          type: integer
+          description: Number of events skipped for pagination
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+    JWTClaims:
+      type: object
+      properties:
+        consumer_id:
+          type: string
+          description: Consumer ID claim
+        provider_id:
+          type: string
+          description: Provider ID claim
+        user_id:
+          type: string
+          description: User ID claim
+        email:
+          type: string
+          description: User email claim
+        exp:
+          type: integer
+          description: Token expiration timestamp
+        iat:
+          type: integer
+          description: Token issued at timestamp
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Audit
+    description: Audit logging and data access tracking
