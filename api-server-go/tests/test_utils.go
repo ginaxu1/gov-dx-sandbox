@@ -75,9 +75,11 @@ func getEnvOrDefault(key, defaultValue string) string {
 func createTestTables(db *sql.DB) error {
 	// Drop tables if they exist (for clean test runs)
 	dropTables := []string{
+		"DROP TABLE IF EXISTS audit_logs CASCADE",
 		"DROP TABLE IF EXISTS consumer_grants CASCADE",
 		"DROP TABLE IF EXISTS consumer_apps CASCADE",
 		"DROP TABLE IF EXISTS consumers CASCADE",
+		"DROP TABLE IF EXISTS entities CASCADE",
 		"DROP TABLE IF EXISTS provider_schemas CASCADE",
 		"DROP TABLE IF EXISTS provider_profiles CASCADE",
 		"DROP TABLE IF EXISTS provider_submissions CASCADE",
@@ -90,13 +92,21 @@ func createTestTables(db *sql.DB) error {
 
 	// Create tables with PostgreSQL syntax
 	tables := []string{
+		`CREATE TABLE entities (
+			entity_id VARCHAR(255) PRIMARY KEY,
+			entity_name VARCHAR(255) NOT NULL,
+			phone_number VARCHAR(20),
+			entity_type VARCHAR(20) NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			contact_email VARCHAR(255)
+		)`,
 		`CREATE TABLE consumers (
 			consumer_id VARCHAR(255) PRIMARY KEY,
-			consumer_name VARCHAR(255) NOT NULL,
-			contact_email VARCHAR(255) NOT NULL,
-			phone_number VARCHAR(50),
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			entity_id VARCHAR(255) NOT NULL,
+			FOREIGN KEY (entity_id) REFERENCES entities(entity_id) ON DELETE CASCADE
 		)`,
 		`CREATE TABLE consumer_apps (
 			submission_id VARCHAR(255) PRIMARY KEY,
@@ -160,6 +170,16 @@ func createTestTables(db *sql.DB) error {
 			metadata JSONB,
 			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE audit_logs (
+			event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			consumer_id TEXT NOT NULL,
+			provider_id TEXT NOT NULL,
+			requested_data JSONB NOT NULL,
+			response_data JSONB,
+			transaction_status TEXT NOT NULL,
+			citizen_hash TEXT NOT NULL
 		)`,
 	}
 

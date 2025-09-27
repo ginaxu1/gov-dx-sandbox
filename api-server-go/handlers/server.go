@@ -19,8 +19,6 @@ type APIServer struct {
 	providerService services.ProviderServiceInterface
 	adminService    *services.AdminService
 	grantsService   services.GrantsServiceInterface
-	auditService    *services.AuditService
-	auditHandler    *AuditHandler
 }
 
 // NewAPIServerWithDB creates a new API server instance with database support
@@ -28,22 +26,13 @@ func NewAPIServerWithDB(db *sql.DB) *APIServer {
 	consumerService := services.NewConsumerServiceWithDB(db)
 	providerService := services.NewProviderServiceWithDB(db)
 	grantsService := services.NewGrantsServiceWithDB(db)
-	auditService := services.NewAuditService(db)
-	auditHandler := NewAuditHandler(auditService)
 
 	return &APIServer{
 		consumerService: consumerService,
 		providerService: providerService,
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
 		grantsService:   grantsService,
-		auditService:    auditService,
-		auditHandler:    auditHandler,
 	}
-}
-
-// ProviderService returns the provider service instance
-func (s *APIServer) ProviderService() services.ProviderServiceInterface {
-	return s.providerService
 }
 
 // GetConsumerService returns the consumer service instance
@@ -90,11 +79,6 @@ func (s *APIServer) SetupRoutes(mux *http.ServeMux) {
 	// Allow List Management routes
 	mux.Handle("/admin/fields/", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.handleAllowListRoutes)))
 
-	// Audit routes
-	mux.Handle("/audit/logs", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.CreateAuditLog)))
-	mux.Handle("/audit/provider", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForProvider)))
-	mux.Handle("/audit/admin", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForAdmin)))
-	mux.Handle("/audit/citizen", utils.PanicRecoveryMiddleware(http.HandlerFunc(s.auditHandler.GetAuditLogsForCitizen)))
 }
 
 // Generic handler for collection endpoints (GET all, POST create)
@@ -124,53 +108,6 @@ func (s *APIServer) handleCollection(w http.ResponseWriter, r *http.Request, get
 	default:
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
-}
-
-// Generic handler for item endpoints (GET, PUT, DELETE by ID)
-func (s *APIServer) handleItem(w http.ResponseWriter, r *http.Request, getter func(string) (interface{}, error), updater func(string, interface{}) (interface{}, error), deleter func(string) error) {
-	id := utils.ExtractIDFromPathString(r.URL.Path)
-	if id == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "ID is required")
-		return
-	}
-
-	switch r.Method {
-	case http.MethodGet:
-		item, err := getter(id)
-		if err != nil {
-			utils.RespondWithError(w, http.StatusNotFound, "Item not found")
-			return
-		}
-		utils.RespondWithSuccess(w, http.StatusOK, item)
-	case http.MethodPut:
-		var req interface{}
-		if err := utils.ParseJSONRequest(r, &req); err != nil {
-			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-			return
-		}
-		item, err := updater(id, req)
-		if err != nil {
-			utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		utils.RespondWithSuccess(w, http.StatusOK, item)
-	case http.MethodDelete:
-		if err := deleter(id); err != nil {
-			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to delete item")
-			return
-		}
-		utils.RespondWithSuccess(w, http.StatusNoContent, nil)
-	default:
-		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-	}
-}
-
-// Helper functions for parsing requests
-
-// Service method wrappers for use with generic handlers
-func (s *APIServer) createConsumerServiceMethod(req interface{}) (interface{}, error) {
-	createReq := req.(models.CreateConsumerRequest)
-	return s.consumerService.CreateConsumer(createReq)
 }
 
 func (s *APIServer) parseAndCreateConsumer(req interface{}) (interface{}, error) {
