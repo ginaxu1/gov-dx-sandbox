@@ -26,8 +26,11 @@ WORKDIR /root/
 # Copy the binary from builder stage
 COPY --from=builder /app/audit-service .
 
+# Switch to non-root user with specific UID
+USER 10001
+
 # Expose port
-EXPOSE 8082
+EXPOSE 3002
 
 # Run the service
 CMD ["./audit-service"]
