@@ -73,6 +73,7 @@ type ProviderSchema struct {
 	SchemaInput         *SchemaInput         `json:"schemaInput,omitempty"`
 	FieldConfigurations FieldConfigurations  `json:"fieldConfigurations"`
 	SDL                 string               `json:"sdl,omitempty"` // Store SDL directly
+	SchemaEndpoint      string               `json:"schema_endpoint,omitempty"`
 	CreatedAt           time.Time            `json:"createdAt"`
 	UpdatedAt           time.Time            `json:"updatedAt"`
 }
@@ -103,10 +104,27 @@ type CreateProviderSchemaSDLRequest struct {
 	SDL string `json:"sdl" validate:"required"`
 }
 
+// SchemaRegistration represents the schema registration data from frontend
+type SchemaRegistration struct {
+	SDL              string  `json:"sdl" validate:"required"`
+	PreviousSchemaID *string `json:"previous_schema_id,omitempty"`
+	SchemaEndpoint   string  `json:"schema_endpoint" validate:"required"`
+}
+
+// SchemaSubmission represents the complete schema submission response
+type SchemaSubmission struct {
+	SubmissionID string               `json:"submissionId"`
+	CreatedAt    time.Time            `json:"created_at"`
+	Status       ProviderSchemaStatus `json:"status"`
+	ProviderID   string               `json:"providerId"`
+	SchemaRegistration
+}
+
 // CreateProviderSchemaSubmissionRequest represents the request to create a new schema submission or modify an existing one
 type CreateProviderSchemaSubmissionRequest struct {
-	SDL      string  `json:"sdl" validate:"required"`
-	SchemaID *string `json:"schema_id,omitempty"` // Optional: if provided, this is a modification of existing schema
+	SDL              string  `json:"sdl" validate:"required"`
+	PreviousSchemaID *string `json:"previous_schema_id,omitempty"`
+	SchemaEndpoint   string  `json:"schema_endpoint" validate:"required"`
 }
 
 // UpdateProviderSubmissionRequest represents the request to update a provider submission

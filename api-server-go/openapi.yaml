@@ -597,7 +597,7 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/ProviderSchema'
+                      $ref: '#/components/schemas/SchemaSubmission'
                   count:
                     type: integer
     post:
@@ -624,7 +624,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProviderSchema'
+                $ref: '#/components/schemas/SchemaSubmission'
 
   /providers/{providerId}/schema-submissions/{schemaId}:
     get:
@@ -1288,6 +1288,14 @@ components:
           type: string
           format: date-time
           description: When the provider was approved
+        createdAt:
+          type: string
+          format: date-time
+          description: When the provider was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the provider was last updated
 
     ProviderSchema:
       type: object
@@ -1311,6 +1319,9 @@ components:
         sdl:
           type: string
           description: GraphQL SDL definition
+        schema_endpoint:
+          type: string
+          description: GraphQL endpoint URL
         fieldConfigurations:
           type: object
           description: Field configuration data
@@ -1318,16 +1329,86 @@ components:
           type: string
           format: date-time
           description: When the schema was created
-
-    CreateProviderSchemaSubmissionRequest:
-      type: object
-      properties:
-        schemaId:
+        updatedAt:
           type: string
-          description: Existing schema ID (for modifications)
+          format: date-time
+          description: When the schema was last updated
+
+    SchemaRegistration:
+      type: object
+      required:
+        - sdl
+        - schema_endpoint
+      properties:
         sdl:
           type: string
           description: GraphQL SDL definition
+        previous_schema_id:
+          type: string
+          nullable: true
+          description: Previous schema ID (for modifications)
+        schema_endpoint:
+          type: string
+          description: GraphQL endpoint URL
+
+    SchemaSubmission:
+      type: object
+      required:
+        - submissionId
+        - created_at
+        - status
+        - providerId
+        - sdl
+        - schema_endpoint
+      properties:
+        submissionId:
+          type: string
+          description: Unique submission identifier
+        created_at:
+          type: string
+          format: date-time
+          description: When the submission was created
+        status:
+          type: string
+          enum: [draft, pending, approved, rejected]
+          description: Current status of the submission
+        providerId:
+          type: string
+          description: Provider identifier
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        previous_schema_id:
+          type: string
+          nullable: true
+          description: Previous schema ID (for modifications)
+        schema_endpoint:
+          type: string
+          description: GraphQL endpoint URL
+        fieldConfigurations:
+          type: object
+          description: Field configuration data
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the submission was last updated
+
+    CreateProviderSchemaSubmissionRequest:
+      type: object
+      required:
+        - sdl
+        - schema_endpoint
+      properties:
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        previous_schema_id:
+          type: string
+          nullable: true
+          description: Previous schema ID (for modifications)
+        schema_endpoint:
+          type: string
+          description: GraphQL endpoint URL
 
     UpdateProviderSchemaRequest:
       type: object
