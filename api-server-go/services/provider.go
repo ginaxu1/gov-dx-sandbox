@@ -275,7 +275,7 @@ func (s *ProviderService) GetProviderProfile(id string) (*models.ProviderProfile
 
 // Provider Schema methods
 func (s *ProviderService) GetAllProviderSchemas() ([]*models.ProviderSchema, error) {
-	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, field_configurations, created_at, updated_at 
+	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas ORDER BY created_at DESC`
 
 	rows, err := s.db.Query(query)
@@ -287,21 +287,29 @@ func (s *ProviderService) GetAllProviderSchemas() ([]*models.ProviderSchema, err
 	var schemas []*models.ProviderSchema
 	for rows.Next() {
 		schema := &models.ProviderSchema{}
+		var submissionID sql.NullString
 		var schemaID sql.NullString
 		var schemaInputJSON sql.NullString
 		var sdl sql.NullString
+		var schemaEndpoint sql.NullString
 		var fieldConfigurationsJSON sql.NullString
 
-		err := rows.Scan(&schema.SubmissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
+		err := rows.Scan(&submissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &schemaEndpoint, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider schema: %w", err)
 		}
 
+		if submissionID.Valid {
+			schema.SubmissionID = submissionID.String
+		}
 		if schemaID.Valid {
 			schema.SchemaID = &schemaID.String
 		}
 		if sdl.Valid {
 			schema.SDL = sdl.String
+		}
+		if schemaEndpoint.Valid {
+			schema.SchemaEndpoint = schemaEndpoint.String
 		}
 		// Parse JSON fields
 		s.parseSchemaJSONFields(schema, schemaInputJSON, fieldConfigurationsJSON)
@@ -414,42 +422,43 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
 
-	// If schema_id is provided, this is a modification of existing schema
-	if req.SchemaID != nil && *req.SchemaID != "" {
+	// If previous_schema_id is provided, this is a modification of existing schema
+	if req.PreviousSchemaID != nil && *req.PreviousSchemaID != "" {
 		// Verify the existing schema belongs to this provider
 		query := `SELECT provider_id FROM provider_schemas WHERE schema_id = $1`
 		var existingProviderID string
-		err := s.db.QueryRow(query, *req.SchemaID).Scan(&existingProviderID)
+		err := s.db.QueryRow(query, *req.PreviousSchemaID).Scan(&existingProviderID)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				return nil, fmt.Errorf("schema not found")
+				return nil, fmt.Errorf("previous schema not found")
 			}
-			return nil, fmt.Errorf("failed to check schema: %w", err)
+			return nil, fmt.Errorf("failed to check previous schema: %w", err)
 		}
 		if existingProviderID != providerID {
-			return nil, fmt.Errorf("schema does not belong to this provider")
+			return nil, fmt.Errorf("previous schema does not belong to this provider")
 		}
 	}
 
-	// Create a new submission for the modification
-	schemaID, err := s.generateSchemaID()
+	// Generate unique submission ID (this will be the primary key)
+	submissionID, err := s.generateSubmissionID()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate schema ID: %w", err)
+		return nil, fmt.Errorf("failed to generate submission ID: %w", err)
 	}
 
 	now := time.Now()
 	schema := &models.ProviderSchema{
-		SchemaID:            &schemaID,
+		SubmissionID:        submissionID,
 		ProviderID:          providerID,
 		Status:              models.SchemaStatusDraft,
 		SDL:                 req.SDL,
+		SchemaEndpoint:      req.SchemaEndpoint,
 		FieldConfigurations: make(models.FieldConfigurations),
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
 
-	query := `INSERT INTO provider_schemas (schema_id, provider_id, status, sdl, field_configurations, created_at, updated_at) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	query := `INSERT INTO provider_schemas (submission_id, provider_id, status, sdl, schema_endpoint, field_configurations, created_at, updated_at) 
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	// Serialize field configurations to JSON
 	fieldConfigsJSON, err := json.Marshal(schema.FieldConfigurations)
@@ -457,14 +466,14 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
-	slog.Debug("Executing provider schema JSON insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID)
-	_, err = s.db.Exec(query, *schema.SchemaID, schema.ProviderID, schema.Status, schema.SDL, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
+	slog.Debug("Executing provider schema submission insert", "submissionId", submissionID, "providerId", providerID)
+	_, err = s.db.Exec(query, schema.SubmissionID, schema.ProviderID, schema.Status, schema.SDL, schema.SchemaEndpoint, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
-		slog.Error("Failed to insert provider schema from JSON", "error", err, "schemaId", *schema.SchemaID, "query", query)
+		slog.Error("Failed to insert provider schema submission", "error", err, "submissionId", submissionID, "query", query)
 		return nil, errors.HandleDatabaseError(err, "create schema submission")
 	}
 
-	slog.Info("Created schema submission", "submissionId", schemaID, "providerId", providerID)
+	slog.Info("Created schema submission", "submissionId", submissionID, "providerId", providerID)
 	return schema, nil
 }
 
@@ -506,7 +515,7 @@ func (s *ProviderService) GetApprovedSchemasByProviderID(providerID string) ([]*
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
 
-	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, field_configurations, created_at, updated_at 
+	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas WHERE provider_id = $1 AND status = $2 AND schema_id IS NOT NULL`
 
 	rows, err := s.db.Query(query, providerID, models.SchemaStatusApproved)
@@ -518,21 +527,29 @@ func (s *ProviderService) GetApprovedSchemasByProviderID(providerID string) ([]*
 	var approvedSchemas []*models.ProviderSchema
 	for rows.Next() {
 		schema := &models.ProviderSchema{}
+		var submissionID sql.NullString
 		var schemaID sql.NullString
 		var schemaInputJSON sql.NullString
 		var sdl sql.NullString
+		var schemaEndpoint sql.NullString
 		var fieldConfigurationsJSON sql.NullString
 
-		err := rows.Scan(&schema.SubmissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
+		err := rows.Scan(&submissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &schemaEndpoint, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider schema: %w", err)
 		}
 
+		if submissionID.Valid {
+			schema.SubmissionID = submissionID.String
+		}
 		if schemaID.Valid {
 			schema.SchemaID = &schemaID.String
 		}
 		if sdl.Valid {
 			schema.SDL = sdl.String
+		}
+		if schemaEndpoint.Valid {
+			schema.SchemaEndpoint = schemaEndpoint.String
 		}
 		// Parse JSON fields
 		s.parseSchemaJSONFields(schema, schemaInputJSON, fieldConfigurationsJSON)
@@ -551,7 +568,7 @@ func (s *ProviderService) GetProviderSchemasByProviderID(providerID string) ([]*
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
 
-	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, field_configurations, created_at, updated_at 
+	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas WHERE provider_id = $1 ORDER BY created_at DESC`
 
 	rows, err := s.db.Query(query, providerID)
@@ -563,21 +580,29 @@ func (s *ProviderService) GetProviderSchemasByProviderID(providerID string) ([]*
 	var schemas []*models.ProviderSchema
 	for rows.Next() {
 		schema := &models.ProviderSchema{}
+		var submissionID sql.NullString
 		var schemaID sql.NullString
 		var schemaInputJSON sql.NullString
 		var sdl sql.NullString
+		var schemaEndpoint sql.NullString
 		var fieldConfigurationsJSON sql.NullString
 
-		err := rows.Scan(&schema.SubmissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
+		err := rows.Scan(&submissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &schemaEndpoint, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider schema: %w", err)
 		}
 
+		if submissionID.Valid {
+			schema.SubmissionID = submissionID.String
+		}
 		if schemaID.Valid {
 			schema.SchemaID = &schemaID.String
 		}
 		if sdl.Valid {
 			schema.SDL = sdl.String
+		}
+		if schemaEndpoint.Valid {
+			schema.SchemaEndpoint = schemaEndpoint.String
 		}
 		// Parse JSON fields
 		s.parseSchemaJSONFields(schema, schemaInputJSON, fieldConfigurationsJSON)
@@ -589,18 +614,20 @@ func (s *ProviderService) GetProviderSchemasByProviderID(providerID string) ([]*
 }
 
 func (s *ProviderService) GetProviderSchema(id string) (*models.ProviderSchema, error) {
-	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, field_configurations, created_at, updated_at 
+	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas WHERE submission_id = $1`
 
 	row := s.db.QueryRow(query, id)
 
 	schema := &models.ProviderSchema{}
+	var submissionID sql.NullString
 	var schemaID sql.NullString
 	var schemaInputJSON sql.NullString
 	var sdl sql.NullString
+	var schemaEndpoint sql.NullString
 	var fieldConfigurationsJSON sql.NullString
 
-	err := row.Scan(&schema.SubmissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
+	err := row.Scan(&submissionID, &schema.ProviderID, &schemaID, &schema.Status, &schemaInputJSON, &sdl, &schemaEndpoint, &fieldConfigurationsJSON, &schema.CreatedAt, &schema.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("provider schema not found")
@@ -608,13 +635,20 @@ func (s *ProviderService) GetProviderSchema(id string) (*models.ProviderSchema, 
 		return nil, fmt.Errorf("failed to get provider schema: %w", err)
 	}
 
+	if submissionID.Valid {
+		schema.SubmissionID = submissionID.String
+	}
 	if schemaID.Valid {
 		schema.SchemaID = &schemaID.String
 	}
 	if sdl.Valid {
 		schema.SDL = sdl.String
 	}
-	// TODO: Parse JSON fields
+	if schemaEndpoint.Valid {
+		schema.SchemaEndpoint = schemaEndpoint.String
+	}
+	// Parse JSON fields
+	s.parseSchemaJSONFields(schema, schemaInputJSON, fieldConfigurationsJSON)
 
 	return schema, nil
 }

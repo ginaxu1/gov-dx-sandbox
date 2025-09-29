@@ -165,13 +165,23 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 func InitDatabase(db *sql.DB) error {
 	slog.Info("Initializing database tables for api-server-go")
 
+	// Create entities table
+	createEntitiesTable := `
+	CREATE TABLE IF NOT EXISTS entities (
+		entity_id VARCHAR(255) PRIMARY KEY,
+		entity_name VARCHAR(255) NOT NULL,
+		contact_email VARCHAR(255) NOT NULL,
+		phone_number VARCHAR(50),
+		entity_type VARCHAR(100) NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	);`
+
 	// Create consumers table
 	createConsumersTable := `
 	CREATE TABLE IF NOT EXISTS consumers (
 		consumer_id VARCHAR(255) PRIMARY KEY,
-		consumer_name VARCHAR(255) NOT NULL,
-		contact_email VARCHAR(255) NOT NULL,
-		phone_number VARCHAR(50),
+		entity_id VARCHAR(255) NOT NULL REFERENCES entities(entity_id) ON DELETE CASCADE,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);`
@@ -223,6 +233,7 @@ func InitDatabase(db *sql.DB) error {
 		status VARCHAR(50) NOT NULL DEFAULT 'pending',
 		schema_input JSONB,
 		sdl TEXT,
+		schema_endpoint VARCHAR(500),
 		field_configurations JSONB,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -266,6 +277,7 @@ func InitDatabase(db *sql.DB) error {
 
 	// Execute table creation queries
 	tables := []string{
+		createEntitiesTable,
 		createConsumersTable,
 		createConsumerAppsTable,
 		createProviderSubmissionsTable,

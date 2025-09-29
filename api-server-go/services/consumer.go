@@ -411,6 +411,12 @@ func (s *ConsumerService) UpdateConsumerApp(id string, req models.UpdateConsumer
 	query := `UPDATE consumer_apps SET status = $1, required_fields = $2, credentials = $3, updated_at = $4 
 			  WHERE submission_id = $5`
 
+	// Serialize required fields to JSON
+	requiredFieldsJSON, err := json.Marshal(application.RequiredFields)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize required fields: %w", err)
+	}
+
 	// Serialize credentials to JSON
 	var credentialsJSON sql.NullString
 	if application.Credentials != nil {
@@ -423,7 +429,7 @@ func (s *ConsumerService) UpdateConsumerApp(id string, req models.UpdateConsumer
 	}
 
 	slog.Debug("Executing consumer app update", "submissionId", id, "query", query)
-	_, err = s.db.Exec(query, application.Status, application.RequiredFields, credentialsJSON, application.UpdatedAt, id)
+	_, err = s.db.Exec(query, application.Status, string(requiredFieldsJSON), credentialsJSON, application.UpdatedAt, id)
 	if err != nil {
 		slog.Error("Failed to update consumer app", "error", err, "submissionId", id, "query", query)
 		return nil, errors.HandleDatabaseError(err, "update consumer application")
