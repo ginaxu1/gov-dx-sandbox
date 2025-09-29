@@ -1,7 +1,7 @@
 // services/schemaService.ts
 import { getIntrospectionQuery, buildClientSchema, buildSchema, printSchema, parse, print, visit, Kind, graphql } from "graphql";
 import type { ObjectTypeDefinitionNode, ObjectTypeExtensionNode } from "graphql";
-import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType, SchemaSubmission, ApprovedSchema} from '../types/graphql';
+import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType, SchemaSubmission, ApprovedSchema } from '../types/graphql';
 
 export class SchemaService {
   private static readonly INTROSPECTION_QUERY = getIntrospectionQuery();
@@ -104,7 +104,7 @@ export class SchemaService {
   static async getApprovedSchema(providerId: string): Promise<ApprovedSchema[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const response = await fetch(`${baseUrl}/providers/${providerId}/schemas`, {
+      const response = await fetch(`${baseUrl}/providers/${providerId}/schema-submissions`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -112,18 +112,33 @@ export class SchemaService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch approved schemas! status: ${response.status}`);
+        throw new Error(`Failed to fetch schemas! status: ${response.status}`);
       }
 
       const result = await response.json();
       
       // Handle API response structure {count: number, items: Array | null}
+      let allSchemas: SchemaSubmission[] = [];
       if (result && typeof result === 'object' && 'items' in result) {
-        return Array.isArray(result.items) ? result.items : [];
+        allSchemas = Array.isArray(result.items) ? result.items : [];
+      } else if (Array.isArray(result)) {
+        allSchemas = result;
       }
       
-      // Fallback for direct array response
-      return Array.isArray(result) ? result : [];
+      // Filter for approved schemas and convert to ApprovedSchema format
+      const approvedSchemas: ApprovedSchema[] = allSchemas
+        .filter(schema => schema.status === 'approved' && schema.schemaId)
+        .map(schema => ({
+          schemaId: schema.schemaId!,
+          sdl: schema.sdl,
+          schema_endpoint: schema.schema_endpoint,
+          
+          version: 'Active', // Default to Active, could be enhanced with actual version info
+          createdAt: schema.createdAt,
+          providerId: schema.providerId
+        }));
+      
+      return approvedSchemas;
     } catch (error) {
       throw new Error(`Failed to get approved schemas: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -146,12 +161,17 @@ export class SchemaService {
       const result = await response.json();
       
       // Handle API response structure {count: number, items: Array | null}
+      let allSchemas: SchemaSubmission[] = [];
       if (result && typeof result === 'object' && 'items' in result) {
-        return Array.isArray(result.items) ? result.items : [];
+        allSchemas = Array.isArray(result.items) ? result.items : [];
+      } else if (Array.isArray(result)) {
+        allSchemas = result;
       }
       
-      // Fallback for direct array response
-      return Array.isArray(result) ? result : [];
+      // Filter for pending and rejected submissions (not approved)
+      const pendingSchemas = allSchemas.filter(schema => schema.status !== 'approved');
+      
+      return pendingSchemas;
     } catch (error) {
       throw new Error(`Failed to get schema submissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

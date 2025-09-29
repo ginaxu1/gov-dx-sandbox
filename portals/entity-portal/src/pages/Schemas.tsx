@@ -59,7 +59,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                         sdl: 'type User { id: ID!, name: String!, email: String! }',
                         schema_endpoint: 'https://api.gov.example/identity/graphql',
                         version: 'Active',
-                        created_at: '2024-01-15T10:30:00Z',
+                        createdAt: '2024-01-15T10:30:00Z',
                         providerId: mockProviderId
                     },
                     {
@@ -67,7 +67,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                         sdl: 'type Patient { id: ID!, name: String!, medicalRecordNumber: String! }',
                         schema_endpoint: 'https://api.health.example/records/graphql',
                         version: 'Active',
-                        created_at: '2024-02-20T14:15:00Z',
+                        createdAt: '2024-02-20T14:15:00Z',
                         providerId: mockProviderId
                     },
                     {
@@ -75,7 +75,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                         sdl: 'type Vehicle { id: ID!, vin: String!, make: String!, model: String! }',
                         schema_endpoint: 'https://api.transport.example/vehicles/graphql',
                         version: 'Deprecated',
-                        created_at: '2024-01-10T09:45:00Z',
+                        createdAt: '2024-01-10T09:45:00Z',
                         providerId: mockProviderId
                     }
                 ];
@@ -86,18 +86,22 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                         sdl: 'type TaxRecord { id: ID!, taxpayerId: String!, year: Int!, amount: Float! }',
                         previous_schema_id: null,
                         schema_endpoint: 'https://api.tax.example/records/graphql',
-                        created_at: '2024-03-01T11:20:00Z',
+                        createdAt: '2024-03-01T11:20:00Z',
+                        updatedAt: '2024-03-01T11:20:00Z',
                         status: 'pending',
-                        providerId: mockProviderId
+                        providerId: mockProviderId,
+                        fieldConfigurations: {}
                     },
                     {
                         submissionId: 'sub-002',
                         sdl: 'type Credential { id: ID!, studentId: String!, degree: String!, university: String! }',
                         previous_schema_id: null,
                         schema_endpoint: 'https://api.education.example/credentials/graphql',
-                        created_at: '2024-03-05T16:30:00Z',
+                        createdAt: '2024-03-05T16:30:00Z',
+                        updatedAt: '2024-03-05T16:30:00Z',
                         status: 'pending',
-                        providerId: mockProviderId
+                        providerId: mockProviderId,
+                        fieldConfigurations: {}
                     }
                 ];
 
@@ -304,7 +308,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-gray-500">
-                                                    Created: {new Date(schema.created_at).toLocaleDateString()}
+                                                    Created: {new Date(schema.createdAt).toLocaleDateString()}
                                                 </p>
                                             </div>
                                             <button className="text-gray-400 hover:text-gray-600">
@@ -352,7 +356,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-gray-500">
-                                                    Created: {new Date(schema.created_at).toLocaleDateString()}
+                                                    Created: {new Date(schema.createdAt).toLocaleDateString()}
                                                 </p>
                                             </div>
                                             <button className="text-gray-400 hover:text-gray-600">
@@ -405,7 +409,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-gray-500">
-                                                    Submitted: {new Date(schema.created_at).toLocaleDateString()}
+                                                    Submitted: {new Date(schema.createdAt).toLocaleDateString()}
                                                 </p>
                                             </div>
                                             <button className="text-gray-400 hover:text-gray-600">

@@ -66,16 +66,25 @@ export interface SchemaRegistration {
 
 export interface SchemaSubmission extends SchemaRegistration {
   submissionId: string;
-  created_at: string;
+  schemaId?: string; // Only present for approved schemas
   status: 'pending' | 'approved' | 'rejected';
   providerId: string;
+  fieldConfigurations: Record<string, any>;
+  createdAt: string; // Note: API uses createdAt, not created_at
+  updatedAt: string;
 }
 
 export interface ApprovedSchema {
   schemaId: string;
   sdl: string;
   schema_endpoint: string;
-  version: "Active" | "Deprecated";
-  created_at: string;
+  version: "Active" | "Deprecated" | "approved";
+  createdAt: string;
   providerId: string;
+}
+
+// API Response structure
+export interface SchemaApiResponse {
+  count: number;
+  items: SchemaSubmission[] | null;
 }

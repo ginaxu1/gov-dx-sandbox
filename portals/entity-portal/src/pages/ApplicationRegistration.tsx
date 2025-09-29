@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Settings, CheckCircle } from 'lucide-react';
 import { GraphQLSchemaExplorer } from '../components/GraphQLSchemaExplorer';
+import { ApplicationService } from '../services/applicationService';
+import type { ApplicationRegistration as ApplicationRegistrationData } from '../types/applications';
 
 interface ApplicationRegistrationProps {
     consumerId: string;
@@ -73,21 +75,20 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
         e.preventDefault();
         
         try {
-            // TODO: Replace with actual API call
-            // const applicationData = {
-            //     name: applicationName,
-            //     description: description,
-            //     selectedFields: selectedFields,
-            //     consumerId: consumerId
-            // };
+            const applicationData: ApplicationRegistrationData = {
+                name: applicationName,
+                description: description,
+                selectedFields: selectedFields,
+            };
             
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log('Registering application:', applicationData);
+            await ApplicationService.registerApplication(consumerId, applicationData);
             
             // Navigate back to applications page on success
             navigate('/consumer/applications');
         } catch (error) {
             console.error('Error registering application:', error);
+            // TODO: Add proper error handling/display
         }
     };
 

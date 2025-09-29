@@ -1,59 +1,148 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Clock, CheckCircle, Search } from 'lucide-react';
+import { FileText, Plus, Clock, CheckCircle, Search, AlertTriangle, AlertCircle } from 'lucide-react';
+import { ApplicationService } from '../services/applicationService';
+import type { ApprovedApplication, ApplicationSubmission } from '../types/applications';
 
-interface ApplicationProps {
-    id: number;
-    name: string;
+interface ApplicationsPageProps {
+    consumerId?: string;
 }
 
-export const ApplicationsPage: React.FC = () => {
+export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }) => {
     const navigate = useNavigate();
-    const [registeredApplications, setRegisteredApplications] = useState<ApplicationProps[]>([]);
-    const [pendingApplications, setPendingApplications] = useState<ApplicationProps[]>([]);
+    const [registeredApplications, setRegisteredApplications] = useState<ApprovedApplication[]>([]);
+    const [pendingApplications, setPendingApplications] = useState<ApplicationSubmission[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [usingMockData, setUsingMockData] = useState(false);
 
     useEffect(() => {
         const fetchApplications = async () => {
+            // For now, using a mock consumer ID. In a real app, this would come from auth/context
+            const mockConsumerId = consumerId || 'consumer-123';
+            
+            // Don't fetch if we don't have a valid consumer ID and it's not the mock one
+            if (!mockConsumerId) {
+                console.warn('No consumer ID provided, skipping application fetch');
+                setLoading(false);
+                return;
+            }
+            
             try {
                 setLoading(true);
-                // Simulate API call delay
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                setError(null);
                 
-                const fetchedRegisteredApplications = [
-                    { id: 1, name: 'Government Data Portal' },
-                    { id: 2, name: 'Citizen Services App' },
-                    { id: 3, name: 'Healthcare Management System' },
-                ];
-                const fetchedPendingApplications = [
-                    { id: 4, name: 'Education Portal' },
-                    { id: 5, name: 'Tax Management System' },
-                ];
+                console.log('Fetching applications for consumer:', mockConsumerId);
+                
+                // Try to fetch real data from the API
+                const [approvedApplications, applicationSubmissions] = await Promise.all([
+                    ApplicationService.getApprovedApplications(mockConsumerId),
+                    ApplicationService.getApplicationSubmissions(mockConsumerId)
+                ]);
 
-                setRegisteredApplications(fetchedRegisteredApplications);
-                setPendingApplications(fetchedPendingApplications);
+                console.log('Fetched approved applications:', approvedApplications);
+                console.log('Fetched application submissions:', applicationSubmissions);
+
+                setRegisteredApplications(approvedApplications);
+                setPendingApplications(applicationSubmissions);
+                setUsingMockData(false);
             } catch (error) {
                 console.error('Error fetching applications:', error);
+                setError(error instanceof Error ? error.message : 'Failed to fetch applications');
+                
+                console.log('Using mock data as fallback');
+                // Use mock data as fallback
+                const mockApprovedApplications: ApprovedApplication[] = [
+                    {
+                        applicationId: 'app-001',
+                        name: 'Government Data Portal',
+                        description: 'Portal for accessing citizen data and services',
+                        selectedFields: ['personInfo.fullName', 'personInfo.address', 'personInfo.dateOfBirth'],
+                        callback_url: 'https://portal.gov.example/callback',
+                        homepage_url: 'https://portal.gov.example',
+                        client_id: 'gov-portal-client',
+                        version: 'Active',
+                        created_at: '2024-01-15T10:30:00Z',
+                        consumerId: mockConsumerId
+                    },
+                    {
+                        applicationId: 'app-002',
+                        name: 'Citizen Services App',
+                        description: 'Mobile application for citizen services and notifications',
+                        selectedFields: ['personInfo.fullName', 'personInfo.profession', 'vehicle.regNo'],
+                        callback_url: 'https://services.citizen.example/callback',
+                        homepage_url: 'https://services.citizen.example',
+                        client_id: 'citizen-app-client',
+                        version: 'Active',
+                        created_at: '2024-02-20T14:15:00Z',
+                        consumerId: mockConsumerId
+                    },
+                    {
+                        applicationId: 'app-003',
+                        name: 'Healthcare Management System',
+                        description: 'System for managing patient records and healthcare data',
+                        selectedFields: ['personInfo.fullName', 'personInfo.dateOfBirth', 'personInfo.address'],
+                        callback_url: 'https://health.system.example/callback',
+                        homepage_url: 'https://health.system.example',
+                        client_id: 'health-system-client',
+                        version: 'Deprecated',
+                        created_at: '2024-01-10T09:45:00Z',
+                        consumerId: mockConsumerId
+                    }
+                ];
+
+                const mockPendingApplications: ApplicationSubmission[] = [
+                    {
+                        submissionId: 'sub-001',
+                        name: 'Education Portal',
+                        description: 'Educational platform for student records and academic services',
+                        selectedFields: ['personInfo.fullName', 'personInfo.dateOfBirth', 'birthInfo.district'],
+                        callback_url: 'https://edu.portal.example/callback',
+                        homepage_url: 'https://edu.portal.example',
+                        created_at: '2024-03-01T11:20:00Z',
+                        status: 'pending',
+                        consumerId: mockConsumerId
+                    },
+                    {
+                        submissionId: 'sub-002',
+                        name: 'Tax Management System',
+                        description: 'System for managing tax records and calculations',
+                        selectedFields: ['personInfo.fullName', 'personInfo.profession', 'personInfo.address'],
+                        callback_url: 'https://tax.system.example/callback',
+                        homepage_url: 'https://tax.system.example',
+                        created_at: '2024-03-05T16:30:00Z',
+                        status: 'pending',
+                        consumerId: mockConsumerId
+                    }
+                ];
+
+                setRegisteredApplications(mockApprovedApplications);
+                setPendingApplications(mockPendingApplications);
+                setUsingMockData(true);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchApplications();
-    }, []);
+    }, [consumerId]);
 
     const handleCreateNewApplication = () => {
         navigate('/consumer/applications/new');
     };
 
-    const filteredRegisteredApps = registeredApplications.filter(app =>
-        app.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredRegisteredApps = (registeredApplications || []).filter(app =>
+        ApplicationService.getApplicationDisplayName(app).toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const filteredPendingApps = pendingApplications.filter(app =>
-        app.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredPendingApps = (pendingApplications || []).filter(app =>
+        ApplicationService.getApplicationDisplayName(app).toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Separate active and deprecated applications
+    const activeApplications = filteredRegisteredApps.filter(app => app.version === 'Active');
+    const deprecatedApplications = filteredRegisteredApps.filter(app => app.version === 'Deprecated');
 
     if (loading) {
         return (
@@ -79,6 +168,22 @@ export const ApplicationsPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Error/Mock Data Banner */}
+                {usingMockData && (
+                    <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="flex items-center">
+                            <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2" />
+                            <div>
+                                <p className="text-yellow-800 font-medium">Using Mock Data</p>
+                                <p className="text-yellow-700 text-sm">
+                                    Unable to connect to the API. Displaying sample data for demonstration.
+                                    {error && ` Error: ${error}`}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header Section */}
                 <div className="mb-8">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
@@ -113,7 +218,7 @@ export const ApplicationsPage: React.FC = () => {
                 </div>
 
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center">
                             <div className="p-3 bg-green-100 rounded-full">
@@ -121,7 +226,18 @@ export const ApplicationsPage: React.FC = () => {
                             </div>
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Active Applications</p>
-                                <p className="text-2xl font-bold text-gray-900">{registeredApplications.length}</p>
+                                <p className="text-2xl font-bold text-gray-900">{activeApplications.length}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                        <div className="flex items-center">
+                            <div className="p-3 bg-orange-100 rounded-full">
+                                <AlertCircle className="w-6 h-6 text-orange-600" />
+                            </div>
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Deprecated</p>
+                                <p className="text-2xl font-bold text-gray-900">{deprecatedApplications.length}</p>
                             </div>
                         </div>
                     </div>
@@ -175,24 +291,34 @@ export const ApplicationsPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredRegisteredApps.map(application => (
-                                    <div key={application.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <h3 className="font-semibold text-gray-900 mb-2">{application.name}</h3>
-                                                <div className="flex items-center text-sm text-green-600">
-                                                    <CheckCircle className="w-4 h-4 mr-1" />
-                                                    Active
+                                {filteredRegisteredApps.map(application => {
+                                    const statusInfo = ApplicationService.getApplicationStatusInfo(application);
+                                    return (
+                                        <div key={application.applicationId} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <h3 className="font-semibold text-gray-900 mb-2">{ApplicationService.getApplicationDisplayName(application)}</h3>
+                                                    <div className={`flex items-center text-sm mb-2 ${statusInfo.colorClass}`}>
+                                                        {statusInfo.icon === 'active' && <CheckCircle className="w-4 h-4 mr-1" />}
+                                                        {statusInfo.icon === 'deprecated' && <AlertCircle className="w-4 h-4 mr-1" />}
+                                                        {statusInfo.status}
+                                                    </div>
+                                                    {application.description && (
+                                                        <p className="text-xs text-gray-500 mb-2">{application.description}</p>
+                                                    )}
+                                                    <p className="text-xs text-gray-500">
+                                                        Created: {new Date(application.created_at).toLocaleDateString()}
+                                                    </p>
                                                 </div>
+                                                <button className="text-gray-400 hover:text-gray-600">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                                    </svg>
+                                                </button>
                                             </div>
-                                            <button className="text-gray-400 hover:text-gray-600">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                                </svg>
-                                            </button>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -216,24 +342,33 @@ export const ApplicationsPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredPendingApps.map(application => (
-                                    <div key={application.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <h3 className="font-semibold text-gray-900 mb-2">{application.name}</h3>
-                                                <div className="flex items-center text-sm text-yellow-600">
-                                                    <Clock className="w-4 h-4 mr-1" />
-                                                    Pending Review
+                                {filteredPendingApps.map(application => {
+                                    const statusInfo = ApplicationService.getApplicationStatusInfo(application);
+                                    return (
+                                        <div key={application.submissionId} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <h3 className="font-semibold text-gray-900 mb-2">{ApplicationService.getApplicationDisplayName(application)}</h3>
+                                                    <div className={`flex items-center text-sm mb-2 ${statusInfo.colorClass}`}>
+                                                        <Clock className="w-4 h-4 mr-1" />
+                                                        {statusInfo.status}
+                                                    </div>
+                                                    {application.description && (
+                                                        <p className="text-xs text-gray-500 mb-2">{application.description}</p>
+                                                    )}
+                                                    <p className="text-xs text-gray-500">
+                                                        Submitted: {new Date(application.created_at).toLocaleDateString()}
+                                                    </p>
                                                 </div>
+                                                <button className="text-gray-400 hover:text-gray-600">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                                    </svg>
+                                                </button>
                                             </div>
-                                            <button className="text-gray-400 hover:text-gray-600">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                                                </svg>
-                                            </button>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

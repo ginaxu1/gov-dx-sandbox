@@ -242,7 +242,7 @@ function App() {
           ) : (
             <>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/consumer/applications" element={<Applications />} />
+              <Route path="/consumer/applications" element={<Applications consumerId={entityData?.consumerId || ''} />} />
               <Route 
                 path="/consumer/applications/new" 
                 element={
