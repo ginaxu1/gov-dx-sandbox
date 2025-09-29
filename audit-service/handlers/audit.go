@@ -181,8 +181,8 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate required fields
-	if req.ConsumerID == "" || req.ProviderID == "" || req.TransactionStatus == "" || len(req.RequestedData) == 0 {
-		http.Error(w, "Missing required fields: consumer_id, provider_id, transaction_status, requested_data", http.StatusBadRequest)
+	if req.ConsumerID == "" || req.ProviderID == "" || req.TransactionStatus == "" || len(req.RequestedData) == 0 || req.RequestPath == "" || req.RequestMethod == "" {
+		http.Error(w, "Missing required fields: consumer_id, provider_id, transaction_status, requested_data, request_path, request_method", http.StatusBadRequest)
 		return
 	}
 
@@ -204,9 +204,10 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 	query := `
 		INSERT INTO audit_logs (
 			event_id, timestamp, consumer_id, provider_id,
-			requested_data, response_data, transaction_status, citizen_hash
+			requested_data, response_data, transaction_status, citizen_hash,
+			request_path, request_method, user_agent, ip_address
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 		)
 	`
 
@@ -220,6 +221,10 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 		req.ResponseData,
 		req.TransactionStatus,
 		citizenHash,
+		req.RequestPath,
+		req.RequestMethod,
+		req.UserAgent,
+		req.IPAddress,
 	)
 
 	if err != nil {
@@ -257,8 +262,8 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Validate required fields
-	if req.ConsumerID == "" || req.ProviderID == "" || req.TransactionStatus == "" || len(req.RequestedData) == 0 {
-		http.Error(w, "Missing required fields: consumer_id, provider_id, transaction_status, requested_data", http.StatusBadRequest)
+	if req.ConsumerID == "" || req.ProviderID == "" || req.TransactionStatus == "" || len(req.RequestedData) == 0 || req.RequestPath == "" || req.RequestMethod == "" {
+		http.Error(w, "Missing required fields: consumer_id, provider_id, transaction_status, requested_data, request_path, request_method", http.StatusBadRequest)
 		return
 	}
 
@@ -280,9 +285,10 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 	query := `
 		INSERT INTO audit_logs (
 			event_id, timestamp, consumer_id, provider_id,
-			requested_data, response_data, transaction_status, citizen_hash
+			requested_data, response_data, transaction_status, citizen_hash,
+			request_path, request_method, user_agent, ip_address
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 		)
 	`
 
@@ -296,6 +302,10 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 		req.ResponseData,
 		req.TransactionStatus,
 		citizenHash,
+		req.RequestPath,
+		req.RequestMethod,
+		req.UserAgent,
+		req.IPAddress,
 	)
 
 	if err != nil {
@@ -315,6 +325,10 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 		"provider_id":        req.ProviderID,
 		"transaction_status": req.TransactionStatus,
 		"citizen_hash":       citizenHash,
+		"request_path":       req.RequestPath,
+		"request_method":     req.RequestMethod,
+		"user_agent":         req.UserAgent,
+		"ip_address":         req.IPAddress,
 		"status":             "created",
 		"message":            "Audit log created successfully for testing",
 	}
