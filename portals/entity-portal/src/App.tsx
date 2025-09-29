@@ -226,7 +226,7 @@ function App() {
           {view === 'provider' ? (
             <>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/provider/schemas" element={<SchemasPage />} />
+              <Route path="/provider/schemas" element={<SchemasPage providerId={entityData?.providerId || ''} />} />
               <Route 
                 path="/provider/schemas/new" 
                 element={

@@ -1,59 +1,146 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Database, Plus, Clock, CheckCircle, Search, Code } from 'lucide-react';
+import { Database, Plus, Clock, CheckCircle, Search, Code, AlertTriangle, AlertCircle } from 'lucide-react';
+import { SchemaService } from '../services/schemaService';
+import type { ApprovedSchema, SchemaSubmission } from '../types/graphql';
 
-interface SchemaProps {
-    id: number;
-    name: string;
+interface SchemasPageProps {
+    providerId?: string;
 }
 
-export const SchemasPage: React.FC = () => {
+export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
     const navigate = useNavigate();
-    const [registeredSchemas, setRegisteredSchemas] = useState<SchemaProps[]>([]);
-    const [pendingSchemas, setPendingSchemas] = useState<SchemaProps[]>([]);
+    const [registeredSchemas, setRegisteredSchemas] = useState<ApprovedSchema[]>([]);
+    const [pendingSchemas, setPendingSchemas] = useState<SchemaSubmission[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [usingMockData, setUsingMockData] = useState(false);
 
     useEffect(() => {
         const fetchSchemas = async () => {
+            // For now, using a mock provider ID. In a real app, this would come from auth/context
+            const mockProviderId = providerId || 'provider-123';
+            
+            // Don't fetch if we don't have a valid provider ID and it's not the mock one
+            if (!mockProviderId) {
+                console.warn('No provider ID provided, skipping schema fetch');
+                setLoading(false);
+                return;
+            }
+            
             try {
                 setLoading(true);
-                // Simulate API call delay
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                setError(null);
                 
-                const fetchedRegisteredSchemas = [
-                    { id: 1, name: 'Government Identity Schema' },
-                    { id: 2, name: 'Healthcare Records Schema' },
-                    { id: 3, name: 'Vehicle Registration Schema' },
-                ];
-                const fetchedPendingSchemas = [
-                    { id: 4, name: 'Tax Records Schema' },
-                    { id: 5, name: 'Education Credentials Schema' },
-                ];
+                console.log('Fetching schemas for provider:', mockProviderId);
+                
+                // Try to fetch real data from the API
+                const [approvedSchemas, schemaSubmissions] = await Promise.all([
+                    SchemaService.getApprovedSchema(mockProviderId),
+                    SchemaService.getSchemaSubmissions(mockProviderId)
+                ]);
 
-                setRegisteredSchemas(fetchedRegisteredSchemas);
-                setPendingSchemas(fetchedPendingSchemas);
+                console.log('Fetched approved schemas:', approvedSchemas);
+                console.log('Fetched schema submissions:', schemaSubmissions);
+
+                setRegisteredSchemas(approvedSchemas);
+                setPendingSchemas(schemaSubmissions);
+                setUsingMockData(false);
             } catch (error) {
                 console.error('Error fetching schemas:', error);
+                setError(error instanceof Error ? error.message : 'Failed to fetch schemas');
+                
+                console.log('Using mock data as fallback');
+                // Use mock data as fallback
+                const mockApprovedSchemas: ApprovedSchema[] = [
+                    {
+                        schemaId: 'schema-001',
+                        sdl: 'type User { id: ID!, name: String!, email: String! }',
+                        schema_endpoint: 'https://api.gov.example/identity/graphql',
+                        version: 'Active',
+                        created_at: '2024-01-15T10:30:00Z',
+                        providerId: mockProviderId
+                    },
+                    {
+                        schemaId: 'schema-002',
+                        sdl: 'type Patient { id: ID!, name: String!, medicalRecordNumber: String! }',
+                        schema_endpoint: 'https://api.health.example/records/graphql',
+                        version: 'Active',
+                        created_at: '2024-02-20T14:15:00Z',
+                        providerId: mockProviderId
+                    },
+                    {
+                        schemaId: 'schema-003',
+                        sdl: 'type Vehicle { id: ID!, vin: String!, make: String!, model: String! }',
+                        schema_endpoint: 'https://api.transport.example/vehicles/graphql',
+                        version: 'Deprecated',
+                        created_at: '2024-01-10T09:45:00Z',
+                        providerId: mockProviderId
+                    }
+                ];
+
+                const mockPendingSchemas: SchemaSubmission[] = [
+                    {
+                        submissionId: 'sub-001',
+                        sdl: 'type TaxRecord { id: ID!, taxpayerId: String!, year: Int!, amount: Float! }',
+                        previous_schema_id: null,
+                        schema_endpoint: 'https://api.tax.example/records/graphql',
+                        created_at: '2024-03-01T11:20:00Z',
+                        status: 'pending',
+                        providerId: mockProviderId
+                    },
+                    {
+                        submissionId: 'sub-002',
+                        sdl: 'type Credential { id: ID!, studentId: String!, degree: String!, university: String! }',
+                        previous_schema_id: null,
+                        schema_endpoint: 'https://api.education.example/credentials/graphql',
+                        created_at: '2024-03-05T16:30:00Z',
+                        status: 'pending',
+                        providerId: mockProviderId
+                    }
+                ];
+
+                setRegisteredSchemas(mockApprovedSchemas);
+                setPendingSchemas(mockPendingSchemas);
+                setUsingMockData(true);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchSchemas();
-    }, []);
+    }, [providerId]);
 
     const handleCreateNewSchema = () => {
         navigate('/provider/schemas/new');
     };
 
-    const filteredRegisteredSchemas = registeredSchemas.filter(schema =>
-        schema.name.toLowerCase().includes(searchTerm.toLowerCase())
+    // Helper function to extract schema name from SDL or endpoint
+    const getSchemaDisplayName = (schema: ApprovedSchema | SchemaSubmission): string => {
+        // Try to extract type name from SDL
+        const sdlMatch = schema.sdl.match(/type\s+(\w+)/);
+        if (sdlMatch) {
+            return `${sdlMatch[1]} Schema`;
+        }
+        
+        // Fallback to extracting from endpoint
+        const urlParts = schema.schema_endpoint.split('/');
+        const domain = urlParts[2]?.split('.')[1] || 'Unknown';
+        return `${domain.charAt(0).toUpperCase() + domain.slice(1)} Schema`;
+    };
+
+    const filteredRegisteredSchemas = (registeredSchemas || []).filter(schema =>
+        getSchemaDisplayName(schema).toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const filteredPendingSchemas = pendingSchemas.filter(schema =>
-        schema.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredPendingSchemas = (pendingSchemas || []).filter(schema =>
+        getSchemaDisplayName(schema).toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Separate active and deprecated schemas
+    const activeSchemas = filteredRegisteredSchemas.filter(schema => schema.version === 'Active');
+    const deprecatedSchemas = filteredRegisteredSchemas.filter(schema => schema.version === 'Deprecated');
 
     if (loading) {
         return (
@@ -79,6 +166,22 @@ export const SchemasPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Error/Mock Data Banner */}
+                {usingMockData && (
+                    <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="flex items-center">
+                            <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2" />
+                            <div>
+                                <p className="text-yellow-800 font-medium">Using Mock Data</p>
+                                <p className="text-yellow-700 text-sm">
+                                    Unable to connect to the API. Displaying sample data for demonstration.
+                                    {error && ` Error: ${error}`}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header Section */}
                 <div className="mb-8">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
@@ -113,7 +216,7 @@ export const SchemasPage: React.FC = () => {
                 </div>
 
                 {/* Statistics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center">
                             <div className="p-3 bg-green-100 rounded-full">
@@ -121,7 +224,18 @@ export const SchemasPage: React.FC = () => {
                             </div>
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Active Schemas</p>
-                                <p className="text-2xl font-bold text-gray-900">{registeredSchemas.length}</p>
+                                <p className="text-2xl font-bold text-gray-900">{activeSchemas.length}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                        <div className="flex items-center">
+                            <div className="p-3 bg-orange-100 rounded-full">
+                                <AlertCircle className="w-6 h-6 text-orange-600" />
+                            </div>
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Deprecated</p>
+                                <p className="text-2xl font-bold text-gray-900">{deprecatedSchemas.length}</p>
                             </div>
                         </div>
                     </div>
@@ -149,7 +263,7 @@ export const SchemasPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Registered Schemas */}
+                {/* Active Schemas */}
                 <div className="bg-white rounded-xl shadow-lg mb-8 overflow-hidden">
                     <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
                         <div className="flex items-center">
@@ -158,11 +272,11 @@ export const SchemasPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="p-6">
-                        {filteredRegisteredSchemas.length === 0 ? (
+                        {activeSchemas.length === 0 ? (
                             <div className="text-center py-12">
-                                <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {searchTerm ? 'No schemas match your search' : 'No registered schemas yet'}
+                                    {searchTerm ? 'No active schemas match your search' : 'No active schemas yet'}
                                 </p>
                                 {!searchTerm && (
                                     <button
@@ -175,18 +289,23 @@ export const SchemasPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredRegisteredSchemas.map(schema => (
-                                    <div key={schema.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
+                                {activeSchemas.map(schema => (
+                                    <div key={schema.schemaId} className="bg-green-50 rounded-lg p-4 hover:bg-green-100 transition-colors border border-green-200">
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center mb-2">
-                                                    <Code className="w-5 h-5 text-gray-500 mr-2" />
-                                                    <h3 className="font-semibold text-gray-900">{schema.name}</h3>
+                                                    <Code className="w-5 h-5 text-green-600 mr-2" />
+                                                    <h3 className="font-semibold text-gray-900">{getSchemaDisplayName(schema)}</h3>
                                                 </div>
-                                                <div className="flex items-center text-sm text-green-600">
-                                                    <CheckCircle className="w-4 h-4 mr-1" />
-                                                    Active
+                                                <div className="flex items-center text-sm mb-2">
+                                                    <CheckCircle className="w-4 h-4 mr-1 text-green-600" />
+                                                    <span className="text-green-600 font-medium">
+                                                        {schema.version}
+                                                    </span>
                                                 </div>
+                                                <p className="text-xs text-gray-500">
+                                                    Created: {new Date(schema.created_at).toLocaleDateString()}
+                                                </p>
                                             </div>
                                             <button className="text-gray-400 hover:text-gray-600">
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,6 +319,54 @@ export const SchemasPage: React.FC = () => {
                         )}
                     </div>
                 </div>
+
+                {/* Deprecated Schemas */}
+                {deprecatedSchemas.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-lg mb-8 overflow-hidden">
+                        <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4">
+                            <div className="flex items-center">
+                                <AlertCircle className="w-6 h-6 text-white mr-3" />
+                                <h2 className="text-xl font-semibold text-white">Deprecated Schemas</h2>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                <p className="text-orange-800 text-sm">
+                                    <AlertCircle className="w-4 h-4 inline mr-1" />
+                                    These schemas are deprecated and should be migrated to newer versions.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {deprecatedSchemas.map(schema => (
+                                    <div key={schema.schemaId} className="bg-orange-50 rounded-lg p-4 hover:bg-orange-100 transition-colors border border-orange-200">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <div className="flex items-center mb-2">
+                                                    <Code className="w-5 h-5 text-orange-600 mr-2" />
+                                                    <h3 className="font-semibold text-gray-900">{getSchemaDisplayName(schema)}</h3>
+                                                </div>
+                                                <div className="flex items-center text-sm mb-2">
+                                                    <AlertCircle className="w-4 h-4 mr-1 text-orange-600" />
+                                                    <span className="text-orange-600 font-medium">
+                                                        {schema.version}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-gray-500">
+                                                    Created: {new Date(schema.created_at).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <button className="text-gray-400 hover:text-gray-600">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Pending Schemas */}
                 <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -220,17 +387,26 @@ export const SchemasPage: React.FC = () => {
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {filteredPendingSchemas.map(schema => (
-                                    <div key={schema.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
+                                    <div key={schema.submissionId} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center mb-2">
                                                     <Code className="w-5 h-5 text-gray-500 mr-2" />
-                                                    <h3 className="font-semibold text-gray-900">{schema.name}</h3>
+                                                    <h3 className="font-semibold text-gray-900">{getSchemaDisplayName(schema)}</h3>
                                                 </div>
-                                                <div className="flex items-center text-sm text-yellow-600">
+                                                <div className="flex items-center text-sm mb-2">
                                                     <Clock className="w-4 h-4 mr-1" />
-                                                    Pending Review
+                                                    <span className={`capitalize ${
+                                                        schema.status === 'pending' ? 'text-yellow-600' :
+                                                        schema.status === 'approved' ? 'text-green-600' :
+                                                        'text-red-600'
+                                                    }`}>
+                                                        {schema.status}
+                                                    </span>
                                                 </div>
+                                                <p className="text-xs text-gray-500">
+                                                    Submitted: {new Date(schema.created_at).toLocaleDateString()}
+                                                </p>
                                             </div>
                                             <button className="text-gray-400 hover:text-gray-600">
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

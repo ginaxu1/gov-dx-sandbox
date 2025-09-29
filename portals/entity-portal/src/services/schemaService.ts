@@ -1,7 +1,7 @@
 // services/schemaService.ts
 import { getIntrospectionQuery, buildClientSchema, buildSchema, printSchema, parse, print, visit, Kind, graphql } from "graphql";
 import type { ObjectTypeDefinitionNode, ObjectTypeExtensionNode } from "graphql";
-import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType} from '../types/graphql';
+import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType, SchemaSubmission, ApprovedSchema} from '../types/graphql';
 
 export class SchemaService {
   private static readonly INTROSPECTION_QUERY = getIntrospectionQuery();
@@ -101,11 +101,67 @@ export class SchemaService {
     }
   }
 
-  static async registerSchema(providerId: string, registration: SchemaRegistration): Promise<void> {
-    const baseUrl = import.meta.env.VITE_BASE_PATH || '';
-    console.log('Registering schema at:', `${baseUrl}providers/${providerId}/schema-submissions`);
+  static async getApprovedSchema(providerId: string): Promise<ApprovedSchema[]> {
+    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const response = await fetch(`${baseUrl}providers/${providerId}/schema-submissions`, {
+      const response = await fetch(`${baseUrl}/providers/${providerId}/schemas`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch approved schemas! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Handle API response structure {count: number, items: Array | null}
+      if (result && typeof result === 'object' && 'items' in result) {
+        return Array.isArray(result.items) ? result.items : [];
+      }
+      
+      // Fallback for direct array response
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      throw new Error(`Failed to get approved schemas: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async getSchemaSubmissions(providerId: string): Promise<SchemaSubmission[]> {
+    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
+    try {
+      const response = await fetch(`${baseUrl}/providers/${providerId}/schema-submissions`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch schema submissions! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Handle API response structure {count: number, items: Array | null}
+      if (result && typeof result === 'object' && 'items' in result) {
+        return Array.isArray(result.items) ? result.items : [];
+      }
+      
+      // Fallback for direct array response
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      throw new Error(`Failed to get schema submissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  static async registerSchema(providerId: string, registration: SchemaRegistration): Promise<void> {
+    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
+    console.log('Registering schema at:', `${baseUrl}/providers/${providerId}/schema-submissions`);
+    try {
+      const response = await fetch(`${baseUrl}/providers/${providerId}/schema-submissions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

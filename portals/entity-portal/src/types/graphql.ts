@@ -63,3 +63,19 @@ export interface SchemaRegistration {
   previous_schema_id: string | null;
   schema_endpoint: string;
 }
+
+export interface SchemaSubmission extends SchemaRegistration {
+  submissionId: string;
+  created_at: string;
+  status: 'pending' | 'approved' | 'rejected';
+  providerId: string;
+}
+
+export interface ApprovedSchema {
+  schemaId: string;
+  sdl: string;
+  schema_endpoint: string;
+  version: "Active" | "Deprecated";
+  created_at: string;
+  providerId: string;
+}
