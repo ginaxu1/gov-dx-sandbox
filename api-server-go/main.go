@@ -48,11 +48,6 @@ func main() {
 	mux := http.NewServeMux()
 	apiServer.SetupRoutes(mux)
 
-	// Setup audit middleware
-	auditServiceURL := getEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
-	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
-	handler := auditMiddleware.AuditLoggingMiddleware(mux)
-
 	// Health check endpoint (matching consent-engine approach)
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Simple health check - just verify database connection
@@ -177,6 +172,11 @@ func main() {
 			"select_query_test":      testQueryError,
 		})
 	})))
+
+	// Setup audit middleware
+	auditServiceURL := getEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
+	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
+	handler := auditMiddleware.AuditLoggingMiddleware(mux)
 
 	// Start server
 	port := os.Getenv("PORT")

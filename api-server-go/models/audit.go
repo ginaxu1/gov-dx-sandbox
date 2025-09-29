@@ -15,6 +15,8 @@ type AuditLogRequest struct {
 	RequestedData     json.RawMessage `json:"requested_data"`
 	ResponseData      json.RawMessage `json:"response_data,omitempty"`
 	TransactionStatus string          `json:"transaction_status"` // SUCCESS or FAILURE
+	RequestPath       string          `json:"request_path"`
+	RequestMethod     string          `json:"request_method"`
 }
 
 // AuditLogResponse represents the response from audit-service
@@ -35,8 +37,6 @@ type AuditContext struct {
 	EndTime       time.Time
 	RequestPath   string
 	RequestMethod string
-	UserAgent     string
-	IPAddress     string
 }
 
 // NewAuditContext creates a new audit context for a request
@@ -56,5 +56,7 @@ func (ac *AuditContext) ToAuditLogRequest() *AuditLogRequest {
 		RequestedData:     ac.RequestData,
 		ResponseData:      ac.ResponseData,
 		TransactionStatus: ac.Status,
+		RequestPath:       ac.RequestPath,
+		RequestMethod:     ac.RequestMethod,
 	}
 }

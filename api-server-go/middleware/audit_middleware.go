@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -37,8 +38,6 @@ func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler
 		auditCtx := models.NewAuditContext()
 		auditCtx.RequestPath = r.URL.Path
 		auditCtx.RequestMethod = r.Method
-		auditCtx.UserAgent = r.Header.Get("User-Agent")
-		auditCtx.IPAddress = m.getClientIP(r)
 
 		// Extract entity IDs from path
 		auditCtx.ConsumerID = m.auditService.ExtractConsumerIDFromPath(r.URL.Path)
@@ -99,6 +98,11 @@ func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler
 
 // shouldSkipAudit determines if audit logging should be skipped for this path
 func (m *AuditMiddleware) shouldSkipAudit(path string) bool {
+	// Skip audit logging in test environment
+	if os.Getenv("GO_ENV") == "test" || os.Getenv("TESTING") == "true" {
+		return true
+	}
+
 	skipPaths := []string{
 		"/health",
 		"/debug",

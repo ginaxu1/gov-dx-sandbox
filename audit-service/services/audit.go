@@ -26,7 +26,8 @@ func NewAuditService(db *sql.DB) *AuditService {
 // GetAuditEvents retrieves all audit events with optional filtering (for Admin Portal)
 func (s *AuditService) GetAuditEvents(filter *models.AuditFilter) (*models.AuditResponse, error) {
 	query := `
-		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash
+		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash,
+		       request_path, request_method
 		FROM audit_logs
 		WHERE 1=1
 	`
@@ -90,6 +91,7 @@ func (s *AuditService) GetAuditEvents(filter *models.AuditFilter) (*models.Audit
 	var events []models.AuditEvent
 	for rows.Next() {
 		var event models.AuditEvent
+		var requestPath, requestMethod sql.NullString
 		err := rows.Scan(
 			&event.EventID,
 			&event.Timestamp,
@@ -97,11 +99,22 @@ func (s *AuditService) GetAuditEvents(filter *models.AuditFilter) (*models.Audit
 			&event.ProviderID,
 			&event.TransactionStatus,
 			&event.CitizenHash,
+			&requestPath,
+			&requestMethod,
 		)
 		if err != nil {
 			slog.Error("Failed to scan audit event", "error", err)
 			return nil, fmt.Errorf("failed to scan audit event: %w", err)
 		}
+
+		// Handle NULL values
+		if requestPath.Valid {
+			event.RequestPath = requestPath.String
+		}
+		if requestMethod.Valid {
+			event.RequestMethod = requestMethod.String
+		}
+
 		events = append(events, event)
 	}
 
@@ -125,7 +138,8 @@ func (s *AuditService) GetProviderAuditEvents(providerID string, filter *models.
 	filter.ProviderID = providerID
 
 	query := `
-		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash
+		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash,
+		       request_path, request_method
 		FROM audit_logs
 		WHERE provider_id = $1
 	`
@@ -183,6 +197,7 @@ func (s *AuditService) GetProviderAuditEvents(providerID string, filter *models.
 	var events []models.AuditEvent
 	for rows.Next() {
 		var event models.AuditEvent
+		var requestPath, requestMethod sql.NullString
 		err := rows.Scan(
 			&event.EventID,
 			&event.Timestamp,
@@ -190,11 +205,22 @@ func (s *AuditService) GetProviderAuditEvents(providerID string, filter *models.
 			&event.ProviderID,
 			&event.TransactionStatus,
 			&event.CitizenHash,
+			&requestPath,
+			&requestMethod,
 		)
 		if err != nil {
 			slog.Error("Failed to scan provider audit event", "error", err)
 			return nil, fmt.Errorf("failed to scan provider audit event: %w", err)
 		}
+
+		// Handle NULL values
+		if requestPath.Valid {
+			event.RequestPath = requestPath.String
+		}
+		if requestMethod.Valid {
+			event.RequestMethod = requestMethod.String
+		}
+
 		events = append(events, event)
 	}
 
@@ -218,7 +244,8 @@ func (s *AuditService) GetConsumerAuditEvents(consumerID string, filter *models.
 	filter.ConsumerID = consumerID
 
 	query := `
-		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash
+		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash,
+		       request_path, request_method
 		FROM audit_logs
 		WHERE consumer_id = $1
 	`
@@ -276,6 +303,7 @@ func (s *AuditService) GetConsumerAuditEvents(consumerID string, filter *models.
 	var events []models.AuditEvent
 	for rows.Next() {
 		var event models.AuditEvent
+		var requestPath, requestMethod sql.NullString
 		err := rows.Scan(
 			&event.EventID,
 			&event.Timestamp,
@@ -283,11 +311,22 @@ func (s *AuditService) GetConsumerAuditEvents(consumerID string, filter *models.
 			&event.ProviderID,
 			&event.TransactionStatus,
 			&event.CitizenHash,
+			&requestPath,
+			&requestMethod,
 		)
 		if err != nil {
 			slog.Error("Failed to scan consumer audit event", "error", err)
 			return nil, fmt.Errorf("failed to scan consumer audit event: %w", err)
 		}
+
+		// Handle NULL values
+		if requestPath.Valid {
+			event.RequestPath = requestPath.String
+		}
+		if requestMethod.Valid {
+			event.RequestMethod = requestMethod.String
+		}
+
 		events = append(events, event)
 	}
 

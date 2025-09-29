@@ -116,6 +116,8 @@ paths:
                     age: 30
                     entity_id: "12345"
               transaction_status: "SUCCESS"
+              request_path: "/api/citizen/data"
+              request_method: "POST"
       responses:
         '201':
           description: Audit log created successfully
@@ -369,6 +371,8 @@ components:
         - provider_id
         - requested_data
         - transaction_status
+        - request_path
+        - request_method
       properties:
         event_id:
           type: string
@@ -393,6 +397,12 @@ components:
         citizen_hash:
           type: string
           description: SHA-256 hash of citizen identifier for privacy (auto-generated from request/response data)
+        request_path:
+          type: string
+          description: HTTP request path that triggered the audit event
+        request_method:
+          type: string
+          description: HTTP request method (GET, POST, etc.)
 
     AuditEvent:
       type: object
@@ -418,6 +428,12 @@ components:
         citizen_hash:
           type: string
           description: SHA-256 hash of citizen identifier for privacy
+        request_path:
+          type: string
+          description: HTTP request path that triggered the audit event
+        request_method:
+          type: string
+          description: HTTP request method (GET, POST, etc.)
       description: |
         Simplified audit event for API responses. RequestedData and ResponseData
         are intentionally omitted for security as they contain sensitive information
