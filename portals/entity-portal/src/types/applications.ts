@@ -1,41 +1,37 @@
 // types/applications.ts
 
 export interface ApplicationRegistration {
-  name: string;
-  description?: string;
+  applicationName: string;
+  applicationDescription?: string;
   selectedFields: string[];
-  callback_url?: string;
-  homepage_url?: string;
 }
 
 export interface ApplicationSubmission extends ApplicationRegistration {
   submissionId: string;
-  created_at: string;
-  status: 'pending' | 'approved' | 'rejected';
   consumerId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ApprovedApplication {
   applicationId: string;
-  name: string;
-  description?: string;
+  applicationName: string;
+  applicationDescription?: string;
   selectedFields: string[];
-  callback_url?: string;
-  homepage_url?: string;
-  client_id?: string;
-  client_secret?: string;
-  version: "Active" | "Deprecated";
-  created_at: string;
   consumerId: string;
+  version: "active" | "deprecated";
+  createdAt: string;
+  updatedAt: string;
 }
-
-export interface ApplicationConfiguration {
-  fieldAccess: 'required' | 'optional' | 'restricted' | '';
-  description: string;
-  isUserDefinedField: boolean;
-}
-
-export interface ApplicationApiResponse<T> {
+ 
+// API Response structure
+export interface PendingApplicationApiResponse {
   count: number;
-  items: T[] | null;
+  items: ApplicationSubmission[] | null;
+}
+
+export interface ApprovedApplicationApiResponse {
+  count: number;
+  items: ApprovedApplication[] | null;
 }

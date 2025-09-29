@@ -59,32 +59,40 @@ export interface FieldConfiguration {
 }
 
 export interface SchemaRegistration {
+  schemaName: string;
+  schemaDescription?: string;
   sdl: string;
-  previous_schema_id: string | null;
-  schema_endpoint: string;
+  previousSchemaId: string | null;
+  schemaEndpoint: string;
 }
 
 export interface SchemaSubmission extends SchemaRegistration {
   submissionId: string;
-  schemaId?: string; // Only present for approved schemas
   status: 'pending' | 'approved' | 'rejected';
   providerId: string;
-  fieldConfigurations: Record<string, any>;
   createdAt: string; // Note: API uses createdAt, not created_at
   updatedAt: string;
 }
 
 export interface ApprovedSchema {
   schemaId: string;
+  schemaName: string;
+  schemaDescription?: string;
   sdl: string;
-  schema_endpoint: string;
-  version: "Active" | "Deprecated" | "approved";
-  createdAt: string;
+  schemaEndpoint: string;
+  version: "active" | "deprecated";
   providerId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // API Response structure
-export interface SchemaApiResponse {
+export interface PendingSchemaApiResponse {
   count: number;
   items: SchemaSubmission[] | null;
+}
+
+export interface ApprovedSchemaApiResponse {
+  count: number;
+  items: ApprovedSchema[] | null;
 }

@@ -8,7 +8,6 @@ import { SchemaService } from '../services/schemaService';
 
 interface SchemaRegistrationPageProps {
   providerId: string;
-  providerName: string;
 }
 
 interface SchemaProps {
@@ -18,7 +17,6 @@ interface SchemaProps {
 
 export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   providerId,
-  providerName,
 }) => {
   const [step, setStep] = useState<'input' | 'configure'>('input');
   const [schema, setSchema] = useState<IntrospectionResult | null>(null);
@@ -30,6 +28,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   const [userDefinedTypes, setUserDefinedTypes] = useState<GraphQLType[]>([]);
   const [previous_schema, setPreviousSchema] = useState<SchemaProps | null>(null);
   const [registeredSchemas, setRegisteredSchemas] = useState<SchemaProps[]>([]);
+  const [schemaName, setSchemaName] = useState<string>('');
 
   useEffect(() => {
     // Fetch registered schemas from the API
@@ -131,8 +130,9 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
 
       const registration: SchemaRegistration = {
         sdl,
-        previous_schema_id: previous_schema ? previous_schema.id.toString() : null,
-        schema_endpoint: endpoint,
+        schemaName: schemaName || 'Untitled Schema',
+        previousSchemaId: previous_schema ? previous_schema.id.toString() : null,
+        schemaEndpoint: endpoint,
       };
       
       await SchemaService.registerSchema(providerId, registration);
@@ -290,7 +290,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
           <div className="space-y-6">
             {/* Provider ID Input */}
             <div className="bg-white p-6 rounded-lg shadow-md">
-              <div>
+              {/* <div>
                 <label htmlFor="providerName" className="block text-sm font-medium text-gray-700 mb-2">
                   Provider Name <span className="text-red-500">*</span>
                 </label>
@@ -303,8 +303,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                   readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
                 />
-              </div>
-              <div className="mt-4">
+              </div> */}
+              {/* <div className="mt-4">
                 <label htmlFor="providerId" className="block text-sm font-medium text-gray-700 mb-2">
                   Provider ID <span className="text-red-500">*</span>
                 </label>
@@ -317,7 +317,21 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                   readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
                 />
+              </div> */}
+              <div>
+                <label htmlFor="schemaName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Schema Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="schemaName"
+                  value={schemaName}
+                  onChange={(e) => setSchemaName(e.target.value)}
+                  placeholder="Enter schema name..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                />
               </div>
+              {/* Previous Schema Selection */}
                 <div className="mt-4">
                 <label htmlFor="previousSchemaId" className="block text-sm font-medium text-gray-700 mb-2">
                   Previous Schema

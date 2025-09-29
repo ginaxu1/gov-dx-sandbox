@@ -76,8 +76,8 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
         
         try {
             const applicationData: ApplicationRegistrationData = {
-                name: applicationName,
-                description: description,
+                applicationName: applicationName,
+                applicationDescription: description,
                 selectedFields: selectedFields,
             };
             

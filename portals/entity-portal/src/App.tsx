@@ -194,7 +194,6 @@ function App() {
                 element={
                   <SchemaRegistrationPage 
                     providerId={entityData?.providerId || ''}
-                    providerName={entityData?.name || ''}
                   />
                 } 
               />

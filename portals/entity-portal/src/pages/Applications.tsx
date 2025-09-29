@@ -53,69 +53,9 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
                 
                 console.log('Using mock data as fallback');
                 // Use mock data as fallback
-                const mockApprovedApplications: ApprovedApplication[] = [
-                    {
-                        applicationId: 'app-001',
-                        name: 'Government Data Portal',
-                        description: 'Portal for accessing citizen data and services',
-                        selectedFields: ['personInfo.fullName', 'personInfo.address', 'personInfo.dateOfBirth'],
-                        callback_url: 'https://portal.gov.example/callback',
-                        homepage_url: 'https://portal.gov.example',
-                        client_id: 'gov-portal-client',
-                        version: 'Active',
-                        created_at: '2024-01-15T10:30:00Z',
-                        consumerId: mockConsumerId
-                    },
-                    {
-                        applicationId: 'app-002',
-                        name: 'Citizen Services App',
-                        description: 'Mobile application for citizen services and notifications',
-                        selectedFields: ['personInfo.fullName', 'personInfo.profession', 'vehicle.regNo'],
-                        callback_url: 'https://services.citizen.example/callback',
-                        homepage_url: 'https://services.citizen.example',
-                        client_id: 'citizen-app-client',
-                        version: 'Active',
-                        created_at: '2024-02-20T14:15:00Z',
-                        consumerId: mockConsumerId
-                    },
-                    {
-                        applicationId: 'app-003',
-                        name: 'Healthcare Management System',
-                        description: 'System for managing patient records and healthcare data',
-                        selectedFields: ['personInfo.fullName', 'personInfo.dateOfBirth', 'personInfo.address'],
-                        callback_url: 'https://health.system.example/callback',
-                        homepage_url: 'https://health.system.example',
-                        client_id: 'health-system-client',
-                        version: 'Deprecated',
-                        created_at: '2024-01-10T09:45:00Z',
-                        consumerId: mockConsumerId
-                    }
-                ];
+                const mockApprovedApplications: ApprovedApplication[] = [];
 
-                const mockPendingApplications: ApplicationSubmission[] = [
-                    {
-                        submissionId: 'sub-001',
-                        name: 'Education Portal',
-                        description: 'Educational platform for student records and academic services',
-                        selectedFields: ['personInfo.fullName', 'personInfo.dateOfBirth', 'birthInfo.district'],
-                        callback_url: 'https://edu.portal.example/callback',
-                        homepage_url: 'https://edu.portal.example',
-                        created_at: '2024-03-01T11:20:00Z',
-                        status: 'pending',
-                        consumerId: mockConsumerId
-                    },
-                    {
-                        submissionId: 'sub-002',
-                        name: 'Tax Management System',
-                        description: 'System for managing tax records and calculations',
-                        selectedFields: ['personInfo.fullName', 'personInfo.profession', 'personInfo.address'],
-                        callback_url: 'https://tax.system.example/callback',
-                        homepage_url: 'https://tax.system.example',
-                        created_at: '2024-03-05T16:30:00Z',
-                        status: 'pending',
-                        consumerId: mockConsumerId
-                    }
-                ];
+                const mockPendingApplications: ApplicationSubmission[] = [];
 
                 setRegisteredApplications(mockApprovedApplications);
                 setPendingApplications(mockPendingApplications);
@@ -132,17 +72,12 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
         navigate('/consumer/applications/new');
     };
 
-    const filteredRegisteredApps = (registeredApplications || []).filter(app =>
-        ApplicationService.getApplicationDisplayName(app).toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const filteredPendingApps = (pendingApplications || []).filter(app =>
-        ApplicationService.getApplicationDisplayName(app).toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
+    const getApplicationDisplayName = (app: ApprovedApplication | ApplicationSubmission) => {
+        return app.applicationName || 'Untitled Application';
+    }
     // Separate active and deprecated applications
-    const activeApplications = filteredRegisteredApps.filter(app => app.version === 'Active');
-    const deprecatedApplications = filteredRegisteredApps.filter(app => app.version === 'Deprecated');
+    const activeApplications = registeredApplications.filter(app => app.version === 'active');
+    const deprecatedApplications = registeredApplications.filter(app => app.version === 'deprecated');
 
     if (loading) {
         return (
@@ -274,7 +209,7 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
                         </div>
                     </div>
                     <div className="p-6">
-                        {filteredRegisteredApps.length === 0 ? (
+                        {registeredApplications.length === 0 ? (
                             <div className="text-center py-12">
                                 <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
@@ -291,23 +226,25 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredRegisteredApps.map(application => {
-                                    const statusInfo = ApplicationService.getApplicationStatusInfo(application);
+                                {registeredApplications.map(application => {
+                                    const statusInfo = application.version === 'active'
+                                        ? { status: 'Active', icon: 'active', colorClass: 'text-green-600' }
+                                        : { status: 'Deprecated', icon: 'deprecated', colorClass: 'text-orange-600' };
                                     return (
                                         <div key={application.applicationId} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1">
-                                                    <h3 className="font-semibold text-gray-900 mb-2">{ApplicationService.getApplicationDisplayName(application)}</h3>
+                                                    <h3 className="font-semibold text-gray-900 mb-2">{getApplicationDisplayName(application)}</h3>
                                                     <div className={`flex items-center text-sm mb-2 ${statusInfo.colorClass}`}>
                                                         {statusInfo.icon === 'active' && <CheckCircle className="w-4 h-4 mr-1" />}
                                                         {statusInfo.icon === 'deprecated' && <AlertCircle className="w-4 h-4 mr-1" />}
                                                         {statusInfo.status}
                                                     </div>
-                                                    {application.description && (
-                                                        <p className="text-xs text-gray-500 mb-2">{application.description}</p>
+                                                    {application.applicationDescription && (
+                                                        <p className="text-xs text-gray-500 mb-2">{application.applicationDescription}</p>
                                                     )}
                                                     <p className="text-xs text-gray-500">
-                                                        Created: {new Date(application.created_at).toLocaleDateString()}
+                                                        Created: {new Date(application.createdAt).toLocaleDateString()}
                                                     </p>
                                                 </div>
                                                 <button className="text-gray-400 hover:text-gray-600">
@@ -333,7 +270,7 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
                         </div>
                     </div>
                     <div className="p-6">
-                        {filteredPendingApps.length === 0 ? (
+                        {pendingApplications.length === 0 ? (
                             <div className="text-center py-12">
                                 <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
@@ -342,22 +279,23 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredPendingApps.map(application => {
-                                    const statusInfo = ApplicationService.getApplicationStatusInfo(application);
+                                {pendingApplications.map(application => {
+                                    const statusInfo = { status: 'Pending', icon: 'pending', colorClass: 'text-yellow-600' };
+
                                     return (
                                         <div key={application.submissionId} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1">
-                                                    <h3 className="font-semibold text-gray-900 mb-2">{ApplicationService.getApplicationDisplayName(application)}</h3>
+                                                    <h3 className="font-semibold text-gray-900 mb-2">{getApplicationDisplayName(application)}</h3>
                                                     <div className={`flex items-center text-sm mb-2 ${statusInfo.colorClass}`}>
                                                         <Clock className="w-4 h-4 mr-1" />
                                                         {statusInfo.status}
                                                     </div>
-                                                    {application.description && (
-                                                        <p className="text-xs text-gray-500 mb-2">{application.description}</p>
+                                                    {application.applicationDescription && (
+                                                        <p className="text-xs text-gray-500 mb-2">{application.applicationDescription}</p>
                                                     )}
                                                     <p className="text-xs text-gray-500">
-                                                        Submitted: {new Date(application.created_at).toLocaleDateString()}
+                                                        Submitted: {new Date(application.createdAt).toLocaleDateString()}
                                                     </p>
                                                 </div>
                                                 <button className="text-gray-400 hover:text-gray-600">

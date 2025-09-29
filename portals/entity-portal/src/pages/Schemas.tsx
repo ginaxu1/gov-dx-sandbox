@@ -37,7 +37,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                 
                 // Try to fetch real data from the API
                 const [approvedSchemas, schemaSubmissions] = await Promise.all([
-                    SchemaService.getApprovedSchema(mockProviderId),
+                    SchemaService.getApprovedSchemas(mockProviderId),
                     SchemaService.getSchemaSubmissions(mockProviderId)
                 ]);
 
@@ -53,57 +53,9 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                 
                 console.log('Using mock data as fallback');
                 // Use mock data as fallback
-                const mockApprovedSchemas: ApprovedSchema[] = [
-                    {
-                        schemaId: 'schema-001',
-                        sdl: 'type User { id: ID!, name: String!, email: String! }',
-                        schema_endpoint: 'https://api.gov.example/identity/graphql',
-                        version: 'Active',
-                        createdAt: '2024-01-15T10:30:00Z',
-                        providerId: mockProviderId
-                    },
-                    {
-                        schemaId: 'schema-002',
-                        sdl: 'type Patient { id: ID!, name: String!, medicalRecordNumber: String! }',
-                        schema_endpoint: 'https://api.health.example/records/graphql',
-                        version: 'Active',
-                        createdAt: '2024-02-20T14:15:00Z',
-                        providerId: mockProviderId
-                    },
-                    {
-                        schemaId: 'schema-003',
-                        sdl: 'type Vehicle { id: ID!, vin: String!, make: String!, model: String! }',
-                        schema_endpoint: 'https://api.transport.example/vehicles/graphql',
-                        version: 'Deprecated',
-                        createdAt: '2024-01-10T09:45:00Z',
-                        providerId: mockProviderId
-                    }
-                ];
+                const mockApprovedSchemas: ApprovedSchema[] = [];
 
-                const mockPendingSchemas: SchemaSubmission[] = [
-                    {
-                        submissionId: 'sub-001',
-                        sdl: 'type TaxRecord { id: ID!, taxpayerId: String!, year: Int!, amount: Float! }',
-                        previous_schema_id: null,
-                        schema_endpoint: 'https://api.tax.example/records/graphql',
-                        createdAt: '2024-03-01T11:20:00Z',
-                        updatedAt: '2024-03-01T11:20:00Z',
-                        status: 'pending',
-                        providerId: mockProviderId,
-                        fieldConfigurations: {}
-                    },
-                    {
-                        submissionId: 'sub-002',
-                        sdl: 'type Credential { id: ID!, studentId: String!, degree: String!, university: String! }',
-                        previous_schema_id: null,
-                        schema_endpoint: 'https://api.education.example/credentials/graphql',
-                        createdAt: '2024-03-05T16:30:00Z',
-                        updatedAt: '2024-03-05T16:30:00Z',
-                        status: 'pending',
-                        providerId: mockProviderId,
-                        fieldConfigurations: {}
-                    }
-                ];
+                const mockPendingSchemas: SchemaSubmission[] = [];
 
                 setRegisteredSchemas(mockApprovedSchemas);
                 setPendingSchemas(mockPendingSchemas);
@@ -120,31 +72,13 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
         navigate('/provider/schemas/new');
     };
 
-    // Helper function to extract schema name from SDL or endpoint
-    const getSchemaDisplayName = (schema: ApprovedSchema | SchemaSubmission): string => {
-        // Try to extract type name from SDL
-        const sdlMatch = schema.sdl.match(/type\s+(\w+)/);
-        if (sdlMatch) {
-            return `${sdlMatch[1]} Schema`;
-        }
-        
-        // Fallback to extracting from endpoint
-        const urlParts = schema.schema_endpoint.split('/');
-        const domain = urlParts[2]?.split('.')[1] || 'Unknown';
-        return `${domain.charAt(0).toUpperCase() + domain.slice(1)} Schema`;
+    const displayName = (schema: ApprovedSchema | SchemaSubmission) => {
+        return schema.schemaName || schema.schemaEndpoint;
     };
 
-    const filteredRegisteredSchemas = (registeredSchemas || []).filter(schema =>
-        getSchemaDisplayName(schema).toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const filteredPendingSchemas = (pendingSchemas || []).filter(schema =>
-        getSchemaDisplayName(schema).toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
     // Separate active and deprecated schemas
-    const activeSchemas = filteredRegisteredSchemas.filter(schema => schema.version === 'Active');
-    const deprecatedSchemas = filteredRegisteredSchemas.filter(schema => schema.version === 'Deprecated');
+    const activeSchemas = registeredSchemas.filter(schema => schema.version === 'active');
+    const deprecatedSchemas = registeredSchemas.filter(schema => schema.version === 'deprecated');
 
     if (loading) {
         return (
@@ -299,7 +233,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                                             <div className="flex-1">
                                                 <div className="flex items-center mb-2">
                                                     <Code className="w-5 h-5 text-green-600 mr-2" />
-                                                    <h3 className="font-semibold text-gray-900">{getSchemaDisplayName(schema)}</h3>
+                                                    <h3 className="font-semibold text-gray-900">{displayName(schema)}</h3>
                                                 </div>
                                                 <div className="flex items-center text-sm mb-2">
                                                     <CheckCircle className="w-4 h-4 mr-1 text-green-600" />
@@ -347,7 +281,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                                             <div className="flex-1">
                                                 <div className="flex items-center mb-2">
                                                     <Code className="w-5 h-5 text-orange-600 mr-2" />
-                                                    <h3 className="font-semibold text-gray-900">{getSchemaDisplayName(schema)}</h3>
+                                                    <h3 className="font-semibold text-gray-900">{displayName(schema)}</h3>
                                                 </div>
                                                 <div className="flex items-center text-sm mb-2">
                                                     <AlertCircle className="w-4 h-4 mr-1 text-orange-600" />
@@ -381,7 +315,7 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                         </div>
                     </div>
                     <div className="p-6">
-                        {filteredPendingSchemas.length === 0 ? (
+                        {pendingSchemas.length === 0 ? (
                             <div className="text-center py-12">
                                 <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
@@ -390,13 +324,13 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredPendingSchemas.map(schema => (
+                                {pendingSchemas.map(schema => (
                                     <div key={schema.submissionId} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors border border-gray-200">
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center mb-2">
                                                     <Code className="w-5 h-5 text-gray-500 mr-2" />
-                                                    <h3 className="font-semibold text-gray-900">{getSchemaDisplayName(schema)}</h3>
+                                                    <h3 className="font-semibold text-gray-900">{displayName(schema)}</h3>
                                                 </div>
                                                 <div className="flex items-center text-sm mb-2">
                                                     <Clock className="w-4 h-4 mr-1" />
