@@ -21,25 +21,7 @@ interface EntityProps {
 function App() {
   const [view, setView] = useState<'provider' | 'consumer' | null>(null);
   const [entityData, setEntityData] = useState<EntityProps | null>(null);
-  // const [userName, setUserName] = useState<string>('');
-  // const [userEmail, setUserEmail] = useState<string>('');
-
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
-
-  // Fetch user info when authenticated
-  // const fetchUserInfo = async () => {
-  //   try {
-  //     const userBasicInfo = await getBasicUserInfo();
-  //     console.log('User Basic Info:', userBasicInfo);
-      
-  //     if (userBasicInfo) {
-  //       setUserName(userBasicInfo.name || '');
-  //       setUserEmail(userBasicInfo.email || '');
-  //     }
-  //   } catch (error) {
-  //     console.error('Failed to fetch user info:', error);
-  //   }
-  // };
 
   // Save entity state to localStorage to persist through auth redirects
   const saveEntityStateToStorage = (entityInfo: EntityProps, viewType: 'provider' | 'consumer' | null) => {
@@ -125,26 +107,6 @@ function App() {
       }
     }
   }, [state.isAuthenticated]);
-
-  // Remove this useEffect - it's causing the circular dependency
-  // useEffect(() => {
-  //   if (entityData) {
-  //     if (entityData.providerId) {
-  //       setView('provider');
-  //     } else if (entityData.consumerId) {
-  //       setView('consumer');
-  //     } else {
-  //       setView(null);
-  //     }
-  //   }
-  // }, [entityData]);
-
-  // Update user info when authentication state changes
-  // useEffect(() => {
-  //   if (state.isAuthenticated) {
-  //     fetchUserInfo();
-  //   }
-  // }, [state.isAuthenticated]);
 
   const canSwitchView = () => {
     return entityData?.providerId && entityData?.consumerId;

@@ -32,7 +32,6 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
       newConfig.isOwner = null;
       newConfig.owner = '';
     }
-    
     onChange(typeName, field.name, newConfig);
   };
 

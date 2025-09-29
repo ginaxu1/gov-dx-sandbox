@@ -77,7 +77,7 @@ mock_data = {
             birth_place="Colombo General Hospital",
             name="Nuwan Fernando",
             sex="Male",
-            nic=strawberry.ID("199512345678"),
+            nic=strawberry.ID("nayana@opensource.lk"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
@@ -114,7 +114,7 @@ mock_data = {
             birth_place="Galle General Hospital",
             name="Nisha Fernando",
             sex="Female",
-            nic=strawberry.ID("210120678V"),
+            nic=strawberry.ID("regina@opensource.lk"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=False,
             father=Father(
@@ -151,7 +151,7 @@ mock_data = {
             birth_place="Kandy Teaching Hospital",
             name="Rohan Jayasuriya",
             sex="Male",
-            nic=strawberry.ID("190809234V"),
+            nic=strawberry.ID("thanikan@opensource.lk"),
             are_parents_married=False,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
@@ -186,9 +186,9 @@ mock_data = {
             division="Galle South",
             birth_date=date(2020, 1, 15),
             birth_place="Galle General Hospital",
-            name="Ayesha Mohamed",
-            sex="Female",
-            nic=strawberry.ID("200101234V"),
+            name="Ayaan Mohamed",
+            sex="Male",
+            nic=strawberry.ID("mohamed@opensource.lk"),
             are_parents_married=True,
             is_grandfather_born_in_sri_lanka=True,
             father=Father(
@@ -215,8 +215,43 @@ mock_data = {
                 relationship_to_baby="Father",
                 nic="680123456V"
             )
+        ),
+        PersonData(
+            id=5,
+            br_no="BR2025005",
+            district="Jaffna",
+            division="Jaffna Central",
+            birth_date=date(2021, 3, 30),
+            birth_place="Jaffna Teaching Hospital",
+            name="Sanjiva Edirisinghe",
+            sex="Male",
+            nic=strawberry.ID("sanjiva@opensource.lk"),
+            are_parents_married=False,
+            is_grandfather_born_in_sri_lanka=False,
+            father=Father(
+                name="Kumar Edirisinghe",
+                nic="720345678V",
+                birth_date=date(1983, 9, 15),
+                birth_place="Jaffna",
+                race="Sinhalese"
+            ),
+            mother=Mother(
+                name="Lakshmi Edirisinghe",
+                nic="770987654V",
+                birth_date=date(1986, 1, 25),
+                birth_place="Jaffna",
+                race="Sinhalese",
+                age_at_birth=35
+            ),
+            date_of_registration=date(2021, 4, 2),
+            registrar_signature="K. Perera",
+            informant=Informant(
+                signature="Lakshmi Edirisinghe",
+                full_name="Lakshmi Edirisinghe",
+                residence="78 Lake Rd, Jaffna",
+                relationship_to_baby="Mother",
+                nic="770987654V"
+            )
         )
     ]
 }
-
-# translate data type from PersonData to PersonData

@@ -2,29 +2,189 @@ package tests
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
+	_ "github.com/lib/pq"
 )
 
 // TestServer represents a test HTTP server with common setup
 type TestServer struct {
 	APIServer *handlers.APIServer
 	Mux       *http.ServeMux
+	DB        *sql.DB
 }
 
-// NewTestServer creates a new test server instance
+// NewTestServer creates a new test server instance with PostgreSQL test database
 func NewTestServer() *TestServer {
-	apiServer := handlers.NewAPIServer()
+	// Get test database configuration from environment variables
+	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
+	port := getEnvOrDefault("TEST_DB_PORT", "5434")
+	user := getEnvOrDefault("TEST_DB_USER", "test_user")
+	password := getEnvOrDefault("TEST_DB_PASSWORD", "test_password")
+	database := getEnvOrDefault("TEST_DB_NAME", "api_server_test")
+	sslmode := getEnvOrDefault("TEST_DB_SSLMODE", "disable")
+
+	// Create PostgreSQL connection string
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, database, sslmode)
+
+	// Connect to test database
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		panic("Failed to connect to test database: " + err.Error())
+	}
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		panic("Failed to ping test database: " + err.Error())
+	}
+
+	// Create tables for testing
+	if err := createTestTables(db); err != nil {
+		panic("Failed to create test tables: " + err.Error())
+	}
+
+	// Create API server with database
+	apiServer := handlers.NewAPIServerWithDB(db)
 	mux := http.NewServeMux()
 	apiServer.SetupRoutes(mux)
 
 	return &TestServer{
 		APIServer: apiServer,
 		Mux:       mux,
+		DB:        db,
+	}
+}
+
+// getEnvOrDefault gets an environment variable or returns a default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// createTestTables creates the necessary tables for testing using PostgreSQL syntax
+func createTestTables(db *sql.DB) error {
+	// Drop tables if they exist (for clean test runs)
+	dropTables := []string{
+		"DROP TABLE IF EXISTS consumer_grants CASCADE",
+		"DROP TABLE IF EXISTS consumer_apps CASCADE",
+		"DROP TABLE IF EXISTS consumers CASCADE",
+		"DROP TABLE IF EXISTS entities CASCADE",
+		"DROP TABLE IF EXISTS provider_schemas CASCADE",
+		"DROP TABLE IF EXISTS provider_profiles CASCADE",
+		"DROP TABLE IF EXISTS provider_submissions CASCADE",
+		"DROP TABLE IF EXISTS provider_metadata CASCADE",
+	}
+
+	for _, drop := range dropTables {
+		db.Exec(drop) // Ignore errors for cleanup
+	}
+
+	// Create tables with PostgreSQL syntax
+	tables := []string{
+		`CREATE TABLE entities (
+			entity_id VARCHAR(255) PRIMARY KEY,
+			entity_name VARCHAR(255) NOT NULL,
+			contact_email VARCHAR(255) NOT NULL,
+			phone_number VARCHAR(50),
+			entity_type VARCHAR(100) NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE consumers (
+			consumer_id VARCHAR(255) PRIMARY KEY,
+			entity_id VARCHAR(255) NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			FOREIGN KEY (entity_id) REFERENCES entities(entity_id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE consumer_apps (
+			submission_id VARCHAR(255) PRIMARY KEY,
+			consumer_id VARCHAR(255) NOT NULL,
+			status VARCHAR(50) NOT NULL,
+			required_fields JSONB,
+			credentials JSONB,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			FOREIGN KEY (consumer_id) REFERENCES consumers(consumer_id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE provider_submissions (
+			submission_id VARCHAR(255) PRIMARY KEY,
+			provider_name VARCHAR(255) NOT NULL,
+			contact_email VARCHAR(255) NOT NULL,
+			phone_number VARCHAR(50),
+			provider_type VARCHAR(100) NOT NULL,
+			status VARCHAR(50) NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE provider_profiles (
+			provider_id VARCHAR(255) PRIMARY KEY,
+			provider_name VARCHAR(255) NOT NULL,
+			contact_email VARCHAR(255) NOT NULL,
+			phone_number VARCHAR(50),
+			provider_type VARCHAR(100) NOT NULL,
+			approved_at TIMESTAMP,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE provider_schemas (
+			schema_id VARCHAR(255) PRIMARY KEY,
+			provider_id VARCHAR(255) NOT NULL,
+			submission_id VARCHAR(255),
+			status VARCHAR(50) NOT NULL,
+			schema_data JSONB,
+			schema_input TEXT,
+			sdl TEXT,
+			field_configurations JSONB,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			FOREIGN KEY (provider_id) REFERENCES provider_profiles(provider_id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE consumer_grants (
+			consumer_id VARCHAR(255) PRIMARY KEY,
+			approved_fields JSONB NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			FOREIGN KEY (consumer_id) REFERENCES consumers(consumer_id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE provider_metadata (
+			field_name VARCHAR(255) PRIMARY KEY,
+			owner VARCHAR(255) NOT NULL,
+			provider VARCHAR(255) NOT NULL,
+			consent_required BOOLEAN NOT NULL DEFAULT FALSE,
+			access_control_type VARCHAR(50) NOT NULL,
+			allow_list JSONB,
+			description TEXT,
+			expiry_time VARCHAR(50),
+			metadata JSONB,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+	}
+
+	for _, table := range tables {
+		if _, err := db.Exec(table); err != nil {
+			return fmt.Errorf("failed to create table: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Close cleans up the test server
+func (ts *TestServer) Close() {
+	if ts.DB != nil {
+		ts.DB.Close()
 	}
 }
 
