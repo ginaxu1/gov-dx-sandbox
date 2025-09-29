@@ -233,6 +233,7 @@ func InitDatabase(db *sql.DB) error {
 		status VARCHAR(50) NOT NULL DEFAULT 'pending',
 		schema_input JSONB,
 		sdl TEXT,
+		schema_endpoint VARCHAR(500),
 		field_configurations JSONB,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
