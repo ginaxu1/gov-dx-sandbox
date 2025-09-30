@@ -11,6 +11,8 @@ require (
 	github.com/lib/pq v1.10.9
 )
 
+require golang.org/x/text v0.29.0
+
 replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
 
 replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constants
