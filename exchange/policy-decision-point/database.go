@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/models"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/models"
 	_ "github.com/lib/pq"
 )
 

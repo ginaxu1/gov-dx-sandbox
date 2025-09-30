@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/models"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/models"
 )
 
 // MetadataHandler handles provider metadata updates

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/models"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/models"
 	"github.com/open-policy-agent/opa/rego"
 )
 
