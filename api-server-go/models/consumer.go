@@ -21,12 +21,18 @@ type Consumer struct {
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
+// RequiredField represents a field that a consumer wants to access
+type RequiredField struct {
+	FieldName     string `json:"fieldName"`
+	GrantDuration string `json:"grantDuration,omitempty"`
+}
+
 // ConsumerApp represents a consumer's application to access specific data fields
 type ConsumerApp struct {
 	SubmissionID   string            `json:"submissionId"`
 	ConsumerID     string            `json:"consumerId"`
 	Status         ApplicationStatus `json:"status"`
-	RequiredFields map[string]bool   `json:"requiredFields"`
+	RequiredFields []RequiredField   `json:"requiredFields"`
 	CreatedAt      time.Time         `json:"createdAt"`
 	UpdatedAt      time.Time         `json:"updatedAt"`
 	Credentials    *Credentials      `json:"credentials,omitempty"`
@@ -55,13 +61,13 @@ type UpdateConsumerRequest struct {
 // CreateConsumerAppRequest represents the request to create a new consumer application
 type CreateConsumerAppRequest struct {
 	ConsumerID     string          `json:"consumerId"`
-	RequiredFields map[string]bool `json:"required_fields"`
+	RequiredFields []RequiredField `json:"requiredFields"`
 }
 
 // UpdateConsumerAppRequest represents the request to update a consumer application
 type UpdateConsumerAppRequest struct {
 	Status         *ApplicationStatus `json:"status,omitempty"`
-	RequiredFields map[string]bool    `json:"required_fields,omitempty"`
+	RequiredFields []RequiredField    `json:"requiredFields,omitempty"`
 }
 
 // UpdateConsumerAppResponse represents the response when updating a consumer application

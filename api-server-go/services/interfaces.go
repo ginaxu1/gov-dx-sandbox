@@ -68,7 +68,9 @@ type GrantsServiceInterface interface {
 // Service factory functions
 
 func NewConsumerServiceWithDB(db *sql.DB) ConsumerServiceInterface {
-	return NewConsumerService(db)
+	// For backward compatibility, create a consumer service without PDP client
+	// This is used in places where PDP integration is not needed
+	return NewConsumerService(db, nil)
 }
 
 func NewProviderServiceWithDB(db *sql.DB) ProviderServiceInterface {
