@@ -32,6 +32,15 @@ func main() {
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
 
+	// Log database configuration being used
+	slog.Info("Database configuration",
+		"choreo_host", os.Getenv("CHOREO_DB_PDP_HOSTNAME"),
+		"choreo_port", os.Getenv("CHOREO_DB_PDP_PORT"),
+		"choreo_user", os.Getenv("CHOREO_DB_PDP_USERNAME"),
+		"choreo_database", os.Getenv("CHOREO_DB_PDP_DATABASENAME"),
+		"fallback_host", os.Getenv("DB_HOST"),
+		"fallback_port", os.Getenv("DB_PORT"))
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

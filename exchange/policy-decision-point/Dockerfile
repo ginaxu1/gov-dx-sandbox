@@ -42,9 +42,8 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/service_binary /app/
 
-# Copy service-specific files (policies and data)
+# Copy service-specific files (policies)
 COPY --from=builder /app/policies/ /app/policies/
-COPY --from=builder /app/data/ /app/data/
 
 # Change ownership to appuser
 RUN chown -R appuser:appuser /app

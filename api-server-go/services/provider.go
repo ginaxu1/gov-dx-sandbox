@@ -14,14 +14,12 @@ import (
 )
 
 type ProviderService struct {
-	db              *sql.DB
-	schemaConverter *SchemaConverter
+	db *sql.DB
 }
 
 func NewProviderService(db *sql.DB) *ProviderService {
 	return &ProviderService{
-		db:              db,
-		schemaConverter: NewSchemaConverter(),
+		db: db,
 	}
 }
 
@@ -803,15 +801,8 @@ func (s *ProviderService) UpdateProviderSchema(id string, req models.UpdateProvi
 			}
 			schema.SchemaID = &schemaID
 
-			// Update provider-metadata.json
-			if schema.SDL != "" {
-				if err := s.schemaConverter.UpdateProviderMetadataFile(schema.ProviderID, schema.SDL); err != nil {
-					slog.Error("Failed to update provider-metadata.json", "error", err, "providerId", schema.ProviderID)
-					// Don't fail the update, just log the error
-				} else {
-					slog.Info("Updated provider-metadata.json from approved schema", "providerId", schema.ProviderID, "schemaId", schemaID)
-				}
-			}
+			// Note: Schema conversion to provider metadata is handled by the PDP service
+			// via the /metadata/update endpoint when needed
 		}
 	}
 

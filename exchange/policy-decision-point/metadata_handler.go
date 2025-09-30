@@ -13,12 +13,12 @@ import (
 
 // MetadataHandler handles provider metadata updates
 type MetadataHandler struct {
-	dbService *DatabaseService
+	dbService DatabaseServiceInterface
 	evaluator *PolicyEvaluator
 }
 
 // NewMetadataHandler creates a new metadata handler
-func NewMetadataHandler(dbService *DatabaseService, evaluator *PolicyEvaluator) *MetadataHandler {
+func NewMetadataHandler(dbService DatabaseServiceInterface, evaluator *PolicyEvaluator) *MetadataHandler {
 	return &MetadataHandler{
 		dbService: dbService,
 		evaluator: evaluator,

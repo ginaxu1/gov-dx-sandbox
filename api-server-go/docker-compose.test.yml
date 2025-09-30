@@ -22,11 +22,11 @@ services:
     environment:
       - ENVIRONMENT=test
       - PORT=3000
-      - CHOREO_OPENDIF_DB_HOSTNAME=postgres-test
-      - CHOREO_OPENDIF_DB_PORT=5432
-      - CHOREO_OPENDIF_DB_USERNAME=test_user
-      - CHOREO_OPENDIF_DB_PASSWORD=test_password
-      - CHOREO_OPENDIF_DB_DATABASENAME=api_server_test
+      - CHOREO_DB_API_SERVER_HOSTNAME=postgres-test
+      - CHOREO_DB_API_SERVER_PORT=5432
+      - CHOREO_DB_API_SERVER_USERNAME=test_user
+      - CHOREO_DB_API_SERVER_PASSWORD=test_password
+      - CHOREO_DB_API_SERVER_DATABASENAME=api_server_test
       - DB_SSLMODE=disable
     ports:
       - "3001:3000"

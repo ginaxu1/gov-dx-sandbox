@@ -12,6 +12,14 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// DatabaseServiceInterface defines the interface for database operations
+type DatabaseServiceInterface interface {
+	GetAllProviderMetadata() (*models.ProviderMetadata, error)
+	UpdateProviderField(fieldName string, field models.ProviderMetadataField) error
+	UpdateProviderMetadata(metadata *models.ProviderMetadata) error
+	Close() error
+}
+
 // DatabaseService handles database operations for the PDP service
 type DatabaseService struct {
 	db *sql.DB
@@ -19,12 +27,19 @@ type DatabaseService struct {
 
 // NewDatabaseService creates a new database service
 func NewDatabaseService() (*DatabaseService, error) {
-	// Get database connection string from environment
-	dbHost := getEnv("DB_HOST", "localhost")
-	dbPort := getEnv("DB_PORT", "5432")
-	dbUser := getEnv("DB_USER", "postgres")
-	dbPassword := getEnv("DB_PASSWORD", "postgres")
-	dbName := getEnv("DB_NAME", "gov_dx_sandbox")
+	// Get database connection string from Choreo environment variables
+	// Choreo-Defined Environment Variable Names:
+	// HostName: CHOREO_DB_PDP_HOSTNAME
+	// Port: CHOREO_DB_PDP_PORT
+	// Username: CHOREO_DB_PDP_USERNAME
+	// Password: CHOREO_DB_PDP_PASSWORD
+	// DatabaseName: CHOREO_DB_PDP_DATABASENAME
+
+	dbHost := getEnv("CHOREO_DB_PDP_HOSTNAME", getEnv("DB_HOST", "localhost"))
+	dbPort := getEnv("CHOREO_DB_PDP_PORT", getEnv("DB_PORT", "5432"))
+	dbUser := getEnv("CHOREO_DB_PDP_USERNAME", getEnv("DB_USER", "postgres"))
+	dbPassword := getEnv("CHOREO_DB_PDP_PASSWORD", getEnv("DB_PASSWORD", "postgres"))
+	dbName := getEnv("CHOREO_DB_PDP_DATABASENAME", getEnv("DB_NAME", "gov_dx_sandbox"))
 	dbSSLMode := getEnv("DB_SSLMODE", "disable")
 
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
@@ -45,7 +60,12 @@ func NewDatabaseService() (*DatabaseService, error) {
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	slog.Info("Database connection established", "host", dbHost, "port", dbPort, "database", dbName)
+	slog.Info("Database connection established",
+		"host", dbHost,
+		"port", dbPort,
+		"database", dbName,
+		"user", dbUser,
+		"ssl_mode", dbSSLMode)
 
 	return &DatabaseService{db: db}, nil
 }

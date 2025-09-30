@@ -40,7 +40,7 @@ const (
 // PolicyEvaluator holds the prepared OPA query, ready for evaluation.
 type PolicyEvaluator struct {
 	preparedQuery rego.PreparedEvalQuery
-	dbService     *DatabaseService
+	dbService     DatabaseServiceInterface
 }
 
 // Use shared constants instead of local ones
