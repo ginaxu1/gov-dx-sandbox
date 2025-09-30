@@ -187,9 +187,9 @@ func TestConsumerService_CreateConsumerApp(t *testing.T) {
 	// Create a consumer app
 	appReq := models.CreateConsumerAppRequest{
 		ConsumerID: consumer.ConsumerID,
-		RequiredFields: map[string]bool{
-			"person.fullName": true,
-			"person.nic":      true,
+		RequiredFields: []models.RequiredField{
+			{FieldName: "person.fullName"},
+			{FieldName: "person.nic"},
 		},
 	}
 
@@ -203,6 +203,17 @@ func TestConsumerService_CreateConsumerApp(t *testing.T) {
 	}
 	if app.ConsumerID != consumer.ConsumerID {
 		t.Errorf("Expected ConsumerID %s, got %s", consumer.ConsumerID, app.ConsumerID)
+	}
+
+	// Verify required fields are properly stored
+	if len(app.RequiredFields) != 2 {
+		t.Errorf("Expected 2 required fields, got %d", len(app.RequiredFields))
+	}
+	if app.RequiredFields[0].FieldName != "person.fullName" {
+		t.Errorf("Expected first field to be 'person.fullName', got %s", app.RequiredFields[0].FieldName)
+	}
+	if app.RequiredFields[1].FieldName != "person.nic" {
+		t.Errorf("Expected second field to be 'person.nic', got %s", app.RequiredFields[1].FieldName)
 	}
 }
 
@@ -220,8 +231,8 @@ func TestConsumerService_GetConsumerApp(t *testing.T) {
 
 	app, _ := service.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer.ConsumerID,
-		RequiredFields: map[string]bool{
-			"person.fullName": true,
+		RequiredFields: []models.RequiredField{
+			{FieldName: "person.fullName"},
 		},
 	})
 
@@ -233,6 +244,14 @@ func TestConsumerService_GetConsumerApp(t *testing.T) {
 
 	if retrievedApp.SubmissionID != app.SubmissionID {
 		t.Errorf("Expected SubmissionID %s, got %s", app.SubmissionID, retrievedApp.SubmissionID)
+	}
+
+	// Verify required fields are properly retrieved
+	if len(retrievedApp.RequiredFields) != 1 {
+		t.Errorf("Expected 1 required field, got %d", len(retrievedApp.RequiredFields))
+	}
+	if retrievedApp.RequiredFields[0].FieldName != "person.fullName" {
+		t.Errorf("Expected field to be 'person.fullName', got %s", retrievedApp.RequiredFields[0].FieldName)
 	}
 }
 
@@ -257,12 +276,12 @@ func TestConsumerService_GetAllConsumerApps(t *testing.T) {
 	// Create apps for both consumers
 	service.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID:     consumer1.ConsumerID,
-		RequiredFields: map[string]bool{"person.fullName": true},
+		RequiredFields: []models.RequiredField{{FieldName: "person.fullName"}},
 	})
 
 	service.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID:     consumer2.ConsumerID,
-		RequiredFields: map[string]bool{"person.nic": true},
+		RequiredFields: []models.RequiredField{{FieldName: "person.nic"}},
 	})
 
 	// Get all apps
@@ -291,12 +310,12 @@ func TestConsumerService_GetConsumerAppsByConsumerID(t *testing.T) {
 	// Create multiple apps for the consumer
 	service.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID:     consumer.ConsumerID,
-		RequiredFields: map[string]bool{"person.fullName": true},
+		RequiredFields: []models.RequiredField{{FieldName: "person.fullName"}},
 	})
 
 	service.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID:     consumer.ConsumerID,
-		RequiredFields: map[string]bool{"person.nic": true},
+		RequiredFields: []models.RequiredField{{FieldName: "person.nic"}},
 	})
 
 	// Get apps for the specific consumer

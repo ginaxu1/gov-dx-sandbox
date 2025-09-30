@@ -35,17 +35,21 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize policy evaluator
+	// Initialize policy evaluator (which includes database service)
 	evaluator, err := NewPolicyEvaluator(ctx)
 	if err != nil {
 		slog.Error("Failed to initialize policy evaluator", "error", err)
 		os.Exit(1)
 	}
 
+	// Initialize metadata handler with database service and evaluator
+	metadataHandler := NewMetadataHandler(evaluator.dbService, evaluator)
+
 	// Setup routes
 	mux := http.NewServeMux()
 	mux.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
 	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.debugHandler)))
+	mux.Handle("/metadata/update", utils.PanicRecoveryMiddleware(http.HandlerFunc(metadataHandler.UpdateProviderMetadata)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("policy-decision-point")))
 
 	// Create server using utils
@@ -62,4 +66,11 @@ func main() {
 		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
+
+	// Cleanup database connection on shutdown
+	defer func() {
+		if err := evaluator.Close(); err != nil {
+			slog.Error("Failed to close database connection", "error", err)
+		}
+	}()
 }

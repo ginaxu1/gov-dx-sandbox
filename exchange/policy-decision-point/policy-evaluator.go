@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -41,6 +40,7 @@ const (
 // PolicyEvaluator holds the prepared OPA query, ready for evaluation.
 type PolicyEvaluator struct {
 	preparedQuery rego.PreparedEvalQuery
+	dbService     *DatabaseService
 }
 
 // Use shared constants instead of local ones
@@ -68,17 +68,23 @@ type AuthorizationDecision struct {
 func NewPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 	slog.Info("Loading OPA policies and data...")
 
+	// Initialize database service
+	dbService, err := NewDatabaseService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize database service: %w", err)
+	}
+
 	query := "data.opendif.authz.decision"
 
-	// Load provider metadata file
-	providerMetadataData, err := loadJSONFile("./data/provider-metadata.json")
+	// Load provider metadata from database
+	providerMetadata, err := dbService.GetAllProviderMetadata()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+		return nil, fmt.Errorf("failed to load provider metadata from database: %w", err)
 	}
-	slog.Info("Provider metadata data loaded", "data", providerMetadataData)
+	slog.Info("Provider metadata data loaded from database", "fields", len(providerMetadata.Fields))
 
 	// Convert data to JSON string for embedding in policy
-	providerMetadataJSON, _ := json.Marshal(providerMetadataData)
+	providerMetadataJSON, _ := json.Marshal(providerMetadata)
 
 	// Create a module with the data embedded as JSON values
 	dataModule := fmt.Sprintf(`
@@ -100,22 +106,7 @@ func NewPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 	}
 
 	slog.Info("OPA policies and data loaded successfully")
-	return &PolicyEvaluator{preparedQuery: pq}, nil
-}
-
-// loadJSONFile loads and parses a JSON file
-func loadJSONFile(filepath string) (interface{}, error) {
-	data, err := os.ReadFile(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file %s: %w", filepath, err)
-	}
-
-	var result interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON from %s: %w", filepath, err)
-	}
-
-	return result, nil
+	return &PolicyEvaluator{preparedQuery: pq, dbService: dbService}, nil
 }
 
 // Authorize evaluates the given input against the loaded policy using ABAC model
@@ -218,14 +209,14 @@ func (p *PolicyEvaluator) convertToDecision(result interface{}) (*AuthorizationD
 func (p *PolicyEvaluator) DebugData(ctx context.Context) (interface{}, error) {
 	query := "data.opendif.authz.debug_data"
 
-	// Load provider metadata file
-	providerMetadataData, err := loadJSONFile("./data/provider-metadata.json")
+	// Load provider metadata from database
+	providerMetadata, err := p.dbService.GetAllProviderMetadata()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load provider metadata: %w", err)
+		return nil, fmt.Errorf("failed to load provider metadata from database: %w", err)
 	}
 
 	// Convert data to JSON string for embedding in policy
-	debugProviderMetadataJSON, _ := json.Marshal(providerMetadataData)
+	debugProviderMetadataJSON, _ := json.Marshal(providerMetadata)
 
 	// Create a module with the data embedded as JSON values
 	debugDataModule := fmt.Sprintf(`
@@ -255,6 +246,53 @@ provider_metadata = %s
 	}
 
 	return results[0].Expressions[0].Value, nil
+}
+
+// RefreshMetadata reloads provider metadata from database and updates the policy evaluator
+func (p *PolicyEvaluator) RefreshMetadata(ctx context.Context) error {
+	slog.Info("Refreshing provider metadata from database...")
+
+	// Load provider metadata from database
+	providerMetadata, err := p.dbService.GetAllProviderMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to load provider metadata from database: %w", err)
+	}
+	slog.Info("Provider metadata data refreshed from database", "fields", len(providerMetadata.Fields))
+
+	// Convert data to JSON string for embedding in policy
+	providerMetadataJSON, _ := json.Marshal(providerMetadata)
+
+	// Create a module with the data embedded as JSON values
+	dataModule := fmt.Sprintf(`
+		package opendif.authz
+
+		provider_metadata = %s
+		`, string(providerMetadataJSON))
+
+	query := "data.opendif.authz.decision"
+	r := rego.New(
+		rego.Query(query),
+		rego.Load([]string{"./policies"}, nil), // Load policy files
+		rego.Module("data.rego", dataModule),   // Add data as module
+	)
+
+	pq, err := r.PrepareForEval(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to prepare refreshed OPA query: %w", err)
+	}
+
+	// Update the prepared query
+	p.preparedQuery = pq
+	slog.Info("Policy evaluator metadata refreshed successfully")
+	return nil
+}
+
+// Close closes the database service
+func (p *PolicyEvaluator) Close() error {
+	if p.dbService != nil {
+		return p.dbService.Close()
+	}
+	return nil
 }
 
 // policyDecisionHandler is an HTTP handler that uses the Authorize method to make decisions.

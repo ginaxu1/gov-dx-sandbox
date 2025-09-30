@@ -3,8 +3,10 @@ module github.com/gov-dx-sandbox/exchange/policy-decision-point
 go 1.24.6
 
 require (
+	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
+	github.com/lib/pq v1.10.9
 	github.com/open-policy-agent/opa v1.8.0
 )
 
@@ -51,6 +53,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/gov-dx-sandbox/api-server-go/models => ../../api-server-go/models
 
 replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
 

@@ -331,7 +331,3 @@ func (sc *SchemaConverter) cleanSDL(sdl string) string {
 	return strings.Join(cleanedLines, "\n")
 }
 
-// ConvertSDLToProviderMetadataLegacy converts GraphQL SDL to provider metadata format (legacy method for backward compatibility)
-func (sc *SchemaConverter) ConvertSDLToProviderMetadataLegacy(sdl string, providerID string) (map[string]interface{}, error) {
-	return sc.ConvertSDLToProviderMetadata(sdl, providerID, nil)
-}
