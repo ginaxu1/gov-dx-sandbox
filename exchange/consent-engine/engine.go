@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Consent-engine error messages
@@ -89,12 +91,12 @@ func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
 	// Simple mapping for app_id to a human-readable name.
 	// You may need a more robust mapping or database lookup for this in a real application.
 	appDisplayName := strings.ReplaceAll(cr.AppID, "-", " ")
-	appDisplayName = strings.Title(appDisplayName)
+	appDisplayName = cases.Title(language.English).String(appDisplayName)
 
 	// Simple mapping for owner_id to a human-readable name.
 	// In a real application, this would be a database lookup or API call.
 	ownerName := strings.ReplaceAll(cr.OwnerID, "-", " ")
-	ownerName = strings.Title(ownerName)
+	ownerName = cases.Title(language.English).String(ownerName)
 
 	return &ConsentPortalView{
 		AppDisplayName: appDisplayName,
@@ -167,7 +169,6 @@ type ConsentEngine interface {
 	// StopBackgroundExpiryProcess stops the background expiry process
 	StopBackgroundExpiryProcess()
 }
-
 
 // Utility functions for consent management
 

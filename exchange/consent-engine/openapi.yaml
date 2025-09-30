@@ -354,7 +354,7 @@ components:
           description: Duration for which the consent is valid in ISO 8601 format (optional)
           example: PT1H
           default: PT1H
-          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
     DataField:
       type: object
       required:
@@ -402,7 +402,7 @@ components:
           type: string
           description: Duration of the granted access (optional)
           example: P30D
-          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
         reason:
           type: string
           description: Reason for the status update (optional)
@@ -428,7 +428,7 @@ components:
           type: string
           description: Duration of the granted access (optional)
           example: P30D
-          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
         reason:
           type: string
           description: Reason for the status update (optional)
@@ -494,7 +494,7 @@ components:
           type: string
           description: Duration of the granted access
           example: P30D
-          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
         fields:
           type: array
           description: List of data fields covered by this consent

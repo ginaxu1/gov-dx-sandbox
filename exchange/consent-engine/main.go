@@ -887,7 +887,7 @@ func main() {
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
 	jwksURL := os.Getenv("ASGARDEO_JWKS_URL")
-	slog.Info("--- !!! DEBUG INFO !!! --- The application is configured with ASGARDEO_JWKS_URL: [%s]", jwksURL)
+	slog.Info("--- !!! DEBUG INFO !!! --- The application is configured with ASGARDEO_JWKS_URL", "jwks_url", jwksURL)
 
 	// Initialize database connection
 	dbConfig := NewDatabaseConfig()
