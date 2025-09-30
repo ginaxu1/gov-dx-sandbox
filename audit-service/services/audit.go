@@ -26,7 +26,7 @@ func NewAuditService(db *sql.DB) *AuditService {
 // GetAuditEvents retrieves all audit events with optional filtering (for Admin Portal)
 func (s *AuditService) GetAuditEvents(filter *models.AuditFilter) (*models.AuditResponse, error) {
 	query := `
-		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash
+		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash, user_agent, ip_address
 		FROM audit_logs
 		WHERE 1=1
 	`
@@ -97,6 +97,8 @@ func (s *AuditService) GetAuditEvents(filter *models.AuditFilter) (*models.Audit
 			&event.ProviderID,
 			&event.TransactionStatus,
 			&event.CitizenHash,
+			&event.UserAgent,
+			&event.IPAddress,
 		)
 		if err != nil {
 			slog.Error("Failed to scan audit event", "error", err)
@@ -125,7 +127,7 @@ func (s *AuditService) GetProviderAuditEvents(providerID string, filter *models.
 	filter.ProviderID = providerID
 
 	query := `
-		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash
+		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash, user_agent, ip_address
 		FROM audit_logs
 		WHERE provider_id = $1
 	`
@@ -190,6 +192,8 @@ func (s *AuditService) GetProviderAuditEvents(providerID string, filter *models.
 			&event.ProviderID,
 			&event.TransactionStatus,
 			&event.CitizenHash,
+			&event.UserAgent,
+			&event.IPAddress,
 		)
 		if err != nil {
 			slog.Error("Failed to scan provider audit event", "error", err)
@@ -218,7 +222,7 @@ func (s *AuditService) GetConsumerAuditEvents(consumerID string, filter *models.
 	filter.ConsumerID = consumerID
 
 	query := `
-		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash
+		SELECT event_id, timestamp, consumer_id, provider_id, transaction_status, citizen_hash, user_agent, ip_address
 		FROM audit_logs
 		WHERE consumer_id = $1
 	`
@@ -283,6 +287,8 @@ func (s *AuditService) GetConsumerAuditEvents(consumerID string, filter *models.
 			&event.ProviderID,
 			&event.TransactionStatus,
 			&event.CitizenHash,
+			&event.UserAgent,
+			&event.IPAddress,
 		)
 		if err != nil {
 			slog.Error("Failed to scan consumer audit event", "error", err)

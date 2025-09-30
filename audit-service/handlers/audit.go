@@ -180,9 +180,19 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	if req.ConsumerID == "" || req.ProviderID == "" || req.TransactionStatus == "" || len(req.RequestedData) == 0 {
-		http.Error(w, "Missing required fields: consumer_id, provider_id, transaction_status, requested_data", http.StatusBadRequest)
+	// Validate required fields with specific error messages
+	if req.ConsumerID == "" && req.ProviderID == "" {
+		http.Error(w, "Missing required field: either consumer_id or provider_id must be provided", http.StatusBadRequest)
+		return
+	}
+
+	if req.TransactionStatus == "" {
+		http.Error(w, "Missing required field: transaction_status", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.RequestedData) == 0 {
+		http.Error(w, "Missing required field: requested_data cannot be empty", http.StatusBadRequest)
 		return
 	}
 
@@ -204,11 +214,18 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 	query := `
 		INSERT INTO audit_logs (
 			event_id, timestamp, consumer_id, provider_id,
-			requested_data, response_data, transaction_status, citizen_hash
+			requested_data, response_data, transaction_status, citizen_hash,
+			user_agent, ip_address
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 		)
 	`
+
+	// Convert empty IP address to nil for database NULL value
+	var ipAddress interface{}
+	if req.IPAddress != "" {
+		ipAddress = req.IPAddress
+	}
 
 	_, err := h.auditService.DB().Exec(
 		query,
@@ -220,6 +237,8 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 		req.ResponseData,
 		req.TransactionStatus,
 		citizenHash,
+		req.UserAgent,
+		ipAddress,
 	)
 
 	if err != nil {
@@ -233,8 +252,15 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 
 	// Return the created audit log
 	response := map[string]interface{}{
-		"event_id": req.EventID,
-		"status":   "created",
+		"event_id":           req.EventID,
+		"timestamp":          time.Now(),
+		"consumer_id":        req.ConsumerID,
+		"provider_id":        req.ProviderID,
+		"transaction_status": req.TransactionStatus,
+		"citizen_hash":       citizenHash,
+		"user_agent":         req.UserAgent,
+		"ip_address":         req.IPAddress,
+		"status":             "created",
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -256,11 +282,23 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Validate required fields
-	if req.ConsumerID == "" || req.ProviderID == "" || req.TransactionStatus == "" || len(req.RequestedData) == 0 {
-		http.Error(w, "Missing required fields: consumer_id, provider_id, transaction_status, requested_data", http.StatusBadRequest)
+	// Validate required fields with specific error messages
+	if req.ConsumerID == "" && req.ProviderID == "" {
+		http.Error(w, "Missing required field: either consumer_id or provider_id must be provided", http.StatusBadRequest)
 		return
 	}
+
+	if req.TransactionStatus == "" {
+		http.Error(w, "Missing required field: transaction_status", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.RequestedData) == 0 {
+		http.Error(w, "Missing required field: requested_data cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	// user_agent and ip_address are optional fields
 
 	// Validate transaction status
 	if req.TransactionStatus != "SUCCESS" && req.TransactionStatus != "FAILURE" {
@@ -280,11 +318,18 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 	query := `
 		INSERT INTO audit_logs (
 			event_id, timestamp, consumer_id, provider_id,
-			requested_data, response_data, transaction_status, citizen_hash
+			requested_data, response_data, transaction_status, citizen_hash,
+			user_agent, ip_address
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 		)
 	`
+
+	// Convert empty IP address to nil for database NULL value
+	var ipAddress interface{}
+	if req.IPAddress != "" {
+		ipAddress = req.IPAddress
+	}
 
 	_, err := h.auditService.DB().Exec(
 		query,
@@ -296,6 +341,8 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 		req.ResponseData,
 		req.TransactionStatus,
 		citizenHash,
+		req.UserAgent,
+		ipAddress,
 	)
 
 	if err != nil {
@@ -315,6 +362,8 @@ func (h *AuditHandler) CreateAuditLogManual(w http.ResponseWriter, r *http.Reque
 		"provider_id":        req.ProviderID,
 		"transaction_status": req.TransactionStatus,
 		"citizen_hash":       citizenHash,
+		"user_agent":         req.UserAgent,
+		"ip_address":         req.IPAddress,
 		"status":             "created",
 		"message":            "Audit log created successfully for testing",
 	}

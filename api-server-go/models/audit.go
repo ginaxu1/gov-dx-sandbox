@@ -15,6 +15,8 @@ type AuditLogRequest struct {
 	RequestedData     json.RawMessage `json:"requested_data"`
 	ResponseData      json.RawMessage `json:"response_data,omitempty"`
 	TransactionStatus string          `json:"transaction_status"` // SUCCESS or FAILURE
+	UserAgent         string          `json:"user_agent,omitempty"`
+	IPAddress         string          `json:"ip_address,omitempty"`
 }
 
 // AuditLogResponse represents the response from audit-service
@@ -25,18 +27,16 @@ type AuditLogResponse struct {
 
 // AuditContext holds audit information for a request
 type AuditContext struct {
-	EventID       uuid.UUID
-	ConsumerID    string
-	ProviderID    string
-	RequestData   json.RawMessage
-	ResponseData  json.RawMessage
-	Status        string
-	StartTime     time.Time
-	EndTime       time.Time
-	RequestPath   string
-	RequestMethod string
-	UserAgent     string
-	IPAddress     string
+	EventID      uuid.UUID
+	ConsumerID   string
+	ProviderID   string
+	RequestData  json.RawMessage
+	ResponseData json.RawMessage
+	Status       string
+	StartTime    time.Time
+	EndTime      time.Time
+	UserAgent    string
+	IPAddress    string
 }
 
 // NewAuditContext creates a new audit context for a request
@@ -56,5 +56,7 @@ func (ac *AuditContext) ToAuditLogRequest() *AuditLogRequest {
 		RequestedData:     ac.RequestData,
 		ResponseData:      ac.ResponseData,
 		TransactionStatus: ac.Status,
+		UserAgent:         ac.UserAgent,
+		IPAddress:         ac.IPAddress,
 	}
 }
