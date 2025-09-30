@@ -43,15 +43,38 @@ type ProviderSubmission struct {
 }
 
 // ProviderProfile represents the official, approved profile of a Data Provider
+// After normalization, this references the entities table for basic organization info
 type ProviderProfile struct {
-	ProviderID   string       `json:"providerId"`
-	ProviderName string       `json:"providerName"`
-	ContactEmail string       `json:"contactEmail"`
-	PhoneNumber  string       `json:"phoneNumber"`
-	ProviderType ProviderType `json:"providerType"`
+	ProviderID   string       `json:"providerId"`   // Primary key, kept for backward compatibility
+	EntityID     string       `json:"entityId"`     // Foreign key to entities table
+	ProviderName string       `json:"providerName"` // Denormalized for API compatibility
+	ContactEmail string       `json:"contactEmail"` // Denormalized for API compatibility
+	PhoneNumber  string       `json:"phoneNumber"`  // Denormalized for API compatibility
+	ProviderType ProviderType `json:"providerType"` // Denormalized for API compatibility
 	ApprovedAt   time.Time    `json:"approvedAt"`
 	CreatedAt    time.Time    `json:"createdAt"`
 	UpdatedAt    time.Time    `json:"updatedAt"`
+}
+
+// NormalizedProviderProfile represents the normalized provider profile used internally
+// This structure only contains provider-specific data and references the entity
+type NormalizedProviderProfile struct {
+	ProviderID string    `json:"providerId"` // Primary key
+	EntityID   string    `json:"entityId"`   // Foreign key to entities table
+	ApprovedAt time.Time `json:"approvedAt"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+// Entity represents the base entity information (shared by consumers and providers)
+type Entity struct {
+	EntityID     string    `json:"entityId"`
+	EntityName   string    `json:"entityName"`
+	ContactEmail string    `json:"contactEmail"`
+	PhoneNumber  string    `json:"phoneNumber"`
+	EntityType   string    `json:"entityType"` // "consumer" or "provider"
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // FieldConfiguration defines the metadata for a single field in a provider's schema
@@ -130,6 +153,14 @@ type CreateProviderSchemaSubmissionRequest struct {
 // UpdateProviderSubmissionRequest represents the request to update a provider submission
 type UpdateProviderSubmissionRequest struct {
 	Status *ProviderSubmissionStatus `json:"status,omitempty"`
+}
+
+// UpdateProviderProfileRequest represents the request to update a provider profile
+type UpdateProviderProfileRequest struct {
+	ProviderName *string       `json:"providerName,omitempty"`
+	ContactEmail *string       `json:"contactEmail,omitempty"`
+	PhoneNumber  *string       `json:"phoneNumber,omitempty"`
+	ProviderType *ProviderType `json:"providerType,omitempty"`
 }
 
 // UpdateProviderSchemaRequest represents the request to update a provider schema

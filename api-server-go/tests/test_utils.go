@@ -129,6 +129,7 @@ func createTestTables(db *sql.DB) error {
 		)`,
 		`CREATE TABLE provider_profiles (
 			provider_id VARCHAR(255) PRIMARY KEY,
+			entity_id VARCHAR(255) NOT NULL,
 			provider_name VARCHAR(255) NOT NULL,
 			contact_email VARCHAR(255) NOT NULL,
 			phone_number VARCHAR(50),
@@ -138,13 +139,13 @@ func createTestTables(db *sql.DB) error {
 			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE TABLE provider_schemas (
-			schema_id VARCHAR(255) PRIMARY KEY,
+			submission_id VARCHAR(255) PRIMARY KEY,
 			provider_id VARCHAR(255) NOT NULL,
-			submission_id VARCHAR(255),
+			schema_id VARCHAR(255),
 			status VARCHAR(50) NOT NULL,
-			schema_data JSONB,
-			schema_input TEXT,
+			schema_input JSONB,
 			sdl TEXT,
+			schema_endpoint VARCHAR(500),
 			field_configurations JSONB,
 			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),

@@ -215,6 +215,7 @@ func InitDatabase(db *sql.DB) error {
 	createProviderProfilesTable := `
 	CREATE TABLE IF NOT EXISTS provider_profiles (
 		provider_id VARCHAR(255) PRIMARY KEY,
+		entity_id VARCHAR(255) NOT NULL,
 		provider_name VARCHAR(255) NOT NULL,
 		contact_email VARCHAR(255) NOT NULL,
 		phone_number VARCHAR(50) NOT NULL,
