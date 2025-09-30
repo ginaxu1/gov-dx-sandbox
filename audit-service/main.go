@@ -15,11 +15,11 @@ import (
 
 func main() {
 	// Database configuration
-	dbHost := getEnv("CHOREO_OPENDIF_DATABASE1_HOSTNAME", "localhost")
-	dbPort := getEnv("CHOREO_OPENDIF_DATABASE1_PORT", "5432")
-	dbUser := getEnv("CHOREO_OPENDIF_DATABASE1_USERNAME", "user")
-	dbPassword := getEnv("CHOREO_OPENDIF_DATABASE1_PASSWORD", "password")
-	dbName := getEnv("CHOREO_OPENDIF_DATABASE1_DATABASENAME", "gov_dx_sandbox")
+	dbHost := getEnv("CHOREO_DB_AUDIT_HOSTNAME", getEnv("DB_HOST", "localhost"))
+	dbPort := getEnv("CHOREO_DB_AUDIT_PORT", getEnv("DB_PORT", "5432"))
+	dbUser := getEnv("CHOREO_DB_AUDIT_USERNAME", getEnv("DB_USER", "user"))
+	dbPassword := getEnv("CHOREO_DB_AUDIT_PASSWORD", getEnv("DB_PASSWORD", "password"))
+	dbName := getEnv("CHOREO_DB_AUDIT_DATABASENAME", getEnv("DB_NAME", "gov_dx_sandbox"))
 	dbSSLMode := getEnv("DB_SSLMODE", "disable")
 
 	// Server configuration
@@ -61,6 +61,8 @@ func main() {
 	// Start server
 	log.Printf("Audit Service starting on port %s", port)
 	log.Printf("Database: %s:%s/%s", dbHost, dbPort, dbName)
+	log.Printf("Database configuration - Choreo Host: %s, Fallback Host: %s",
+		os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"), os.Getenv("DB_HOST"))
 
 	server := &http.Server{
 		Addr:         ":" + port,

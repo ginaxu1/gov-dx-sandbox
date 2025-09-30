@@ -4,6 +4,7 @@ info:
   description: |
     Policy Decision Point API for making authorization decisions in the Data Exchange Platform.
     This service evaluates data access requests against policies and determines if consent is required.
+    The service uses database-driven metadata management and supports real-time policy updates.
   version: 1.0.0
   contact:
     name: Gov DX Sandbox Team
@@ -92,6 +93,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DebugResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /metadata/update:
+    post:
+      summary: Update Provider Metadata
+      description: |
+        Update provider metadata with new field grants and permissions. This endpoint
+        allows adding or updating field access permissions for specific consumers.
+      operationId: updateProviderMetadata
+      tags:
+        - Metadata Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderMetadataUpdateRequest'
+      responses:
+        '200':
+          description: Provider metadata updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderMetadataUpdateResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -256,6 +292,54 @@ components:
               description: Detailed error message
               example: "consumer_id is required"
 
+    ProviderMetadataUpdateRequest:
+      type: object
+      required:
+        - application_id
+        - fields
+      properties:
+        application_id:
+          type: string
+          description: ID of the application requesting the metadata update
+          example: "passport-app"
+        fields:
+          type: array
+          description: List of field grants to add or update
+          items:
+            $ref: '#/components/schemas/ProviderFieldGrant'
+          minItems: 1
+
+    ProviderFieldGrant:
+      type: object
+      required:
+        - field_name
+        - grant_duration
+      properties:
+        field_name:
+          type: string
+          description: Name of the field being granted access
+          example: "person.fullName"
+        grant_duration:
+          type: string
+          description: Duration of the grant (e.g., "30d", "1M", "1y")
+          example: "30d"
+
+    ProviderMetadataUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the update was successful
+          example: true
+        message:
+          type: string
+          description: Human-readable message about the update
+          example: "Updated 3 fields for application passport-app"
+        updated:
+          type: integer
+          description: Number of fields that were updated
+          example: 3
+
   securitySchemes:
     BearerAuth:
       type: http
@@ -272,3 +356,5 @@ tags:
     description: Policy decision and authorization operations
   - name: Debug
     description: Debug and diagnostic operations
+  - name: Metadata Management
+    description: Provider metadata management operations

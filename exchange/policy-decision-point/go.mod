@@ -5,6 +5,7 @@ go 1.24.6
 require (
 	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
+	github.com/lib/pq v1.10.9
 	github.com/open-policy-agent/opa v1.8.0
 )
 

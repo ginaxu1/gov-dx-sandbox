@@ -63,11 +63,11 @@ The application uses environment variables for database configuration:
 
 ```bash
 # Required database connection settings
-CHOREO_OPENDIF_DB_HOSTNAME=localhost
-CHOREO_OPENDIF_DB_PORT=5432
-CHOREO_OPENDIF_DB_USERNAME=postgres
-CHOREO_OPENDIF_DB_PASSWORD=password
-CHOREO_OPENDIF_DB_DATABASENAME=api_server
+CHOREO_DB_API_SERVER_HOSTNAME=localhost
+CHOREO_DB_API_SERVER_PORT=5432
+CHOREO_DB_API_SERVER_USERNAME=postgres
+CHOREO_DB_API_SERVER_PASSWORD=password
+CHOREO_DB_API_SERVER_DATABASENAME=api_server
 
 # Optional database optimization settings
 DB_SSLMODE=require

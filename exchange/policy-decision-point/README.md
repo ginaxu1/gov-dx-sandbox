@@ -129,12 +129,11 @@ curl -X POST http://localhost:8082/decide \
 
 ## Data Files
 
-- `data/provider-metadata.json` - Field permissions and consent requirements
 - `policies/main.rego` - OPA authorization policies
 
 ## Field Configuration
 
-Fields are configured in `data/provider-metadata.json`:
+Fields are configured in the database and can be updated via the `/metadata/update` endpoint:
 
 ```json
 {

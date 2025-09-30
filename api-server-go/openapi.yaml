@@ -350,7 +350,10 @@ paths:
                     type: integer
     post:
       summary: Create Consumer Application
-      description: Create a new application for a consumer
+      description: |
+        Create a new application for a consumer to access specific data fields.
+        The application includes required fields with grant durations for access control.
+        When approved, this will automatically update provider metadata in the PDP.
       operationId: createConsumerApplication
       tags:
         - Consumer Applications
@@ -360,12 +363,19 @@ paths:
           required: true
           schema:
             type: string
+          description: ID of the consumer creating the application
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateConsumerAppRequest'
+            example:
+              requiredFields:
+                - fieldName: "birthinfo.birthDate"
+                  grantDuration: "30d"
+                - fieldName: "birthinfo.birthCertificateID"
+                  grantDuration: "60d"
       responses:
         '201':
           description: Application created successfully
@@ -396,7 +406,12 @@ paths:
                 $ref: '#/components/schemas/ConsumerApp'
     put:
       summary: Update Consumer Application
-      description: Update application status (admin approval)
+      description: |
+        Update application status (admin approval/denial) or modify required fields.
+        When status is changed to 'approved', the system will automatically:
+        - Generate API credentials for the consumer
+        - Update provider metadata in the PDP with the granted field access
+        - Set expiration times based on grant durations
       operationId: updateConsumerApplication
       tags:
         - Consumer Applications
@@ -406,12 +421,30 @@ paths:
           required: true
           schema:
             type: string
+          description: Unique identifier for the application submission
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateConsumerAppRequest'
+            examples:
+              approve:
+                summary: Approve Application
+                value:
+                  status: "approved"
+              deny:
+                summary: Deny Application
+                value:
+                  status: "denied"
+              update_fields:
+                summary: Update Required Fields
+                value:
+                  requiredFields:
+                    - fieldName: "birthinfo.birthDate"
+                      grantDuration: "90d"
+                    - fieldName: "person.fullName"
+                      grantDuration: "30d"
       responses:
         '200':
           description: Application updated successfully
@@ -1144,16 +1177,35 @@ components:
           enum: [pending, approved, denied]
           description: Application status
         requiredFields:
-          type: object
-          additionalProperties:
-            type: boolean
-          description: Fields required by the consumer
+          type: array
+          items:
+            $ref: '#/components/schemas/RequiredField'
+          description: Fields required by the consumer with grant durations
         credentials:
           $ref: '#/components/schemas/Credentials'
         createdAt:
           type: string
           format: date-time
           description: When the application was created
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the application was last updated
+
+    RequiredField:
+      type: object
+      required:
+        - fieldName
+      properties:
+        fieldName:
+          type: string
+          description: Name of the data field
+          example: "birthinfo.birthDate"
+        grantDuration:
+          type: string
+          description: Duration for which access is granted
+          example: "30d"
+          pattern: "^(\\d+[mhdMy])?$"
 
     CreateConsumerAppRequest:
       type: object
@@ -1161,10 +1213,10 @@ components:
         - requiredFields
       properties:
         requiredFields:
-          type: object
-          additionalProperties:
-            type: boolean
-          description: Fields required by the consumer
+          type: array
+          items:
+            $ref: '#/components/schemas/RequiredField'
+          description: Fields required by the consumer with grant durations
 
     UpdateConsumerAppRequest:
       type: object
@@ -1174,10 +1226,10 @@ components:
           enum: [pending, approved, denied]
           description: New application status
         requiredFields:
-          type: object
-          additionalProperties:
-            type: boolean
-          description: Fields required by the consumer
+          type: array
+          items:
+            $ref: '#/components/schemas/RequiredField'
+          description: Fields required by the consumer with grant durations
 
     UpdateConsumerAppResponse:
       type: object
@@ -1197,6 +1249,52 @@ components:
         apiSecret:
           type: string
           description: API secret for authentication
+
+    ProviderMetadataUpdateRequest:
+      type: object
+      required:
+        - application_id
+        - fields
+      properties:
+        application_id:
+          type: string
+          description: ID of the consumer application
+          example: "passport-app"
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderFieldGrant'
+          description: List of fields to grant access to
+          minItems: 1
+
+    ProviderFieldGrant:
+      type: object
+      required:
+        - fieldName
+        - grantDuration
+      properties:
+        fieldName:
+          type: string
+          description: Name of the data field
+          example: "birthinfo.birthDate"
+        grantDuration:
+          type: string
+          description: Duration for which access is granted
+          example: "30d"
+          pattern: "^(\\d+[mhdMy])?$"
+
+    ProviderMetadataUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the update was successful
+        message:
+          type: string
+          description: Human-readable message about the result
+        updated:
+          type: integer
+          description: Number of fields that were updated
 
     ProviderSubmission:
       type: object
