@@ -63,18 +63,27 @@ func (h *MetadataHandler) UpdateProviderMetadata(w http.ResponseWriter, r *http.
 
 	// Update metadata with new grants
 	updated := 0
+	var updateErrors []string
 	for _, fieldGrant := range req.Fields {
 		if err := h.updateFieldMetadata(metadata, req.ApplicationID, fieldGrant); err != nil {
 			slog.Error("Failed to update field metadata", "field", fieldGrant.FieldName, "error", err)
+			updateErrors = append(updateErrors, fmt.Sprintf("field %s: %v", fieldGrant.FieldName, err))
 			continue
 		}
 		updated++
 	}
 
+	// If no fields were updated successfully, return an error
+	if updated == 0 {
+		slog.Error("No fields were updated successfully", "errors", updateErrors)
+		http.Error(w, fmt.Sprintf("Failed to update any fields: %v", updateErrors), http.StatusBadRequest)
+		return
+	}
+
 	// Save updated metadata to database
 	if err := h.dbService.UpdateProviderMetadata(metadata); err != nil {
-		slog.Error("Failed to save metadata to database", "error", err)
-		http.Error(w, "Failed to save metadata", http.StatusInternalServerError)
+		slog.Error("Failed to save metadata to database", "error", err, "applicationId", req.ApplicationID)
+		http.Error(w, fmt.Sprintf("Failed to save metadata: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -102,13 +111,26 @@ func (h *MetadataHandler) UpdateProviderMetadata(w http.ResponseWriter, r *http.
 func (h *MetadataHandler) updateFieldMetadata(metadata *models.ProviderMetadata, applicationID string, fieldGrant models.ProviderFieldGrant) error {
 	fieldName := fieldGrant.FieldName
 
+	// Validate input
+	if fieldName == "" {
+		return fmt.Errorf("field name cannot be empty")
+	}
+	if applicationID == "" {
+		return fmt.Errorf("application ID cannot be empty")
+	}
+
+	// Ensure metadata.Fields is initialized
+	if metadata.Fields == nil {
+		metadata.Fields = make(map[string]models.ProviderMetadataField)
+	}
+
 	// Get or create field metadata
 	field, exists := metadata.Fields[fieldName]
 	if !exists {
 		// Create new field metadata with default values
 		field = models.ProviderMetadataField{
 			Owner:             "external", // Default owner
-			Provider:          "",         // Will be set when we have provider info
+			Provider:          "",         // Empty string will be converted to NULL in database
 			ConsentRequired:   false,      // Default to false
 			AccessControlType: "public",   // Default to public
 			AllowList:         []models.PDPAllowListEntry{},
@@ -118,6 +140,7 @@ func (h *MetadataHandler) updateFieldMetadata(metadata *models.ProviderMetadata,
 	// Parse grant duration to get expiration timestamp (ISO 8601 format)
 	expiresAt, err := h.parseGrantDuration(fieldGrant.GrantDuration)
 	if err != nil {
+		slog.Error("Failed to parse grant duration", "duration", fieldGrant.GrantDuration, "error", err)
 		return fmt.Errorf("invalid grant duration %s: %w", fieldGrant.GrantDuration, err)
 	}
 

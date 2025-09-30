@@ -99,11 +99,19 @@ func (ds *DatabaseService) GetAllProviderMetadata() (*models.ProviderMetadata, e
 		field := models.ProviderMetadataField{}
 		var fieldName string
 		var allowListJSON sql.NullString
+		var provider sql.NullString
 		var createdAt, updatedAt time.Time
 
-		err := rows.Scan(&fieldName, &field.Owner, &field.Provider, &field.ConsentRequired, &field.AccessControlType, &allowListJSON, &createdAt, &updatedAt)
+		err := rows.Scan(&fieldName, &field.Owner, &provider, &field.ConsentRequired, &field.AccessControlType, &allowListJSON, &createdAt, &updatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider field: %w", err)
+		}
+
+		// Handle NULL provider values
+		if provider.Valid {
+			field.Provider = provider.String
+		} else {
+			field.Provider = "" // Empty string for NULL providers
 		}
 
 		// Parse JSON fields
@@ -177,20 +185,35 @@ func (ds *DatabaseService) UpdateProviderField(fieldName string, field models.Pr
 
 // UpdateProviderMetadata updates multiple provider fields in the database
 func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetadata) error {
+	if metadata == nil || metadata.Fields == nil {
+		return fmt.Errorf("metadata or fields cannot be nil")
+	}
+
 	tx, err := ds.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
+	now := time.Now().UTC()
+
 	for fieldName, field := range metadata.Fields {
-		// Serialize JSON fields
+		// Serialize JSON fields with proper error handling
 		allowListJSON, err := json.Marshal(field.AllowList)
 		if err != nil {
+			slog.Error("Failed to marshal allow list", "field", fieldName, "error", err)
 			return fmt.Errorf("failed to marshal allow list for field %s: %w", fieldName, err)
 		}
 
-		now := time.Now().UTC()
+		// Ensure required fields have default values
+		if field.Owner == "" {
+			field.Owner = "external"
+		}
+		// Allow NULL providers - don't set a default value
+		// The database schema now allows NULL values for the provider column
+		if field.AccessControlType == "" {
+			field.AccessControlType = "public"
+		}
 
 		// Use UPSERT (INSERT ... ON CONFLICT ... DO UPDATE)
 		upsertQuery := `INSERT INTO provider_metadata 
@@ -204,14 +227,24 @@ func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetad
 			allow_list = EXCLUDED.allow_list,
 			updated_at = EXCLUDED.updated_at`
 
-		_, err = tx.Exec(upsertQuery, fieldName, field.Owner, field.Provider, field.ConsentRequired,
+		// Handle NULL provider values
+		var providerValue interface{}
+		if field.Provider == "" {
+			providerValue = nil
+		} else {
+			providerValue = field.Provider
+		}
+
+		_, err = tx.Exec(upsertQuery, fieldName, field.Owner, providerValue, field.ConsentRequired,
 			field.AccessControlType, allowListJSON, now, now)
 		if err != nil {
+			slog.Error("Failed to upsert provider field", "field", fieldName, "error", err)
 			return fmt.Errorf("failed to upsert provider field %s: %w", fieldName, err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
+		slog.Error("Failed to commit transaction", "error", err)
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
