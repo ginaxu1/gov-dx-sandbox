@@ -46,7 +46,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 	port := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432")
 	username := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres")
 	password := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password")
-	database := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "api_server")
+	database := getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "defaultdb")
 	sslMode := getEnvOrDefault("DB_SSLMODE", "require")
 
 	// Debug logging
@@ -150,7 +150,7 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 		}
 
 		// Connection successful
-		slog.Info("Successfully connected to PostgreSQL database",
+		slog.Info("Successfully connected to PostgreSQL database (Legacy)",
 			"host", config.Host,
 			"port", config.Port,
 			"database", config.Database)

@@ -39,9 +39,13 @@ func NewDatabaseService() (*DatabaseService, error) {
 	dbPort := getEnv("CHOREO_DB_PDP_PORT", getEnv("DB_PORT", "5432"))
 	dbUser := getEnv("CHOREO_DB_PDP_USERNAME", getEnv("DB_USER", "postgres"))
 	dbPassword := getEnv("CHOREO_DB_PDP_PASSWORD", getEnv("DB_PASSWORD", "postgres"))
-	dbName := getEnv("CHOREO_DB_PDP_DATABASENAME", getEnv("DB_NAME", "gov_dx_sandbox"))
-	dbSSLMode := getEnv("DB_SSLMODE", "disable")
+	// For Choreo, the database name might be different from the environment variable
+	dbName := getEnv("CHOREO_DB_PDP_DATABASENAME", getEnv("DB_NAME", "defaultdb"))
 
+	// Require SSL by default for better security
+	dbSSLMode := getEnv("DB_SSLMODE", "require")
+
+	// Build connection string with SSL configuration
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		dbHost, dbPort, dbUser, dbPassword, dbName, dbSSLMode)
 
@@ -65,7 +69,8 @@ func NewDatabaseService() (*DatabaseService, error) {
 		"port", dbPort,
 		"database", dbName,
 		"user", dbUser,
-		"ssl_mode", dbSSLMode)
+		"ssl_mode", dbSSLMode,
+		"is_choreo", os.Getenv("CHOREO_DB_PDP_HOSTNAME") != "")
 
 	return &DatabaseService{db: db}, nil
 }
@@ -94,11 +99,19 @@ func (ds *DatabaseService) GetAllProviderMetadata() (*models.ProviderMetadata, e
 		field := models.ProviderMetadataField{}
 		var fieldName string
 		var allowListJSON sql.NullString
+		var provider sql.NullString
 		var createdAt, updatedAt time.Time
 
-		err := rows.Scan(&fieldName, &field.Owner, &field.Provider, &field.ConsentRequired, &field.AccessControlType, &allowListJSON, &createdAt, &updatedAt)
+		err := rows.Scan(&fieldName, &field.Owner, &provider, &field.ConsentRequired, &field.AccessControlType, &allowListJSON, &createdAt, &updatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider field: %w", err)
+		}
+
+		// Handle NULL provider values
+		if provider.Valid {
+			field.Provider = provider.String
+		} else {
+			field.Provider = "" // Empty string for NULL providers
 		}
 
 		// Parse JSON fields
@@ -172,20 +185,37 @@ func (ds *DatabaseService) UpdateProviderField(fieldName string, field models.Pr
 
 // UpdateProviderMetadata updates multiple provider fields in the database
 func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetadata) error {
+	if metadata == nil || metadata.Fields == nil {
+		return fmt.Errorf("metadata or fields cannot be nil")
+	}
+
 	tx, err := ds.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
+	now := time.Now().UTC()
+
 	for fieldName, field := range metadata.Fields {
-		// Serialize JSON fields
+		// Serialize JSON fields with proper error handling
 		allowListJSON, err := json.Marshal(field.AllowList)
 		if err != nil {
+			slog.Error("Failed to marshal allow list", "field", fieldName, "error", err)
 			return fmt.Errorf("failed to marshal allow list for field %s: %w", fieldName, err)
 		}
 
-		now := time.Now().UTC()
+		// Ensure required fields have default values
+		if field.Owner == "" {
+			field.Owner = "external"
+		}
+		// Use system-default provider for empty provider values
+		if field.Provider == "" {
+			field.Provider = "system-default"
+		}
+		if field.AccessControlType == "" {
+			field.AccessControlType = "public"
+		}
 
 		// Use UPSERT (INSERT ... ON CONFLICT ... DO UPDATE)
 		upsertQuery := `INSERT INTO provider_metadata 
@@ -199,14 +229,21 @@ func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetad
 			allow_list = EXCLUDED.allow_list,
 			updated_at = EXCLUDED.updated_at`
 
-		_, err = tx.Exec(upsertQuery, fieldName, field.Owner, field.Provider, field.ConsentRequired,
+		// Use system-default provider for data integrity
+		// This ensures all fields have a valid provider reference, maintaining
+		// foreign key constraints and data integrity
+		providerValue := field.Provider
+
+		_, err = tx.Exec(upsertQuery, fieldName, field.Owner, providerValue, field.ConsentRequired,
 			field.AccessControlType, allowListJSON, now, now)
 		if err != nil {
+			slog.Error("Failed to upsert provider field", "field", fieldName, "error", err)
 			return fmt.Errorf("failed to upsert provider field %s: %w", fieldName, err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
+		slog.Error("Failed to commit transaction", "error", err)
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 

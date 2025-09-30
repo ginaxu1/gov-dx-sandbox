@@ -321,8 +321,9 @@ components:
           example: "person.fullName"
         grant_duration:
           type: string
-          description: Duration of the grant (e.g., "30d", "1M", "1y")
-          example: "30d"
+          description: Duration of the grant in ISO 8601 format (e.g., "P30D", "P1M", "P1Y", "PT1H", "PT30M")
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
+          example: "P30D"
 
     ProviderMetadataUpdateResponse:
       type: object

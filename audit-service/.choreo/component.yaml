@@ -42,5 +42,5 @@ configurations:
 # +optional Dependencies for the component
 dependencies:
   connectionReferences:
-  - name: DB-Audit
+  - name: DB_AUDIT
     resourceRef: database:opendif-db/defaultdb

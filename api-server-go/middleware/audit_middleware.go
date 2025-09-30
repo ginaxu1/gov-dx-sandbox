@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -68,17 +69,17 @@ func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler
 		next.ServeHTTP(responseWrapper, r)
 		duration := time.Since(startTime)
 
-		// Capture response data
-		auditCtx.ResponseData = responseWrapper.body.Bytes()
+		// Capture response data and ensure it's valid JSON
+		responseBytes := responseWrapper.body.Bytes()
+		auditCtx.ResponseData = m.ensureValidJSON(responseBytes)
 		auditCtx.Status = m.auditService.DetermineTransactionStatus(responseWrapper.statusCode)
 		auditCtx.EndTime = time.Now()
 
 		// Ensure we have valid JSON for request and response data
 		if len(auditCtx.RequestData) == 0 {
 			auditCtx.RequestData = []byte("{}")
-		}
-		if len(auditCtx.ResponseData) == 0 {
-			auditCtx.ResponseData = []byte("{}")
+		} else {
+			auditCtx.RequestData = m.ensureValidJSON(auditCtx.RequestData)
 		}
 
 		// Log the request
@@ -175,4 +176,30 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 func (rw *responseWriter) WriteHeader(statusCode int) {
 	rw.statusCode = statusCode
 	rw.ResponseWriter.WriteHeader(statusCode)
+}
+
+// ensureValidJSON ensures the data is valid JSON, converting non-JSON to a JSON string
+func (m *AuditMiddleware) ensureValidJSON(data []byte) []byte {
+	if len(data) == 0 {
+		return []byte("{}")
+	}
+
+	// Check if it's already valid JSON
+	var js interface{}
+	if json.Unmarshal(data, &js) == nil {
+		return data
+	}
+
+	// If not valid JSON, wrap it as a string in a JSON object
+	wrappedData := map[string]string{
+		"raw_data": string(data),
+	}
+
+	jsonData, err := json.Marshal(wrappedData)
+	if err != nil {
+		// Fallback to empty JSON object if marshaling fails
+		return []byte("{}")
+	}
+
+	return jsonData
 }

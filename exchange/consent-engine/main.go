@@ -204,6 +204,32 @@ func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, user
 	}
 }
 
+// selectiveAuthMiddleware applies authentication only to specific HTTP methods
+func selectiveAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig, requireAuthMethods []string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Check if this method requires authentication
+			requiresAuth := false
+			for _, method := range requireAuthMethods {
+				if r.Method == method {
+					requiresAuth = true
+					break
+				}
+			}
+
+			if !requiresAuth {
+				// No authentication required for this method
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Apply authentication for methods that require it
+			authHandler := userAuthMiddleware(userJWTVerifier, engine, userTokenConfig)(next)
+			authHandler.ServeHTTP(w, r)
+		})
+	}
+}
+
 // apiServer holds dependencies for the HTTP handlers
 type apiServer struct {
 	engine ConsentEngine
@@ -513,20 +539,29 @@ func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 	case path == "" && r.Method == http.MethodPost:
 		// POST /consents - create new consent record
 		s.handleConsentPost(w, r)
+	default:
+		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
+	}
+}
+
+// consentHandlerWithID handles operations on /consents/{id} with different auth requirements
+func (s *apiServer) consentHandlerWithID(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/consents")
+	switch {
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodGet:
-		// GET /consents/{id} - get consent by ID
+		// GET /consents/{id} - get consent by ID (requires auth)
 		consentID := strings.TrimPrefix(path, "/")
 		s.getConsentByID(w, r, consentID)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodPut:
-		// PUT /consents/{id} - replace entire consent resource (idempotent)
+		// PUT /consents/{id} - replace entire consent resource (requires auth)
 		consentID := strings.TrimPrefix(path, "/")
 		s.updateConsentByID(w, r, consentID)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodPatch:
-		// PATCH /consents/{id} - partial update of consent resource
+		// PATCH /consents/{id} - partial update of consent resource (no auth required)
 		consentID := strings.TrimPrefix(path, "/")
 		s.patchConsentByID(w, r, consentID)
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodDelete:
-		// DELETE /consents/{id} - revoke consent
+		// DELETE /consents/{id} - revoke consent (no auth required)
 		consentID := strings.TrimPrefix(path, "/")
 		s.revokeConsentByID(w, r, consentID)
 	default:
@@ -887,7 +922,7 @@ func main() {
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
 	jwksURL := os.Getenv("ASGARDEO_JWKS_URL")
-	slog.Info("--- !!! DEBUG INFO !!! --- The application is configured with ASGARDEO_JWKS_URL: [%s]", jwksURL)
+	slog.Info("--- !!! DEBUG INFO !!! --- The application is configured with ASGARDEO_JWKS_URL", "jwks_url", jwksURL)
 
 	// Initialize database connection
 	dbConfig := NewDatabaseConfig()
@@ -974,8 +1009,8 @@ func main() {
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 	mux.Handle("/env-check", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.envCheckHandler)))
 
-	// Routes that require user authentication (individual consent operations)
-	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(userAuthMiddleware(userJWTVerifier, engine, userTokenConfig)(http.HandlerFunc(server.consentHandler))))
+	// Routes for /consents/{id} with selective authentication (GET and PUT require auth, PATCH and DELETE don't)
+	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(selectiveAuthMiddleware(userJWTVerifier, engine, userTokenConfig, []string{"GET", "PUT"})(http.HandlerFunc(server.consentHandlerWithID))))
 
 	// Create server using utils
 	serverConfig := &utils.ServerConfig{
