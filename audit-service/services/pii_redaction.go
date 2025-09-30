@@ -8,6 +8,14 @@ import (
 	"regexp"
 )
 
+// Package-level regex patterns compiled once at initialization
+var (
+	// idPattern matches ID fields that exist in our database schema (_id suffix)
+	idPattern = regexp.MustCompile(`(?i)(_id)$`)
+	// validCitizenIDPattern validates citizen ID format
+	validCitizenIDPattern = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
+)
+
 // PIIRedactionService handles redaction of PII data
 type PIIRedactionService struct {
 	// Pattern to match ID fields that exist in our database schema (_id suffix)
@@ -16,12 +24,8 @@ type PIIRedactionService struct {
 
 // NewPIIRedactionService creates a new PII redaction service
 func NewPIIRedactionService() *PIIRedactionService {
-	// Compile regex pattern to match ID fields that exist in our database schema
-	// Matches: consumer_id, provider_id, consent_id, owner_id, entity_id, submission_id, schema_id
-	pattern := regexp.MustCompile(`(?i)(_id)$`)
-
 	return &PIIRedactionService{
-		idPattern: pattern,
+		idPattern: idPattern,
 	}
 }
 
@@ -213,6 +217,5 @@ func (s *PIIRedactionService) ValidateCitizenID(citizenID string) bool {
 	}
 
 	// Should contain only alphanumeric characters and common separators
-	validPattern := regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
-	return validPattern.MatchString(citizenID)
+	return validCitizenIDPattern.MatchString(citizenID)
 }
