@@ -41,11 +41,11 @@ func NewDatabaseConfig() *DatabaseConfig {
 	retryDelay := parseDurationOrDefault("DB_RETRY_DELAY", "1s")
 
 	return &DatabaseConfig{
-		Host:            getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost"),
-		Port:            getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432"),
-		Username:        getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "postgres"),
-		Password:        getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password"),
-		Database:        getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "consent_engine"),
+		Host:            getEnvOrDefault("CHOREO_DB_API_SERVER_HOSTNAME", "localhost"),
+		Port:            getEnvOrDefault("CHOREO_DB_API_SERVER_PORT", "5432"),
+		Username:        getEnvOrDefault("CHOREO_DB_API_SERVER_USERNAME", "postgres"),
+		Password:        getEnvOrDefault("CHOREO_DB_API_SERVER_PASSWORD", "password"),
+		Database:        getEnvOrDefault("CHOREO_DB_API_SERVER_DATABASENAME", "consent_engine"),
 		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
 		MaxOpenConns:    maxOpenConns,
 		MaxIdleConns:    maxIdleConns,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
@@ -23,7 +24,11 @@ type APIServer struct {
 
 // NewAPIServerWithDB creates a new API server instance with database support
 func NewAPIServerWithDB(db *sql.DB) *APIServer {
-	consumerService := services.NewConsumerServiceWithDB(db)
+	// Initialize PDP client
+	pdpURL := getEnvOrDefault("PDP_URL", "http://localhost:8082")
+	pdpClient := services.NewPDPClient(pdpURL)
+
+	consumerService := services.NewConsumerService(db, pdpClient)
 	providerService := services.NewProviderServiceWithDB(db)
 	grantsService := services.NewGrantsServiceWithDB(db)
 	return &APIServer{
@@ -32,6 +37,14 @@ func NewAPIServerWithDB(db *sql.DB) *APIServer {
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
 		grantsService:   grantsService,
 	}
+}
+
+// getEnvOrDefault gets an environment variable or returns a default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // ProviderService returns the provider service instance
@@ -294,6 +307,9 @@ func (s *APIServer) handleConsumerApplicationsForConsumer(w http.ResponseWriter,
 			utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
+
+		// Debug logging
+		slog.Debug("Parsed consumer app request", "consumerId", consumerID, "requiredFields", req.RequiredFields)
 
 		// Set the consumer ID from the URL
 		req.ConsumerID = consumerID
