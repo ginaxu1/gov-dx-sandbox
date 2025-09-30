@@ -322,7 +322,7 @@ components:
         grant_duration:
           type: string
           description: Duration of the grant in ISO 8601 format (e.g., "P30D", "P1M", "P1Y", "PT1H", "PT30M")
-          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
           example: "P30D"
 
     ProviderMetadataUpdateResponse:

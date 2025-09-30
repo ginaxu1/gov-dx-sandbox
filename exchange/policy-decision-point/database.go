@@ -39,9 +39,13 @@ func NewDatabaseService() (*DatabaseService, error) {
 	dbPort := getEnv("CHOREO_DB_PDP_PORT", getEnv("DB_PORT", "5432"))
 	dbUser := getEnv("CHOREO_DB_PDP_USERNAME", getEnv("DB_USER", "postgres"))
 	dbPassword := getEnv("CHOREO_DB_PDP_PASSWORD", getEnv("DB_PASSWORD", "postgres"))
-	dbName := getEnv("CHOREO_DB_PDP_DATABASENAME", getEnv("DB_NAME", "gov_dx_sandbox"))
-	dbSSLMode := getEnv("DB_SSLMODE", "disable")
+	// For Choreo, the database name might be different from the environment variable
+	dbName := getEnv("CHOREO_DB_PDP_DATABASENAME", getEnv("DB_NAME", "defaultdb"))
 
+	// Require SSL by default for better security
+	dbSSLMode := getEnv("DB_SSLMODE", "require")
+
+	// Build connection string with SSL configuration
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		dbHost, dbPort, dbUser, dbPassword, dbName, dbSSLMode)
 
@@ -65,7 +69,8 @@ func NewDatabaseService() (*DatabaseService, error) {
 		"port", dbPort,
 		"database", dbName,
 		"user", dbUser,
-		"ssl_mode", dbSSLMode)
+		"ssl_mode", dbSSLMode,
+		"is_choreo", os.Getenv("CHOREO_DB_PDP_HOSTNAME") != "")
 
 	return &DatabaseService{db: db}, nil
 }

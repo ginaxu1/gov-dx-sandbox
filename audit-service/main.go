@@ -20,7 +20,7 @@ func main() {
 	dbUser := getEnv("CHOREO_DB_AUDIT_USERNAME", getEnv("DB_USER", "user"))
 	dbPassword := getEnv("CHOREO_DB_AUDIT_PASSWORD", getEnv("DB_PASSWORD", "password"))
 	dbName := getEnv("CHOREO_DB_AUDIT_DATABASENAME", getEnv("DB_NAME", "gov_dx_sandbox"))
-	dbSSLMode := getEnv("DB_SSLMODE", "disable")
+	dbSSLMode := getEnv("DB_SSLMODE", "require")
 
 	// Server configuration
 	port := getEnv("PORT", "3001")
