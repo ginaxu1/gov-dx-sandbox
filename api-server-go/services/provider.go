@@ -208,9 +208,9 @@ func (s *ProviderService) UpdateProviderSubmission(id string, req models.UpdateP
 		submission.Status = *req.Status
 		submission.UpdatedAt = time.Now()
 
-		// If approved, create provider profile
+		// If approved, create provider profile using normalized approach
 		if *req.Status == models.SubmissionStatusApproved {
-			profile, err := s.createProviderProfile(submission)
+			profile, err := s.createProviderProfileNormalized(submission)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create provider profile: %w", err)
 			}
@@ -231,10 +231,81 @@ func (s *ProviderService) UpdateProviderSubmission(id string, req models.UpdateP
 	return response, nil
 }
 
-// Provider Profile methods
-func (s *ProviderService) GetAllProviderProfiles() ([]*models.ProviderProfile, error) {
-	query := `SELECT provider_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at 
-			  FROM provider_profiles ORDER BY created_at DESC`
+// Provider Profile methods - OLD METHODS REMOVED (replaced with normalized versions)
+
+// GetAllProviderProfilesWithEntity gets all provider profiles with entity data (for API compatibility)
+func (s *ProviderService) GetAllProviderProfilesWithEntity() ([]*models.ProviderProfile, error) {
+	// Get normalized provider profiles
+	profiles, err := s.GetAllProviderProfilesNormalized()
+	if err != nil {
+		return nil, err
+	}
+
+	var completeProfiles []*models.ProviderProfile
+	for _, profile := range profiles {
+		// Get entity data for each profile
+		entity, err := s.GetEntityByID(profile.EntityID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get entity data for provider %s: %w", profile.ProviderID, err)
+		}
+
+		// Create complete profile with entity data
+		completeProfile := &models.ProviderProfile{
+			ProviderID:   profile.ProviderID,
+			EntityID:     profile.EntityID,
+			ProviderName: entity.EntityName,
+			ContactEmail: entity.ContactEmail,
+			PhoneNumber:  entity.PhoneNumber,
+			ProviderType: models.ProviderType(entity.EntityType),
+			ApprovedAt:   profile.ApprovedAt,
+			CreatedAt:    profile.CreatedAt,
+			UpdatedAt:    profile.UpdatedAt,
+		}
+		completeProfiles = append(completeProfiles, completeProfile)
+	}
+
+	return completeProfiles, nil
+}
+
+// GetProviderProfileWithEntity gets a complete provider profile with entity data (for API compatibility)
+func (s *ProviderService) GetProviderProfileWithEntity(providerID string) (*models.ProviderProfile, error) {
+	// Get normalized provider profile
+	profile, err := s.GetProviderProfileNormalized(providerID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get entity data
+	entity, err := s.GetEntityByID(profile.EntityID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get entity data: %w", err)
+	}
+
+	// Return complete profile with entity data (for API compatibility)
+	return &models.ProviderProfile{
+		ProviderID:   profile.ProviderID,
+		EntityID:     profile.EntityID,
+		ProviderName: entity.EntityName,
+		ContactEmail: entity.ContactEmail,
+		PhoneNumber:  entity.PhoneNumber,
+		ProviderType: models.ProviderType(entity.EntityType),
+		ApprovedAt:   profile.ApprovedAt,
+		CreatedAt:    profile.CreatedAt,
+		UpdatedAt:    profile.UpdatedAt,
+	}, nil
+}
+
+// GetAllProviderProfilesNormalized returns normalized provider profiles (NO duplicate entity data)
+func (s *ProviderService) GetAllProviderProfilesNormalized() ([]*models.NormalizedProviderProfile, error) {
+	query := `
+		SELECT 
+			p.provider_id, 
+			p.entity_id,
+			p.approved_at, 
+			p.created_at, 
+			p.updated_at 
+		FROM provider_profiles p
+		ORDER BY p.created_at DESC`
 
 	rows, err := s.db.Query(query)
 	if err != nil {
@@ -242,10 +313,16 @@ func (s *ProviderService) GetAllProviderProfiles() ([]*models.ProviderProfile, e
 	}
 	defer rows.Close()
 
-	var profiles []*models.ProviderProfile
+	var profiles []*models.NormalizedProviderProfile
 	for rows.Next() {
-		profile := &models.ProviderProfile{}
-		err := rows.Scan(&profile.ProviderID, &profile.ProviderName, &profile.ContactEmail, &profile.PhoneNumber, &profile.ProviderType, &profile.ApprovedAt, &profile.CreatedAt, &profile.UpdatedAt)
+		profile := &models.NormalizedProviderProfile{}
+		err := rows.Scan(
+			&profile.ProviderID,
+			&profile.EntityID,
+			&profile.ApprovedAt,
+			&profile.CreatedAt,
+			&profile.UpdatedAt,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan provider profile: %w", err)
 		}
@@ -255,14 +332,28 @@ func (s *ProviderService) GetAllProviderProfiles() ([]*models.ProviderProfile, e
 	return profiles, nil
 }
 
-func (s *ProviderService) GetProviderProfile(id string) (*models.ProviderProfile, error) {
-	query := `SELECT provider_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at 
-			  FROM provider_profiles WHERE provider_id = $1`
+// GetProviderProfileNormalized returns a single normalized provider profile (NO duplicate entity data)
+func (s *ProviderService) GetProviderProfileNormalized(id string) (*models.NormalizedProviderProfile, error) {
+	query := `
+		SELECT 
+			p.provider_id, 
+			p.entity_id,
+			p.approved_at, 
+			p.created_at, 
+			p.updated_at 
+		FROM provider_profiles p
+		WHERE p.provider_id = $1`
 
 	row := s.db.QueryRow(query, id)
 
-	profile := &models.ProviderProfile{}
-	err := row.Scan(&profile.ProviderID, &profile.ProviderName, &profile.ContactEmail, &profile.PhoneNumber, &profile.ProviderType, &profile.ApprovedAt, &profile.CreatedAt, &profile.UpdatedAt)
+	profile := &models.NormalizedProviderProfile{}
+	err := row.Scan(
+		&profile.ProviderID,
+		&profile.EntityID,
+		&profile.ApprovedAt,
+		&profile.CreatedAt,
+		&profile.UpdatedAt,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("provider profile not found")
@@ -271,6 +362,34 @@ func (s *ProviderService) GetProviderProfile(id string) (*models.ProviderProfile
 	}
 
 	return profile, nil
+}
+
+// GetEntityByID gets entity information by entity ID
+func (s *ProviderService) GetEntityByID(entityID string) (*models.Entity, error) {
+	query := `
+		SELECT entity_id, entity_name, contact_email, phone_number, entity_type, created_at, updated_at 
+		FROM entities WHERE entity_id = $1`
+
+	row := s.db.QueryRow(query, entityID)
+
+	entity := &models.Entity{}
+	err := row.Scan(
+		&entity.EntityID,
+		&entity.EntityName,
+		&entity.ContactEmail,
+		&entity.PhoneNumber,
+		&entity.EntityType,
+		&entity.CreatedAt,
+		&entity.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("entity not found")
+		}
+		return nil, fmt.Errorf("failed to get entity: %w", err)
+	}
+
+	return entity, nil
 }
 
 // Provider Schema methods
@@ -321,8 +440,8 @@ func (s *ProviderService) GetAllProviderSchemas() ([]*models.ProviderSchema, err
 }
 
 func (s *ProviderService) CreateProviderSchema(req models.CreateProviderSchemaRequest) (*models.ProviderSchema, error) {
-	// Verify provider exists
-	_, err := s.GetProviderProfile(req.ProviderID)
+	// Verify provider exists and get entity_id
+	profile, err := s.GetProviderProfileNormalized(req.ProviderID)
 	if err != nil {
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
@@ -336,7 +455,7 @@ func (s *ProviderService) CreateProviderSchema(req models.CreateProviderSchemaRe
 	now := time.Now()
 	schema := &models.ProviderSchema{
 		SchemaID:            &schemaID,
-		ProviderID:          req.ProviderID,
+		ProviderID:          req.ProviderID, // Keep original providerID for API compatibility
 		Status:              models.SchemaStatusPending,
 		SchemaInput:         req.SchemaInput,
 		FieldConfigurations: req.FieldConfigurations,
@@ -358,8 +477,8 @@ func (s *ProviderService) CreateProviderSchema(req models.CreateProviderSchemaRe
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
-	slog.Debug("Executing provider schema insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID)
-	_, err = s.db.Exec(query, *schema.SchemaID, schema.ProviderID, schema.Status, string(schemaInputJSON), string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
+	slog.Debug("Executing provider schema insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID, "entityId", profile.EntityID)
+	_, err = s.db.Exec(query, *schema.SchemaID, profile.EntityID, schema.Status, string(schemaInputJSON), string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
 		slog.Error("Failed to insert provider schema", "error", err, "schemaId", *schema.SchemaID, "query", query)
 		return nil, errors.HandleDatabaseError(err, "create provider schema")
@@ -371,8 +490,8 @@ func (s *ProviderService) CreateProviderSchema(req models.CreateProviderSchemaRe
 
 // CreateProviderSchemaSDL creates a new provider schema from SDL
 func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.CreateProviderSchemaSDLRequest) (*models.ProviderSchema, error) {
-	// Verify provider exists
-	_, err := s.GetProviderProfile(providerID)
+	// Verify provider exists and get entity_id
+	profile, err := s.GetProviderProfileNormalized(providerID)
 	if err != nil {
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
@@ -386,7 +505,7 @@ func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.
 	now := time.Now()
 	schema := &models.ProviderSchema{
 		SchemaID:            &schemaID,
-		ProviderID:          providerID,
+		ProviderID:          providerID, // Keep original providerID for API compatibility
 		Status:              models.SchemaStatusPending,
 		SDL:                 req.SDL,
 		FieldConfigurations: make(models.FieldConfigurations),
@@ -403,8 +522,8 @@ func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
-	slog.Debug("Executing provider schema SDL insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID)
-	_, err = s.db.Exec(query, *schema.SchemaID, schema.ProviderID, schema.Status, schema.SDL, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
+	slog.Debug("Executing provider schema SDL insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID, "entityId", profile.EntityID)
+	_, err = s.db.Exec(query, *schema.SchemaID, profile.EntityID, schema.Status, schema.SDL, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
 		slog.Error("Failed to insert provider schema from SDL", "error", err, "schemaId", *schema.SchemaID, "query", query)
 		return nil, errors.HandleDatabaseError(err, "create provider schema from SDL")
@@ -416,8 +535,8 @@ func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.
 
 // CreateProviderSchemaSubmission creates a new schema submission or modifies an existing one
 func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req models.CreateProviderSchemaSubmissionRequest) (*models.ProviderSchema, error) {
-	// Verify provider exists
-	_, err := s.GetProviderProfile(providerID)
+	// Verify provider exists and get entity_id
+	profile, err := s.GetProviderProfileNormalized(providerID)
 	if err != nil {
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
@@ -448,7 +567,7 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 	now := time.Now()
 	schema := &models.ProviderSchema{
 		SubmissionID:        submissionID,
-		ProviderID:          providerID,
+		ProviderID:          providerID, // Keep original providerID for API compatibility
 		Status:              models.SchemaStatusDraft,
 		SDL:                 req.SDL,
 		SchemaEndpoint:      req.SchemaEndpoint,
@@ -457,6 +576,7 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 		UpdatedAt:           now,
 	}
 
+	// Use entity_id for the foreign key relationship
 	query := `INSERT INTO provider_schemas (submission_id, provider_id, status, sdl, schema_endpoint, field_configurations, created_at, updated_at) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
@@ -466,8 +586,8 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 		return nil, fmt.Errorf("failed to serialize field configurations: %w", err)
 	}
 
-	slog.Debug("Executing provider schema submission insert", "submissionId", submissionID, "providerId", providerID)
-	_, err = s.db.Exec(query, schema.SubmissionID, schema.ProviderID, schema.Status, schema.SDL, schema.SchemaEndpoint, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
+	slog.Debug("Executing provider schema submission insert", "submissionId", submissionID, "providerId", providerID, "entityId", profile.EntityID)
+	_, err = s.db.Exec(query, schema.SubmissionID, profile.EntityID, schema.Status, schema.SDL, schema.SchemaEndpoint, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
 		slog.Error("Failed to insert provider schema submission", "error", err, "submissionId", submissionID, "query", query)
 		return nil, errors.HandleDatabaseError(err, "create schema submission")
@@ -509,8 +629,8 @@ func (s *ProviderService) SubmitSchemaForReview(schemaID string) (*models.Provid
 
 // GetApprovedSchemasByProviderID gets all approved schemas for a specific provider
 func (s *ProviderService) GetApprovedSchemasByProviderID(providerID string) ([]*models.ProviderSchema, error) {
-	// Verify provider exists
-	_, err := s.GetProviderProfile(providerID)
+	// Verify provider exists and get entity_id
+	profile, err := s.GetProviderProfileNormalized(providerID)
 	if err != nil {
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
@@ -518,7 +638,7 @@ func (s *ProviderService) GetApprovedSchemasByProviderID(providerID string) ([]*
 	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas WHERE provider_id = $1 AND status = $2 AND schema_id IS NOT NULL`
 
-	rows, err := s.db.Query(query, providerID, models.SchemaStatusApproved)
+	rows, err := s.db.Query(query, profile.EntityID, models.SchemaStatusApproved)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get approved schemas: %w", err)
 	}
@@ -562,8 +682,8 @@ func (s *ProviderService) GetApprovedSchemasByProviderID(providerID string) ([]*
 
 // GetProviderSchemasByProviderID gets all schema submissions for a specific provider
 func (s *ProviderService) GetProviderSchemasByProviderID(providerID string) ([]*models.ProviderSchema, error) {
-	// Verify provider exists
-	_, err := s.GetProviderProfile(providerID)
+	// Verify provider exists and get entity_id
+	profile, err := s.GetProviderProfileNormalized(providerID)
 	if err != nil {
 		return nil, fmt.Errorf("provider profile not found: %w", err)
 	}
@@ -571,7 +691,7 @@ func (s *ProviderService) GetProviderSchemasByProviderID(providerID string) ([]*
 	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas WHERE provider_id = $1 ORDER BY created_at DESC`
 
-	rows, err := s.db.Query(query, providerID)
+	rows, err := s.db.Query(query, profile.EntityID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider schemas: %w", err)
 	}
@@ -746,15 +866,59 @@ func (s *ProviderService) generateProviderID() (string, error) {
 	return "prov_" + id.String(), nil
 }
 
-func (s *ProviderService) createProviderProfile(submission *models.ProviderSubmission) (*models.ProviderProfile, error) {
+// OLD createProviderProfile method removed - replaced with createProviderProfileNormalized
+
+// createProviderProfileNormalized creates a provider profile with normalized schema
+func (s *ProviderService) createProviderProfileNormalized(submission *models.ProviderSubmission) (*models.ProviderProfile, error) {
+	// Generate IDs
 	providerID, err := s.generateProviderID()
 	if err != nil {
 		return nil, err
 	}
 
+	entityID, err := s.generateEntityID()
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
+
+	// Start transaction
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Create entity record
+	entityQuery := `
+		INSERT INTO entities (entity_id, entity_name, contact_email, phone_number, entity_type, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+
+	_, err = tx.Exec(entityQuery, entityID, submission.ProviderName, submission.ContactEmail, submission.PhoneNumber, "provider", now, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create entity: %w", err)
+	}
+
+	// Create provider profile record
+	profileQuery := `
+		INSERT INTO provider_profiles (provider_id, entity_id, approved_at, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5)`
+
+	_, err = tx.Exec(profileQuery, providerID, entityID, now, now, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider profile: %w", err)
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Return the complete profile with denormalized data for API compatibility
 	profile := &models.ProviderProfile{
 		ProviderID:   providerID,
+		EntityID:     entityID,
 		ProviderName: submission.ProviderName,
 		ContactEmail: submission.ContactEmail,
 		PhoneNumber:  submission.PhoneNumber,
@@ -764,29 +928,69 @@ func (s *ProviderService) createProviderProfile(submission *models.ProviderSubmi
 		UpdatedAt:    now,
 	}
 
-	query := `INSERT INTO provider_profiles (provider_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-
-	slog.Debug("Executing provider profile insert", "providerId", profile.ProviderID)
-	_, err = s.db.Exec(query, profile.ProviderID, profile.ProviderName, profile.ContactEmail, profile.PhoneNumber, profile.ProviderType, profile.ApprovedAt, profile.CreatedAt, profile.UpdatedAt)
-	if err != nil {
-		slog.Error("Failed to insert provider profile", "error", err, "providerId", profile.ProviderID, "query", query)
-		return nil, errors.HandleDatabaseError(err, "create provider profile")
-	}
-
 	return profile, nil
 }
 
-// CreateProviderProfileForTesting creates a provider profile directly for testing purposes
+// generateEntityID generates a unique entity ID
+func (s *ProviderService) generateEntityID() (string, error) {
+	id, err := uuid.NewUUID()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate UUID: %w", err)
+	}
+	return "ent_" + id.String(), nil
+}
+
+// CreateProviderProfileForTesting creates a provider profile directly for testing purposes (normalized)
 func (s *ProviderService) CreateProviderProfileForTesting(providerName, contactEmail, phoneNumber, providerType string) (*models.ProviderProfile, error) {
+	// Generate IDs
 	providerID, err := s.generateProviderID()
 	if err != nil {
 		return nil, err
 	}
 
+	entityID, err := s.generateEntityID()
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
+
+	// Start transaction
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Create entity record
+	entityQuery := `
+		INSERT INTO entities (entity_id, entity_name, contact_email, phone_number, entity_type, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+
+	_, err = tx.Exec(entityQuery, entityID, providerName, contactEmail, phoneNumber, "provider", now, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create entity: %w", err)
+	}
+
+	// Create provider profile record
+	profileQuery := `
+		INSERT INTO provider_profiles (provider_id, entity_id, approved_at, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5)`
+
+	_, err = tx.Exec(profileQuery, providerID, entityID, now, now, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create provider profile: %w", err)
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Return the complete profile with denormalized data for API compatibility
 	profile := &models.ProviderProfile{
 		ProviderID:   providerID,
+		EntityID:     entityID,
 		ProviderName: providerName,
 		ContactEmail: contactEmail,
 		PhoneNumber:  phoneNumber,
@@ -794,16 +998,6 @@ func (s *ProviderService) CreateProviderProfileForTesting(providerName, contactE
 		ApprovedAt:   now,
 		CreatedAt:    now,
 		UpdatedAt:    now,
-	}
-
-	query := `INSERT INTO provider_profiles (provider_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at) 
-			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-
-	slog.Debug("Executing provider profile insert", "providerId", profile.ProviderID)
-	_, err = s.db.Exec(query, profile.ProviderID, profile.ProviderName, profile.ContactEmail, profile.PhoneNumber, profile.ProviderType, profile.ApprovedAt, profile.CreatedAt, profile.UpdatedAt)
-	if err != nil {
-		slog.Error("Failed to insert provider profile", "error", err, "providerId", profile.ProviderID, "query", query)
-		return nil, errors.HandleDatabaseError(err, "create provider profile")
 	}
 
 	return profile, nil
