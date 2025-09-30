@@ -15,11 +15,11 @@ import (
 
 func main() {
 	// Database configuration
-	dbHost := getEnv("CHOREO_OPENDIF_DATABASE_HOSTNAME", "localhost")
-	dbPort := getEnv("CHOREO_OPENDIF_DATABASE_PORT", "5432")
-	dbUser := getEnv("CHOREO_OPENDIF_DATABASE_USERNAME", "user")
-	dbPassword := getEnv("CHOREO_OPENDIF_DATABASE_PASSWORD", "password")
-	dbName := getEnv("CHOREO_OPENDIF_DATABASE_DATABASENAME", "gov_dx_sandbox")
+	dbHost := getEnv("CHOREO_OPENDIF_DATABASE1_HOSTNAME", "localhost")
+	dbPort := getEnv("CHOREO_OPENDIF_DATABASE1_PORT", "5432")
+	dbUser := getEnv("CHOREO_OPENDIF_DATABASE1_USERNAME", "user")
+	dbPassword := getEnv("CHOREO_OPENDIF_DATABASE1_PASSWORD", "password")
+	dbName := getEnv("CHOREO_OPENDIF_DATABASE1_DATABASENAME", "gov_dx_sandbox")
 	dbSSLMode := getEnv("DB_SSLMODE", "disable")
 
 	// Server configuration

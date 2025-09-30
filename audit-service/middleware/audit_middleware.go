@@ -125,6 +125,8 @@ type AuditInfo struct {
 	Path              string
 	Method            string
 	Duration          time.Duration
+	UserAgent         string
+	IPAddress         string
 }
 
 // extractAuditInfo extracts audit information from the request and response
@@ -151,6 +153,10 @@ func (m *AuditMiddleware) extractAuditInfo(r *http.Request, requestBody, respons
 	redactedRequestData := m.redactPIIFromData(requestBody)
 	redactedResponseData := m.redactPIIFromData(responseBody)
 
+	// Extract user agent and IP address
+	userAgent := r.Header.Get("User-Agent")
+	ipAddress := m.extractIPAddress(r)
+
 	return &AuditInfo{
 		ConsumerID:        consumerID,
 		ProviderID:        providerID,
@@ -161,6 +167,8 @@ func (m *AuditMiddleware) extractAuditInfo(r *http.Request, requestBody, respons
 		Path:              r.URL.Path,
 		Method:            r.Method,
 		Duration:          duration,
+		UserAgent:         userAgent,
+		IPAddress:         ipAddress,
 	}
 }
 
@@ -192,6 +200,29 @@ func (m *AuditMiddleware) extractProviderID(r *http.Request) string {
 	}
 
 	return "api-server"
+}
+
+// extractIPAddress extracts the client IP address from the request
+func (m *AuditMiddleware) extractIPAddress(r *http.Request) string {
+	// Check for forwarded headers first (for load balancers/proxies)
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		// X-Forwarded-For can contain multiple IPs, take the first one
+		if idx := strings.Index(ip, ","); idx != -1 {
+			ip = ip[:idx]
+		}
+		return strings.TrimSpace(ip)
+	}
+
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+
+	// Fall back to RemoteAddr
+	ip := r.RemoteAddr
+	if idx := strings.LastIndex(ip, ":"); idx != -1 {
+		ip = ip[:idx] // Remove port number
+	}
+	return ip
 }
 
 // extractCitizenHashFromRequest extracts citizen hash from the request
@@ -331,11 +362,18 @@ func (m *AuditMiddleware) createAuditLog(auditInfo *AuditInfo) error {
 	query := `
 		INSERT INTO audit_logs (
 			event_id, timestamp, consumer_id, provider_id,
-			requested_data, response_data, transaction_status, citizen_hash
+			requested_data, response_data, transaction_status, citizen_hash,
+			user_agent, ip_address
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 		)
 	`
+
+	// Convert empty IP address to nil for database NULL value
+	var ipAddress interface{}
+	if auditInfo.IPAddress != "" {
+		ipAddress = auditInfo.IPAddress
+	}
 
 	_, err := m.db.Exec(
 		query,
@@ -347,6 +385,8 @@ func (m *AuditMiddleware) createAuditLog(auditInfo *AuditInfo) error {
 		responseData,
 		auditInfo.TransactionStatus,
 		auditInfo.CitizenHash,
+		auditInfo.UserAgent,
+		ipAddress,
 	)
 
 	if err != nil {
@@ -452,6 +492,8 @@ func (m *AuditMiddleware) callOrchestrationEngine(r *http.Request, responseBody 
 		Path:              m.orchestrationEngineURL,
 		Method:            "POST",
 		Duration:          duration,
+		UserAgent:         r.Header.Get("User-Agent"),
+		IPAddress:         m.extractIPAddress(r),
 	}
 
 	if err := m.createAuditLog(auditInfo); err != nil {
@@ -521,6 +563,8 @@ func (m *AuditMiddleware) callConsentEngine(r *http.Request, responseBody []byte
 		Path:              endpoint,
 		Method:            r.Method,
 		Duration:          duration,
+		UserAgent:         r.Header.Get("User-Agent"),
+		IPAddress:         m.extractIPAddress(r),
 	}
 
 	if err := m.createAuditLog(auditInfo); err != nil {
