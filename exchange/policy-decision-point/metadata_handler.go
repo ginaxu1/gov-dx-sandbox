@@ -115,7 +115,7 @@ func (h *MetadataHandler) updateFieldMetadata(metadata *models.ProviderMetadata,
 		}
 	}
 
-	// Parse grant duration to get expiration timestamp
+	// Parse grant duration to get expiration timestamp (ISO 8601 format)
 	expiresAt, err := h.parseGrantDuration(fieldGrant.GrantDuration)
 	if err != nil {
 		return fmt.Errorf("invalid grant duration %s: %w", fieldGrant.GrantDuration, err)
@@ -150,56 +150,15 @@ func (h *MetadataHandler) updateFieldMetadata(metadata *models.ProviderMetadata,
 	return nil
 }
 
-// parseGrantDuration parses a grant duration string and returns the expiration timestamp
+// parseGrantDuration parses an ISO 8601 duration string and returns the expiration timestamp
+// Supported format: ISO 8601 (P30D, P1M, P1Y, PT1H, PT30M, P1Y2M3DT4H5M6S)
 func (h *MetadataHandler) parseGrantDuration(duration string) (int64, error) {
 	if duration == "" {
 		// Default to 30 days if no duration specified
 		return time.Now().Add(30 * 24 * time.Hour).Unix(), nil
 	}
 
-	// Simple duration parsing - can be enhanced
-	// Supported formats: "30d", "1M", "1y", "24h", "60m"
-	now := time.Now()
-
-	switch {
-	case len(duration) > 1 && duration[len(duration)-1:] == "d":
-		days, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.AddDate(0, 0, days).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "M":
-		months, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.AddDate(0, months, 0).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "y":
-		years, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.AddDate(years, 0, 0).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "h":
-		hours, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.Add(time.Duration(hours) * time.Hour).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "m":
-		minutes, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.Add(time.Duration(minutes) * time.Minute).Unix(), nil
-
-	default:
-		return 0, fmt.Errorf("unsupported duration format: %s", duration)
-	}
+	return parseISODuration(duration)
 }
 
 // parseInt parses an integer from string

@@ -236,7 +236,7 @@ func GetEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// ParseExpiryTime parses expiry time strings like "30d", "1h", "7d"
+// ParseExpiryTime parses expiry time strings like "P30D", "PT1H", "P7D"
 func ParseExpiryTime(expiryStr string) (time.Duration, error) {
 	if len(expiryStr) < 2 {
 		return 0, fmt.Errorf("invalid expiry time format")
