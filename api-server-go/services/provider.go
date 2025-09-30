@@ -478,7 +478,7 @@ func (s *ProviderService) CreateProviderSchema(req models.CreateProviderSchemaRe
 	}
 
 	slog.Debug("Executing provider schema insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID, "entityId", profile.EntityID)
-	_, err = s.db.Exec(query, *schema.SchemaID, profile.EntityID, schema.Status, string(schemaInputJSON), string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
+	_, err = s.db.Exec(query, *schema.SchemaID, profile.ProviderID, schema.Status, string(schemaInputJSON), string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
 		slog.Error("Failed to insert provider schema", "error", err, "schemaId", *schema.SchemaID, "query", query)
 		return nil, errors.HandleDatabaseError(err, "create provider schema")
@@ -523,7 +523,7 @@ func (s *ProviderService) CreateProviderSchemaSDL(providerID string, req models.
 	}
 
 	slog.Debug("Executing provider schema SDL insert", "schemaId", *schema.SchemaID, "providerId", schema.ProviderID, "entityId", profile.EntityID)
-	_, err = s.db.Exec(query, *schema.SchemaID, profile.EntityID, schema.Status, schema.SDL, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
+	_, err = s.db.Exec(query, *schema.SchemaID, profile.ProviderID, schema.Status, schema.SDL, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
 		slog.Error("Failed to insert provider schema from SDL", "error", err, "schemaId", *schema.SchemaID, "query", query)
 		return nil, errors.HandleDatabaseError(err, "create provider schema from SDL")
@@ -587,7 +587,7 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 	}
 
 	slog.Debug("Executing provider schema submission insert", "submissionId", submissionID, "providerId", providerID, "entityId", profile.EntityID)
-	_, err = s.db.Exec(query, schema.SubmissionID, profile.EntityID, schema.Status, schema.SDL, schema.SchemaEndpoint, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
+	_, err = s.db.Exec(query, schema.SubmissionID, profile.ProviderID, schema.Status, schema.SDL, schema.SchemaEndpoint, string(fieldConfigsJSON), schema.CreatedAt, schema.UpdatedAt)
 	if err != nil {
 		slog.Error("Failed to insert provider schema submission", "error", err, "submissionId", submissionID, "query", query)
 		return nil, errors.HandleDatabaseError(err, "create schema submission")
@@ -638,7 +638,7 @@ func (s *ProviderService) GetApprovedSchemasByProviderID(providerID string) ([]*
 	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas WHERE provider_id = $1 AND status = $2 AND schema_id IS NOT NULL`
 
-	rows, err := s.db.Query(query, profile.EntityID, models.SchemaStatusApproved)
+	rows, err := s.db.Query(query, profile.ProviderID, models.SchemaStatusApproved)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get approved schemas: %w", err)
 	}
@@ -691,7 +691,7 @@ func (s *ProviderService) GetProviderSchemasByProviderID(providerID string) ([]*
 	query := `SELECT submission_id, provider_id, schema_id, status, schema_input, sdl, schema_endpoint, field_configurations, created_at, updated_at 
 			  FROM provider_schemas WHERE provider_id = $1 ORDER BY created_at DESC`
 
-	rows, err := s.db.Query(query, profile.EntityID)
+	rows, err := s.db.Query(query, profile.ProviderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider schemas: %w", err)
 	}
@@ -902,10 +902,10 @@ func (s *ProviderService) createProviderProfileNormalized(submission *models.Pro
 
 	// Create provider profile record
 	profileQuery := `
-		INSERT INTO provider_profiles (provider_id, entity_id, approved_at, created_at, updated_at) 
-		VALUES ($1, $2, $3, $4, $5)`
+		INSERT INTO provider_profiles (provider_id, entity_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
-	_, err = tx.Exec(profileQuery, providerID, entityID, now, now, now)
+	_, err = tx.Exec(profileQuery, providerID, entityID, submission.ProviderName, submission.ContactEmail, submission.PhoneNumber, submission.ProviderType, now, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider profile: %w", err)
 	}
@@ -974,10 +974,10 @@ func (s *ProviderService) CreateProviderProfileForTesting(providerName, contactE
 
 	// Create provider profile record
 	profileQuery := `
-		INSERT INTO provider_profiles (provider_id, entity_id, approved_at, created_at, updated_at) 
-		VALUES ($1, $2, $3, $4, $5)`
+		INSERT INTO provider_profiles (provider_id, entity_id, provider_name, contact_email, phone_number, provider_type, approved_at, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
-	_, err = tx.Exec(profileQuery, providerID, entityID, now, now, now)
+	_, err = tx.Exec(profileQuery, providerID, entityID, providerName, contactEmail, phoneNumber, providerType, now, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create provider profile: %w", err)
 	}
