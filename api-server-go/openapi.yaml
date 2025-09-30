@@ -373,9 +373,9 @@ paths:
             example:
               requiredFields:
                 - fieldName: "birthinfo.birthDate"
-                  grantDuration: "30d"
+                  grantDuration: "P30D"
                 - fieldName: "birthinfo.birthCertificateID"
-                  grantDuration: "60d"
+                  grantDuration: "P60D"
       responses:
         '201':
           description: Application created successfully
@@ -442,9 +442,9 @@ paths:
                 value:
                   requiredFields:
                     - fieldName: "birthinfo.birthDate"
-                      grantDuration: "90d"
+                      grantDuration: "P90D"
                     - fieldName: "person.fullName"
-                      grantDuration: "30d"
+                      grantDuration: "P30D"
       responses:
         '200':
           description: Application updated successfully
@@ -1203,8 +1203,9 @@ components:
           example: "birthinfo.birthDate"
         grantDuration:
           type: string
-          description: Duration for which access is granted
-          example: "30d"
+          description: Duration for which access is granted in ISO 8601 format
+          example: "P30D"
+          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
           pattern: "^(\\d+[mhdMy])?$"
 
     CreateConsumerAppRequest:
@@ -1279,8 +1280,9 @@ components:
           example: "birthinfo.birthDate"
         grantDuration:
           type: string
-          description: Duration for which access is granted
-          example: "30d"
+          description: Duration for which access is granted in ISO 8601 format
+          example: "P30D"
+          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
           pattern: "^(\\d+[mhdMy])?$"
 
     ProviderMetadataUpdateResponse:

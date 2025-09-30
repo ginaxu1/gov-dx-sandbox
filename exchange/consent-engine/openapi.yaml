@@ -62,7 +62,7 @@ paths:
                     - "personInfo.fullName"
                     - "personInfo.nic"
               session_id: "session_123"
-              grant_duration: "1h"
+              grant_duration: "PT1H"
       responses:
         '201':
           description: Consent created successfully.
@@ -351,9 +351,10 @@ components:
           example: session_123
         grant_duration:
           type: string
-          description: Duration for which the consent is valid (optional)
-          example: 1h
-          default: 1h
+          description: Duration for which the consent is valid in ISO 8601 format (optional)
+          example: PT1H
+          default: PT1H
+          pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
     DataField:
       type: object
       required:
