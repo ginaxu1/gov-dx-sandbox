@@ -1206,7 +1206,6 @@ components:
           description: Duration for which access is granted in ISO 8601 format
           example: "P30D"
           pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
-          pattern: "^(\\d+[mhdMy])?$"
 
     CreateConsumerAppRequest:
       type: object
@@ -1283,7 +1282,6 @@ components:
           description: Duration for which access is granted in ISO 8601 format
           example: "P30D"
           pattern: "^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$"
-          pattern: "^(\\d+[mhdMy])?$"
 
     ProviderMetadataUpdateResponse:
       type: object

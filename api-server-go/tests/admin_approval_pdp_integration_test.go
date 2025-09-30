@@ -386,7 +386,7 @@ func TestAdminApprovalWithDifferentFieldTypes(t *testing.T) {
 				{FieldName: "person.fullName", GrantDuration: "P30D"},
 				{FieldName: "person.nic", GrantDuration: "P1M"},
 				{FieldName: "person.birthDate", GrantDuration: "P1Y"},
-				{FieldName: "person.address", GrantDuration: ""}, // Should default to 30d
+				{FieldName: "person.address", GrantDuration: ""}, // Should default to P30D
 			},
 			expectedCount: 4,
 		},
