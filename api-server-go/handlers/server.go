@@ -346,7 +346,7 @@ func (s *APIServer) handleProvidersCollection(w http.ResponseWriter, r *http.Req
 	switch r.Method {
 	case http.MethodGet:
 		// GET /providers - List all providers
-		profiles, err := s.providerService.GetAllProviderProfiles()
+		profiles, err := s.providerService.GetAllProviderProfilesWithEntity()
 		if err != nil {
 			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve providers")
 			return
@@ -362,7 +362,7 @@ func (s *APIServer) handleProviderByID(w http.ResponseWriter, r *http.Request, p
 	switch r.Method {
 	case http.MethodGet:
 		// GET /providers/{providerId} - Get specific provider
-		profile, err := s.providerService.GetProviderProfile(providerID)
+		profile, err := s.providerService.GetProviderProfileWithEntity(providerID)
 		if err != nil {
 			utils.RespondWithError(w, http.StatusNotFound, "Provider not found")
 			return
