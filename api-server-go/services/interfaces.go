@@ -27,8 +27,10 @@ type ProviderServiceInterface interface {
 	CreateProviderSubmission(req models.CreateProviderSubmissionRequest) (*models.ProviderSubmission, error)
 	GetProviderSubmission(id string) (*models.ProviderSubmission, error)
 	UpdateProviderSubmission(id string, req models.UpdateProviderSubmissionRequest) (*models.UpdateProviderSubmissionResponse, error)
-	GetAllProviderProfiles() ([]*models.ProviderProfile, error)
-	GetProviderProfile(id string) (*models.ProviderProfile, error)
+	GetAllProviderProfilesWithEntity() ([]*models.ProviderProfile, error)
+	GetProviderProfileWithEntity(id string) (*models.ProviderProfile, error)
+	GetAllProviderProfilesNormalized() ([]*models.NormalizedProviderProfile, error)
+	GetProviderProfileNormalized(id string) (*models.NormalizedProviderProfile, error)
 	GetAllProviderSchemas() ([]*models.ProviderSchema, error)
 	CreateProviderSchema(req models.CreateProviderSchemaRequest) (*models.ProviderSchema, error)
 	CreateProviderSchemaSDL(providerID string, req models.CreateProviderSchemaSDLRequest) (*models.ProviderSchema, error)
@@ -66,7 +68,9 @@ type GrantsServiceInterface interface {
 // Service factory functions
 
 func NewConsumerServiceWithDB(db *sql.DB) ConsumerServiceInterface {
-	return NewConsumerService(db)
+	// For backward compatibility, create a consumer service without PDP client
+	// This is used in places where PDP integration is not needed
+	return NewConsumerService(db, nil)
 }
 
 func NewProviderServiceWithDB(db *sql.DB) ProviderServiceInterface {

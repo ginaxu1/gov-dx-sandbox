@@ -37,9 +37,9 @@ func TestAdminService_GetMetrics(t *testing.T) {
 	// Create consumer apps
 	_, err = consumerService.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer1.ConsumerID,
-		RequiredFields: map[string]bool{
-			"person.fullName": true,
-			"person.nic":      true,
+		RequiredFields: []models.RequiredField{
+			{FieldName: "person.fullName"},
+			{FieldName: "person.nic"},
 		},
 	})
 	if err != nil {
@@ -48,8 +48,8 @@ func TestAdminService_GetMetrics(t *testing.T) {
 
 	_, err = consumerService.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer2.ConsumerID,
-		RequiredFields: map[string]bool{
-			"person.address": true,
+		RequiredFields: []models.RequiredField{
+			{FieldName: "person.address"},
 		},
 	})
 	if err != nil {
@@ -109,8 +109,8 @@ func TestAdminService_GetStatistics(t *testing.T) {
 	// Create a consumer app
 	_, err = consumerService.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer.ConsumerID,
-		RequiredFields: map[string]bool{
-			"person.fullName": true,
+		RequiredFields: []models.RequiredField{
+			{FieldName: "person.fullName"},
 		},
 	})
 	if err != nil {

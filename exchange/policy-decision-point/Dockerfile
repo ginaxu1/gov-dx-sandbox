@@ -19,11 +19,14 @@ COPY . ./
 # Copy shared packages - for Choreo builds, shared packages should be copied into the service directory
 COPY shared/ /app/shared/
 
-# Download dependencies
-RUN go mod download
+# Copy local models
+COPY models/ /app/models/
 
-# Build the application with build info
-RUN CGO_ENABLED=0 GOOS=linux go build \
+# Copy vendor directory
+COPY vendor/ /app/vendor/
+
+# Build the application with build info using vendored dependencies
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor \
     -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
     -o /app/service_binary .
 
@@ -42,9 +45,8 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/service_binary /app/
 
-# Copy service-specific files (policies and data)
+# Copy service-specific files (policies)
 COPY --from=builder /app/policies/ /app/policies/
-COPY --from=builder /app/data/ /app/data/
 
 # Change ownership to appuser
 RUN chown -R appuser:appuser /app

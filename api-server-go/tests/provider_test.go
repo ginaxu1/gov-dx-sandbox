@@ -137,7 +137,7 @@ func TestProviderService_UpdateProviderSubmission(t *testing.T) {
 	}
 }
 
-func TestProviderService_GetAllProviderProfiles(t *testing.T) {
+func TestProviderService_GetAllProviderProfilesWithEntity(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 	service := ts.APIServer.GetProviderService()
@@ -154,7 +154,7 @@ func TestProviderService_GetAllProviderProfiles(t *testing.T) {
 	}
 
 	// Get all profiles
-	profiles, err := service.GetAllProviderProfiles()
+	profiles, err := service.GetAllProviderProfilesWithEntity()
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

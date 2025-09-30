@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
@@ -23,7 +24,11 @@ type APIServer struct {
 
 // NewAPIServerWithDB creates a new API server instance with database support
 func NewAPIServerWithDB(db *sql.DB) *APIServer {
-	consumerService := services.NewConsumerServiceWithDB(db)
+	// Initialize PDP client
+	pdpURL := getEnvOrDefault("PDP_URL", "http://localhost:8082")
+	pdpClient := services.NewPDPClient(pdpURL)
+
+	consumerService := services.NewConsumerService(db, pdpClient)
 	providerService := services.NewProviderServiceWithDB(db)
 	grantsService := services.NewGrantsServiceWithDB(db)
 	return &APIServer{
@@ -32,6 +37,14 @@ func NewAPIServerWithDB(db *sql.DB) *APIServer {
 		adminService:    services.NewAdminServiceWithServices(consumerService, providerService),
 		grantsService:   grantsService,
 	}
+}
+
+// getEnvOrDefault gets an environment variable or returns a default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // ProviderService returns the provider service instance
@@ -295,6 +308,9 @@ func (s *APIServer) handleConsumerApplicationsForConsumer(w http.ResponseWriter,
 			return
 		}
 
+		// Debug logging
+		slog.Debug("Parsed consumer app request", "consumerId", consumerID, "requiredFields", req.RequiredFields)
+
 		// Set the consumer ID from the URL
 		req.ConsumerID = consumerID
 
@@ -346,7 +362,7 @@ func (s *APIServer) handleProvidersCollection(w http.ResponseWriter, r *http.Req
 	switch r.Method {
 	case http.MethodGet:
 		// GET /providers - List all providers
-		profiles, err := s.providerService.GetAllProviderProfiles()
+		profiles, err := s.providerService.GetAllProviderProfilesWithEntity()
 		if err != nil {
 			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve providers")
 			return
@@ -362,7 +378,7 @@ func (s *APIServer) handleProviderByID(w http.ResponseWriter, r *http.Request, p
 	switch r.Method {
 	case http.MethodGet:
 		// GET /providers/{providerId} - Get specific provider
-		profile, err := s.providerService.GetProviderProfile(providerID)
+		profile, err := s.providerService.GetProviderProfileWithEntity(providerID)
 		if err != nil {
 			utils.RespondWithError(w, http.StatusNotFound, "Provider not found")
 			return

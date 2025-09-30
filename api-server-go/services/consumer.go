@@ -14,12 +14,14 @@ import (
 )
 
 type ConsumerService struct {
-	db *sql.DB
+	db        *sql.DB
+	pdpClient *PDPClient
 }
 
-func NewConsumerService(db *sql.DB) *ConsumerService {
+func NewConsumerService(db *sql.DB, pdpClient *PDPClient) *ConsumerService {
 	return &ConsumerService{
-		db: db,
+		db:        db,
+		pdpClient: pdpClient,
 	}
 }
 
@@ -299,10 +301,12 @@ func (s *ConsumerService) CreateConsumerApp(req models.CreateConsumerAppRequest)
 	}
 
 	// Serialize required fields to JSON
+	slog.Debug("Serializing required fields", "fields", req.RequiredFields)
 	requiredFieldsJSON, err := json.Marshal(req.RequiredFields)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize required fields: %w", err)
 	}
+	slog.Debug("Serialized required fields JSON", "json", string(requiredFieldsJSON))
 
 	now := time.Now()
 	application := &models.ConsumerApp{
@@ -359,9 +363,12 @@ func (s *ConsumerService) GetConsumerApp(id string) (*models.ConsumerApp, error)
 	}
 
 	// Deserialize required fields from JSON
+	slog.Debug("Raw required fields JSON from database", "submissionId", id, "json", requiredFieldsJSON)
 	if err := json.Unmarshal([]byte(requiredFieldsJSON), &application.RequiredFields); err != nil {
+		slog.Error("Failed to deserialize required fields", "error", err, "submissionId", id, "json", requiredFieldsJSON)
 		return nil, fmt.Errorf("failed to deserialize required fields: %w", err)
 	}
+	slog.Debug("Deserialized required fields", "submissionId", id, "fields", application.RequiredFields)
 
 	// Parse credentials if present
 	if credentialsJSON.Valid && credentialsJSON.String != "" {
@@ -435,8 +442,54 @@ func (s *ConsumerService) UpdateConsumerApp(id string, req models.UpdateConsumer
 		return nil, errors.HandleDatabaseError(err, "update consumer application")
 	}
 
+	// If the application was approved, update provider metadata in PDP
+	if application.Status == models.StatusApproved && s.pdpClient != nil {
+		if err := s.updateProviderMetadataForApprovedApp(application); err != nil {
+			slog.Warn("Failed to update provider metadata in PDP", "error", err, "submissionId", id)
+			// Don't fail the entire operation if PDP update fails
+		}
+	}
+
 	slog.Info("Updated consumer application", "submissionId", id, "status", application.Status)
 	return response, nil
+}
+
+// updateProviderMetadataForApprovedApp updates provider metadata in PDP for approved consumer app
+func (s *ConsumerService) updateProviderMetadataForApprovedApp(app *models.ConsumerApp) error {
+	// Convert required fields to provider field grants
+	fields := make([]models.ProviderFieldGrant, 0, len(app.RequiredFields))
+
+	for _, field := range app.RequiredFields {
+		// Default grant duration to 30 days if not specified
+		grantDuration := "30d"
+		if field.GrantDuration != "" {
+			grantDuration = field.GrantDuration
+		}
+
+		fields = append(fields, models.ProviderFieldGrant{
+			FieldName:     field.FieldName,
+			GrantDuration: grantDuration,
+		})
+	}
+
+	// Create metadata update request
+	req := models.ProviderMetadataUpdateRequest{
+		ApplicationID: app.ConsumerID, // Use consumer ID as application ID
+		Fields:        fields,
+	}
+
+	// Send request to PDP
+	response, err := s.pdpClient.UpdateProviderMetadata(req)
+	if err != nil {
+		return fmt.Errorf("failed to update provider metadata: %w", err)
+	}
+
+	slog.Info("Successfully updated provider metadata in PDP",
+		"applicationId", req.ApplicationID,
+		"updated", response.Updated,
+		"fields", len(fields))
+
+	return nil
 }
 
 // GetAllConsumerApps retrieves all consumer applications

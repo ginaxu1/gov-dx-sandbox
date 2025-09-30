@@ -57,7 +57,7 @@ func (s *AdminService) GetMetrics() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	profiles, err := s.providerService.GetAllProviderProfiles()
+	profiles, err := s.providerService.GetAllProviderProfilesWithEntity()
 	if err != nil {
 		slog.Error("Failed to get provider profiles for metrics", "error", err)
 		return nil, err
@@ -98,7 +98,7 @@ func (s *AdminService) GetRecentActivity() ([]map[string]interface{}, error) {
 		return nil, err
 	}
 
-	profiles, err := s.providerService.GetAllProviderProfiles()
+	profiles, err := s.providerService.GetAllProviderProfilesWithEntity()
 	if err != nil {
 		slog.Error("Failed to get provider profiles for recent activity", "error", err)
 		return nil, err

@@ -71,13 +71,21 @@ All endpoints support the following query parameters:
 
 ## Environment Variables
 
+### Choreo Environment Variables (Primary)
+- `CHOREO_DB_AUDIT_HOSTNAME` - Database hostname
+- `CHOREO_DB_AUDIT_PORT` - Database port
+- `CHOREO_DB_AUDIT_USERNAME` - Database username
+- `CHOREO_DB_AUDIT_PASSWORD` - Database password
+- `CHOREO_DB_AUDIT_DATABASENAME` - Database name
+
+### Fallback Environment Variables (Local Development)
 - `DB_HOST` - Database host (default: localhost)
 - `DB_PORT` - Database port (default: 5432)
 - `DB_USER` - Database username (default: user)
 - `DB_PASSWORD` - Database password (default: password)
 - `DB_NAME` - Database name (default: gov_dx_sandbox)
 - `DB_SSLMODE` - SSL mode (default: disable)
-- `PORT` - Service port (default: 8082)
+- `PORT` - Service port (default: 3001)
 
 ## Running the Service
 

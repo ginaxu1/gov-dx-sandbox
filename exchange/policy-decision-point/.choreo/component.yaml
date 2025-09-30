@@ -22,6 +22,11 @@ endpoints:
     # The path should be relative to the docker context.
     schemaFilePath: openapi.yaml
 
+dependencies:
+  connectionReferences:
+  - name: DB-PDP
+    resourceRef: database:opendif-db/defaultdb
+
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
