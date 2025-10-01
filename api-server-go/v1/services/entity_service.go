@@ -51,3 +51,42 @@ func (s *EntityService) GetEntity(entityID string) (*models.EntityResponse, erro
 
 	return response, nil
 }
+
+// GetAllEntities retrieves all entities with their associated provider/consumer information
+func (s *EntityService) GetAllEntities() ([]models.EntityResponse, error) {
+	var entities []models.Entity
+
+	err := s.db.Find(&entities).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch entities: %w", err)
+	}
+
+	response := make([]models.EntityResponse, len(entities))
+	for i, entity := range entities {
+		entityResponse := models.EntityResponse{
+			EntityID:    entity.EntityID,
+			Name:        entity.Name,
+			EntityType:  entity.EntityType,
+			Email:       entity.Email,
+			PhoneNumber: entity.PhoneNumber,
+			CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
+		}
+
+		// Check if this entity is a provider
+		var provider models.Provider
+		if err := s.db.First(&provider, "entity_id = ?", entity.EntityID).Error; err == nil {
+			entityResponse.ProviderID = &provider.ProviderID
+		}
+
+		// Check if this entity is a consumer
+		var consumer models.Consumer
+		if err := s.db.First(&consumer, "entity_id = ?", entity.EntityID).Error; err == nil {
+			entityResponse.ConsumerID = &consumer.ConsumerID
+		}
+
+		response[i] = entityResponse
+	}
+
+	return response, nil
+}

@@ -22,26 +22,19 @@ func NewProviderService(db *gorm.DB) *ProviderService {
 // GetProvider retrieves a provider by ID with entity information
 func (s *ProviderService) GetProvider(providerID string) (*models.ProviderResponse, error) {
 	var provider models.Provider
-	var entity models.Entity
 
 	err := s.db.Preload("Entity").First(&provider, "provider_id = ?", providerID).Error
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
 	}
 
-	// Get entity information
-	err = s.db.First(&entity, "entity_id = ?", provider.EntityID).Error
-	if err != nil {
-		return nil, fmt.Errorf("entity not found: %w", err)
-	}
-
 	return &models.ProviderResponse{
 		ProviderID:  provider.ProviderID,
 		EntityID:    provider.EntityID,
-		Name:        entity.Name,
-		EntityType:  entity.EntityType,
-		Email:       entity.Email,
-		PhoneNumber: entity.PhoneNumber,
+		Name:        provider.Entity.Name,
+		EntityType:  provider.Entity.EntityType,
+		Email:       provider.Entity.Email,
+		PhoneNumber: provider.Entity.PhoneNumber,
 		CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   provider.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -51,7 +44,7 @@ func (s *ProviderService) GetProvider(providerID string) (*models.ProviderRespon
 func (s *ProviderService) GetProviderSchemas(providerID string) ([]models.ProviderSchemaResponse, error) {
 	var schemas []models.ProviderSchema
 
-	err := s.db.Where("provider_id = ?", providerID).Find(&schemas).Error
+	err := s.db.Preload("Provider").Preload("Provider.Entity").Where("provider_id = ?", providerID).Find(&schemas).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch schemas: %w", err)
 	}
@@ -118,7 +111,7 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 func (s *ProviderService) GetProviderSchemaSubmissions(providerID string, status string) ([]models.ProviderSchemaSubmissionResponse, error) {
 	var submissions []models.ProviderSchemaSubmission
 
-	query := s.db.Where("provider_id = ?", providerID)
+	query := s.db.Preload("Provider").Preload("Provider.Entity").Preload("PreviousSchema").Where("provider_id = ?", providerID)
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -141,6 +134,32 @@ func (s *ProviderService) GetProviderSchemaSubmissions(providerID string, status
 			ProviderID:        submission.ProviderID,
 			CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
+		}
+	}
+
+	return response, nil
+}
+
+// GetAllProviders retrieves all providers with entity information
+func (s *ProviderService) GetAllProviders() ([]models.ProviderResponse, error) {
+	var providers []models.Provider
+
+	err := s.db.Preload("Entity").Find(&providers).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch providers: %w", err)
+	}
+
+	response := make([]models.ProviderResponse, len(providers))
+	for i, provider := range providers {
+		response[i] = models.ProviderResponse{
+			ProviderID:  provider.ProviderID,
+			EntityID:    provider.EntityID,
+			Name:        provider.Entity.Name,
+			EntityType:  provider.Entity.EntityType,
+			Email:       provider.Entity.Email,
+			PhoneNumber: provider.Entity.PhoneNumber,
+			CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   provider.UpdatedAt.Format(time.RFC3339),
 		}
 	}
 

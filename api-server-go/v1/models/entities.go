@@ -21,8 +21,8 @@ type Provider struct {
 	EntityID   string `gorm:"column:entity_id;not null" json:"entityId"`
 	BaseModel
 
-	// Relationships (disabled for auto-migration)
-	Entity Entity `gorm:"-" json:"entity"`
+	// Relationships
+	Entity Entity `gorm:"foreignKey:EntityID;references:EntityID" json:"entity"`
 }
 
 // TableName sets the table name for GORM
@@ -36,8 +36,8 @@ type Consumer struct {
 	EntityID   string `gorm:"column:entity_id;not null" json:"entityId"`
 	BaseModel
 
-	// Relationships (disabled for auto-migration)
-	Entity Entity `gorm:"-" json:"entity"`
+	// Relationships
+	Entity Entity `gorm:"foreignKey:EntityID;references:EntityID" json:"entity"`
 }
 
 // TableName sets the table name for GORM

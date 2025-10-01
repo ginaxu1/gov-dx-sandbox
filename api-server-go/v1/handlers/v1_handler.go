@@ -44,6 +44,16 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/providers/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
+	// Handle collection endpoint: GET /api/v1/providers
+	if len(parts) == 1 && parts[0] == "" {
+		if r.Method == http.MethodGet {
+			h.getAllProviders(w, r)
+		} else {
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
 	if len(parts) < 1 || parts[0] == "" {
 		utils.RespondWithError(w, http.StatusBadRequest, "Provider ID is required")
 		return
@@ -92,6 +102,16 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/consumers/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
+	// Handle collection endpoint: GET /api/v1/consumers
+	if len(parts) == 1 && parts[0] == "" {
+		if r.Method == http.MethodGet {
+			h.getAllConsumers(w, r)
+		} else {
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
 	if len(parts) < 1 || parts[0] == "" {
 		utils.RespondWithError(w, http.StatusBadRequest, "Consumer ID is required")
 		return
@@ -139,6 +159,16 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/entities/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Handle collection endpoint: GET /api/v1/entities
+	if len(parts) == 1 && parts[0] == "" {
+		if r.Method == http.MethodGet {
+			h.getAllEntities(w, r)
+		} else {
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
 
 	if len(parts) < 1 || parts[0] == "" {
 		utils.RespondWithError(w, http.StatusBadRequest, "Entity ID is required")
@@ -282,4 +312,47 @@ func (h *V1Handler) getEntity(w http.ResponseWriter, r *http.Request, entityID s
 		return
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, entity)
+}
+
+func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
+	entities, err := h.entityService.GetAllEntities()
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := models.CollectionResponse{
+		Items: entities,
+		Count: len(entities),
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+// Collection handlers
+func (h *V1Handler) getAllProviders(w http.ResponseWriter, r *http.Request) {
+	providers, err := h.providerService.GetAllProviders()
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := models.CollectionResponse{
+		Items: providers,
+		Count: len(providers),
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+func (h *V1Handler) getAllConsumers(w http.ResponseWriter, r *http.Request) {
+	consumers, err := h.consumerService.GetAllConsumers()
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := models.CollectionResponse{
+		Items: consumers,
+		Count: len(consumers),
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
