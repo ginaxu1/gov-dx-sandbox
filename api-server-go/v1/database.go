@@ -26,14 +26,14 @@ type DatabaseConfig struct {
 	ConnMaxIdleTime time.Duration
 }
 
-// NewDatabaseConfig creates a new GORM database configuration
+// NewDatabaseConfig creates a new GORM database configuration for V1
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Host:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", "localhost"),
 		Port:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432"),
 		Username:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres"),
 		Password:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password"),
-		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "api_server"),
+		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME_V1", "testdb"),
 		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
 		MaxOpenConns:    25,
 		MaxIdleConns:    5,
@@ -82,7 +82,7 @@ func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	slog.Info("Successfully connected to PostgreSQL database with GORM",
+	slog.Info("Successfully connected to PostgreSQL database with GORM (V1)",
 		"host", config.Host,
 		"port", config.Port,
 		"database", config.Database)
