@@ -376,8 +376,13 @@ func RecursivelyExtractSourceSchemaInfo(
 
 				if nestedObjectDef != nil {
 					var selectionSet = field.GetSelectionSet()
-					// Pass array field information to recursive call
-					directives, arguments = RecursivelyExtractSourceSchemaInfoWithArrayInfo(selectionSet, schema, nestedObjectDef, directives, arguments, isArrayField)
+					// For backward compatibility, use the old function for non-array fields
+					if !isArrayField {
+						directives, arguments = RecursivelyExtractSourceSchemaInfo(selectionSet, schema, nestedObjectDef, directives, arguments)
+					} else {
+						// For array fields, use the new function
+						directives, arguments = RecursivelyExtractSourceSchemaInfoWithArrayInfo(selectionSet, schema, nestedObjectDef, directives, arguments, isArrayField)
+					}
 				}
 			}
 		}
