@@ -120,10 +120,8 @@ func TestGraphQLHandler_HandleGraphQL(t *testing.T) {
 			},
 		},
 		{
-			name: "Invalid request body",
-			requestBody: map[string]interface{}{
-				"invalid": "body",
-			},
+			name:        "Invalid request body",
+			requestBody: "invalid json string", // This will cause JSON decode to fail
 			setupMocks: func(mockService *MockGraphQLService) {
 				// No mocks needed for invalid request body - it should fail before reaching the service
 			},
