@@ -209,7 +209,10 @@ func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetad
 		if field.Owner == "" {
 			field.Owner = "external"
 		}
-		// Allow NULL providers - don't set a default value
+		// Use system-default provider for empty provider values
+		if field.Provider == "" {
+			field.Provider = "system-default"
+		}
 		if field.AccessControlType == "" {
 			field.AccessControlType = "public"
 		}
@@ -226,17 +229,10 @@ func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetad
 			allow_list = EXCLUDED.allow_list,
 			updated_at = EXCLUDED.updated_at`
 
-		// Handle NULL provider values - CRITICAL DATABASE CONSTRAINT BEHAVIOR
-		// Empty strings from metadata_handler.go are converted to NULL to satisfy
-		// database schema requirements. PREREQUISITE: The provider column must be
-		// altered to allow NULL values to support fields without associated providers,
-		// bypassing foreign key constraints.
-		var providerValue interface{}
-		if field.Provider == "" {
-			providerValue = nil
-		} else {
-			providerValue = field.Provider
-		}
+		// Use system-default provider for data integrity
+		// This ensures all fields have a valid provider reference, maintaining
+		// foreign key constraints and data integrity
+		providerValue := field.Provider
 
 		_, err = tx.Exec(upsertQuery, fieldName, field.Owner, providerValue, field.ConsentRequired,
 			field.AccessControlType, allowListJSON, now, now)
