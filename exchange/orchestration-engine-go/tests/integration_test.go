@@ -26,11 +26,11 @@ func TestCompleteFederationFlow(t *testing.T) {
 		`
 
 		// Step 1: Parse query
-		queryDoc := parseTestQuery(t, query)
+		queryDoc := ParseTestQuery(t, query)
 		assert.NotNil(t, queryDoc, "Should parse query successfully")
 
 		// Step 2: Load schema
-		schema := createTestSchema(t)
+		schema := CreateTestSchema(t)
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
@@ -101,11 +101,11 @@ func TestCompleteFederationFlow(t *testing.T) {
 		`
 
 		// Step 1: Parse query
-		queryDoc := parseTestQuery(t, query)
+		queryDoc := ParseTestQuery(t, query)
 		assert.NotNil(t, queryDoc, "Should parse query successfully")
 
 		// Step 2: Load schema
-		schema := createTestSchema(t)
+		schema := CreateTestSchema(t)
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
@@ -202,11 +202,11 @@ func TestCompleteFederationFlow(t *testing.T) {
 		`
 
 		// Step 1: Parse query
-		queryDoc := parseTestQuery(t, query)
+		queryDoc := ParseTestQuery(t, query)
 		assert.NotNil(t, queryDoc, "Should parse query successfully")
 
 		// Step 2: Load schema
-		schema := createTestSchema(t)
+		schema := CreateTestSchema(t)
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
@@ -301,11 +301,11 @@ func TestCompleteFederationFlow(t *testing.T) {
 		`
 
 		// Step 1: Parse query
-		queryDoc := parseTestQuery(t, query)
+		queryDoc := ParseTestQuery(t, query)
 		assert.NotNil(t, queryDoc, "Should parse query successfully")
 
 		// Step 2: Load schema
-		schema := createTestSchema(t)
+		schema := CreateTestSchema(t)
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
@@ -396,8 +396,8 @@ func TestFederationErrorHandling(t *testing.T) {
 			}
 		`
 
-		queryDoc := parseTestQuery(t, query)
-		_ = createTestSchema(t)
+		queryDoc := ParseTestQuery(t, query)
+		_ = CreateTestSchema(t)
 
 		// Mock federated response with provider error
 		federatedResponse := &federator.FederationResponse{
@@ -455,8 +455,8 @@ func TestFederationErrorHandling(t *testing.T) {
 			}
 		`
 
-		queryDoc := parseTestQuery(t, query)
-		_ = createTestSchema(t)
+		queryDoc := ParseTestQuery(t, query)
+		_ = CreateTestSchema(t)
 
 		// Mock federated response with partial failure
 		federatedResponse := &federator.FederationResponse{

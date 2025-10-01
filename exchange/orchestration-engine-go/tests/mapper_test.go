@@ -11,7 +11,7 @@ import (
 
 func TestProviderSchemaCollector(t *testing.T) {
 	t.Skip("Skipping mapper test - requires config initialization")
-	schema := createTestSchema(t)
+	schema := CreateTestSchema(t)
 
 	tests := []struct {
 		name           string
@@ -139,7 +139,7 @@ func TestProviderSchemaCollector(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queryDoc := parseTestQuery(t, tt.query)
+			queryDoc := ParseTestQuery(t, tt.query)
 
 			fields, args, err := federator.ProviderSchemaCollector(schema, queryDoc)
 
@@ -294,7 +294,7 @@ func TestQueryBuilder(t *testing.T) {
 
 func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 	t.Skip("Skipping mapper test - requires config initialization")
-	schema := createTestSchema(t)
+	schema := CreateTestSchema(t)
 
 	tests := []struct {
 		name           string
@@ -378,7 +378,7 @@ func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queryDoc := parseTestQuery(t, tt.query)
+			queryDoc := ParseTestQuery(t, tt.query)
 			operationDef := queryDoc.Definitions[0].(*ast.OperationDefinition)
 			selectionSet := operationDef.SelectionSet
 
@@ -405,7 +405,7 @@ func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 }
 
 func TestFindFieldDefinitionFromFieldName(t *testing.T) {
-	schema := createTestSchema(t)
+	schema := CreateTestSchema(t)
 
 	tests := []struct {
 		name           string
@@ -459,7 +459,7 @@ func TestFindFieldDefinitionFromFieldName(t *testing.T) {
 }
 
 func TestGetQueryObjectDefinition(t *testing.T) {
-	schema := createTestSchema(t)
+	schema := CreateTestSchema(t)
 
 	queryDef := federator.GetQueryObjectDefinition(schema)
 	assert.NotNil(t, queryDef, "Should find query object definition")
