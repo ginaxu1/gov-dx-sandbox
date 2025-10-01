@@ -27,6 +27,29 @@ type UpdateConsumerApplicationSubmissionRequest struct {
 	Status *string `json:"status,omitempty"`
 }
 
+type CreateEntityRequest struct {
+	Name        string `json:"name" validate:"required"`
+	EntityType  string `json:"entityType" validate:"required"`
+	Email       string `json:"email" validate:"required,email"`
+	PhoneNumber string `json:"phoneNumber" validate:"required"`
+}
+
+type CreateConsumerRequest struct {
+	Name        string  `json:"name" validate:"required"`
+	EntityType  string  `json:"entityType" validate:"required"`
+	Email       string  `json:"email" validate:"required,email"`
+	PhoneNumber string  `json:"phoneNumber" validate:"required"`
+	EntityID    *string `json:"entityId,omitempty"`
+}
+
+type CreateProviderRequest struct {
+	Name        string  `json:"name" validate:"required"`
+	EntityType  string  `json:"entityType" validate:"required"`
+	Email       string  `json:"email" validate:"required,email"`
+	PhoneNumber string  `json:"phoneNumber" validate:"required"`
+	EntityID    *string `json:"entityId,omitempty"`
+}
+
 // EntityResponse Response DTOs
 type EntityResponse struct {
 	EntityID    string  `json:"entityId"`

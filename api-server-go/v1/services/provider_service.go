@@ -19,6 +19,54 @@ func NewProviderService(db *gorm.DB) *ProviderService {
 	return &ProviderService{db: db}
 }
 
+// CreateProvider creates a new provider
+func (s *ProviderService) CreateProvider(req *models.CreateProviderRequest) (*models.ProviderResponse, error) {
+	if req.EntityID == nil || *req.EntityID == "" {
+		// Create new entity if EntityID is not provided using the entity service
+		entityService := NewEntityService(s.db)
+		newEntity, err := entityService.CreateEntity(&models.CreateEntityRequest{
+			Name:        req.Name,
+			EntityType:  req.EntityType,
+			Email:       req.Email,
+			PhoneNumber: req.PhoneNumber,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create entity: %w", err)
+		}
+		req.EntityID = &newEntity.EntityID
+	}
+
+	// Verify entity exists
+	var entity models.Entity
+	err := s.db.First(&entity, "entity_id = ?", req.EntityID).Error
+	if err != nil {
+		return nil, fmt.Errorf("entity not found: %w", err)
+	}
+
+	// Create provider
+	provider := models.Provider{
+		ProviderID: "prov_" + uuid.New().String(),
+		EntityID:   *req.EntityID,
+	}
+
+	if err := s.db.Create(&provider).Error; err != nil {
+		return nil, fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	response := &models.ProviderResponse{
+		ProviderID:  provider.ProviderID,
+		EntityID:    provider.EntityID,
+		Name:        entity.Name,
+		EntityType:  entity.EntityType,
+		Email:       entity.Email,
+		PhoneNumber: entity.PhoneNumber,
+		CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   provider.UpdatedAt.Format(time.RFC3339),
+	}
+
+	return response, nil
+}
+
 // GetProvider retrieves a provider by ID with entity information
 func (s *ProviderService) GetProvider(providerID string) (*models.ProviderResponse, error) {
 	var provider models.Provider

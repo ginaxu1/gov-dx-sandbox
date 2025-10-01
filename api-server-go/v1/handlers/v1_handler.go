@@ -46,9 +46,12 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 
 	// Handle collection endpoint: GET /api/v1/providers
 	if len(parts) == 1 && parts[0] == "" {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			h.getAllProviders(w, r)
-		} else {
+		case http.MethodPost:
+			h.createProvider(w, r)
+		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
@@ -104,9 +107,12 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 
 	// Handle collection endpoint: GET /api/v1/consumers
 	if len(parts) == 1 && parts[0] == "" {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			h.getAllConsumers(w, r)
-		} else {
+		case http.MethodPost:
+			h.createConsumer(w, r)
+		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
@@ -162,9 +168,12 @@ func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 
 	// Handle collection endpoint: GET /api/v1/entities
 	if len(parts) == 1 && parts[0] == "" {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodPost:
+			h.createEntity(w, r)
+		case http.MethodGet:
 			h.getAllEntities(w, r)
-		} else {
+		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
@@ -191,6 +200,23 @@ func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 }
 
 // Provider handlers
+func (h *V1Handler) createProvider(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateProviderRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	provider, err := h.providerService.CreateProvider(&req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, provider)
+}
+
 func (h *V1Handler) getProvider(w http.ResponseWriter, r *http.Request, providerID string) {
 	provider, err := h.providerService.GetProvider(providerID)
 	if err != nil {
@@ -248,6 +274,23 @@ func (h *V1Handler) createProviderSchemaSubmission(w http.ResponseWriter, r *htt
 }
 
 // Consumer handlers
+func (h *V1Handler) createConsumer(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateConsumerRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	consumer, err := h.consumerService.CreateConsumer(&req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, consumer)
+}
+
 func (h *V1Handler) getConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
 	consumer, err := h.consumerService.GetConsumer(consumerID)
 	if err != nil {
@@ -305,6 +348,23 @@ func (h *V1Handler) createConsumerApplicationSubmission(w http.ResponseWriter, r
 }
 
 // Entity handlers
+func (h *V1Handler) createEntity(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateEntityRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	entity, err := h.entityService.CreateEntity(&req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, entity)
+}
+
 func (h *V1Handler) getEntity(w http.ResponseWriter, r *http.Request, entityID string) {
 	entity, err := h.entityService.GetEntity(entityID)
 	if err != nil {
@@ -314,6 +374,7 @@ func (h *V1Handler) getEntity(w http.ResponseWriter, r *http.Request, entityID s
 	utils.RespondWithSuccess(w, http.StatusOK, entity)
 }
 
+// Collection handlers
 func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
 	entities, err := h.entityService.GetAllEntities()
 	if err != nil {
@@ -328,7 +389,6 @@ func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-// Collection handlers
 func (h *V1Handler) getAllProviders(w http.ResponseWriter, r *http.Request) {
 	providers, err := h.providerService.GetAllProviders()
 	if err != nil {
