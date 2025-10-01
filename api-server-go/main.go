@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -70,33 +69,76 @@ func main() {
 
 	// Health check endpoint (matching consent-engine approach)
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simple health check - just verify database connection
-		if db == nil {
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
-				"status":  "unhealthy",
-				"service": "api-server",
-				"error":   "database connection is nil",
-			})
-			return
+		healthStatus := map[string]interface{}{
+			"status":  "healthy",
+			"service": "api-server",
+			"databases": map[string]interface{}{
+				"legacy": map[string]interface{}{"status": "unknown"},
+				"v1":     map[string]interface{}{"status": "unknown"},
+			},
 		}
 
-		// Test database connection
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if err := db.PingContext(ctx); err != nil {
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
-				"status":  "unhealthy",
-				"service": "api-server",
-				"error":   err.Error(),
-			})
+		allHealthy := true
+
+		// Test legacy database connection
+		if db == nil {
+			healthStatus["databases"].(map[string]interface{})["legacy"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  "connection is nil",
+			}
+			allHealthy = false
+		} else if err := db.PingContext(ctx); err != nil {
+			healthStatus["databases"].(map[string]interface{})["legacy"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  err.Error(),
+			}
+			allHealthy = false
+		} else {
+			healthStatus["databases"].(map[string]interface{})["legacy"] = map[string]interface{}{
+				"status":   "healthy",
+				"database": dbConfig.Database,
+			}
+		}
+
+		// Test V1 GORM database connection
+		if gormDB == nil {
+			healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
+				"status": "unhealthy",
+				"error":  "GORM connection is nil",
+			}
+			allHealthy = false
+		} else {
+			sqlDB, err := gormDB.DB()
+			if err != nil {
+				healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
+					"status": "unhealthy",
+					"error":  fmt.Sprintf("failed to get sql.DB: %v", err),
+				}
+				allHealthy = false
+			} else if err := sqlDB.PingContext(ctx); err != nil {
+				healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
+					"status": "unhealthy",
+					"error":  err.Error(),
+				}
+				allHealthy = false
+			} else {
+				healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
+					"status":   "healthy",
+					"database": v1DbConfig.Database,
+				}
+			}
+		}
+
+		if !allHealthy {
+			healthStatus["status"] = "unhealthy"
+			utils.RespondWithJSON(w, http.StatusServiceUnavailable, healthStatus)
 			return
 		}
 
-		utils.RespondWithJSON(w, http.StatusOK, map[string]string{
-			"status":  "healthy",
-			"service": "api-server",
-		})
+		utils.RespondWithJSON(w, http.StatusOK, healthStatus)
 	})))
 
 	// Debug endpoint
@@ -106,91 +148,102 @@ func main() {
 
 	// Database debug endpoint
 	mux.Handle("/debug/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if db == nil {
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
-				"error": "database connection is nil",
-			})
-			return
-		}
-
-		// Test database connection
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if err := db.PingContext(ctx); err != nil {
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, map[string]string{
-				"error": fmt.Sprintf("database ping failed: %v", err),
-			})
-			return
+		debugInfo := map[string]interface{}{
+			"legacy": map[string]interface{}{},
+			"v1":     map[string]interface{}{},
 		}
 
-		// Check if consumers table exists
-		var tableExists bool
-		checkTableQuery := `SELECT EXISTS (
-			SELECT FROM information_schema.tables 
-			WHERE table_schema = 'public' 
-			AND table_name = 'consumers'
-		)`
-
-		if err := db.QueryRowContext(ctx, checkTableQuery).Scan(&tableExists); err != nil {
-			utils.RespondWithJSON(w, http.StatusInternalServerError, map[string]string{
-				"error": fmt.Sprintf("failed to check table existence: %v", err),
-			})
-			return
-		}
-
-		// Get table count if it exists
-		var count int
-		if tableExists {
-			countQuery := `SELECT COUNT(*) FROM consumers`
-			if err := db.QueryRowContext(ctx, countQuery).Scan(&count); err != nil {
-				utils.RespondWithJSON(w, http.StatusInternalServerError, map[string]string{
-					"error": fmt.Sprintf("failed to count consumers: %v", err),
-				})
-				return
+		// Test legacy database connection
+		if db == nil {
+			debugInfo["legacy"] = map[string]interface{}{
+				"error": "database connection is nil",
 			}
-		}
+		} else if err := db.PingContext(ctx); err != nil {
+			debugInfo["legacy"] = map[string]interface{}{
+				"error": fmt.Sprintf("database ping failed: %v", err),
+			}
+		} else {
+			// Check if consumers table exists in legacy DB
+			var tableExists bool
+			checkTableQuery := `SELECT EXISTS (
+				SELECT FROM information_schema.tables 
+				WHERE table_schema = 'public' 
+				AND table_name = 'consumers'
+			)`
 
-		// Check actual table structure
-		var tableStructure string
-		if tableExists {
-			structureQuery := `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'consumers' ORDER BY ordinal_position`
-			rows, err := db.QueryContext(ctx, structureQuery)
-			if err != nil {
-				tableStructure = fmt.Sprintf("Failed to get table structure: %v", err)
+			legacyInfo := map[string]interface{}{
+				"status":   "connected",
+				"database": dbConfig.Database,
+			}
+
+			if err := db.QueryRowContext(ctx, checkTableQuery).Scan(&tableExists); err != nil {
+				legacyInfo["table_check_error"] = fmt.Sprintf("failed to check table existence: %v", err)
 			} else {
-				defer rows.Close()
-				var columns []string
-				for rows.Next() {
-					var colName, dataType string
-					if err := rows.Scan(&colName, &dataType); err == nil {
-						columns = append(columns, fmt.Sprintf("%s (%s)", colName, dataType))
+				legacyInfo["consumers_table_exists"] = tableExists
+				if tableExists {
+					var count int
+					countQuery := `SELECT COUNT(*) FROM consumers`
+					if err := db.QueryRowContext(ctx, countQuery).Scan(&count); err != nil {
+						legacyInfo["count_error"] = fmt.Sprintf("failed to count consumers: %v", err)
+					} else {
+						legacyInfo["consumers_count"] = count
 					}
 				}
-				tableStructure = fmt.Sprintf("Columns: %s", strings.Join(columns, ", "))
 			}
+			debugInfo["legacy"] = legacyInfo
 		}
 
-		// Test the actual SELECT query that's failing
-		var testQueryError string
-		if tableExists {
-			testQuery := `SELECT c.consumer_id, e.entity_name, e.contact_email, e.phone_number, c.created_at, c.updated_at FROM consumers c JOIN entities e ON c.entity_id = e.entity_id ORDER BY c.created_at DESC`
-			rows, err := db.QueryContext(ctx, testQuery)
+		// Test V1 GORM database connection
+		if gormDB == nil {
+			debugInfo["v1"] = map[string]interface{}{
+				"error": "GORM connection is nil",
+			}
+		} else {
+			sqlDB, err := gormDB.DB()
 			if err != nil {
-				testQueryError = fmt.Sprintf("SELECT query failed: %v", err)
+				debugInfo["v1"] = map[string]interface{}{
+					"error": fmt.Sprintf("failed to get sql.DB: %v", err),
+				}
+			} else if err := sqlDB.PingContext(ctx); err != nil {
+				debugInfo["v1"] = map[string]interface{}{
+					"error": fmt.Sprintf("V1 database ping failed: %v", err),
+				}
 			} else {
-				rows.Close()
-				testQueryError = "SELECT query succeeded"
+				v1Info := map[string]interface{}{
+					"status":   "connected",
+					"database": v1DbConfig.Database,
+				}
+
+				// Check if entities table exists in V1 DB
+				var entitiesExists bool
+				checkEntitiesQuery := `SELECT EXISTS (
+					SELECT FROM information_schema.tables 
+					WHERE table_schema = 'public' 
+					AND table_name = 'entities'
+				)`
+
+				if err := sqlDB.QueryRowContext(ctx, checkEntitiesQuery).Scan(&entitiesExists); err != nil {
+					v1Info["table_check_error"] = fmt.Sprintf("failed to check entities table: %v", err)
+				} else {
+					v1Info["entities_table_exists"] = entitiesExists
+					if entitiesExists {
+						var entityCount int
+						countEntitiesQuery := `SELECT COUNT(*) FROM entities`
+						if err := sqlDB.QueryRowContext(ctx, countEntitiesQuery).Scan(&entityCount); err != nil {
+							v1Info["count_error"] = fmt.Sprintf("failed to count entities: %v", err)
+						} else {
+							v1Info["entities_count"] = entityCount
+						}
+					}
+				}
+				debugInfo["v1"] = v1Info
 			}
 		}
 
-		utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"database_connected":     true,
-			"consumers_table_exists": tableExists,
-			"consumers_count":        count,
-			"table_structure":        tableStructure,
-			"select_query_test":      testQueryError,
-		})
+		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
 	// Setup audit middleware
