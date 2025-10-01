@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/models"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 )
 
@@ -19,7 +22,7 @@ type Response struct {
 const DefaultPort = "4000"
 
 // RunServer starts a simple HTTP server with a health check endpoint.
-func RunServer(f *federator.Federator) {
+func RunServer(f *federator.Federator, schemaService models.SchemaService) {
 	mux := http.NewServeMux()
 	// /health route
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +44,17 @@ func RunServer(f *federator.Federator) {
 			return
 		}
 
+		// Try to get active schema from database first
+		activeSchema, err := schemaService.GetActiveSchema()
+		if err == nil && activeSchema != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			response := map[string]string{"sdl": activeSchema.SDL}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		// Fallback to config file
 		if configs.AppConfig == nil || configs.AppConfig.Sdl == nil {
 			http.Error(w, "SDL not configured", http.StatusInternalServerError)
 			return
@@ -51,13 +65,32 @@ func RunServer(f *federator.Federator) {
 		w.WriteHeader(http.StatusOK)
 		response := map[string]string{"sdl": string(sdl)}
 
-		err := json.NewEncoder(w).Encode(response)
+		err = json.NewEncoder(w).Encode(response)
 
 		if err != nil {
 			logger.Log.Error("Failed to write SDL response", "error", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
+	})
+
+	// Initialize schema handlers
+	schemaHandlers := handlers.NewSchemaHandlers(schemaService)
+
+	// Schema management endpoints
+	mux.HandleFunc("/sdl", schemaHandlers.CreateSchema)
+	mux.HandleFunc("/sdl/versions", schemaHandlers.GetSchemaVersions)
+	mux.HandleFunc("/sdl/active", schemaHandlers.GetActiveSchema)
+
+	// Handle version-specific endpoints
+	mux.HandleFunc("/sdl/versions/", func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is a status update request
+		if strings.HasSuffix(r.URL.Path, "/status") && r.Method == http.MethodPut {
+			schemaHandlers.UpdateSchemaStatus(w, r)
+			return
+		}
+		// Otherwise, it's a get version request
+		schemaHandlers.GetSchemaVersion(w, r)
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +104,28 @@ func RunServer(f *federator.Federator) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
+		}
+
+		// Check for X-Schema-Version header
+		schemaVersion := r.Header.Get("X-Schema-Version")
+		if schemaVersion != "" {
+			// Get the specific schema version
+			schema, err := schemaService.GetSchemaVersion(schemaVersion)
+			if err != nil {
+				logger.Log.Error("Failed to get schema version", "version", schemaVersion, "error", err)
+				http.Error(w, "Schema version not found: "+err.Error(), http.StatusNotFound)
+				return
+			}
+
+			// Check if the schema is active
+			if schema.Status != models.SchemaStatusActive {
+				http.Error(w, "Schema version is not active", http.StatusBadRequest)
+				return
+			}
+
+			// TODO: Use the specific schema version for federation
+			// For now, we'll continue with the default behavior
+			logger.Log.Info("Using schema version", "version", schemaVersion)
 		}
 
 		// decode the token
