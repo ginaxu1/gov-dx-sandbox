@@ -8,8 +8,8 @@ type ProviderMetadataUpdateRequest struct {
 
 // ProviderFieldGrant represents a field grant for a specific consumer
 type ProviderFieldGrant struct {
-	FieldName     string `json:"fieldName" validate:"required"`
-	GrantDuration string `json:"grantDuration" validate:"required"`
+	FieldName     string `json:"field_name" validate:"required"`
+	GrantDuration string `json:"grant_duration" validate:"required"`
 }
 
 // ProviderMetadataField represents a field in the provider metadata JSON
