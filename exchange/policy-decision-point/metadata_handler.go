@@ -129,10 +129,15 @@ func (h *MetadataHandler) updateFieldMetadata(metadata *models.ProviderMetadata,
 	if !exists {
 		// Create new field metadata with default values
 		field = models.ProviderMetadataField{
-			Owner:             "external", // Default owner
-			Provider:          "",         // Empty string will be converted to NULL in database
-			ConsentRequired:   false,      // Default to false
-			AccessControlType: "public",   // Default to public
+			Owner:    "external", // Default owner
+			Provider: "",         // CRITICAL: Empty string will be converted to NULL in database
+			// This conversion happens in database.go UpdateProviderMetadata() and is required
+			// PREREQUISITE: The database schema must be updated to allow NULL values for the
+			// provider column to support fields that don't have an associated provider.
+			// This affects foreign key constraints and query behavior - NULL providers bypass
+			// foreign key validation.
+			ConsentRequired:   false,    // Default to false
+			AccessControlType: "public", // Default to public
 			AllowList:         []models.PDPAllowListEntry{},
 		}
 	}

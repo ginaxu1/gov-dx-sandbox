@@ -210,7 +210,6 @@ func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetad
 			field.Owner = "external"
 		}
 		// Allow NULL providers - don't set a default value
-		// The database schema now allows NULL values for the provider column
 		if field.AccessControlType == "" {
 			field.AccessControlType = "public"
 		}
@@ -227,7 +226,11 @@ func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetad
 			allow_list = EXCLUDED.allow_list,
 			updated_at = EXCLUDED.updated_at`
 
-		// Handle NULL provider values
+		// Handle NULL provider values - CRITICAL DATABASE CONSTRAINT BEHAVIOR
+		// Empty strings from metadata_handler.go are converted to NULL to satisfy
+		// database schema requirements. PREREQUISITE: The provider column must be
+		// altered to allow NULL values to support fields without associated providers,
+		// bypassing foreign key constraints.
 		var providerValue interface{}
 		if field.Provider == "" {
 			providerValue = nil
