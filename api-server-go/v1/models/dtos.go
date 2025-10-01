@@ -2,7 +2,7 @@ package models
 
 // Request/Response DTOs for V1 API endpoints
 
-// Provider Schema Submission DTOs
+// CreateProviderSchemaSubmissionRequest Provider Schema Submission DTOs
 type CreateProviderSchemaSubmissionRequest struct {
 	SchemaName        string  `json:"schemaName" validate:"required"`
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
@@ -15,7 +15,7 @@ type UpdateProviderSchemaSubmissionRequest struct {
 	Status *string `json:"status,omitempty"`
 }
 
-// Consumer Application Submission DTOs
+// CreateConsumerApplicationSubmissionRequest Consumer Application Submission DTOs
 type CreateConsumerApplicationSubmissionRequest struct {
 	ApplicationName        string   `json:"applicationName" validate:"required"`
 	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
@@ -27,7 +27,7 @@ type UpdateConsumerApplicationSubmissionRequest struct {
 	Status *string `json:"status,omitempty"`
 }
 
-// Response DTOs
+// EntityResponse Response DTOs
 type EntityResponse struct {
 	EntityID    string  `json:"entityId"`
 	Name        string  `json:"name"`
@@ -110,7 +110,7 @@ type ConsumerApplicationSubmissionResponse struct {
 	UpdatedAt              string   `json:"updatedAt"`
 }
 
-// Generic collection response
+// CollectionResponse Generic collection response
 type CollectionResponse struct {
 	Items interface{} `json:"items"`
 	Count int         `json:"count"`

@@ -11,8 +11,8 @@ type ProviderSchema struct {
 	SchemaDescription *string `gorm:"column:schema_description" json:"schemaDescription,omitempty"`
 	BaseModel
 
-	// Relationships (disabled for auto-migration)
-	Provider Provider `gorm:"-" json:"provider,omitempty"`
+	// Relationships
+	Provider Provider `gorm:"foreignKey:ProviderID;references:ProviderID" json:"provider"`
 }
 
 // TableName sets the table name for GORM
@@ -32,9 +32,9 @@ type ProviderSchemaSubmission struct {
 	ProviderID        string  `gorm:"column:provider_id;not null" json:"providerId"`
 	BaseModel
 
-	// Relationships (disabled for auto-migration)
-	Provider       Provider        `gorm:"-" json:"provider,omitempty"`
-	PreviousSchema *ProviderSchema `gorm:"-" json:"previousSchema,omitempty"`
+	// Relationships
+	Provider       Provider        `gorm:"foreignKey:ProviderID;references:ProviderID" json:"provider"`
+	PreviousSchema *ProviderSchema `gorm:"foreignKey:PreviousSchemaID;references:SchemaID" json:"previousSchema,omitempty"`
 }
 
 // TableName sets the table name for GORM
@@ -52,8 +52,8 @@ type ConsumerApplication struct {
 	Version                string      `gorm:"column:version;not null" json:"version"`
 	BaseModel
 
-	// Relationships (disabled for auto-migration)
-	Consumer Consumer `gorm:"-" json:"consumer,omitempty"`
+	// Relationships
+	Consumer Consumer `gorm:"foreignKey:ConsumerID;references:ConsumerID" json:"consumer"`
 }
 
 // TableName sets the table name for GORM
@@ -72,9 +72,9 @@ type ConsumerApplicationSubmission struct {
 	Status                 string      `gorm:"column:status;not null" json:"status"`
 	BaseModel
 
-	// Relationships (disabled for auto-migration)
-	Consumer            Consumer             `gorm:"-" json:"consumer,omitempty"`
-	PreviousApplication *ConsumerApplication `gorm:"-" json:"previousApplication,omitempty"`
+	// Relationships
+	Consumer            Consumer             `gorm:"foreignKey:ConsumerID;references:ConsumerID" json:"consumer"`
+	PreviousApplication *ConsumerApplication `gorm:"foreignKey:PreviousApplicationID;references:ApplicationID" json:"previousApplication,omitempty"`
 }
 
 // TableName sets the table name for GORM

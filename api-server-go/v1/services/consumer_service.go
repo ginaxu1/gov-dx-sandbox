@@ -22,26 +22,19 @@ func NewConsumerService(db *gorm.DB) *ConsumerService {
 // GetConsumer retrieves a consumer by ID with entity information
 func (s *ConsumerService) GetConsumer(consumerID string) (*models.ConsumerResponse, error) {
 	var consumer models.Consumer
-	var entity models.Entity
 
 	err := s.db.Preload("Entity").First(&consumer, "consumer_id = ?", consumerID).Error
 	if err != nil {
 		return nil, fmt.Errorf("consumer not found: %w", err)
 	}
 
-	// Get entity information
-	err = s.db.First(&entity, "entity_id = ?", consumer.EntityID).Error
-	if err != nil {
-		return nil, fmt.Errorf("entity not found: %w", err)
-	}
-
 	return &models.ConsumerResponse{
 		ConsumerID:  consumer.ConsumerID,
 		EntityID:    consumer.EntityID,
-		Name:        entity.Name,
-		EntityType:  entity.EntityType,
-		Email:       entity.Email,
-		PhoneNumber: entity.PhoneNumber,
+		Name:        consumer.Entity.Name,
+		EntityType:  consumer.Entity.EntityType,
+		Email:       consumer.Entity.Email,
+		PhoneNumber: consumer.Entity.PhoneNumber,
 		CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   consumer.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -51,7 +44,7 @@ func (s *ConsumerService) GetConsumer(consumerID string) (*models.ConsumerRespon
 func (s *ConsumerService) GetConsumerApplications(consumerID string) ([]models.ConsumerApplicationResponse, error) {
 	var applications []models.ConsumerApplication
 
-	err := s.db.Where("consumer_id = ?", consumerID).Find(&applications).Error
+	err := s.db.Preload("Consumer").Preload("Consumer.Entity").Where("consumer_id = ?", consumerID).Find(&applications).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch applications: %w", err)
 	}
@@ -115,7 +108,7 @@ func (s *ConsumerService) CreateConsumerApplicationSubmission(consumerID string,
 func (s *ConsumerService) GetConsumerApplicationSubmissions(consumerID string, status string) ([]models.ConsumerApplicationSubmissionResponse, error) {
 	var submissions []models.ConsumerApplicationSubmission
 
-	query := s.db.Where("consumer_id = ?", consumerID)
+	query := s.db.Preload("Consumer").Preload("Consumer.Entity").Preload("PreviousApplication").Where("consumer_id = ?", consumerID)
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -137,6 +130,32 @@ func (s *ConsumerService) GetConsumerApplicationSubmissions(consumerID string, s
 			Status:                 submission.Status,
 			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
+		}
+	}
+
+	return response, nil
+}
+
+// GetAllConsumers retrieves all consumers with entity information
+func (s *ConsumerService) GetAllConsumers() ([]models.ConsumerResponse, error) {
+	var consumers []models.Consumer
+
+	err := s.db.Preload("Entity").Find(&consumers).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch consumers: %w", err)
+	}
+
+	response := make([]models.ConsumerResponse, len(consumers))
+	for i, consumer := range consumers {
+		response[i] = models.ConsumerResponse{
+			ConsumerID:  consumer.ConsumerID,
+			EntityID:    consumer.EntityID,
+			Name:        consumer.Entity.Name,
+			EntityType:  consumer.Entity.EntityType,
+			Email:       consumer.Entity.Email,
+			PhoneNumber: consumer.Entity.PhoneNumber,
+			CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   consumer.UpdatedAt.Format(time.RFC3339),
 		}
 	}
 
