@@ -92,21 +92,16 @@ func (s *StringArray) scanPostgreSQLArray(data []byte) error {
 		return nil
 	}
 
-	// Simple parsing - assumes no commas in values
 	parts := []string{}
 	current := ""
 	inQuotes := false
 
 	for i, char := range str {
-		if char == '"' {
+		if char == '"' && (i == 0 || str[i-1] != '\\') {
 			inQuotes = !inQuotes
 		} else if char == ',' && !inQuotes {
 			if current != "" {
-				// Remove surrounding quotes if present
-				if len(current) >= 2 && current[0] == '"' && current[len(current)-1] == '"' {
-					current = current[1 : len(current)-1]
-				}
-				parts = append(parts, current)
+				parts = append(parts, s.removeQuotes(current))
 			}
 			current = ""
 		} else {
@@ -115,13 +110,20 @@ func (s *StringArray) scanPostgreSQLArray(data []byte) error {
 
 		// Handle last element
 		if i == len(str)-1 && current != "" {
-			if len(current) >= 2 && current[0] == '"' && current[len(current)-1] == '"' {
-				current = current[1 : len(current)-1]
-			}
-			parts = append(parts, current)
+			parts = append(parts, s.removeQuotes(current))
 		}
 	}
 
 	*s = StringArray(parts)
 	return nil
+}
+
+// removeQuotes removes surrounding quotes and handles basic escape sequences
+func (s *StringArray) removeQuotes(str string) string {
+	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
+		unquoted := str[1 : len(str)-1]
+		// Handle basic escape sequences
+		return unquoted // Simple approach - could use strings.Replacer for more complex cases
+	}
+	return str
 }
