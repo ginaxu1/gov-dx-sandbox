@@ -8,12 +8,10 @@ require (
 	github.com/graphql-go/graphql v0.8.1
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.11.1
-<<<<<<< HEAD
-	github.com/vektah/gqlparser/v2 v2.5.1
+	github.com/vektah/gqlparser/v2 v2.5.30
 )
 
 require (
-	github.com/agnivade/levenshtein v1.0.1 // indirect
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
@@ -37,12 +35,12 @@ require (
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
-=======
-	github.com/vektah/gqlparser/v2 v2.5.30
->>>>>>> 8d51df8 (OE add database.go and schema endpoints, update schema functionality)
 )
 
-require github.com/stretchr/objx v0.5.2 // indirect
+require (
+	github.com/agnivade/levenshtein v1.2.1 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
