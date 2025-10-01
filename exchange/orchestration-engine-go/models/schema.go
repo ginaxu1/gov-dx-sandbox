@@ -140,4 +140,30 @@ type SchemaService interface {
 
 	// GetPreviousVersionID retrieves the ID of the previous version for a given version
 	GetPreviousVersionID(version string) (*int, error)
+
+	// Multi-Version Schema Support Methods
+
+	// LoadSchema loads schema from database into memory
+	LoadSchema() error
+
+	// GetSchemaForVersion returns schema for specific version
+	GetSchemaForVersion(version string) (interface{}, error)
+
+	// RouteQuery routes GraphQL query to appropriate schema version
+	RouteQuery(query string, version string) (interface{}, error)
+
+	// GetDefaultSchema returns the currently active default schema
+	GetDefaultSchema() (interface{}, error)
+
+	// ReloadSchemasInMemory reloads all schemas from database into memory
+	ReloadSchemasInMemory() error
+
+	// GetSchemaVersions returns all loaded schema versions
+	GetSchemaVersions() map[string]interface{}
+
+	// IsSchemaVersionLoaded checks if a specific schema version is loaded in memory
+	IsSchemaVersionLoaded(version string) bool
+
+	// GetActiveSchemaVersion returns the version string of the currently active schema
+	GetActiveSchemaVersion() (string, error)
 }

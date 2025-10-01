@@ -839,3 +839,150 @@ func NewContractTester(db *sql.DB) *ContractTester {
 		db: db,
 	}
 }
+
+// Phase 4: Multi-Version Schema Support
+
+// getAllActiveSchemas retrieves all schemas with status 'active' or 'inactive'
+func (s *SchemaServiceImpl) getAllActiveSchemas() ([]models.UnifiedSchema, error) {
+	query := `SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id 
+	          FROM unified_schemas 
+	          WHERE status IN ('active', 'inactive') 
+	          ORDER BY created_at DESC`
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var schemas []models.UnifiedSchema
+	for rows.Next() {
+		var schema models.UnifiedSchema
+		err := rows.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.CreatedAt,
+			&schema.CreatedBy, &schema.Status, &schema.ChangeType,
+			&schema.Notes, &schema.PreviousVersionID)
+		if err != nil {
+			return nil, err
+		}
+		schemas = append(schemas, schema)
+	}
+
+	return schemas, nil
+}
+
+// LoadSchema loads schema from database into memory
+func (s *SchemaServiceImpl) LoadSchema() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Check if database is available
+	if s.db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+
+	// Load all active schemas
+	schemas, err := s.getAllActiveSchemas()
+	if err != nil {
+		return err
+	}
+
+	s.schemaVersions = make(map[string]*ast.Document)
+
+	for _, schema := range schemas {
+		parsed, err := s.parseSDL(schema.SDL)
+		if err != nil {
+			return fmt.Errorf("failed to parse schema version %s: %w", schema.Version, err)
+		}
+
+		s.schemaVersions[schema.Version] = parsed
+
+		if schema.Status == models.SchemaStatusActive {
+			s.currentSchema = parsed
+		}
+	}
+
+	return nil
+}
+
+// GetSchemaForVersion returns schema for specific version
+func (s *SchemaServiceImpl) GetSchemaForVersion(version string) (interface{}, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	schema, exists := s.schemaVersions[version]
+	if !exists {
+		return nil, fmt.Errorf("schema version %s not found", version)
+	}
+
+	return schema, nil
+}
+
+// RouteQuery routes GraphQL query to appropriate schema version
+func (s *SchemaServiceImpl) RouteQuery(query string, version string) (interface{}, error) {
+	if version == "" {
+		// Use current active schema (default)
+		return s.GetDefaultSchema()
+	}
+
+	// Use specific version
+	return s.GetSchemaForVersion(version)
+}
+
+// GetDefaultSchema returns the currently active default schema
+func (s *SchemaServiceImpl) GetDefaultSchema() (interface{}, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if s.currentSchema == nil {
+		return nil, fmt.Errorf("no active schema found")
+	}
+
+	return s.currentSchema, nil
+}
+
+// ReloadSchemasInMemory reloads all schemas from database into memory
+func (s *SchemaServiceImpl) ReloadSchemasInMemory() error {
+	return s.LoadSchema()
+}
+
+// GetSchemaVersions returns all loaded schema versions
+func (s *SchemaServiceImpl) GetSchemaVersions() map[string]interface{} {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Return a copy to avoid race conditions
+	versions := make(map[string]interface{})
+	for version, schema := range s.schemaVersions {
+		versions[version] = schema
+	}
+
+	return versions
+}
+
+// IsSchemaVersionLoaded checks if a specific schema version is loaded in memory
+func (s *SchemaServiceImpl) IsSchemaVersionLoaded(version string) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	_, exists := s.schemaVersions[version]
+	return exists
+}
+
+// GetActiveSchemaVersion returns the version string of the currently active schema
+func (s *SchemaServiceImpl) GetActiveSchemaVersion() (string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if s.currentSchema == nil {
+		return "", fmt.Errorf("no active schema found")
+	}
+
+	// Find the version that matches the current schema
+	for version, schema := range s.schemaVersions {
+		if schema == s.currentSchema {
+			return version, nil
+		}
+	}
+
+	return "", fmt.Errorf("active schema version not found")
+}
