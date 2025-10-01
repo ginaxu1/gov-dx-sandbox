@@ -3,6 +3,7 @@ package federator
 import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/kinds"
 	"github.com/graphql-go/graphql/language/printer"
 )
 
@@ -188,20 +189,42 @@ func FindFieldDefinitionFromFieldName(fieldName string, schema *ast.Document, pa
 	return fieldDef
 }
 
+func PushArgumentValue(arg *ast.Argument, val interface{}) {
+	switch v := val.(type) {
+	case string:
+		arg.Value = &ast.StringValue{
+			Kind:  kinds.StringValue,
+			Value: v,
+		}
+	case int:
+		arg.Value = &ast.IntValue{
+			Kind:  kinds.IntValue,
+			Value: string(rune(v)),
+		}
+	case float64:
+		arg.Value = &ast.FloatValue{
+			Kind:  kinds.FloatValue,
+			Value: string(rune(v)),
+		}
+	case bool:
+		arg.Value = &ast.BooleanValue{
+			Kind:  kinds.BooleanValue,
+			Value: v,
+		}
+	}
+}
+
 // PushVariablesFromVariableDefinition A function to replace variable references in arguments with actual values from the request.
 func PushVariablesFromVariableDefinition(request graphql.Request, extractedArgs []*ArgSource, variableDefinitions []*ast.VariableDefinition) {
 	for _, arg := range extractedArgs {
 		if arg.Argument.Value.GetKind() == "Variable" {
-			varName := arg.Argument.Name.Value
+			varName := arg.Argument.Value.(*ast.Variable).Name.Value
 			if val, exists := request.Variables[varName]; exists {
 				// find the corresponding variable definition
 				for _, v := range variableDefinitions {
 					if v.Variable.Name.Value == varName {
 						// replace the argument value with the variable value
-						arg.Argument.Value = &ast.StringValue{
-							Kind:  "StringValue",
-							Value: val.(string),
-						}
+						PushArgumentValue(arg.Argument, val)
 						break
 					}
 				}

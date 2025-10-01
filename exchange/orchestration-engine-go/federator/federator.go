@@ -206,7 +206,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		}
 	}
 
-	if pdpResponse.ConsentRequired && configs.AppConfig.Environment != "local" {
+	if pdpResponse.ConsentRequired {
 		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
 
 		ceRequest := &consent.CERequest{
