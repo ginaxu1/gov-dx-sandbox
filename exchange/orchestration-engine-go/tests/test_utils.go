@@ -1,8 +1,9 @@
-package federator
+package tests
 
 import (
 	"testing"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -69,4 +70,14 @@ func CreateTestSchema(t *testing.T) *ast.Document {
 	schema, err := parser.Parse(parser.ParseParams{Source: src})
 	require.NoError(t, err, "Should parse schema successfully")
 	return schema
+}
+
+// PushValue is a wrapper around federator.PushValue for tests
+func PushValue(obj interface{}, path string, value interface{}) (interface{}, error) {
+	return federator.PushValue(obj, path, value)
+}
+
+// GetValueAtPath is a wrapper around federator.GetValueAtPath for tests
+func GetValueAtPath(data interface{}, path string) (interface{}, error) {
+	return federator.GetValueAtPath(data, path)
 }
