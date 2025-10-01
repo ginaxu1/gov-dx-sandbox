@@ -14,15 +14,21 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
 	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
+	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
+	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if it exists (optional - fails silently if not found)
+	_ = godotenv.Load()
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
 	slog.SetDefault(logger)
 
 	slog.Info("Starting API Server initialization")
 
-	// Initialize database connection
+	// Initialize database connection (legacy)
 	dbConfig := NewDatabaseConfig()
 	db, err := ConnectDB(dbConfig)
 	if err != nil {
@@ -35,18 +41,32 @@ func main() {
 		}
 	}()
 
-	// Initialize database tables
+	// Initialize database tables (legacy)
 	if err := InitDatabase(db); err != nil {
 		slog.Error("Failed to initialize database tables", "error", err)
 		os.Exit(1)
 	}
 
-	// Initialize API server with database
+	// Initialize GORM database connection for V1
+	v1DbConfig := v1.NewDatabaseConfig()
+	gormDB, err := v1.ConnectGormDB(v1DbConfig)
+	if err != nil {
+		slog.Error("Failed to connect to GORM database", "error", err)
+		os.Exit(1)
+	}
+
+	// GORM database connection handles migration based on RUN_MIGRATION env var
+
+	// Initialize API server with database (legacy)
 	apiServer := handlers.NewAPIServerWithDB(db)
+
+	// Initialize V1 handlers
+	v1Handler := v1handlers.NewV1Handler(gormDB)
 
 	// Setup routes
 	mux := http.NewServeMux()
-	apiServer.SetupRoutes(mux)
+	apiServer.SetupRoutes(mux)   // Legacy routes
+	v1Handler.SetupV1Routes(mux) // V1 routes
 
 	// Health check endpoint (matching consent-engine approach)
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
