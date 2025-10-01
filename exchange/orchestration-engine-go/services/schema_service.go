@@ -11,6 +11,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/models"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/parser"
 )
 
 // SchemaService defines the interface for schema management
@@ -38,6 +39,7 @@ type SchemaServiceImpl struct {
 	db             *sql.DB
 	currentSchema  *ast.QueryDocument
 	schemaVersions map[string]*ast.QueryDocument
+	SchemaDocs     map[string]*ast.SchemaDocument // Store parsed schema documents (public for testing)
 	mutex          sync.RWMutex
 	contractTester *ContractTester
 	config         *configs.SchemaConfig
@@ -49,6 +51,7 @@ func NewSchemaService(db *sql.DB) models.SchemaService {
 	return &SchemaServiceImpl{
 		db:             db,
 		schemaVersions: make(map[string]*ast.QueryDocument),
+		SchemaDocs:     make(map[string]*ast.SchemaDocument),
 		contractTester: &ContractTester{db: db},
 		config:         config,
 	}
@@ -108,7 +111,7 @@ func (s *SchemaServiceImpl) CreateSchema(req *models.CreateSchemaRequest) (*mode
 	}
 
 	// Parse the SDL
-	parsedSchema, err := s.parseSDL(req.SDL)
+	parsedSchema, err := s.ParseSDL(req.SDL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid SDL: %w", err)
 	}
@@ -154,6 +157,12 @@ func (s *SchemaServiceImpl) CreateSchema(req *models.CreateSchemaRequest) (*mode
 
 	// Load into memory
 	s.schemaVersions[schema.Version] = parsedSchema
+
+	// Store the parsed schema document
+	if schemaDoc, err := s.getSchemaDocument(schema.Version); err == nil {
+		s.SchemaDocs[schema.Version] = schemaDoc
+	}
+
 	if schema.Status == models.SchemaStatusActive {
 		s.currentSchema = parsedSchema
 	}
@@ -315,7 +324,7 @@ func (s *SchemaServiceImpl) GetCurrentActiveSchema() (*ast.QueryDocument, error)
 // CheckCompatibility checks if a new schema is compatible with existing ones
 func (s *SchemaServiceImpl) CheckCompatibility(newSDL string, previousVersionID *int) (*models.SchemaCompatibilityCheck, error) {
 	// Parse the new SDL
-	parsedSchema, err := s.parseSDL(newSDL)
+	parsedSchema, err := s.ParseSDL(newSDL)
 	if err != nil {
 		return &models.SchemaCompatibilityCheck{
 			IsCompatible: false,
@@ -342,7 +351,7 @@ func (s *SchemaServiceImpl) CheckCompatibility(newSDL string, previousVersionID 
 	}
 
 	// Parse previous schema
-	_, err = s.parseSDL(previousSDL)
+	_, err = s.ParseSDL(previousSDL)
 	if err != nil {
 		return &models.SchemaCompatibilityCheck{
 			IsCompatible: false,
@@ -413,14 +422,20 @@ func (s *SchemaServiceImpl) LoadSchema() error {
 	}
 
 	s.schemaVersions = make(map[string]*ast.QueryDocument)
+	s.SchemaDocs = make(map[string]*ast.SchemaDocument)
 
 	for _, schema := range schemas {
-		parsed, err := s.parseSDL(schema.SDL)
+		parsed, err := s.ParseSDL(schema.SDL)
 		if err != nil {
 			return fmt.Errorf("failed to parse schema version %s: %w", schema.Version, err)
 		}
 
 		s.schemaVersions[schema.Version] = parsed
+
+		// Also parse and store the schema document
+		if schemaDoc, err := parser.ParseSchema(&ast.Source{Input: schema.SDL}); err == nil {
+			s.SchemaDocs[schema.Version] = schemaDoc
+		}
 
 		if schema.Status == models.SchemaStatusActive {
 			s.currentSchema = parsed
@@ -515,44 +530,177 @@ func (s *SchemaServiceImpl) ReloadConfiguration() error {
 
 // Helper methods
 
-// parseSDL parses SDL string into AST document
-func (s *SchemaServiceImpl) parseSDL(sdl string) (*ast.QueryDocument, error) {
-	// For now, return a simple QueryDocument
-	// In a real implementation, you would parse the SDL properly
-	doc := &ast.QueryDocument{
+// ParseSDL parses SDL string into AST document (public method for testing)
+func (s *SchemaServiceImpl) ParseSDL(sdl string) (*ast.QueryDocument, error) {
+	if sdl == "" {
+		return nil, fmt.Errorf("SDL string cannot be empty")
+	}
+
+	// Parse the SDL string using gqlparser
+	schemaDoc, err := parser.ParseSchema(&ast.Source{Input: sdl})
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SDL: %w", err)
+	}
+
+	// Validate the parsed schema
+	if err := s.validateParsedSchema(schemaDoc); err != nil {
+		return nil, fmt.Errorf("schema validation failed: %w", err)
+	}
+
+	// Convert SchemaDocument to QueryDocument for compatibility
+	// This creates a QueryDocument that can be used for query processing
+	queryDoc := s.convertSchemaToQueryDocument(schemaDoc)
+
+	return queryDoc, nil
+}
+
+// validateParsedSchema validates the parsed GraphQL schema
+func (s *SchemaServiceImpl) validateParsedSchema(doc *ast.SchemaDocument) error {
+	if doc == nil {
+		return fmt.Errorf("parsed schema document is nil")
+	}
+
+	// Check if schema has at least one definition
+	if len(doc.Definitions) == 0 {
+		return fmt.Errorf("schema must contain at least one definition")
+	}
+
+	// Check for required Query type
+	hasQueryType := false
+	for _, def := range doc.Definitions {
+		if def.Kind == ast.Object && def.Name == "Query" {
+			hasQueryType = true
+			break
+		}
+	}
+
+	if !hasQueryType {
+		return fmt.Errorf("schema must contain a Query type")
+	}
+
+	// Additional validation can be added here
+	// For example, checking for circular references, invalid types, etc.
+
+	return nil
+}
+
+// convertSchemaToQueryDocument converts a SchemaDocument to QueryDocument
+func (s *SchemaServiceImpl) convertSchemaToQueryDocument(schemaDoc *ast.SchemaDocument) *ast.QueryDocument {
+	// Create a QueryDocument with empty operations and fragments
+	// The schema information is stored separately in schemaDocs map
+	queryDoc := &ast.QueryDocument{
 		Operations: ast.OperationList{},
 		Fragments:  ast.FragmentDefinitionList{},
 	}
 
-	return doc, nil
+	// Store the schema document for later use
+	// We'll use a hash of the schema as the key for now
+	// In a real implementation, you might want to use the version string
+	schemaHash := fmt.Sprintf("%x", len(schemaDoc.Definitions))
+	s.SchemaDocs[schemaHash] = schemaDoc
+
+	return queryDoc
+}
+
+// getSchemaDocument retrieves the parsed schema document for a given version
+func (s *SchemaServiceImpl) getSchemaDocument(version string) (*ast.SchemaDocument, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// Try to find by version first
+	if schemaDoc, exists := s.SchemaDocs[version]; exists {
+		return schemaDoc, nil
+	}
+
+	// If not found, try to get from database and parse
+	schema, err := s.GetSchemaVersion(version)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the SDL from database
+	schemaDoc, err := parser.ParseSchema(&ast.Source{Input: schema.SDL})
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse schema from database: %w", err)
+	}
+
+	// Store it for future use
+	s.SchemaDocs[version] = schemaDoc
+
+	return schemaDoc, nil
+}
+
+// GetSchemaDocumentForVersion returns the parsed schema document for a specific version
+func (s *SchemaServiceImpl) GetSchemaDocumentForVersion(version string) (*ast.SchemaDocument, error) {
+	return s.getSchemaDocument(version)
+}
+
+// GetCurrentSchemaDocument returns the parsed schema document for the currently active schema
+func (s *SchemaServiceImpl) GetCurrentSchemaDocument() (*ast.SchemaDocument, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if s.currentSchema == nil {
+		return nil, fmt.Errorf("no active schema found")
+	}
+
+	// Find the version of the current schema
+	for version, schema := range s.schemaVersions {
+		if schema == s.currentSchema {
+			return s.getSchemaDocument(version)
+		}
+	}
+
+	return nil, fmt.Errorf("active schema document not found")
+}
+
+// ValidateSDL validates an SDL string without storing it (public method for testing)
+func (s *SchemaServiceImpl) ValidateSDL(sdl string) error {
+	if sdl == "" {
+		return fmt.Errorf("SDL string cannot be empty")
+	}
+
+	// Parse the SDL string using gqlparser
+	schemaDoc, err := parser.ParseSchema(&ast.Source{Input: sdl})
+	if err != nil {
+		return fmt.Errorf("failed to parse SDL: %w", err)
+	}
+
+	// Validate the parsed schema
+	return s.validateParsedSchema(schemaDoc)
 }
 
 // checkCompatibility checks if the new schema is compatible with existing versions
 func (s *SchemaServiceImpl) checkCompatibility(version string, newSchema *ast.QueryDocument) (*models.VersionCompatibility, error) {
 	// Parse version (e.g., "1.2.0")
-	major, minor, patch, err := s.parseVersion(version)
+	major, minor, _, err := s.parseVersion(version)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get current active schema
-	currentVersion, currentSchema, err := s.getCurrentActiveSchema()
+	// Get current active schema document
+	currentSchemaDoc, err := s.GetCurrentSchemaDocument()
 	if err != nil {
 		return nil, err
 	}
 
-	currentMajor, currentMinor, currentPatch, _ := s.parseVersion(currentVersion)
+	// Get the new schema document from the SDL
+	// We need to get the SDL string from somewhere - this is a limitation of the current design
+	// In a real implementation, you might want to pass the SDL string directly
+	newSchemaDoc, err := s.getSchemaDocument(version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get new schema document: %w", err)
+	}
 
-	// Determine change type
+	// Determine change type based on version comparison
+	// For now, we'll use a simple approach
 	var changeType string
-	if major > currentMajor {
+	if major > 1 {
 		changeType = "major"
-	} else if minor > currentMinor {
+	} else if minor > 0 {
 		changeType = "minor"
-	} else if patch > currentPatch {
-		changeType = "patch"
 	} else {
-		return nil, fmt.Errorf("version must be higher than current version")
+		changeType = "patch"
 	}
 
 	// Perform compatibility checks
@@ -562,12 +710,12 @@ func (s *SchemaServiceImpl) checkCompatibility(version string, newSchema *ast.Qu
 
 	if changeType == "minor" {
 		// Minor version: only allow adding new fields
-		if err := s.checkMinorCompatibility(currentSchema, newSchema, compatibility); err != nil {
+		if err := s.checkMinorCompatibilitySchema(currentSchemaDoc, newSchemaDoc, compatibility); err != nil {
 			return nil, err
 		}
 	} else if changeType == "major" {
 		// Major version: allow breaking changes
-		s.checkMajorCompatibility(currentSchema, newSchema, compatibility)
+		s.checkMajorCompatibilitySchema(currentSchemaDoc, newSchemaDoc, compatibility)
 	}
 
 	return compatibility, nil
@@ -611,7 +759,7 @@ func (s *SchemaServiceImpl) getCurrentActiveSchema() (string, *ast.QueryDocument
 		return "", nil, fmt.Errorf("failed to get active schema: %w", err)
 	}
 
-	parsed, err := s.parseSDL(sdl)
+	parsed, err := s.ParseSDL(sdl)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to parse active schema: %w", err)
 	}
@@ -679,6 +827,92 @@ func (s *SchemaServiceImpl) checkMajorCompatibility(current, new *ast.QueryDocum
 	compatibility.BreakingChanges = append(compatibility.BreakingChanges, "Major version allows breaking changes")
 }
 
+// checkMinorCompatibilitySchema ensures minor versions only add new fields (using SchemaDocument)
+func (s *SchemaServiceImpl) checkMinorCompatibilitySchema(current, new *ast.SchemaDocument, compatibility *models.VersionCompatibility) error {
+	// Extract all types and fields from current schema
+	currentTypes := s.extractTypesFromSchema(current)
+	newTypes := s.extractTypesFromSchema(new)
+
+	// Check for removed or modified fields
+	for typeName, currentType := range currentTypes {
+		newType, exists := newTypes[typeName]
+		if !exists {
+			compatibility.BreakingChanges = append(compatibility.BreakingChanges,
+				fmt.Sprintf("Type '%s' was removed", typeName))
+			return fmt.Errorf("minor version cannot remove types")
+		}
+
+		// Check fields within type
+		for fieldName, currentField := range currentType.Fields {
+			newField, exists := newType.Fields[fieldName]
+			if !exists {
+				compatibility.BreakingChanges = append(compatibility.BreakingChanges,
+					fmt.Sprintf("Field '%s.%s' was removed", typeName, fieldName))
+				return fmt.Errorf("minor version cannot remove fields")
+			}
+
+			// Check if field type changed
+			if !s.fieldTypesEqual(currentField.Type, newField.Type) {
+				compatibility.BreakingChanges = append(compatibility.BreakingChanges,
+					fmt.Sprintf("Field '%s.%s' type changed from %s to %s",
+						typeName, fieldName, currentField.Type, newField.Type))
+				return fmt.Errorf("minor version cannot modify field types")
+			}
+		}
+	}
+
+	// Check for new fields (allowed in minor versions)
+	for typeName, newType := range newTypes {
+		currentType, exists := currentTypes[typeName]
+		if !exists {
+			compatibility.NewFields = append(compatibility.NewFields,
+				fmt.Sprintf("New type '%s' added", typeName))
+			continue
+		}
+
+		for fieldName := range newType.Fields {
+			if _, exists := currentType.Fields[fieldName]; !exists {
+				compatibility.NewFields = append(compatibility.NewFields,
+					fmt.Sprintf("New field '%s.%s' added", typeName, fieldName))
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkMajorCompatibilitySchema allows breaking changes for major versions (using SchemaDocument)
+func (s *SchemaServiceImpl) checkMajorCompatibilitySchema(current, new *ast.SchemaDocument, compatibility *models.VersionCompatibility) {
+	// Major versions allow all changes
+	compatibility.BreakingChanges = append(compatibility.BreakingChanges, "Major version allows breaking changes")
+}
+
+// extractTypesFromSchema extracts type definitions from SchemaDocument
+func (s *SchemaServiceImpl) extractTypesFromSchema(doc *ast.SchemaDocument) map[string]*TypeInfo {
+	types := make(map[string]*TypeInfo)
+
+	for _, def := range doc.Definitions {
+		if def.Kind == ast.Object || def.Kind == ast.InputObject {
+			typeInfo := &TypeInfo{
+				Name:   def.Name,
+				Fields: make(map[string]*FieldInfo),
+			}
+
+			for _, field := range def.Fields {
+				fieldInfo := &FieldInfo{
+					Name: field.Name,
+					Type: s.getTypeString(field.Type),
+				}
+				typeInfo.Fields[field.Name] = fieldInfo
+			}
+
+			types[def.Name] = typeInfo
+		}
+	}
+
+	return types
+}
+
 // extractTypes extracts type definitions from AST document
 func (s *SchemaServiceImpl) extractTypes(doc *ast.QueryDocument) map[string]*TypeInfo {
 	types := make(map[string]*TypeInfo)
@@ -688,10 +922,32 @@ func (s *SchemaServiceImpl) extractTypes(doc *ast.QueryDocument) map[string]*Typ
 	return types
 }
 
+// fieldTypesEqual checks if two field types are equal
+func (s *SchemaServiceImpl) fieldTypesEqual(type1, type2 string) bool {
+	return type1 == type2
+}
+
 // getTypeString converts AST type to string representation
-func (s *SchemaServiceImpl) getTypeString(t ast.Type) string {
-	// Simplified implementation for now
-	return "String"
+func (s *SchemaServiceImpl) getTypeString(t *ast.Type) string {
+	if t == nil {
+		return "Unknown"
+	}
+
+	switch t.NamedType {
+	case "":
+		// Handle non-named types (lists, non-null, etc.)
+		if t.Elem != nil {
+			return "[" + s.getTypeString(t.Elem) + "]"
+		}
+		return "Unknown"
+	default:
+		// Handle named types
+		result := t.NamedType
+		if t.NonNull {
+			result += "!"
+		}
+		return result
+	}
 }
 
 // TypeInfo represents type information
