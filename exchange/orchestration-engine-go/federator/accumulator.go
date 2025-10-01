@@ -7,14 +7,12 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
-	"github.com/graphql-go/graphql/language/parser"
-	"github.com/graphql-go/graphql/language/source"
 	"github.com/graphql-go/graphql/language/visitor"
 )
 
 func AccumulateResponse(queryAST *ast.Document, federatedResponse *FederationResponse) graphql.Response {
-	// For now, use the simple accumulator since the test queries have directives in the query itself
-	// In a real implementation, we would use the schema-aware approach
+	// Use the simple accumulator for backward compatibility
+	// For array-aware processing, use AccumulateResponseWithSchemaInfo instead
 	return accumulateResponseSimple(queryAST, federatedResponse)
 }
 
@@ -40,7 +38,7 @@ func accumulateResponseSimple(queryAST *ast.Document, federatedResponse *Federat
 				// Handle nested fields
 				if len(path) > 0 {
 					// Check if this is a nested field of an array (skip processing)
-					if isNestedFieldOfArray(path) {
+					if isNestedFieldOfArray(path, queryAST) {
 						return visitor.ActionNoChange, p.Node
 					}
 
@@ -149,15 +147,66 @@ func accumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *Fed
 }
 
 // isNestedFieldOfArray checks if the current field is a nested field of an array
-func isNestedFieldOfArray(path []string) bool {
-	// For now, we'll use a simple heuristic: if the path contains "ownedVehicles"
-	// and we're not at the ownedVehicles level, then we're in a nested field
-	for i, segment := range path {
-		if segment == "ownedVehicles" && i < len(path)-1 {
-			return true
+// by examining the query AST to determine which fields are arrays
+func isNestedFieldOfArray(path []string, queryAST *ast.Document) bool {
+	if len(path) < 2 {
+		return false
+	}
+
+	// Get the parent field (the array field) from the path
+	arrayFieldName := path[len(path)-2]
+
+	// Find the array field in the query AST
+	arrayField := findFieldInQuery(queryAST, arrayFieldName)
+	if arrayField == nil {
+		return false
+	}
+
+	// Check if this field has a selection set (indicating it's an array/object field)
+	// and if we're currently processing a nested field of it
+	return arrayField.SelectionSet != nil && len(arrayField.SelectionSet.Selections) > 0
+}
+
+// findFieldInQuery recursively searches for a field with the given name in the query AST
+func findFieldInQuery(queryAST *ast.Document, fieldName string) *ast.Field {
+	for _, definition := range queryAST.Definitions {
+		if operation, ok := definition.(*ast.OperationDefinition); ok {
+			if operation.SelectionSet != nil {
+				for _, selection := range operation.SelectionSet.Selections {
+					if field, ok := selection.(*ast.Field); ok {
+						if field.Name != nil && field.Name.Value == fieldName {
+							return field
+						}
+						// Recursively search in nested selections
+						if found := findFieldInSelectionSet(field.SelectionSet, fieldName); found != nil {
+							return found
+						}
+					}
+				}
+			}
 		}
 	}
-	return false
+	return nil
+}
+
+// findFieldInSelectionSet recursively searches for a field in a selection set
+func findFieldInSelectionSet(selectionSet *ast.SelectionSet, fieldName string) *ast.Field {
+	if selectionSet == nil {
+		return nil
+	}
+
+	for _, selection := range selectionSet.Selections {
+		if field, ok := selection.(*ast.Field); ok {
+			if field.Name != nil && field.Name.Value == fieldName {
+				return field
+			}
+			// Recursively search in nested selections
+			if found := findFieldInSelectionSet(field.SelectionSet, fieldName); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
 }
 
 // processArrayFieldSimple handles array fields with nested selections
@@ -225,51 +274,6 @@ func extractRelativeFieldPath(providerField string) string {
 		return parts[len(parts)-1]
 	}
 	return providerField
-}
-
-// getSchemaFromQuery extracts schema from query (simplified for now)
-func getSchemaFromQuery(queryAST *ast.Document) *ast.Document {
-	// For now, we'll use a hardcoded schema that matches our test cases
-	// In a real implementation, this would be passed as a parameter or retrieved from a global registry
-	return createTestSchema()
-}
-
-// createTestSchema creates a test schema for array processing
-func createTestSchema() *ast.Document {
-	schemaSDL := `
-		directive @sourceInfo(
-			providerKey: String!
-			providerField: String!
-		) on FIELD_DEFINITION
-
-		type Query {
-			personInfo(nic: String!): PersonInfo
-		}
-
-		type PersonInfo {
-			fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName")
-			address: String @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress")
-			ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data")
-		}
-
-		type VehicleInfo {
-			regNo: String @sourceInfo(providerKey: "dmt", providerField: "registrationNumber")
-			make: String @sourceInfo(providerKey: "dmt", providerField: "make")
-			model: String @sourceInfo(providerKey: "dmt", providerField: "model")
-		}
-	`
-
-	src := source.NewSource(&source.Source{
-		Body: []byte(schemaSDL),
-		Name: "TestSchema",
-	})
-
-	schema, err := parser.Parse(parser.ParseParams{Source: src})
-	if err != nil {
-		fmt.Printf("Error parsing test schema: %v\n", err)
-		return nil
-	}
-	return schema
 }
 
 // processSimpleField handles simple (non-array) fields
@@ -583,13 +587,8 @@ func isArrayFieldValue(fieldName string, value interface{}) bool {
 	if _, ok := value.([]interface{}); ok {
 		return true
 	}
-	// Also check for known array field names
-	arrayFieldNames := []string{"ownedVehicles", "addresses", "emergencyContacts", "previousOwners", "maintenanceRecords"}
-	for _, name := range arrayFieldNames {
-		if fieldName == name {
-			return true
-		}
-	}
+	// Note: This function should be removed or made configurable
+	// The array field detection should be based on schema information, not hardcoded field names
 	return false
 }
 
@@ -616,21 +615,13 @@ func processArrayField(responseData map[string]interface{}, path []string, field
 		// Create a map for this array element
 		destinationObject := make(map[string]interface{})
 
-		// Extract individual fields from the element using common field mappings
-		fieldMappings := map[string]string{
-			"registrationNumber": "regNo",
-			"make":               "make",
-			"model":              "model",
-			"date":               "date",
-			"description":        "description",
-			"cost":               "cost",
-			"serviceProvider":    "serviceProvider",
-		}
-
-		for providerField, responseField := range fieldMappings {
-			if value, exists := elementMap[providerField]; exists {
-				destinationObject[responseField] = value
-			}
+		// Extract individual fields from the element
+		// Note: This hardcoded mapping should be replaced with schema-driven field mapping
+		// For now, we'll copy all fields from the source element to maintain compatibility
+		for providerField, value := range elementMap {
+			// Use the provider field name as the response field name
+			// In a real implementation, this should use schema-driven mapping
+			destinationObject[providerField] = value
 		}
 
 		destinationArray = append(destinationArray, destinationObject)

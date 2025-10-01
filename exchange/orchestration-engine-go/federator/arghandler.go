@@ -9,6 +9,21 @@ import (
 	"github.com/graphql-go/graphql/language/visitor"
 )
 
+// isPathPrefix checks if the given path is a proper prefix of the target path
+// It ensures that the prefix match is followed by a path separator (.) or end of string
+func isPathPrefix(path, prefix string) bool {
+	if path == prefix {
+		return true
+	}
+
+	// Check if path starts with prefix followed by a dot
+	if strings.HasPrefix(path, prefix+".") {
+		return true
+	}
+
+	return false
+}
+
 // ArgSource combines ArgMapping (Representation of Mapping Table Record) with the actual AST Argument node.
 type ArgSource struct {
 	*graphql.ArgMapping
@@ -26,7 +41,7 @@ func FindRequiredArguments(flattenedPaths []string, argMap []*graphql.ArgMapping
 				continue
 			}
 
-			if path == arg.TargetArgPath || strings.HasPrefix(path, arg.TargetArgPath+".") && !containsArg(requiredArgs, arg) {
+			if isPathPrefix(path, arg.TargetArgPath) && !containsArg(requiredArgs, arg) {
 				requiredArgs = append(requiredArgs, arg)
 			}
 		}
@@ -78,8 +93,8 @@ func PushArgumentsToProviderQueryAst(args []*ArgSource, queryAst *FederationServ
 				// now check whether the current path matches any argument's TargetArgPath
 				var currentPath = strings.Join(path, ".")
 				for _, arg := range args {
-					// Check if the current path matches the target path exactly or is a prefix
-					if arg.TargetArgPath == currentPath || strings.HasPrefix(arg.TargetArgPath, currentPath+".") {
+					// Check if the current path matches the target path exactly or is a proper prefix
+					if isPathPrefix(arg.TargetArgPath, currentPath) {
 						field.Arguments = append(field.Arguments, &ast.Argument{
 							Kind: kinds.Argument,
 							Name: &ast.Name{
@@ -125,7 +140,7 @@ func FindArrayRequiredArguments(flattenedPaths []string, argMap []*graphql.ArgMa
 			}
 
 			// Check for array field patterns
-			if path == arg.TargetArgPath || strings.HasPrefix(path, arg.TargetArgPath+".") && !containsArg(requiredArgs, arg) {
+			if isPathPrefix(path, arg.TargetArgPath) && !containsArg(requiredArgs, arg) {
 				requiredArgs = append(requiredArgs, arg)
 			}
 		}

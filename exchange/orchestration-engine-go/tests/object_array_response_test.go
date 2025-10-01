@@ -218,7 +218,7 @@ func TestResponsePatterns(t *testing.T) {
 			}
 		`
 
-		queryDoc := parseTestQuery(t, query)
+		queryDoc := ParseTestQuery(t, query)
 		assert.NotNil(t, queryDoc, "Should parse single object query")
 
 		// Verify query structure
@@ -247,7 +247,7 @@ func TestResponsePatterns(t *testing.T) {
 			}
 		`
 
-		queryDoc := parseTestQuery(t, query)
+		queryDoc := ParseTestQuery(t, query)
 		assert.NotNil(t, queryDoc, "Should parse object with array field query")
 
 		// Verify query structure
@@ -293,7 +293,7 @@ func TestResponsePatterns(t *testing.T) {
 			}
 		`
 
-		queryDoc := parseTestQuery(t, query)
+		queryDoc := ParseTestQuery(t, query)
 		assert.NotNil(t, queryDoc, "Should parse multiple objects query")
 
 		// Verify query structure
