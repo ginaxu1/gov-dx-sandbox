@@ -68,13 +68,25 @@ func main() {
 	v1Handler.SetupV1Routes(mux) // V1 routes
 
 	// Health check endpoint (matching consent-engine approach)
+	// --- Structured types for health status ---
+	type DBHealth struct {
+		Status   string `json:"status"`
+		Error    string `json:"error,omitempty"`
+		Database string `json:"database,omitempty"`
+	}
+	type HealthStatus struct {
+		Status    string              `json:"status"`
+		Service   string              `json:"service"`
+		Databases map[string]DBHealth `json:"databases"`
+	}
+
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		healthStatus := map[string]interface{}{
-			"status":  "healthy",
-			"service": "api-server",
-			"databases": map[string]interface{}{
-				"legacy": map[string]interface{}{"status": "unknown"},
-				"v1":     map[string]interface{}{"status": "unknown"},
+		status := HealthStatus{
+			Status:  "healthy",
+			Service: "api-server",
+			Databases: map[string]DBHealth{
+				"legacy": {Status: "unknown"},
+				"v1":     {Status: "unknown"},
 			},
 		}
 
@@ -85,60 +97,39 @@ func main() {
 
 		// Test legacy database connection
 		if db == nil {
-			healthStatus["databases"].(map[string]interface{})["legacy"] = map[string]interface{}{
-				"status": "unhealthy",
-				"error":  "connection is nil",
-			}
+			status.Databases["legacy"] = DBHealth{Status: "unhealthy", Error: "connection is nil"}
 			allHealthy = false
 		} else if err := db.PingContext(ctx); err != nil {
-			healthStatus["databases"].(map[string]interface{})["legacy"] = map[string]interface{}{
-				"status": "unhealthy",
-				"error":  err.Error(),
-			}
+			status.Databases["legacy"] = DBHealth{Status: "unhealthy", Error: err.Error()}
 			allHealthy = false
 		} else {
-			healthStatus["databases"].(map[string]interface{})["legacy"] = map[string]interface{}{
-				"status":   "healthy",
-				"database": dbConfig.Database,
-			}
+			status.Databases["legacy"] = DBHealth{Status: "healthy", Database: dbConfig.Database}
 		}
 
 		// Test V1 GORM database connection
 		if gormDB == nil {
-			healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
-				"status": "unhealthy",
-				"error":  "GORM connection is nil",
-			}
+			status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: "GORM connection is nil"}
 			allHealthy = false
 		} else {
 			sqlDB, err := gormDB.DB()
 			if err != nil {
-				healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
-					"status": "unhealthy",
-					"error":  fmt.Sprintf("failed to get sql.DB: %v", err),
-				}
+				status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: fmt.Sprintf("failed to get sql.DB: %v", err)}
 				allHealthy = false
 			} else if err := sqlDB.PingContext(ctx); err != nil {
-				healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
-					"status": "unhealthy",
-					"error":  err.Error(),
-				}
+				status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: err.Error()}
 				allHealthy = false
 			} else {
-				healthStatus["databases"].(map[string]interface{})["v1"] = map[string]interface{}{
-					"status":   "healthy",
-					"database": v1DbConfig.Database,
-				}
+				status.Databases["v1"] = DBHealth{Status: "healthy", Database: v1DbConfig.Database}
 			}
 		}
 
 		if !allHealthy {
-			healthStatus["status"] = "unhealthy"
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, healthStatus)
+			status.Status = "unhealthy"
+			utils.RespondWithJSON(w, http.StatusServiceUnavailable, status)
 			return
 		}
 
-		utils.RespondWithJSON(w, http.StatusOK, healthStatus)
+		utils.RespondWithJSON(w, http.StatusOK, status)
 	})))
 
 	// Debug endpoint
@@ -169,10 +160,10 @@ func main() {
 			// Check if consumers table exists in legacy DB
 			var tableExists bool
 			checkTableQuery := `SELECT EXISTS (
-				SELECT FROM information_schema.tables 
-				WHERE table_schema = 'public' 
-				AND table_name = 'consumers'
-			)`
+			       SELECT FROM information_schema.tables 
+			       WHERE table_schema = 'public' 
+			       AND table_name = 'consumers'
+		       )`
 
 			legacyInfo := map[string]interface{}{
 				"status":   "connected",
@@ -220,10 +211,10 @@ func main() {
 				// Check if entities table exists in V1 DB
 				var entitiesExists bool
 				checkEntitiesQuery := `SELECT EXISTS (
-					SELECT FROM information_schema.tables 
-					WHERE table_schema = 'public' 
-					AND table_name = 'entities'
-				)`
+				       SELECT FROM information_schema.tables 
+				       WHERE table_schema = 'public' 
+				       AND table_name = 'entities'
+			       )`
 
 				if err := sqlDB.QueryRowContext(ctx, checkEntitiesQuery).Scan(&entitiesExists); err != nil {
 					v1Info["table_check_error"] = fmt.Sprintf("failed to check entities table: %v", err)
