@@ -9,10 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestCompleteFederationFlow tests the complete federation flow from query parsing
-// to response accumulation, focusing on object and array responses (not array arguments).
+// ============================================================================
+// COMPLETE FEDERATION FLOW TESTS
+// ============================================================================
+
 func TestCompleteFederationFlow(t *testing.T) {
-	t.Skip("Skipping integration test - requires config initialization")
 	t.Run("Single Object Federation", func(t *testing.T) {
 		// Test complete flow for single object query
 		query := `
@@ -380,9 +381,11 @@ func TestCompleteFederationFlow(t *testing.T) {
 	})
 }
 
-// TestFederationErrorHandling tests error handling in the federation flow
+// ============================================================================
+// FEDERATION ERROR HANDLING TESTS
+// ============================================================================
+
 func TestFederationErrorHandling(t *testing.T) {
-	t.Skip("Skipping error handling test - requires @sourceInfo directives")
 	t.Run("Provider Error Handling", func(t *testing.T) {
 		// Test that provider errors are handled gracefully
 		query := `
@@ -507,7 +510,44 @@ func TestFederationErrorHandling(t *testing.T) {
 	})
 }
 
-// Helper functions
+// ============================================================================
+// FEDERATION INTEGRATION TESTS
+// ============================================================================
+
+func TestFederationIntegration(t *testing.T) {
+	t.Skip("Skipping integration test - requires config initialization")
+
+	t.Run("End-to-End Federation", func(t *testing.T) {
+		// This test would run the complete federation flow with real services
+		// It's skipped because it requires actual service configuration
+		query := `
+			query {
+				personInfo(nic: "123456789V") {
+					fullName @sourceInfo(providerKey: "drp", providerField: "person.fullName")
+					name @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name")
+					address @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress")
+				}
+			}
+		`
+
+		queryDoc := ParseTestQuery(t, query)
+		schema := CreateTestSchema(t)
+
+		// In a real integration test, this would:
+		// 1. Extract source info directives
+		// 2. Build provider queries
+		// 3. Make actual HTTP requests to providers
+		// 4. Accumulate responses
+		// 5. Return unified response
+
+		assert.NotNil(t, queryDoc)
+		assert.NotNil(t, schema)
+	})
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 func createMockArgMappings() []*graphql.ArgMapping {
 	return []*graphql.ArgMapping{

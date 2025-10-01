@@ -27,6 +27,7 @@ type Cfg struct {
 	Sdl    []byte
 	*policy.PdpConfig
 	*consent.CeConfig
+	*SchemaConfig
 }
 
 const ConfigFilePath = "./config.json"
@@ -77,6 +78,9 @@ func LoadConfig() {
 	if err != nil {
 		panic(err)
 	}
+
+	// Load schema configuration
+	AppConfig.SchemaConfig = LoadSchemaConfig()
 
 	LoadSdlSchema(AppConfig)
 }

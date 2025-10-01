@@ -4,6 +4,23 @@ import (
 	"time"
 )
 
+// ValidationError represents a validation error
+type ValidationError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+func (e *ValidationError) Error() string {
+	return e.Message
+}
+
+// GraphQLRequest represents a GraphQL request
+type GraphQLRequest struct {
+	Query     string                 `json:"query" validate:"required"`
+	Variables map[string]interface{} `json:"variables,omitempty"`
+	Operation string                 `json:"operationName,omitempty"`
+}
+
 // SchemaStatus represents the status of a schema version
 type SchemaStatus string
 
@@ -166,4 +183,23 @@ type SchemaService interface {
 
 	// GetActiveSchemaVersion returns the version string of the currently active schema
 	GetActiveSchemaVersion() (string, error)
+}
+
+// GraphQLResponse represents a GraphQL query response
+type GraphQLResponse struct {
+	Data   interface{}    `json:"data,omitempty"`
+	Errors []GraphQLError `json:"errors,omitempty"`
+}
+
+// GraphQLError represents a GraphQL error
+type GraphQLError struct {
+	Message   string                 `json:"message"`
+	Locations []GraphQLErrorLocation `json:"locations,omitempty"`
+	Path      []interface{}          `json:"path,omitempty"`
+}
+
+// GraphQLErrorLocation represents the location of a GraphQL error
+type GraphQLErrorLocation struct {
+	Line   int `json:"line"`
+	Column int `json:"column"`
 }
