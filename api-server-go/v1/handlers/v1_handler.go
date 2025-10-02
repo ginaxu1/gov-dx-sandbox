@@ -20,10 +20,11 @@ type V1Handler struct {
 
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) *V1Handler {
+	entityService := services.NewEntityService(db)
 	return &V1Handler{
-		providerService: services.NewProviderService(db),
-		consumerService: services.NewConsumerService(db),
-		entityService:   services.NewEntityService(db),
+		entityService:   entityService,
+		providerService: services.NewProviderService(db, entityService),
+		consumerService: services.NewConsumerService(db, entityService),
 	}
 }
 

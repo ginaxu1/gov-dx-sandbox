@@ -63,6 +63,17 @@ type EntityResponse struct {
 	UpdatedAt   string  `json:"updatedAt"`
 }
 
+// ToEntity converts an EntityResponse to an Entity model (for internal use)
+func (e *EntityResponse) ToEntity() Entity {
+	return Entity{
+		EntityID:    e.EntityID,
+		Name:        e.Name,
+		EntityType:  e.EntityType,
+		Email:       e.Email,
+		PhoneNumber: e.PhoneNumber,
+	}
+}
+
 type ProviderResponse struct {
 	ProviderID  string `json:"providerId"`
 	EntityID    string `json:"entityId"`

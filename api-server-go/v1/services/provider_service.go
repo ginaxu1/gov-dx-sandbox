@@ -11,12 +11,13 @@ import (
 
 // ProviderService handles provider-related operations
 type ProviderService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	entityService *EntityService
 }
 
 // NewProviderService creates a new provider service
-func NewProviderService(db *gorm.DB) *ProviderService {
-	return &ProviderService{db: db}
+func NewProviderService(db *gorm.DB, entityService *EntityService) *ProviderService {
+	return &ProviderService{db: db, entityService: entityService}
 }
 
 // CreateProvider creates a new provider
@@ -29,9 +30,8 @@ func (s *ProviderService) CreateProvider(req *models.CreateProviderRequest) (*mo
 			return nil, fmt.Errorf("entity not found: %w", err)
 		}
 	} else {
-		// Create new entity if EntityID is not provided using the entity service
-		entityService := NewEntityService(s.db)
-		newEntity, err := entityService.CreateEntity(&models.CreateEntityRequest{
+		// Use shared entityService instance
+		newEntity, err := s.entityService.CreateEntity(&models.CreateEntityRequest{
 			Name:        req.Name,
 			EntityType:  req.EntityType,
 			Email:       req.Email,
@@ -40,13 +40,7 @@ func (s *ProviderService) CreateProvider(req *models.CreateProviderRequest) (*mo
 		if err != nil {
 			return nil, fmt.Errorf("failed to create entity: %w", err)
 		}
-		entity = models.Entity{
-			EntityID:    newEntity.EntityID,
-			Name:        newEntity.Name,
-			EntityType:  newEntity.EntityType,
-			Email:       newEntity.Email,
-			PhoneNumber: newEntity.PhoneNumber,
-		}
+		entity = newEntity.ToEntity()
 	}
 	// Create provider
 	provider := models.Provider{
