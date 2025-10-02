@@ -56,8 +56,8 @@ func (s *EntityService) GetEntity(entityID string) (*models.EntityResponse, erro
 
 	err := s.db.Table("entities").
 		Select("entities.*, providers.provider_id, consumers.consumer_id").
-		Joins("LEFT JOIN providers ON entities.entity_id = providers.entity_id").
-		Joins("LEFT JOIN consumers ON entities.entity_id = consumers.entity_id").
+		Joins("INNER JOIN providers ON entities.entity_id = providers.entity_id").
+		Joins("INNER JOIN consumers ON entities.entity_id = consumers.entity_id").
 		Where("entities.entity_id = ?", entityID).
 		First(&result).Error
 
@@ -90,8 +90,8 @@ func (s *EntityService) GetAllEntities() ([]models.EntityResponse, error) {
 
 	err := s.db.Table("entities").
 		Select("entities.*, providers.provider_id, consumers.consumer_id").
-		Joins("LEFT JOIN providers ON entities.entity_id = providers.entity_id").
-		Joins("LEFT JOIN consumers ON entities.entity_id = consumers.entity_id").
+		Joins("INNER JOIN providers ON entities.entity_id = providers.entity_id").
+		Joins("INNER JOIN consumers ON entities.entity_id = consumers.entity_id").
 		Find(&results).Error
 
 	if err != nil {
