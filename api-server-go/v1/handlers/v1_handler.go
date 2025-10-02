@@ -31,18 +31,18 @@ func NewV1Handler(db *gorm.DB) *V1Handler {
 // SetupV1Routes configures all V1 API routes
 func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	// Provider routes
-	mux.Handle("/api/v1/providers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
+	mux.Handle("/api/v1/providers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
 
 	// Consumer routes
-	mux.Handle("/api/v1/consumers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
+	mux.Handle("/api/v1/consumers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
 
 	// Entity routes
-	mux.Handle("/api/v1/entities/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
+	mux.Handle("/api/v1/entities", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
 }
 
 // handleProviders handles provider-related routes
 func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/providers/")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/providers")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
 	// Handle collection endpoint: GET /api/v1/providers and POST /api/v1/providers
@@ -103,7 +103,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 
 // handleConsumers handles consumer-related routes
 func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/consumers/")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/consumers")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
 	// Handle collection endpoint: GET /api/v1/consumers and POST /api/v1/consumers
@@ -164,7 +164,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 
 // handleEntities handles entity-related routes
 func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/entities/")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/entities")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
 	// Handle collection endpoint: GET /api/v1/entities and POST /api/v1/entities
