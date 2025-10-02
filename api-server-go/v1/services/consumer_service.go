@@ -11,12 +11,13 @@ import (
 
 // ConsumerService handles consumer-related operations
 type ConsumerService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	entityService *EntityService
 }
 
 // NewConsumerService creates a new consumer service
-func NewConsumerService(db *gorm.DB) *ConsumerService {
-	return &ConsumerService{db: db}
+func NewConsumerService(db *gorm.DB, entityService *EntityService) *ConsumerService {
+	return &ConsumerService{db: db, entityService: entityService}
 }
 
 // CreateConsumer creates a new consumer
@@ -29,9 +30,8 @@ func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*mo
 			return nil, fmt.Errorf("entity not found: %w", err)
 		}
 	} else {
-		// Create new entity if EntityID is not provided using the entity service
-		entityService := NewEntityService(s.db)
-		newEntity, err := entityService.CreateEntity(&models.CreateEntityRequest{
+		// Use shared entityService instance
+		newEntity, err := s.entityService.CreateEntity(&models.CreateEntityRequest{
 			Name:        req.Name,
 			EntityType:  req.EntityType,
 			Email:       req.Email,
@@ -40,13 +40,7 @@ func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*mo
 		if err != nil {
 			return nil, fmt.Errorf("failed to create entity: %w", err)
 		}
-		entity = models.Entity{
-			EntityID:    newEntity.EntityID,
-			Name:        newEntity.Name,
-			EntityType:  newEntity.EntityType,
-			Email:       newEntity.Email,
-			PhoneNumber: newEntity.PhoneNumber,
-		}
+		entity = newEntity.ToEntity()
 	}
 
 	// Create consumer
