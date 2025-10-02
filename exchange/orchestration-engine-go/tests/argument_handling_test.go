@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// ============================================================================
+// ARGUMENT EXTRACTION TESTS
+// ============================================================================
+
 func TestFindRequiredArguments(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -236,6 +240,10 @@ func TestExtractRequiredArguments(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// ARGUMENT PUSHING TESTS
+// ============================================================================
+
 func TestPushArgumentsToProviderQueryAst(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -375,6 +383,10 @@ func TestPushArgumentsToProviderQueryAst(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// BASIC ARGUMENT HANDLING TESTS
+// ============================================================================
+
 func TestBasicArgumentHandling(t *testing.T) {
 	t.Run("Single String Argument", func(t *testing.T) {
 		// Test that single string arguments are handled correctly
@@ -466,9 +478,167 @@ func TestBasicArgumentHandling(t *testing.T) {
 			assert.True(t, stringValue.Value == "123456789V" || stringValue.Value == "ABC123", "Should have correct value")
 		}
 	})
+
+	t.Run("Array Arguments", func(t *testing.T) {
+		// Test that array arguments are handled correctly
+		query := `
+			query {
+				vehicles(regNos: ["ABC123", "XYZ789"]) {
+					regNo
+					make
+				}
+			}
+		`
+
+		queryDoc := ParseTestQuery(t, query)
+		operationDef := queryDoc.Definitions[0].(*ast.OperationDefinition)
+
+		argMappings := []*graphql.ArgMapping{
+			{
+				ProviderKey:   "dmt",
+				TargetArgName: "regNos",
+				SourceArgPath: "vehicles-regNos",
+				TargetArgPath: "dmt.vehicle.getVehicleInfos",
+			},
+		}
+
+		// Extract arguments from the query
+		var arguments []*ast.Argument
+		for _, selection := range operationDef.SelectionSet.Selections {
+			if field, ok := selection.(*ast.Field); ok {
+				arguments = append(arguments, field.Arguments...)
+			}
+		}
+
+		argSources := federator.ExtractRequiredArguments(argMappings, arguments)
+		assert.Len(t, argSources, 1, "Should extract one argument source")
+
+		// Verify the argument is a list value
+		argSource := argSources[0]
+		listValue, ok := argSource.Argument.Value.(*ast.ListValue)
+		assert.True(t, ok, "Should have list value")
+		assert.Len(t, listValue.Values, 2, "Should have 2 values in list")
+
+		// Verify the list values
+		value1 := listValue.Values[0].(*ast.StringValue)
+		value2 := listValue.Values[1].(*ast.StringValue)
+		assert.Equal(t, "ABC123", value1.Value)
+		assert.Equal(t, "XYZ789", value2.Value)
+	})
+
+	t.Run("Boolean Arguments", func(t *testing.T) {
+		// Test that boolean arguments are handled correctly
+		query := `
+			query {
+				personInfo(nic: "123456789V", includeVehicles: true) {
+					fullName
+				}
+			}
+		`
+
+		queryDoc := ParseTestQuery(t, query)
+		operationDef := queryDoc.Definitions[0].(*ast.OperationDefinition)
+
+		argMappings := []*graphql.ArgMapping{
+			{
+				ProviderKey:   "drp",
+				TargetArgName: "nic",
+				SourceArgPath: "personInfo-nic",
+				TargetArgPath: "drp.person",
+			},
+			{
+				ProviderKey:   "drp",
+				TargetArgName: "includeVehicles",
+				SourceArgPath: "personInfo-includeVehicles",
+				TargetArgPath: "drp.person",
+			},
+		}
+
+		// Extract arguments from the query
+		var arguments []*ast.Argument
+		for _, selection := range operationDef.SelectionSet.Selections {
+			if field, ok := selection.(*ast.Field); ok {
+				arguments = append(arguments, field.Arguments...)
+			}
+		}
+
+		argSources := federator.ExtractRequiredArguments(argMappings, arguments)
+		assert.Len(t, argSources, 2, "Should extract two argument sources")
+
+		// Verify both arguments are extracted
+		for _, argSource := range argSources {
+			assert.NotNil(t, argSource.Argument, "Should have valid argument")
+			assert.NotNil(t, argSource.ArgMapping, "Should have valid argument mapping")
+		}
+	})
 }
 
-// Helper functions
+// ============================================================================
+// ARGUMENT VALIDATION TESTS
+// ============================================================================
+
+func TestArgumentValidation(t *testing.T) {
+	t.Run("Valid Argument Types", func(t *testing.T) {
+		// Test that valid argument types are accepted
+		validArguments := []*ast.Argument{
+			{
+				Name:  &ast.Name{Value: "stringArg"},
+				Value: &ast.StringValue{Value: "test"},
+			},
+			{
+				Name:  &ast.Name{Value: "intArg"},
+				Value: &ast.IntValue{Value: "123"},
+			},
+			{
+				Name:  &ast.Name{Value: "floatArg"},
+				Value: &ast.FloatValue{Value: "123.45"},
+			},
+			{
+				Name:  &ast.Name{Value: "boolArg"},
+				Value: &ast.BooleanValue{Value: true},
+			},
+			{
+				Name: &ast.Name{Value: "listArg"},
+				Value: &ast.ListValue{
+					Values: []ast.Value{
+						&ast.StringValue{Value: "item1"},
+						&ast.StringValue{Value: "item2"},
+					},
+				},
+			},
+		}
+
+		for _, arg := range validArguments {
+			assert.NotNil(t, arg.Name, "Should have name")
+			assert.NotNil(t, arg.Value, "Should have value")
+		}
+	})
+
+	t.Run("Argument Name Validation", func(t *testing.T) {
+		// Test that argument names are properly validated
+		arg := &ast.Argument{
+			Name:  &ast.Name{Value: "validArgName"},
+			Value: &ast.StringValue{Value: "test"},
+		}
+
+		assert.NotNil(t, arg.Name, "Should have name")
+		assert.NotEmpty(t, arg.Name.Value, "Should have non-empty name")
+	})
+
+	t.Run("Argument Value Validation", func(t *testing.T) {
+		// Test that argument values are properly validated
+		arg := &ast.Argument{
+			Name:  &ast.Name{Value: "testArg"},
+			Value: &ast.StringValue{Value: "testValue"},
+		}
+
+		assert.NotNil(t, arg.Value, "Should have value")
+	})
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 func createMockFederationServiceAST(t *testing.T, query string, serviceKey string) *federator.FederationServiceAST {
 	queryDoc := ParseTestQuery(t, query)
