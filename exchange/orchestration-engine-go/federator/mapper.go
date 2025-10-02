@@ -1,6 +1,8 @@
 package federator
 
 import (
+	"strconv"
+
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/kinds"
@@ -202,9 +204,10 @@ func PushArgumentValue(arg *ast.Argument, val interface{}) {
 			Value: string(rune(v)),
 		}
 	case float64:
+		// inside your case float64:
 		arg.Value = &ast.FloatValue{
 			Kind:  kinds.FloatValue,
-			Value: string(rune(v)),
+			Value: strconv.FormatFloat(v, 'f', -1, 64),
 		}
 	case bool:
 		arg.Value = &ast.BooleanValue{
