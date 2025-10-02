@@ -214,7 +214,7 @@ func PushArgumentValue(arg *ast.Argument, val interface{}) {
 	}
 }
 
-// PushVariablesFromVariableDefinition A function to replace variable references in arguments with actual values from the request.
+// PushVariablesFromVariableDefinition replaces variable references in arguments with actual values from the request.
 func PushVariablesFromVariableDefinition(request graphql.Request, extractedArgs []*ArgSource, variableDefinitions []*ast.VariableDefinition) {
 	for _, arg := range extractedArgs {
 		if arg.Argument.Value.GetKind() == "Variable" {
