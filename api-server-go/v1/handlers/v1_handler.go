@@ -44,7 +44,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/providers/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
-	// Handle collection endpoint: GET /api/v1/providers
+	// Handle collection endpoint: GET /api/v1/providers and POST /api/v1/providers
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
 		case http.MethodGet:
@@ -105,7 +105,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/consumers/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
-	// Handle collection endpoint: GET /api/v1/consumers
+	// Handle collection endpoint: GET /api/v1/consumers and POST /api/v1/consumers
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
 		case http.MethodGet:
@@ -166,13 +166,13 @@ func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/entities/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
-	// Handle collection endpoint: GET /api/v1/entities
+	// Handle collection endpoint: GET /api/v1/entities and POST /api/v1/entities
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
-		case http.MethodPost:
-			h.createEntity(w, r)
 		case http.MethodGet:
 			h.getAllEntities(w, r)
+		case http.MethodPost:
+			h.createEntity(w, r)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}

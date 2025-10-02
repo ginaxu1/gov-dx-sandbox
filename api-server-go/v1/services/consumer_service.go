@@ -21,7 +21,14 @@ func NewConsumerService(db *gorm.DB) *ConsumerService {
 
 // CreateConsumer creates a new consumer
 func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*models.ConsumerResponse, error) {
-	if req.EntityID == nil || *req.EntityID == "" {
+	var entity models.Entity
+	if req.EntityID != nil {
+		// Verify entity exists
+		err := s.db.First(&entity, "entity_id = ?", req.EntityID).Error
+		if err != nil {
+			return nil, fmt.Errorf("entity not found: %w", err)
+		}
+	} else {
 		// Create new entity if EntityID is not provided using the entity service
 		entityService := NewEntityService(s.db)
 		newEntity, err := entityService.CreateEntity(&models.CreateEntityRequest{
@@ -33,20 +40,19 @@ func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*mo
 		if err != nil {
 			return nil, fmt.Errorf("failed to create entity: %w", err)
 		}
-		req.EntityID = &newEntity.EntityID
-	}
-
-	// Verify entity exists
-	var entity models.Entity
-	err := s.db.First(&entity, "entity_id = ?", req.EntityID).Error
-	if err != nil {
-		return nil, fmt.Errorf("entity not found: %w", err)
+		entity = models.Entity{
+			EntityID:    newEntity.EntityID,
+			Name:        newEntity.Name,
+			EntityType:  newEntity.EntityType,
+			Email:       newEntity.Email,
+			PhoneNumber: newEntity.PhoneNumber,
+		}
 	}
 
 	// Create consumer
 	consumer := models.Consumer{
 		ConsumerID: "cons_" + uuid.New().String(),
-		EntityID:   *req.EntityID,
+		EntityID:   entity.EntityID,
 	}
 
 	if err := s.db.Create(&consumer).Error; err != nil {
