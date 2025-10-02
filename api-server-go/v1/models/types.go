@@ -120,10 +120,12 @@ func (s *StringArray) scanPostgreSQLArray(data []byte) error {
 
 // removeQuotes removes surrounding quotes and handles basic escape sequences
 func (s *StringArray) removeQuotes(str string) string {
+	// Note: This implementation only removes surrounding quotes.
+	// It does NOT handle escape sequences inside quoted strings (e.g., \" or \\).
+	// For full PostgreSQL array parsing, consider using a dedicated parser.
 	if len(str) >= 2 && str[0] == '"' && str[len(str)-1] == '"' {
 		unquoted := str[1 : len(str)-1]
-		// Handle basic escape sequences
-		return unquoted // Simple approach - could use strings.Replacer for more complex cases
+		return unquoted
 	}
 	return str
 }
