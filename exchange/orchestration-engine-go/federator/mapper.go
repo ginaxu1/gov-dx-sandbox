@@ -1,11 +1,19 @@
 package federator
 
 import (
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
+	"strconv"
+
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/kinds"
 	"github.com/graphql-go/graphql/language/printer"
 )
+
+type SchemaCollectionResponse struct {
+	ProviderFieldMap    []string
+	Arguments           []*ast.Argument
+	VariableDefinitions []*ast.VariableDefinition
+}
 
 func QueryBuilder(maps []string, args []*ArgSource) ([]*federationServiceRequest, error) {
 
@@ -73,12 +81,12 @@ func ProviderFieldMap(directives []*ast.Directive) []string {
 	return fieldMap
 }
 
-func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]string, []*ArgSource, error) {
+func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) (*SchemaCollectionResponse, error) {
 	// map of service key to list of fields
 
 	// only query is supported not mutations or subscriptions
 	if len(query.Definitions) != 1 || query.Definitions[0].(*ast.OperationDefinition).Operation != "query" {
-		return nil, nil, &graphql.JSONError{
+		return nil, &graphql.JSONError{
 			Message: "Only query operation is supported",
 		}
 	}
@@ -89,7 +97,7 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]strin
 	var queryObjectDef = getQueryObjectDefinition(schema)
 
 	if queryObjectDef == nil {
-		return nil, nil, &graphql.JSONError{
+		return nil, &graphql.JSONError{
 			Message: "Query object definition not found in schema",
 		}
 	}
@@ -99,11 +107,14 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]strin
 
 	providerFieldMap = ProviderFieldMap(providerDirectives)
 
-	var requiredArguments = FindRequiredArguments(providerFieldMap, configs.AppConfig.ArgMapping)
+	// get variable definitions from the query
+	var variableDefinitions = query.Definitions[0].(*ast.OperationDefinition).VariableDefinitions
 
-	var extractedArgs = ExtractRequiredArguments(requiredArguments, arguments)
-
-	return providerFieldMap, extractedArgs, nil
+	return &SchemaCollectionResponse{
+		ProviderFieldMap:    providerFieldMap,
+		Arguments:           arguments,
+		VariableDefinitions: variableDefinitions,
+	}, nil
 }
 
 // This function recursively traverses the selection set to extract @sourceInfo directives.
@@ -178,6 +189,51 @@ func FindFieldDefinitionFromFieldName(fieldName string, schema *ast.Document, pa
 	// Find the field definition within the parent object
 	fieldDef := findFieldDefinitionInObject(parentObjectDef, fieldName)
 	return fieldDef
+}
+
+func PushArgumentValue(arg *ast.Argument, val interface{}) {
+	switch v := val.(type) {
+	case string:
+		arg.Value = &ast.StringValue{
+			Kind:  kinds.StringValue,
+			Value: v,
+		}
+	case int:
+		arg.Value = &ast.IntValue{
+			Kind:  kinds.IntValue,
+			Value: string(rune(v)),
+		}
+	case float64:
+		// inside your case float64:
+		arg.Value = &ast.FloatValue{
+			Kind:  kinds.FloatValue,
+			Value: strconv.FormatFloat(v, 'f', -1, 64),
+		}
+	case bool:
+		arg.Value = &ast.BooleanValue{
+			Kind:  kinds.BooleanValue,
+			Value: v,
+		}
+	}
+}
+
+// PushVariablesFromVariableDefinition replaces variable references in arguments with actual values from the request.
+func PushVariablesFromVariableDefinition(request graphql.Request, extractedArgs []*ArgSource, variableDefinitions []*ast.VariableDefinition) {
+	for _, arg := range extractedArgs {
+		if arg.Argument.Value.GetKind() == "Variable" {
+			varName := arg.Argument.Value.(*ast.Variable).Name.Value
+			if val, exists := request.Variables[varName]; exists {
+				// find the corresponding variable definition
+				for _, v := range variableDefinitions {
+					if v.Variable.Name.Value == varName {
+						// replace the argument value with the variable value
+						PushArgumentValue(arg.Argument, val)
+						break
+					}
+				}
+			}
+		}
+	}
 }
 
 // Helper function to find a top level object field in the schema by name
