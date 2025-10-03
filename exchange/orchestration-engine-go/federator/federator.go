@@ -27,7 +27,7 @@ type Federator struct {
 	Schema          *ast.Document
 }
 
-type federationServiceAST struct {
+type FederationServiceAST struct {
 	ServiceKey string
 	QueryAst   *ast.Document
 }
@@ -42,18 +42,18 @@ type federationRequest struct {
 	FederationServiceRequest []*federationServiceRequest
 }
 
-type providerResponse struct {
+type ProviderResponse struct {
 	ServiceKey string
 	Response   graphql.Response `json:"response"`
 }
 
-type federationResponse struct {
+type FederationResponse struct {
 	ServiceKey string             `json:"serviceKey"`
-	Responses  []providerResponse `json:"responses"`
+	Responses  []ProviderResponse `json:"responses"`
 }
 
 // GetProviderResponse Returns the specific provider response by service key
-func (f *federationResponse) GetProviderResponse(providerKey string) *providerResponse {
+func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderResponse {
 	for _, resp := range f.Responses {
 		if resp.ServiceKey == providerKey {
 			return &resp
@@ -291,19 +291,31 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	}
 	responses := f.performFederation(federationRequest)
 
-	// Transform the federated responses back to the original query structure
-	var response = AccumulateResponse(doc, responses)
+	// Build schema info map for array-aware processing
+	schemaInfoMap, err := BuildSchemaInfoMap(schema, doc)
+	if err != nil {
+		logger.Log.Error("Failed to build schema info map", "Error", err)
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				err.(*graphql.JSONError),
+			},
+		}
+	}
+
+	// Transform the federated responses back to the original query structure using array-aware processing
+	var response = AccumulateResponseWithSchemaInfo(doc, responses, schemaInfoMap)
 
 	return response
 }
 
-func (f *Federator) performFederation(r *federationRequest) *federationResponse {
-	federationResponse := &federationResponse{
-		Responses: make([]providerResponse, 0, len(r.FederationServiceRequest)),
+func (f *Federator) performFederation(r *federationRequest) *FederationResponse {
+	FederationResponse := &FederationResponse{
+		Responses: make([]ProviderResponse, 0, len(r.FederationServiceRequest)),
 	}
 
 	var wg sync.WaitGroup
-	var mu sync.Mutex // to safely append to federationResponse.Responses
+	var mu sync.Mutex // to safely append to FederationResponse.Responses
 
 	for _, request := range r.FederationServiceRequest {
 		p, exists := f.ProviderHandler.GetProvider(request.ServiceKey)
@@ -344,7 +356,7 @@ func (f *Federator) performFederation(r *federationRequest) *federationResponse 
 
 			// Thread-safe append
 			mu.Lock()
-			federationResponse.Responses = append(federationResponse.Responses, providerResponse{
+			FederationResponse.Responses = append(FederationResponse.Responses, ProviderResponse{
 				ServiceKey: req.ServiceKey,
 				Response:   bodyJson,
 			})
@@ -353,10 +365,10 @@ func (f *Federator) performFederation(r *federationRequest) *federationResponse 
 	}
 
 	wg.Wait()
-	return federationResponse
+	return FederationResponse
 }
 
-func (f *Federator) mergeResponses(responses []providerResponse) graphql.Response {
+func (f *Federator) mergeResponses(responses []ProviderResponse) graphql.Response {
 	merged := graphql.Response{
 		Data:   make(map[string]interface{}),
 		Errors: make([]interface{}, 0),
