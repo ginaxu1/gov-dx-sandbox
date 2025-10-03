@@ -52,7 +52,7 @@ func (s *ProviderService) validateDBConnection() error {
 	return s.db.PingContext(ctx)
 }
 
-// Provider Submission methods
+// GetAllProviderSubmissions Provider Submission methods
 func (s *ProviderService) GetAllProviderSubmissions() ([]*models.ProviderSubmission, error) {
 	return s.GetProviderSubmissionsByStatus("")
 }
