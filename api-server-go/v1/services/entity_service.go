@@ -46,6 +46,45 @@ func (s *EntityService) CreateEntity(req *models.CreateEntityRequest) (*models.E
 	return response, nil
 }
 
+// UpdateEntity updates an existing entity
+func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRequest) (*models.EntityResponse, error) {
+	var entity models.Entity
+	err := s.db.First(&entity, "entity_id = ?", entityID).Error
+	if err != nil {
+		return nil, fmt.Errorf("entity not found: %w", err)
+	}
+
+	// Update fields if provided
+	if req.Name != nil {
+		entity.Name = *req.Name
+	}
+	if req.EntityType != nil {
+		entity.EntityType = *req.EntityType
+	}
+	if req.Email != nil {
+		entity.Email = *req.Email
+	}
+	if req.PhoneNumber != nil {
+		entity.PhoneNumber = *req.PhoneNumber
+	}
+
+	if err := s.db.Save(&entity).Error; err != nil {
+		return nil, fmt.Errorf("failed to update entity: %w", err)
+	}
+
+	response := &models.EntityResponse{
+		EntityID:    entity.EntityID,
+		Name:        entity.Name,
+		EntityType:  entity.EntityType,
+		Email:       entity.Email,
+		PhoneNumber: entity.PhoneNumber,
+		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   entity.UpdatedAt.Format(time.RFC3339),
+	}
+
+	return response, nil
+}
+
 // GetEntity retrieves an entity by ID with associated provider/consumer information
 func (s *EntityService) GetEntity(entityID string) (*models.EntityResponse, error) {
 	var result struct {

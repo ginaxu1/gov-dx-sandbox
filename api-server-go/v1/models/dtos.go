@@ -34,12 +34,26 @@ type CreateEntityRequest struct {
 	PhoneNumber string `json:"phoneNumber" validate:"required"`
 }
 
+type UpdateEntityRequest struct {
+	Name        *string `json:"name,omitempty"`
+	EntityType  *string `json:"entityType,omitempty"`
+	Email       *string `json:"email,omitempty"`
+	PhoneNumber *string `json:"phoneNumber,omitempty"`
+}
+
 type CreateConsumerRequest struct {
 	Name        string  `json:"name" validate:"required"`
 	EntityType  string  `json:"entityType" validate:"required"`
 	Email       string  `json:"email" validate:"required,email"`
 	PhoneNumber string  `json:"phoneNumber" validate:"required"`
 	EntityID    *string `json:"entityId,omitempty"`
+}
+
+type UpdateConsumerRequest struct {
+	Name        *string `json:"name,omitempty"`
+	EntityType  *string `json:"entityType,omitempty"`
+	Email       *string `json:"email,omitempty"`
+	PhoneNumber *string `json:"phoneNumber,omitempty"`
 }
 
 type CreateProviderRequest struct {
@@ -50,7 +64,13 @@ type CreateProviderRequest struct {
 	EntityID    *string `json:"entityId,omitempty"`
 }
 
-// EntityResponse Response DTOs
+type UpdateProviderRequest struct {
+	Name        *string `json:"name,omitempty"`
+	EntityType  *string `json:"entityType,omitempty"`
+	Email       *string `json:"email,omitempty"`
+	PhoneNumber *string `json:"phoneNumber,omitempty"`
+}
+
 type EntityResponse struct {
 	EntityID    string  `json:"entityId"`
 	Name        string  `json:"name"`
