@@ -65,11 +65,14 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 
 	providerID := parts[0]
 
-	// Handle base provider endpoint: GET /api/v1/providers/:providerId
+	// Handle base provider endpoint: GET /api/v1/providers/:providerId and PUT /api/v1/providers/:providerId
 	if len(parts) == 1 {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			h.getProvider(w, r, providerID)
-		} else {
+		case http.MethodPut:
+			h.updateProvider(w, r, providerID)
+		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
@@ -126,11 +129,14 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 
 	consumerID := parts[0]
 
-	// Handle base consumer endpoint: GET /api/v1/consumers/:consumerId
+	// Handle base consumer endpoint: GET /api/v1/consumers/:consumerId and PUT /api/v1/consumers/:consumerId
 	if len(parts) == 1 {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			h.getConsumer(w, r, consumerID)
-		} else {
+		case http.MethodPut:
+			h.updateConsumer(w, r, consumerID)
+		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
@@ -187,11 +193,14 @@ func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 
 	entityID := parts[0]
 
-	// Handle base entity endpoint: GET /api/v1/entities/:entityId
+	// Handle base entity endpoint: GET /api/v1/entities/:entityId and PUT /api/v1/entities/:entityId
 	if len(parts) == 1 {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			h.getEntity(w, r, entityID)
-		} else {
+		case http.MethodPut:
+			h.updateEntity(w, r, entityID)
+		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
@@ -216,6 +225,23 @@ func (h *V1Handler) createProvider(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, provider)
+}
+
+func (h *V1Handler) updateProvider(w http.ResponseWriter, r *http.Request, providerID string) {
+	var req models.UpdateProviderRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	provider, err := h.providerService.UpdateProvider(providerID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, provider)
 }
 
 func (h *V1Handler) getProvider(w http.ResponseWriter, r *http.Request, providerID string) {
@@ -292,6 +318,23 @@ func (h *V1Handler) createConsumer(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithSuccess(w, http.StatusCreated, consumer)
 }
 
+func (h *V1Handler) updateConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
+	var req models.UpdateConsumerRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	consumer, err := h.consumerService.UpdateConsumer(consumerID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, consumer)
+}
+
 func (h *V1Handler) getConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
 	consumer, err := h.consumerService.GetConsumer(consumerID)
 	if err != nil {
@@ -364,6 +407,23 @@ func (h *V1Handler) createEntity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, entity)
+}
+
+func (h *V1Handler) updateEntity(w http.ResponseWriter, r *http.Request, entityID string) {
+	var req models.UpdateEntityRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	entity, err := h.entityService.UpdateEntity(entityID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, entity)
 }
 
 func (h *V1Handler) getEntity(w http.ResponseWriter, r *http.Request, entityID string) {

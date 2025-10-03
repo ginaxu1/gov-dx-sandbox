@@ -67,6 +67,52 @@ func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*mo
 	return response, nil
 }
 
+// UpdateConsumer updates an existing consumer and its associated entity
+func (s *ConsumerService) UpdateConsumer(consumerID string, req *models.UpdateConsumerRequest) (*models.ConsumerResponse, error) {
+	var consumer models.Consumer
+	err := s.db.Preload("Entity").First(&consumer, "consumer_id = ?", consumerID).Error
+	if err != nil {
+		return nil, fmt.Errorf("consumer not found: %w", err)
+	}
+
+	// Update associated entity fields if provided
+	if req.Name != nil {
+		consumer.Entity.Name = *req.Name
+	}
+	if req.EntityType != nil {
+		consumer.Entity.EntityType = *req.EntityType
+	}
+	if req.Email != nil {
+		consumer.Entity.Email = *req.Email
+	}
+	if req.PhoneNumber != nil {
+		consumer.Entity.PhoneNumber = *req.PhoneNumber
+	}
+
+	// Save updated entity
+	if err := s.db.Save(&consumer.Entity).Error; err != nil {
+		return nil, fmt.Errorf("failed to update entity: %w", err)
+	}
+
+	// Save updated consumer (if there were any consumer-specific fields to update)
+	if err := s.db.Save(&consumer).Error; err != nil {
+		return nil, fmt.Errorf("failed to update consumer: %w", err)
+	}
+
+	response := &models.ConsumerResponse{
+		ConsumerID:  consumer.ConsumerID,
+		EntityID:    consumer.EntityID,
+		Name:        consumer.Entity.Name,
+		EntityType:  consumer.Entity.EntityType,
+		Email:       consumer.Entity.Email,
+		PhoneNumber: consumer.Entity.PhoneNumber,
+		CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   consumer.UpdatedAt.Format(time.RFC3339),
+	}
+
+	return response, nil
+}
+
 // GetConsumer retrieves a consumer by ID with entity information
 func (s *ConsumerService) GetConsumer(consumerID string) (*models.ConsumerResponse, error) {
 	var consumer models.Consumer

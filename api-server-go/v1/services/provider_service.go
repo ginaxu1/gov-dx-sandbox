@@ -87,6 +87,51 @@ func (s *ProviderService) GetProvider(providerID string) (*models.ProviderRespon
 	}, nil
 }
 
+// UpdateProvider updates an existing provider and its associated entity
+func (s *ProviderService) UpdateProvider(providerID string, req *models.UpdateProviderRequest) (*models.ProviderResponse, error) {
+	var provider models.Provider
+	err := s.db.Preload("Entity").First(&provider, "provider_id = ?", providerID).Error
+	if err != nil {
+		return nil, fmt.Errorf("provider not found: %w", err)
+	}
+
+	// Update associated entity fields if provided
+	if req.Name != nil {
+		provider.Entity.Name = *req.Name
+	}
+	if req.EntityType != nil {
+		provider.Entity.EntityType = *req.EntityType
+	}
+	if req.Email != nil {
+		provider.Entity.Email = *req.Email
+	}
+	if req.PhoneNumber != nil {
+		provider.Entity.PhoneNumber = *req.PhoneNumber
+	}
+
+	if err := s.db.Save(&provider.Entity).Error; err != nil {
+		return nil, fmt.Errorf("failed to update entity: %w", err)
+	}
+
+	// Save updated provider (if there were any provider-specific fields to update)
+	if err := s.db.Save(&provider).Error; err != nil {
+		return nil, fmt.Errorf("failed to update provider: %w", err)
+	}
+
+	response := &models.ProviderResponse{
+		ProviderID:  provider.ProviderID,
+		EntityID:    provider.EntityID,
+		Name:        provider.Entity.Name,
+		EntityType:  provider.Entity.EntityType,
+		Email:       provider.Entity.Email,
+		PhoneNumber: provider.Entity.PhoneNumber,
+		CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   provider.UpdatedAt.Format(time.RFC3339),
+	}
+
+	return response, nil
+}
+
 // GetProviderSchemas retrieves approved schemas for a provider
 func (s *ProviderService) GetProviderSchemas(providerID string) ([]models.ProviderSchemaResponse, error) {
 	var schemas []models.ProviderSchema
