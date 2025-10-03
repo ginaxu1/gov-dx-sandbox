@@ -113,9 +113,9 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	var schema = configs.AppConfig.Schema
 
 	// Collect the directives from the query
-	var maps, args, err2 = ProviderSchemaCollector(schema, doc)
+	schemaCollection, err := ProviderSchemaCollector(schema, doc)
 
-	if err2 != nil {
+	if err != nil {
 		logger.Log.Error("Failed to collect provider schema", "Error", err)
 		return graphql.Response{
 			Data: nil,
@@ -125,6 +125,16 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		}
 	}
 
+	var requiredArguments = FindRequiredArguments(schemaCollection.ProviderFieldMap, configs.AppConfig.ArgMapping)
+
+	var extractedArgs = ExtractRequiredArguments(requiredArguments, schemaCollection.Arguments)
+
+	// check whether there are variables in the request
+	if request.Variables != nil {
+		// if there are variables, replace the argument values with the variable values
+		PushVariablesFromVariableDefinition(request, extractedArgs, schemaCollection.VariableDefinitions)
+	}
+
 	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
 	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
 
@@ -132,7 +142,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		ConsumerId:     consumerInfo.Subscriber,
 		AppId:          consumerInfo.ApplicationId,
 		RequestId:      "request_123",
-		RequiredFields: maps,
+		RequiredFields: schemaCollection.ProviderFieldMap,
 	})
 
 	if err != nil {
@@ -181,7 +191,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	}
 
 	// check whether the arguments contain the citizen id
-	if len(args) == 0 || args[0].Value.GetValue() == nil {
+	if len(extractedArgs) == 0 || extractedArgs[0].Value.GetValue() == nil {
 		logger.Log.Info("Citizen ID argument is missing or invalid")
 		return graphql.Response{
 			Data: nil,
@@ -206,7 +216,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 			DataFields: []consent.DataOwnerRecord{
 				{
 					OwnerType: "citizen",
-					OwnerId:   args[0].Value.GetValue().(string),
+					OwnerId:   extractedArgs[0].Value.GetValue().(string),
 					Fields:    pdpResponse.ConsentRequiredFields,
 				},
 			},
@@ -252,7 +262,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 
 	logger.Log.Info("Consent approved, proceeding with query execution")
 
-	splitRequests, err := QueryBuilder(maps, args)
+	splitRequests, err := QueryBuilder(schemaCollection.ProviderFieldMap, extractedArgs)
 
 	if err != nil {
 		logger.Log.Error("Failed to build queries", "Error", err)
