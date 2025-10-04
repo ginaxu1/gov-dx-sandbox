@@ -75,6 +75,7 @@ func (h *SchemaHandlers) CreateSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+<<<<<<< HEAD
 	// Validate change type
 	validChangeTypes := map[models.VersionChangeType]bool{
 		models.VersionChangeTypeMajor: true,
@@ -87,6 +88,9 @@ func (h *SchemaHandlers) CreateSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+=======
+	// Create schema
+>>>>>>> e62b19e (Clean up and unit tests)
 	schema, err := h.schemaService.CreateSchema(&req)
 	if err != nil {
 <<<<<<< HEAD
@@ -337,20 +341,13 @@ func (h *SchemaHandlers) GetSchemaVersionsByVersion(c *gin.Context) {
 		return
 	}
 
-	response := &models.SchemaVersionResponse{
-		ID:                schema.ID,
-		Version:           schema.Version,
-		SDL:               schema.SDL,
-		CreatedAt:         schema.CreatedAt,
-		CreatedBy:         schema.CreatedBy,
-		Status:            schema.Status,
-		ChangeType:        schema.ChangeType,
-		Notes:             schema.Notes,
-		PreviousVersionID: schema.PreviousVersionID,
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Schema created successfully",
+		"schema":  schema,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -361,68 +358,46 @@ func (h *SchemaHandlers) GetSchemaVersions(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Parse query parameters
+	// Get query parameters for filtering
 	statusParam := r.URL.Query().Get("status")
 	limitParam := r.URL.Query().Get("limit")
 	offsetParam := r.URL.Query().Get("offset")
 
-	// Set defaults
-	limit := 50
-	offset := 0
-	var status *models.SchemaStatus
+	// Parse limit and offset
+	limit := 100 // default limit
+	offset := 0  // default offset
 
-	// Parse limit
 	if limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 {
-			limit = parsed
+		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			limit = l
 		}
 	}
 
-	// Parse offset
 	if offsetParam != "" {
-		if parsed, err := strconv.Atoi(offsetParam); err == nil && parsed >= 0 {
-			offset = parsed
+		if o, err := strconv.Atoi(offsetParam); err == nil && o >= 0 {
+			offset = o
 		}
 	}
 
 	// Parse status filter
+	var status *models.SchemaStatus
 	if statusParam != "" {
 		s := models.SchemaStatus(statusParam)
-		validStatuses := map[models.SchemaStatus]bool{
-			models.SchemaStatusActive:     true,
-			models.SchemaStatusInactive:   true,
-			models.SchemaStatusDeprecated: true,
-		}
-		if validStatuses[s] {
-			status = &s
-		}
+		status = &s
 	}
 
-	schemas, total, err := h.schemaService.GetAllSchemaVersions(status, limit, offset)
+	// Get schema versions
+	versions, total, err := h.schemaService.GetAllSchemaVersions(status, limit, offset)
 	if err != nil {
-		http.Error(w, "Failed to get schema versions: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to retrieve schema versions: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Convert to response format
-	versions := make([]models.SchemaVersionResponse, len(schemas))
-	for i, schema := range schemas {
-		versions[i] = models.SchemaVersionResponse{
-			ID:                schema.ID,
-			Version:           schema.Version,
-			SDL:               schema.SDL,
-			CreatedAt:         schema.CreatedAt,
-			CreatedBy:         schema.CreatedBy,
-			Status:            schema.Status,
-			ChangeType:        schema.ChangeType,
-			Notes:             schema.Notes,
-			PreviousVersionID: schema.PreviousVersionID,
-		}
-	}
-
-	response := &models.SchemaVersionsListResponse{
-		Versions: versions,
-		Total:    total,
+	response := map[string]interface{}{
+		"versions": versions,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -437,8 +412,9 @@ func (h *SchemaHandlers) GetSchemaVersion(w http.ResponseWriter, r *http.Request
 	}
 
 	// Extract version from URL path
-	// This is a simplified extraction - in a real implementation, you'd use a router
-	version := r.URL.Path[len("/sdl/versions/"):]
+	// This would typically be done with a router like mux
+	// For now, we'll get it from query parameter
+	version := r.URL.Query().Get("version")
 	if version == "" {
 		http.Error(w, "Version parameter is required", http.StatusBadRequest)
 		return
@@ -446,24 +422,12 @@ func (h *SchemaHandlers) GetSchemaVersion(w http.ResponseWriter, r *http.Request
 
 	schema, err := h.schemaService.GetSchemaVersion(version)
 	if err != nil {
-		http.Error(w, "Failed to get schema version: "+err.Error(), http.StatusNotFound)
+		http.Error(w, "Schema version not found: "+err.Error(), http.StatusNotFound)
 		return
 	}
 
-	response := &models.SchemaVersionResponse{
-		ID:                schema.ID,
-		Version:           schema.Version,
-		SDL:               schema.SDL,
-		CreatedAt:         schema.CreatedAt,
-		CreatedBy:         schema.CreatedBy,
-		Status:            schema.Status,
-		ChangeType:        schema.ChangeType,
-		Notes:             schema.Notes,
-		PreviousVersionID: schema.PreviousVersionID,
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(schema)
 }
 
 // UpdateSchemaStatus handles PUT /sdl/versions/{version}/status
@@ -474,15 +438,10 @@ func (h *SchemaHandlers) UpdateSchemaStatus(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Extract version from URL path
-	version := r.URL.Path[len("/sdl/versions/"):]
+	version := r.URL.Query().Get("version")
 	if version == "" {
 		http.Error(w, "Version parameter is required", http.StatusBadRequest)
 		return
-	}
-
-	// Remove "/status" suffix
-	if len(version) > 7 && version[len(version)-7:] == "/status" {
-		version = version[:len(version)-7]
 	}
 
 	var req models.UpdateSchemaStatusRequest
@@ -491,29 +450,18 @@ func (h *SchemaHandlers) UpdateSchemaStatus(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Update schema status
 	err := h.schemaService.UpdateSchemaStatus(version, req.IsActive, req.Reason)
 	if err != nil {
 		http.Error(w, "Failed to update schema status: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Return the updated schema
-	schema, err := h.schemaService.GetSchemaVersion(version)
-	if err != nil {
-		http.Error(w, "Failed to get updated schema: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := &models.SchemaVersionResponse{
-		ID:                schema.ID,
-		Version:           schema.Version,
-		SDL:               schema.SDL,
-		CreatedAt:         schema.CreatedAt,
-		CreatedBy:         schema.CreatedBy,
-		Status:            schema.Status,
-		ChangeType:        schema.ChangeType,
-		Notes:             schema.Notes,
-		PreviousVersionID: schema.PreviousVersionID,
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Schema status updated successfully",
+		"version": version,
+		"active":  req.IsActive,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -529,20 +477,214 @@ func (h *SchemaHandlers) GetActiveSchema(w http.ResponseWriter, r *http.Request)
 
 	schema, err := h.schemaService.GetActiveSchema()
 	if err != nil {
-		http.Error(w, "Failed to get active schema: "+err.Error(), http.StatusNotFound)
+		http.Error(w, "No active schema found: "+err.Error(), http.StatusNotFound)
 		return
 	}
 
-	response := &models.SchemaVersionResponse{
-		ID:                schema.ID,
-		Version:           schema.Version,
-		SDL:               schema.SDL,
-		CreatedAt:         schema.CreatedAt,
-		CreatedBy:         schema.CreatedBy,
-		Status:            schema.Status,
-		ChangeType:        schema.ChangeType,
-		Notes:             schema.Notes,
-		PreviousVersionID: schema.PreviousVersionID,
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(schema)
+}
+
+// ListVersions handles GET /sdl/versions - List all schema versions
+func (h *SchemaHandlers) ListVersions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get query parameters for filtering
+	statusParam := r.URL.Query().Get("status")
+	limitParam := r.URL.Query().Get("limit")
+	offsetParam := r.URL.Query().Get("offset")
+
+	// Parse limit and offset
+	limit := 100 // default limit
+	offset := 0  // default offset
+
+	if limitParam != "" {
+		if l, err := strconv.Atoi(limitParam); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	if offsetParam != "" {
+		if o, err := strconv.Atoi(offsetParam); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	// Parse status filter
+	var status *models.SchemaStatus
+	if statusParam != "" {
+		s := models.SchemaStatus(statusParam)
+		status = &s
+	}
+
+	// Get schema versions
+	versions, total, err := h.schemaService.GetAllSchemaVersions(status, limit, offset)
+	if err != nil {
+		http.Error(w, "Failed to retrieve schema versions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"versions": versions,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// GetVersion handles GET /sdl/versions/{version} - Get specific schema version
+func (h *SchemaHandlers) GetVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract version from URL path
+	// This would typically be done with a router like mux
+	// For now, we'll get it from query parameter
+	version := r.URL.Query().Get("version")
+	if version == "" {
+		http.Error(w, "Version parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	schema, err := h.schemaService.GetSchemaVersion(version)
+	if err != nil {
+		http.Error(w, "Schema version not found: "+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(schema)
+}
+
+// ActivateVersion handles POST /sdl/versions/{version}/activate - Activate specific schema version
+func (h *SchemaHandlers) ActivateVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract version from URL path
+	// This would typically be done with a router like mux
+	// For now, we'll get it from query parameter
+	version := r.URL.Query().Get("version")
+	if version == "" {
+		http.Error(w, "Version parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse request body for activation reason
+	var req struct {
+		Reason string `json:"reason,omitempty"`
+	}
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	// Activate the schema version
+	reason := req.Reason
+	if reason == "" {
+		reason = "Manual activation"
+	}
+
+	err := h.schemaService.UpdateSchemaStatus(version, true, &reason)
+	if err != nil {
+		http.Error(w, "Failed to activate schema version: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Schema version activated successfully",
+		"version": version,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// DeactivateVersion handles POST /sdl/versions/{version}/deactivate - Deactivate specific schema version
+func (h *SchemaHandlers) DeactivateVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract version from URL path
+	version := r.URL.Query().Get("version")
+	if version == "" {
+		http.Error(w, "Version parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse request body for deactivation reason
+	var req struct {
+		Reason string `json:"reason,omitempty"`
+	}
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	// Deactivate the schema version
+	reason := req.Reason
+	if reason == "" {
+		reason = "Manual deactivation"
+	}
+
+	err := h.schemaService.UpdateSchemaStatus(version, false, &reason)
+	if err != nil {
+		http.Error(w, "Failed to deactivate schema version: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": "Schema version deactivated successfully",
+		"version": version,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// GetSchemaVersionsInfo handles GET /sdl/versions/info - Get information about loaded schema versions
+func (h *SchemaHandlers) GetSchemaVersionsInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get active schema version
+	activeVersion, err := h.schemaService.GetActiveSchemaVersion()
+	if err != nil {
+		activeVersion = "none"
+	}
+
+	// Get all loaded versions
+	loadedVersions := h.schemaService.GetSchemaVersions()
+
+	// Get version counts
+	versionCounts := make(map[string]int)
+	for version := range loadedVersions {
+		// Check if version is loaded in memory
+		if h.schemaService.IsSchemaVersionLoaded(version) {
+			versionCounts["loaded"]++
+		}
+	}
+
+	response := map[string]interface{}{
+		"active_version":   activeVersion,
+		"loaded_versions":  loadedVersions,
+		"version_counts":   versionCounts,
+		"total_versions":   len(loadedVersions),
+		"loaded_in_memory": versionCounts["loaded"],
 	}
 
 	w.Header().Set("Content-Type", "application/json")

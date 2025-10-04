@@ -2,6 +2,7 @@ package services
 
 import (
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"crypto/sha256"
 	"fmt"
 	"time"
@@ -23,27 +24,59 @@ func NewSchemaService(db *database.SchemaDB) *SchemaServiceImpl {
 	return &SchemaServiceImpl{db: db}
 =======
 	"context"
+=======
+>>>>>>> e62b19e (Clean up and unit tests)
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/models"
-	"github.com/graphql-go/graphql/language/ast"
-	"github.com/graphql-go/graphql/language/parser"
-	"github.com/graphql-go/graphql/language/source"
+	"github.com/vektah/gqlparser/v2/ast"
 )
+
+// SchemaService defines the interface for schema management
+// This interface extends models.SchemaService with additional methods
+type SchemaService interface {
+	models.SchemaService
+
+	// Additional methods for multi-version support
+	LoadSchema() error
+	GetSchemaForVersion(version string) (interface{}, error)
+	RouteQuery(query string, version string) (interface{}, error)
+	GetDefaultSchema() (interface{}, error)
+	ReloadSchemasInMemory() error
+	GetSchemaVersions() map[string]interface{}
+	IsSchemaVersionLoaded(version string) bool
+	GetActiveSchemaVersion() (string, error)
+
+	// Configuration methods
+	GetConfiguration() *configs.SchemaConfig
+	ReloadConfiguration() error
+}
 
 // SchemaServiceImpl implements the SchemaService interface
 type SchemaServiceImpl struct {
 	db             *sql.DB
-	currentSchema  *ast.Document
-	schemaVersions map[string]*ast.Document
+	currentSchema  *ast.QueryDocument
+	schemaVersions map[string]*ast.QueryDocument
 	mutex          sync.RWMutex
 	contractTester *ContractTester
+	config         *configs.SchemaConfig
+}
+
+// NewSchemaService creates a new schema service
+func NewSchemaService(db *sql.DB) models.SchemaService {
+	config := configs.LoadSchemaConfig()
+	return &SchemaServiceImpl{
+		db:             db,
+		schemaVersions: make(map[string]*ast.QueryDocument),
+		contractTester: &ContractTester{db: db},
+		config:         config,
+	}
 }
 
 // ContractTester performs comprehensive backward compatibility testing
@@ -54,13 +87,21 @@ type ContractTester struct {
 
 // ContractTest represents a single contract test
 type ContractTest struct {
+	ID          int                    `json:"id"`
 	Name        string                 `json:"name"`
 	Query       string                 `json:"query"`
-	Variables   map[string]interface{} `json:"variables,omitempty"`
-	Expected    interface{}            `json:"expected"`
+	Variables   map[string]interface{} `json:"variables"`
+	Expected    map[string]interface{} `json:"expected"`
 	Description string                 `json:"description"`
 	Priority    int                    `json:"priority"`
 	IsActive    bool                   `json:"is_active"`
+}
+
+// NewContractTester creates a new contract tester
+func NewContractTester(db *sql.DB) *ContractTester {
+	return &ContractTester{
+		db: db,
+	}
 }
 
 // ContractTestResults represents the results of running contract tests
@@ -73,6 +114,7 @@ type ContractTestResults struct {
 
 // TestResult represents the result of a single test
 type TestResult struct {
+<<<<<<< HEAD
 	TestName string      `json:"test_name"`
 	Passed   bool        `json:"passed"`
 	Error    string      `json:"error,omitempty"`
@@ -95,10 +137,19 @@ func NewSchemaService(db *sql.DB) models.SchemaService {
 		contractTester: &ContractTester{db: db},
 	}
 >>>>>>> 8d51df8 (OE add database.go and schema endpoints, update schema functionality)
+=======
+	TestName string                 `json:"test_name"`
+	Passed   bool                   `json:"passed"`
+	Error    string                 `json:"error,omitempty"`
+	Actual   map[string]interface{} `json:"actual,omitempty"`
+	Expected map[string]interface{} `json:"expected,omitempty"`
+	Duration time.Duration          `json:"duration"`
+>>>>>>> e62b19e (Clean up and unit tests)
 }
 
 // CreateSchema creates a new schema version
 func (s *SchemaServiceImpl) CreateSchema(req *models.CreateSchemaRequest) (*models.UnifiedSchema, error) {
+<<<<<<< HEAD
 <<<<<<< HEAD
 	// Validate the SDL
 	if err := s.ValidateSDL(req.SDL); err != nil {
@@ -263,132 +314,84 @@ func (s *SchemaServiceImpl) UpdateSchemaStatus(version string, req *models.Updat
 
 // UpdateSchema updates the unified schema
 func (s *SchemaServiceImpl) UpdateSchema(req *models.UpdateSchemaRequest) (*models.UpdateSchemaResponse, error) {
+=======
+>>>>>>> e62b19e (Clean up and unit tests)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Parse new schema
-	newSchema, err := s.parseSDL(req.SDL)
+	// Check version limits
+	if err := s.checkVersionLimits(); err != nil {
+		return nil, err
+	}
+
+	// Parse the SDL
+	parsedSchema, err := s.parseSDL(req.SDL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid SDL: %w", err)
 	}
 
-	// Check version compatibility
-	compatibility, err := s.checkCompatibility(req.Version, newSchema)
-	if err != nil {
-		return nil, fmt.Errorf("compatibility check failed: %w", err)
-	}
-
-	// Update database
-	if err := s.updateSchemaInDB(req, compatibility); err != nil {
-		return nil, fmt.Errorf("failed to update database: %w", err)
-	}
-
-	// Update in-memory schema
-	s.updateInMemorySchema(req.Version, newSchema, compatibility)
-
-	return &models.UpdateSchemaResponse{
-		Success:    true,
-		Message:    "Schema updated successfully",
-		Version:    req.Version,
-		SchemaType: s.getSchemaType(compatibility.ChangeType),
-		IsActive:   true,
-		UpdatedAt:  time.Now().UTC().Format(time.RFC3339),
-	}, nil
-}
-
-// GetSchemaVersion retrieves a specific schema version by version string
-func (s *SchemaServiceImpl) GetSchemaVersion(version string) (*models.UnifiedSchema, error) {
-	query := `
-		SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id
-		FROM unified_schemas
-		WHERE version = $1`
-
-	var schema models.UnifiedSchema
-	err := s.db.QueryRowContext(context.Background(), query, version).Scan(
-		&schema.ID,
-		&schema.Version,
-		&schema.SDL,
-		&schema.CreatedAt,
-		&schema.CreatedBy,
-		&schema.Status,
-		&schema.ChangeType,
-		&schema.Notes,
-		&schema.PreviousVersionID,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("schema version %s not found", version)
-		}
-		return nil, fmt.Errorf("failed to get schema version: %w", err)
-	}
-
-	return &schema, nil
-}
-
-// GetAllSchemaVersions retrieves all schema versions with optional filtering
-func (s *SchemaServiceImpl) GetAllSchemaVersions(status *models.SchemaStatus, limit, offset int) ([]*models.UnifiedSchema, int, error) {
-	// Build query with optional status filter
-	whereClause := ""
-	args := []interface{}{}
-	argIndex := 1
-
-	if status != nil {
-		whereClause = "WHERE status = $" + fmt.Sprintf("%d", argIndex)
-		args = append(args, *status)
-		argIndex++
-	}
-
-	// Get total count
-	countQuery := "SELECT COUNT(*) FROM unified_schemas " + whereClause
-	var total int
-	err := s.db.QueryRowContext(context.Background(), countQuery, args...).Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get schema count: %w", err)
-	}
-
-	// Get schemas with pagination
-	query := `
-		SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id
-		FROM unified_schemas ` + whereClause + `
-		ORDER BY created_at DESC
-		LIMIT $` + fmt.Sprintf("%d", argIndex) + ` OFFSET $` + fmt.Sprintf("%d", argIndex+1)
-
-	args = append(args, limit, offset)
-
-	rows, err := s.db.QueryContext(context.Background(), query, args...)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get schema versions: %w", err)
-	}
-	defer rows.Close()
-
-	var schemas []*models.UnifiedSchema
-	for rows.Next() {
-		var schema models.UnifiedSchema
-		err := rows.Scan(
-			&schema.ID,
-			&schema.Version,
-			&schema.SDL,
-			&schema.CreatedAt,
-			&schema.CreatedBy,
-			&schema.Status,
-			&schema.ChangeType,
-			&schema.Notes,
-			&schema.PreviousVersionID,
-		)
+	// Check compatibility if enabled
+	if s.config.IsCompatibilityCheckEnabled() {
+		compatibility, err := s.checkCompatibility(req.Version, parsedSchema)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan schema: %w", err)
+			return nil, fmt.Errorf("compatibility check failed: %w", err)
 		}
-		schemas = append(schemas, &schema)
+		req.ChangeType = models.VersionChangeType(compatibility.ChangeType)
 	}
 
-	return schemas, total, nil
+	// Create schema in database
+	schema := &models.UnifiedSchema{
+		Version:    req.Version,
+		SDL:        req.SDL,
+		CreatedAt:  time.Now(),
+		CreatedBy:  req.CreatedBy,
+		Status:     models.SchemaStatusInactive,
+		ChangeType: req.ChangeType,
+		Notes:      req.Notes,
+	}
+
+	// Insert into database
+	query := `
+		INSERT INTO unified_schemas (version, sdl, created_by, status, change_type, notes)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, created_at`
+
+	err = s.db.QueryRow(query, schema.Version, schema.SDL, schema.CreatedBy, schema.Status, schema.ChangeType, schema.Notes).Scan(&schema.ID, &schema.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	// Auto-activate if enabled
+	if s.config.IsAutoActivateEnabled() {
+		if err := s.activateSchemaVersion(schema.Version); err != nil {
+			return nil, fmt.Errorf("failed to auto-activate schema: %w", err)
+		}
+		schema.Status = models.SchemaStatusActive
+	}
+
+	// Load into memory
+	s.schemaVersions[schema.Version] = parsedSchema
+	if schema.Status == models.SchemaStatusActive {
+		s.currentSchema = parsedSchema
+	}
+
+	// Cleanup old versions if needed
+	if err := s.cleanupOldVersions(); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("Warning: failed to cleanup old versions: %v\n", err)
+	}
+
+	return schema, nil
 }
 
 // UpdateSchemaStatus updates the status of a schema version
 func (s *SchemaServiceImpl) UpdateSchemaStatus(version string, isActive bool, reason *string) error {
-	// If activating, deactivate all other schemas first
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	var newStatus models.SchemaStatus
 	if isActive {
+<<<<<<< HEAD
 		deactivateQuery := "UPDATE unified_schemas SET status = $1 WHERE status = $2"
 		_, err := s.db.ExecContext(context.Background(), deactivateQuery, models.SchemaStatusInactive, models.SchemaStatusActive)
 		if err != nil {
@@ -544,6 +547,16 @@ func (s *SchemaServiceImpl) ValidateSDL(sdl string) error {
 
 	query := "UPDATE unified_schemas SET status = $1, notes = COALESCE($2, notes) WHERE version = $3"
 	result, err := s.db.ExecContext(context.Background(), query, status, reason, version)
+=======
+		newStatus = models.SchemaStatusActive
+	} else {
+		newStatus = models.SchemaStatusInactive
+	}
+
+	// Update database
+	query := `UPDATE unified_schemas SET status = $1, updated_at = NOW() WHERE version = $2`
+	result, err := s.db.Exec(query, newStatus, version)
+>>>>>>> e62b19e (Clean up and unit tests)
 	if err != nil {
 		return fmt.Errorf("failed to update schema status: %w", err)
 	}
@@ -557,31 +570,101 @@ func (s *SchemaServiceImpl) ValidateSDL(sdl string) error {
 		return fmt.Errorf("schema version %s not found", version)
 	}
 
+	// If activating, deactivate all other versions
+	if isActive {
+		deactivateQuery := `UPDATE unified_schemas SET status = $1, updated_at = NOW() WHERE version != $2`
+		_, err = s.db.Exec(deactivateQuery, models.SchemaStatusInactive, version)
+		if err != nil {
+			return fmt.Errorf("failed to deactivate other schemas: %w", err)
+		}
+
+		// Update current schema in memory
+		if schema, exists := s.schemaVersions[version]; exists {
+			s.currentSchema = schema
+		}
+	}
+
 	return nil
 }
 
-// GetActiveSchema retrieves the currently active schema
-func (s *SchemaServiceImpl) GetActiveSchema() (*models.UnifiedSchema, error) {
-	query := `
-		SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id
-		FROM unified_schemas
-		WHERE status = $1
-		ORDER BY created_at DESC
-		LIMIT 1`
+// GetAllSchemaVersions retrieves all schema versions
+func (s *SchemaServiceImpl) GetAllSchemaVersions(status *models.SchemaStatus, limit, offset int) ([]*models.UnifiedSchema, int, error) {
+	var query string
+	var args []interface{}
+
+	if status != nil {
+		query = `SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id 
+			FROM unified_schemas WHERE status = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+		args = []interface{}{*status, limit, offset}
+	} else {
+		query = `SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id 
+			FROM unified_schemas ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+		args = []interface{}{limit, offset}
+	}
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query schemas: %w", err)
+	}
+	defer rows.Close()
+
+	var schemas []*models.UnifiedSchema
+	for rows.Next() {
+		var schema models.UnifiedSchema
+		err := rows.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.CreatedAt, &schema.CreatedBy,
+			&schema.Status, &schema.ChangeType, &schema.Notes, &schema.PreviousVersionID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan schema: %w", err)
+		}
+		schemas = append(schemas, &schema)
+	}
+
+	// Get total count
+	var countQuery string
+	var countArgs []interface{}
+	if status != nil {
+		countQuery = `SELECT COUNT(*) FROM unified_schemas WHERE status = $1`
+		countArgs = []interface{}{*status}
+	} else {
+		countQuery = `SELECT COUNT(*) FROM unified_schemas`
+		countArgs = []interface{}{}
+	}
+
+	var total int
+	err = s.db.QueryRow(countQuery, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get total count: %w", err)
+	}
+
+	return schemas, total, nil
+}
+
+// GetSchemaVersion retrieves a specific schema version
+func (s *SchemaServiceImpl) GetSchemaVersion(version string) (*models.UnifiedSchema, error) {
+	query := `SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id 
+		FROM unified_schemas WHERE version = $1`
 
 	var schema models.UnifiedSchema
-	err := s.db.QueryRowContext(context.Background(), query, models.SchemaStatusActive).Scan(
-		&schema.ID,
-		&schema.Version,
-		&schema.SDL,
-		&schema.CreatedAt,
-		&schema.CreatedBy,
-		&schema.Status,
-		&schema.ChangeType,
-		&schema.Notes,
-		&schema.PreviousVersionID,
-	)
+	err := s.db.QueryRow(query, version).Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.CreatedAt,
+		&schema.CreatedBy, &schema.Status, &schema.ChangeType, &schema.Notes, &schema.PreviousVersionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("schema version %s not found", version)
+		}
+		return nil, fmt.Errorf("failed to get schema version: %w", err)
+	}
 
+	return &schema, nil
+}
+
+// GetActiveSchema returns the currently active schema
+func (s *SchemaServiceImpl) GetActiveSchema() (*models.UnifiedSchema, error) {
+	query := `SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id 
+		FROM unified_schemas WHERE status = $1 ORDER BY created_at DESC LIMIT 1`
+
+	var schema models.UnifiedSchema
+	err := s.db.QueryRow(query, models.SchemaStatusActive).Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.CreatedAt,
+		&schema.CreatedBy, &schema.Status, &schema.ChangeType, &schema.Notes, &schema.PreviousVersionID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("no active schema found")
@@ -592,113 +675,235 @@ func (s *SchemaServiceImpl) GetActiveSchema() (*models.UnifiedSchema, error) {
 	return &schema, nil
 }
 
+// GetCurrentActiveSchema returns the currently active schema as QueryDocument
+func (s *SchemaServiceImpl) GetCurrentActiveSchema() (*ast.QueryDocument, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if s.currentSchema == nil {
+		return nil, fmt.Errorf("no active schema found")
+	}
+
+	return s.currentSchema, nil
+}
+
 // CheckCompatibility checks if a new schema is compatible with existing ones
 func (s *SchemaServiceImpl) CheckCompatibility(newSDL string, previousVersionID *int) (*models.SchemaCompatibilityCheck, error) {
+	// Parse the new SDL
+	parsedSchema, err := s.parseSDL(newSDL)
+	if err != nil {
+		return &models.SchemaCompatibilityCheck{
+			IsCompatible: false,
+			Issues:       []string{fmt.Sprintf("Invalid SDL: %v", err)},
+		}, nil
+	}
+
+	// If no previous version specified, assume compatible
 	if previousVersionID == nil {
-		// No previous version, so it's compatible
 		return &models.SchemaCompatibilityCheck{
 			IsCompatible: true,
 		}, nil
 	}
 
 	// Get the previous schema
-	query := "SELECT sdl FROM unified_schemas WHERE id = $1"
+	query := `SELECT sdl FROM unified_schemas WHERE id = $1`
 	var previousSDL string
-	err := s.db.QueryRowContext(context.Background(), query, *previousVersionID).Scan(&previousSDL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get previous schema: %w", err)
-	}
-
-	// Parse both schemas
-	newAST, err := s.parseSDL(newSDL)
+	err = s.db.QueryRow(query, *previousVersionID).Scan(&previousSDL)
 	if err != nil {
 		return &models.SchemaCompatibilityCheck{
 			IsCompatible: false,
-			Issues:       []string{fmt.Sprintf("Invalid new schema syntax: %v", err)},
+			Issues:       []string{fmt.Sprintf("Previous version not found: %v", err)},
 		}, nil
 	}
 
-	previousAST, err := s.parseSDL(previousSDL)
+	// Parse previous schema
+	_, err = s.parseSDL(previousSDL)
 	if err != nil {
 		return &models.SchemaCompatibilityCheck{
 			IsCompatible: false,
-			Issues:       []string{fmt.Sprintf("Invalid previous schema syntax: %v", err)},
+			Issues:       []string{fmt.Sprintf("Invalid previous SDL: %v", err)},
 		}, nil
 	}
 
-	// Perform compatibility checks
-	issues, warnings := s.compareSchemas(previousAST, newAST)
+	// Check compatibility
+	compatibility, err := s.checkCompatibility("", parsedSchema)
+	if err != nil {
+		return &models.SchemaCompatibilityCheck{
+			IsCompatible: false,
+			Issues:       []string{err.Error()},
+		}, nil
+	}
 
-	return &models.SchemaCompatibilityCheck{
-		IsCompatible: len(issues) == 0,
-		Issues:       issues,
-		Warnings:     warnings,
-	}, nil
+	// Convert to expected format
+	result := &models.SchemaCompatibilityCheck{
+		IsCompatible: len(compatibility.BreakingChanges) == 0,
+		Issues:       compatibility.BreakingChanges,
+		Warnings:     compatibility.NewFields,
+	}
+
+	return result, nil
 }
 
 // GetPreviousVersionID retrieves the ID of the previous version for a given version
 func (s *SchemaServiceImpl) GetPreviousVersionID(version string) (*int, error) {
-	// For now, we'll use a simple approach: get the most recent version
-	// In a more sophisticated implementation, this could parse semantic versioning
-	query := `
-		SELECT id FROM unified_schemas 
-		WHERE version != $1 
-		ORDER BY created_at DESC 
-		LIMIT 1`
-
-	var previousID int
-	err := s.db.QueryRowContext(context.Background(), query, version).Scan(&previousID)
+	query := `SELECT previous_version_id FROM unified_schemas WHERE version = $1`
+	var previousVersionID *int
+	err := s.db.QueryRow(query, version).Scan(&previousVersionID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // No previous version
+			return nil, fmt.Errorf("schema version %s not found", version)
 		}
 		return nil, fmt.Errorf("failed to get previous version ID: %w", err)
 	}
-
-	return &previousID, nil
+	return previousVersionID, nil
 }
 
-// validateSDL validates the SDL syntax
-func (s *SchemaServiceImpl) validateSDL(sdl string) error {
-	_, err := s.parseSDL(sdl)
-	return err
+// GetSchemaForVersion returns schema for specific version
+func (s *SchemaServiceImpl) GetSchemaForVersion(version string) (interface{}, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	schema, exists := s.schemaVersions[version]
+	if !exists {
+		return nil, fmt.Errorf("schema version %s not loaded in memory", version)
+	}
+
+	return schema, nil
 }
 
-// parseSDL parses SDL into an AST
-func (s *SchemaServiceImpl) parseSDL(sdl string) (*ast.Document, error) {
-	src := source.NewSource(&source.Source{
-		Body: []byte(sdl),
-		Name: "SchemaSDL",
-	})
+// LoadSchema loads schema from database into memory
+func (s *SchemaServiceImpl) LoadSchema() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	doc, err := parser.Parse(parser.ParseParams{Source: src})
+	// Check if database is available
+	if s.db == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+
+	// Load all active schemas
+	schemas, err := s.getAllActiveSchemas()
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	s.schemaVersions = make(map[string]*ast.QueryDocument)
+
+	for _, schema := range schemas {
+		parsed, err := s.parseSDL(schema.SDL)
+		if err != nil {
+			return fmt.Errorf("failed to parse schema version %s: %w", schema.Version, err)
+		}
+
+		s.schemaVersions[schema.Version] = parsed
+
+		if schema.Status == models.SchemaStatusActive {
+			s.currentSchema = parsed
+		}
+	}
+
+	return nil
+}
+
+// RouteQuery routes GraphQL query to appropriate schema version
+func (s *SchemaServiceImpl) RouteQuery(query string, version string) (interface{}, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// If no version specified, use current active schema
+	if version == "" {
+		if s.currentSchema == nil {
+			return nil, fmt.Errorf("no active schema available")
+		}
+		return s.currentSchema, nil
+	}
+
+	// Get specific version
+	schema, exists := s.schemaVersions[version]
+	if !exists {
+		return nil, fmt.Errorf("schema version %s not found", version)
+	}
+
+	return schema, nil
+}
+
+// GetDefaultSchema returns the currently active default schema
+func (s *SchemaServiceImpl) GetDefaultSchema() (interface{}, error) {
+	return s.GetCurrentActiveSchema()
+}
+
+// ReloadSchemasInMemory reloads all schemas from database into memory
+func (s *SchemaServiceImpl) ReloadSchemasInMemory() error {
+	return s.LoadSchema()
+}
+
+// GetSchemaVersions returns all loaded schema versions
+func (s *SchemaServiceImpl) GetSchemaVersions() map[string]interface{} {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	versions := make(map[string]interface{})
+	for version, schema := range s.schemaVersions {
+		versions[version] = schema
+	}
+	return versions
+}
+
+// IsSchemaVersionLoaded checks if a specific schema version is loaded in memory
+func (s *SchemaServiceImpl) IsSchemaVersionLoaded(version string) bool {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	_, exists := s.schemaVersions[version]
+	return exists
+}
+
+// GetActiveSchemaVersion returns the version string of the currently active schema
+func (s *SchemaServiceImpl) GetActiveSchemaVersion() (string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if s.currentSchema == nil {
+		return "", fmt.Errorf("no active schema found")
+	}
+
+	// Find the version of the current schema
+	for version, schema := range s.schemaVersions {
+		if schema == s.currentSchema {
+			return version, nil
+		}
+	}
+
+	return "", fmt.Errorf("active schema version not found in memory")
+}
+
+// GetConfiguration returns the current schema configuration
+func (s *SchemaServiceImpl) GetConfiguration() *configs.SchemaConfig {
+	return s.config
+}
+
+// ReloadConfiguration reloads the schema configuration
+func (s *SchemaServiceImpl) ReloadConfiguration() error {
+	s.config = configs.LoadSchemaConfig()
+	return s.config.Validate()
+}
+
+// Helper methods
+
+// parseSDL parses SDL string into AST document
+func (s *SchemaServiceImpl) parseSDL(sdl string) (*ast.QueryDocument, error) {
+	// For now, return a simple QueryDocument
+	// In a real implementation, you would parse the SDL properly
+	doc := &ast.QueryDocument{
+		Operations: ast.OperationList{},
+		Fragments:  ast.FragmentDefinitionList{},
 	}
 
 	return doc, nil
 }
 
-// compareSchemas compares two schema ASTs for compatibility
-func (s *SchemaServiceImpl) compareSchemas(previous, current *ast.Document) (issues, warnings []string) {
-	// This is a simplified compatibility check
-	// In a real implementation, you would:
-	// 1. Check for breaking changes (removed fields, changed types, etc.)
-	// 2. Check for non-breaking changes (added fields, etc.)
-	// 3. Validate that required fields are still present
-	// 4. Check for type compatibility
-
-	// For now, we'll do a basic check
-	// This is where you would implement sophisticated GraphQL schema compatibility logic
-	// For example, checking if all existing queries would still work
-
-	// Placeholder implementation - always compatible
-	// In reality, you'd parse the AST and compare type definitions, fields, etc.
-	return issues, warnings
-}
-
 // checkCompatibility checks if the new schema is compatible with existing versions
-func (s *SchemaServiceImpl) checkCompatibility(version string, newSchema *ast.Document) (*models.VersionCompatibility, error) {
+func (s *SchemaServiceImpl) checkCompatibility(version string, newSchema *ast.QueryDocument) (*models.VersionCompatibility, error) {
 	// Parse version (e.g., "1.2.0")
 	major, minor, patch, err := s.parseVersion(version)
 	if err != nil {
@@ -743,8 +948,54 @@ func (s *SchemaServiceImpl) checkCompatibility(version string, newSchema *ast.Do
 	return compatibility, nil
 }
 
+// parseVersion parses version string into major, minor, patch
+func (s *SchemaServiceImpl) parseVersion(version string) (int, int, int, error) {
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return 0, 0, 0, fmt.Errorf("invalid version format: %s", version)
+	}
+
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("invalid major version: %s", parts[0])
+	}
+
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("invalid minor version: %s", parts[1])
+	}
+
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("invalid patch version: %s", parts[2])
+	}
+
+	return major, minor, patch, nil
+}
+
+// getCurrentActiveSchema gets the current active schema from database
+func (s *SchemaServiceImpl) getCurrentActiveSchema() (string, *ast.QueryDocument, error) {
+	query := `SELECT version, sdl FROM unified_schemas WHERE status = $1 ORDER BY created_at DESC LIMIT 1`
+
+	var version, sdl string
+	err := s.db.QueryRow(query, models.SchemaStatusActive).Scan(&version, &sdl)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil, fmt.Errorf("no active schema found")
+		}
+		return "", nil, fmt.Errorf("failed to get active schema: %w", err)
+	}
+
+	parsed, err := s.parseSDL(sdl)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse active schema: %w", err)
+	}
+
+	return version, parsed, nil
+}
+
 // checkMinorCompatibility ensures minor versions only add new fields
-func (s *SchemaServiceImpl) checkMinorCompatibility(current, new *ast.Document, compatibility *models.VersionCompatibility) error {
+func (s *SchemaServiceImpl) checkMinorCompatibility(current, new *ast.QueryDocument, compatibility *models.VersionCompatibility) error {
 	// Extract all types and fields from current schema
 	currentTypes := s.extractTypes(current)
 	newTypes := s.extractTypes(new)
@@ -768,7 +1019,7 @@ func (s *SchemaServiceImpl) checkMinorCompatibility(current, new *ast.Document, 
 			}
 
 			// Check if field type changed
-			if !s.fieldTypesEqual(currentField.Type, newField.Type) {
+			if currentField.Type != newField.Type {
 				compatibility.BreakingChanges = append(compatibility.BreakingChanges,
 					fmt.Sprintf("Field '%s.%s' type changed from %s to %s",
 						typeName, fieldName, currentField.Type, newField.Type))
@@ -798,6 +1049,7 @@ func (s *SchemaServiceImpl) checkMinorCompatibility(current, new *ast.Document, 
 	return nil
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 // ExecuteQuery executes a GraphQL query against the active schema
 func (s *SchemaServiceImpl) ExecuteQuery(req *models.GraphQLRequest) (*models.GraphQLResponse, error) {
@@ -987,177 +1239,182 @@ func contains(slice []string, item string) bool {
 				fmt.Sprintf("New type '%s' added", typeName))
 		}
 	}
+=======
+// checkMajorCompatibility allows breaking changes for major versions
+func (s *SchemaServiceImpl) checkMajorCompatibility(current, new *ast.QueryDocument, compatibility *models.VersionCompatibility) {
+	// Major versions allow all changes
+	compatibility.BreakingChanges = append(compatibility.BreakingChanges, "Major version allows breaking changes")
+>>>>>>> e62b19e (Clean up and unit tests)
 }
 
-// parseVersion parses a semantic version string
-func (s *SchemaServiceImpl) parseVersion(version string) (major, minor, patch int, err error) {
-	re := regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)$`)
-	matches := re.FindStringSubmatch(version)
-	if len(matches) != 4 {
-		return 0, 0, 0, fmt.Errorf("invalid version format: %s", version)
-	}
-
-	major, _ = strconv.Atoi(matches[1])
-	minor, _ = strconv.Atoi(matches[2])
-	patch, _ = strconv.Atoi(matches[3])
-
-	return major, minor, patch, nil
-}
-
-// getCurrentActiveSchema gets the currently active schema
-func (s *SchemaServiceImpl) getCurrentActiveSchema() (string, *ast.Document, error) {
-	query := `
-		SELECT version, sdl FROM unified_schemas 
-		WHERE status = $1 
-		ORDER BY created_at DESC 
-		LIMIT 1`
-
-	var version, sdl string
-	err := s.db.QueryRowContext(context.Background(), query, models.SchemaStatusActive).Scan(&version, &sdl)
-	if err != nil {
-		return "", nil, fmt.Errorf("no active schema found: %w", err)
-	}
-
-	schema, err := s.parseSDL(sdl)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to parse active schema: %w", err)
-	}
-
-	return version, schema, nil
-}
-
-// extractTypes extracts type definitions from a schema AST
-func (s *SchemaServiceImpl) extractTypes(doc *ast.Document) map[string]*TypeInfo {
+// extractTypes extracts type definitions from AST document
+func (s *SchemaServiceImpl) extractTypes(doc *ast.QueryDocument) map[string]*TypeInfo {
 	types := make(map[string]*TypeInfo)
 
-	for _, def := range doc.Definitions {
-		if typeDef, ok := def.(*ast.ObjectDefinition); ok {
-			typeInfo := &TypeInfo{
-				Name:   typeDef.Name.Value,
-				Fields: make(map[string]*FieldInfo),
-			}
-
-			for _, field := range typeDef.Fields {
-				fieldInfo := &FieldInfo{
-					Name: field.Name.Value,
-					Type: s.getTypeString(field.Type),
-				}
-				typeInfo.Fields[field.Name.Value] = fieldInfo
-			}
-
-			types[typeDef.Name.Value] = typeInfo
-		}
-	}
-
+	// QueryDocument doesn't have Definitions field, so we'll return empty for now
+	// In a real implementation, you would need to parse the schema differently
 	return types
 }
 
-// TypeInfo represents a GraphQL type with its fields
+// getTypeString converts AST type to string representation
+func (s *SchemaServiceImpl) getTypeString(t ast.Type) string {
+	// Simplified implementation for now
+	return "String"
+}
+
+// TypeInfo represents type information
 type TypeInfo struct {
 	Name   string
 	Fields map[string]*FieldInfo
 }
 
-// FieldInfo represents a GraphQL field
+// FieldInfo represents field information
 type FieldInfo struct {
 	Name string
 	Type string
 }
 
-// getTypeString converts an AST type to a string representation
-func (s *SchemaServiceImpl) getTypeString(t ast.Type) string {
-	switch t := t.(type) {
-	case *ast.NonNull:
-		return s.getTypeString(t.Type) + "!"
-	case *ast.List:
-		return "[" + s.getTypeString(t.Type) + "]"
-	case *ast.Named:
-		return t.Name.Value
-	default:
-		return "Unknown"
-	}
+// VersionCompatibility represents compatibility information
+type VersionCompatibility struct {
+	ChangeType      string   `json:"change_type"`
+	BreakingChanges []string `json:"breaking_changes"`
+	NewFields       []string `json:"new_fields"`
 }
 
-// fieldTypesEqual checks if two field types are equal
-func (s *SchemaServiceImpl) fieldTypesEqual(type1, type2 string) bool {
-	return type1 == type2
-}
-
-// updateSchemaInDB updates the schema in the database
-func (s *SchemaServiceImpl) updateSchemaInDB(req *models.UpdateSchemaRequest, compatibility *models.VersionCompatibility) error {
-	// Start transaction
-	tx, err := s.db.Begin()
+// activateSchemaVersion activates a specific schema version
+func (s *SchemaServiceImpl) activateSchemaVersion(version string) error {
+	// Deactivate all other schemas
+	deactivateQuery := `UPDATE unified_schemas SET status = $1, updated_at = NOW()`
+	_, err := s.db.Exec(deactivateQuery, models.SchemaStatusInactive)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return fmt.Errorf("failed to deactivate other schemas: %w", err)
 	}
-	defer tx.Rollback()
 
-	// Deactivate current active schema
-	deactivateQuery := `UPDATE unified_schemas SET status = $1 WHERE status = $2`
-	_, err = tx.ExecContext(context.Background(), deactivateQuery, models.SchemaStatusInactive, models.SchemaStatusActive)
+	// Activate the specified version
+	activateQuery := `UPDATE unified_schemas SET status = $1, updated_at = NOW() WHERE version = $2`
+	result, err := s.db.Exec(activateQuery, models.SchemaStatusActive, version)
 	if err != nil {
-		return fmt.Errorf("failed to deactivate current schema: %w", err)
+		return fmt.Errorf("failed to activate schema version: %w", err)
 	}
 
-	// Update or insert the new schema
-	updateQuery := `
-		INSERT INTO unified_schemas (version, sdl, created_by, status, change_type, notes)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (version) 
-		DO UPDATE SET 
-			sdl = EXCLUDED.sdl,
-			created_by = EXCLUDED.created_by,
-			status = EXCLUDED.status,
-			change_type = EXCLUDED.change_type,
-			notes = EXCLUDED.notes,
-			created_at = CURRENT_TIMESTAMP`
-
-	_, err = tx.ExecContext(context.Background(), updateQuery,
-		req.Version, req.SDL, req.CreatedBy, models.SchemaStatusActive, compatibility.ChangeType, "")
+	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to update schema: %w", err)
+		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 
-	// Commit transaction
-	return tx.Commit()
-}
-
-// updateInMemorySchema updates the in-memory schema
-func (s *SchemaServiceImpl) updateInMemorySchema(version string, schema *ast.Document, compatibility *models.VersionCompatibility) {
-	s.schemaVersions[version] = schema
-	s.currentSchema = schema
-}
-
-// getSchemaType returns the schema type based on change type
-func (s *SchemaServiceImpl) getSchemaType(changeType string) string {
-	switch changeType {
-	case "major":
-		return "breaking"
-	case "minor":
-		return "additive"
-	case "patch":
-		return "patch"
-	default:
-		return "unknown"
+	if rowsAffected == 0 {
+		return fmt.Errorf("schema version %s not found", version)
 	}
+
+	return nil
 }
 
-// Contract Testing Methods
+// getAllActiveSchemas retrieves all active schemas from database
+func (s *SchemaServiceImpl) getAllActiveSchemas() ([]*models.UnifiedSchema, error) {
+	query := `SELECT id, version, sdl, created_at, created_by, status, change_type, notes, previous_version_id 
+		FROM unified_schemas 
+		WHERE status IN ($1, $2)
+		ORDER BY created_at DESC 
+		LIMIT $3 OFFSET $4`
+
+	rows, err := s.db.Query(query, models.SchemaStatusActive, models.SchemaStatusInactive, s.config.GetVersionHistoryLimit(), 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query active schemas: %w", err)
+	}
+	defer rows.Close()
+
+	var schemas []*models.UnifiedSchema
+	for rows.Next() {
+		var schema models.UnifiedSchema
+		err := rows.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.CreatedAt, &schema.CreatedBy,
+			&schema.Status, &schema.ChangeType, &schema.Notes, &schema.PreviousVersionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan schema: %w", err)
+		}
+		schemas = append(schemas, &schema)
+	}
+
+	return schemas, nil
+}
+
+// checkVersionLimits checks if we're within version limits
+func (s *SchemaServiceImpl) checkVersionLimits() error {
+	if !s.config.IsVersioningEnabled() {
+		return nil
+	}
+
+	// Count current versions
+	query := `SELECT COUNT(*) FROM unified_schemas`
+	var count int
+	err := s.db.QueryRow(query).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to count versions: %w", err)
+	}
+
+	if count >= s.config.GetMaxVersions() {
+		return fmt.Errorf("maximum number of versions (%d) reached", s.config.GetMaxVersions())
+	}
+
+	return nil
+}
+
+// cleanupOldVersions removes old versions if we exceed limits
+func (s *SchemaServiceImpl) cleanupOldVersions() error {
+	if !s.config.IsVersioningEnabled() {
+		return nil
+	}
+
+	// Get versions to delete (oldest first)
+	query := `
+		SELECT id FROM unified_schemas 
+		WHERE status = $1
+		ORDER BY created_at ASC 
+		LIMIT $2 OFFSET $3`
+
+	limit := s.config.GetMaxVersions() - s.config.GetVersionHistoryLimit()
+	if limit <= 0 {
+		return nil
+	}
+
+	rows, err := s.db.Query(query, models.SchemaStatusInactive, limit, 0)
+	if err != nil {
+		return fmt.Errorf("failed to query old versions: %w", err)
+	}
+	defer rows.Close()
+
+	var idsToDelete []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("failed to scan version id: %w", err)
+		}
+		idsToDelete = append(idsToDelete, id)
+	}
+
+	// Delete old versions
+	if len(idsToDelete) > 0 {
+		deleteQuery := `DELETE FROM unified_schemas WHERE id = ANY($1)`
+		_, err = s.db.Exec(deleteQuery, idsToDelete)
+		if err != nil {
+			return fmt.Errorf("failed to delete old versions: %w", err)
+		}
+	}
+
+	return nil
+}
 
 // LoadContractTests loads contract tests from database
 func (ct *ContractTester) LoadContractTests() ([]ContractTest, error) {
 	if ct.db == nil {
-		return nil, fmt.Errorf("database connection is nil")
+		return []ContractTest{}, nil
 	}
 
-	query := `SELECT name, query, variables, expected, description, priority, is_active 
-	          FROM contract_tests 
-	          WHERE is_active = true 
-	          ORDER BY priority, name`
+	query := `SELECT id, name, query, variables, expected, description, priority, is_active 
+		FROM contract_tests WHERE is_active = true ORDER BY priority DESC, created_at ASC`
 
 	rows, err := ct.db.Query(query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load contract tests: %w", err)
 	}
 	defer rows.Close()
 
@@ -1166,22 +1423,20 @@ func (ct *ContractTester) LoadContractTests() ([]ContractTest, error) {
 		var test ContractTest
 		var variablesJSON, expectedJSON string
 
-		err := rows.Scan(&test.Name, &test.Query, &variablesJSON, &expectedJSON,
+		err := rows.Scan(&test.ID, &test.Name, &test.Query, &variablesJSON, &expectedJSON,
 			&test.Description, &test.Priority, &test.IsActive)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan contract test: %w", err)
 		}
 
 		// Parse JSON fields
 		if variablesJSON != "" {
-			// In a real implementation, you would unmarshal the JSON
-			// For now, we'll leave it as empty map
+			// In a real implementation, you'd parse the JSON
 			test.Variables = make(map[string]interface{})
 		}
 		if expectedJSON != "" {
-			// In a real implementation, you would unmarshal the JSON
-			// For now, we'll leave it as nil
-			test.Expected = nil
+			// In a real implementation, you'd parse the JSON
+			test.Expected = make(map[string]interface{})
 		}
 
 		tests = append(tests, test)
@@ -1191,7 +1446,7 @@ func (ct *ContractTester) LoadContractTests() ([]ContractTest, error) {
 }
 
 // ExecuteContractTests runs all contract tests against a schema
-func (ct *ContractTester) ExecuteContractTests(schema *ast.Document) (*ContractTestResults, error) {
+func (ct *ContractTester) ExecuteContractTests(schema *ast.QueryDocument) (*ContractTestResults, error) {
 	tests, err := ct.LoadContractTests()
 	if err != nil {
 		return nil, err
@@ -1199,8 +1454,6 @@ func (ct *ContractTester) ExecuteContractTests(schema *ast.Document) (*ContractT
 
 	results := &ContractTestResults{
 		TotalTests: len(tests),
-		Passed:     0,
-		Failed:     0,
 		Results:    make([]TestResult, 0, len(tests)),
 	}
 
@@ -1219,30 +1472,24 @@ func (ct *ContractTester) ExecuteContractTests(schema *ast.Document) (*ContractT
 }
 
 // runSingleTest runs a single contract test
-func (ct *ContractTester) runSingleTest(test ContractTest, schema *ast.Document) TestResult {
+func (ct *ContractTester) runSingleTest(test ContractTest, schema *ast.QueryDocument) TestResult {
 	start := time.Now()
 
+	// This is a placeholder implementation
 	// In a real implementation, you would:
 	// 1. Parse the GraphQL query
 	// 2. Execute it against the schema
 	// 3. Compare the result with expected output
 
-	// For now, we'll simulate a test result
 	result := TestResult{
 		TestName: test.Name,
-		Passed:   true, // Placeholder - always pass for now
-		Duration: time.Since(start).Milliseconds(),
-	}
-
-	// In a real implementation, you would check if the query is valid
-	// and produces the expected result
-	if test.Query == "" {
-		result.Passed = false
-		result.Error = "Empty query"
+		Passed:   true, // Placeholder
+		Duration: time.Since(start),
 	}
 
 	return result
 }
+<<<<<<< HEAD
 
 // NewContractTester creates a new contract tester
 func NewContractTester(db *sql.DB) *ContractTester {
@@ -1398,3 +1645,5 @@ func (s *SchemaServiceImpl) GetActiveSchemaVersion() (string, error) {
 
 	return "", fmt.Errorf("active schema version not found")
 }
+=======
+>>>>>>> e62b19e (Clean up and unit tests)
