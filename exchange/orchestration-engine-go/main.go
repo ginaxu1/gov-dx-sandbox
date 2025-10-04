@@ -5,11 +5,8 @@ import (
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/server"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
 
 func main() {
@@ -35,14 +32,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize services
-	schemaService := services.NewSchemaService(db)
+	// Start the schema management server
+	schemaServer := server.NewSchemaServer(db)
+	if err := schemaServer.Initialize(); err != nil {
+		logger.Log.Error("Failed to initialize schema server", "error", err)
+		os.Exit(1)
+	}
 
-	var providerHandler = provider.NewProviderHandler(configs.AppConfig.Providers)
-
-	providerHandler.StartTokenRefreshProcess()
-
-	var federationObject = federator.Initialize(providerHandler)
-
-	server.RunServer(federationObject, schemaService)
+	// Start the server on port 8081
+	if err := schemaServer.Start(":8081"); err != nil {
+		logger.Log.Error("Failed to start schema server", "error", err)
+		os.Exit(1)
+	}
 }
