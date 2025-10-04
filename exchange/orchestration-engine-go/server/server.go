@@ -13,6 +13,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/models"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
 
 type Response struct {
@@ -77,10 +78,22 @@ func RunServer(f *federator.Federator, schemaService models.SchemaService) {
 	// Initialize schema handlers
 	schemaHandlers := handlers.NewSchemaHandlers(schemaService)
 
+	// Initialize GraphQL service and handler
+	// Convert models.SchemaService to services.SchemaService
+	schemaServiceImpl := schemaService.(*services.SchemaServiceImpl)
+	graphqlService := services.NewGraphQLService(schemaServiceImpl)
+	graphqlHandler := handlers.NewGraphQLHandler(graphqlService)
+
 	// Schema management endpoints
 	mux.HandleFunc("/sdl", schemaHandlers.CreateSchema)
 	mux.HandleFunc("/sdl/versions", schemaHandlers.GetSchemaVersions)
 	mux.HandleFunc("/sdl/active", schemaHandlers.GetActiveSchema)
+	mux.HandleFunc("/sdl/versions/info", schemaHandlers.GetSchemaVersionsInfo)
+
+	// GraphQL endpoints
+	mux.HandleFunc("/graphql", graphqlHandler.HandleGraphQL)
+	mux.HandleFunc("/graphql/introspection", graphqlHandler.HandleGraphQLIntrospection)
+	mux.HandleFunc("/graphql/schema-info", graphqlHandler.GetSchemaInfo)
 
 	// Handle version-specific endpoints
 	mux.HandleFunc("/sdl/versions/", func(w http.ResponseWriter, r *http.Request) {
@@ -89,8 +102,18 @@ func RunServer(f *federator.Federator, schemaService models.SchemaService) {
 			schemaHandlers.UpdateSchemaStatus(w, r)
 			return
 		}
+		// Check if this is an activate request
+		if strings.HasSuffix(r.URL.Path, "/activate") && r.Method == http.MethodPost {
+			schemaHandlers.ActivateVersion(w, r)
+			return
+		}
+		// Check if this is a deactivate request
+		if strings.HasSuffix(r.URL.Path, "/deactivate") && r.Method == http.MethodPost {
+			schemaHandlers.DeactivateVersion(w, r)
+			return
+		}
 		// Otherwise, it's a get version request
-		schemaHandlers.GetSchemaVersion(w, r)
+		schemaHandlers.GetVersion(w, r)
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
