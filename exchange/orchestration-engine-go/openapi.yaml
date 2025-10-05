@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Orchestration Engine API
   version: 1.0.0
@@ -7,7 +7,7 @@ info:
     It supports multiple schema versions, schema activation/deactivation, and GraphQL query routing.
 
 servers:
-  - url: http://localhost:4000
+  - url: http://localhost:8081
     description: Development server
 
 paths:
@@ -23,36 +23,12 @@ paths:
               schema:
                 type: object
                 properties:
-                  message:
+                  status:
                     type: string
                 example:
-                  message: "OpenDIF Server is Healthy!"
+                  status: "healthy"
 
-  /public/sdl:
-    get:
-      summary: Get public GraphQL SDL
-      description: Returns the currently active SDL (Schema Definition Language) string of the GraphQL API.
-      responses:
-        '200':
-          description: Successful SDL response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  sdl:
-                    type: string
-                    description: The GraphQL schema definition language
-                example:
-                  sdl: "type Query { hello: String, world: String }"
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /sdl:
+  /api/schemas:
     post:
       summary: Create schema version
       description: Creates a new version of the GraphQL schema.
@@ -81,8 +57,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    get:
+      summary: Get all schemas
+      description: Retrieves all schema versions with optional filtering.
+      parameters:
+        - name: status
+          in: query
+          description: Filter by schema status
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, deprecated]
+        - name: limit
+          in: query
+          description: Number of results to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Schema versions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionsListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /sdl/versions:
+  /api/schemas/versions:
     get:
       summary: List schema versions
       description: Retrieves all schema versions with optional filtering.
@@ -125,7 +142,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /sdl/versions/{version}:
+  /api/schemas/versions/history:
+    get:
+      summary: Get schema versions history
+      description: Retrieves the history of schema version changes.
+      responses:
+        '200':
+          description: Schema versions history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SchemaVersion'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/schemas/{version}:
     get:
       summary: Get specific schema version
       description: Retrieves a specific schema version by version string.
@@ -156,8 +193,110 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    put:
+      summary: Update schema version
+      description: Updates an existing schema version.
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: Schema version string
+          schema:
+            type: string
+            example: "1.0.0"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSchemaRequest'
+      responses:
+        '200':
+          description: Schema version updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionResponse'
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Schema version not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete schema version
+      description: Deletes a specific schema version.
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: Schema version string
+          schema:
+            type: string
+            example: "1.0.0"
+      responses:
+        '200':
+          description: Schema version deleted successfully
+        '404':
+          description: Schema version not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /sdl/versions/{version}/status:
+  /api/schemas/{version}/history:
+    get:
+      summary: Get schema version history
+      description: Retrieves the history of changes for a specific schema version.
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: Schema version string
+          schema:
+            type: string
+            example: "1.0.0"
+      responses:
+        '200':
+          description: Schema version history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SchemaVersion'
+        '404':
+          description: Schema version not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/schemas/{version}/status:
     put:
       summary: Update schema status
       description: Activates or deactivates a schema version.
@@ -201,7 +340,71 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /sdl/active:
+  /api/schemas/{version}/activate:
+    post:
+      summary: Activate schema version
+      description: Activates a specific schema version.
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: Schema version string
+          schema:
+            type: string
+            example: "1.0.0"
+      responses:
+        '200':
+          description: Schema version activated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionResponse'
+        '404':
+          description: Schema version not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/schemas/{version}/deactivate:
+    post:
+      summary: Deactivate schema version
+      description: Deactivates a specific schema version.
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: Schema version string
+          schema:
+            type: string
+            example: "1.0.0"
+      responses:
+        '200':
+          description: Schema version deactivated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaVersionResponse'
+        '404':
+          description: Schema version not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/schemas/active:
     get:
       summary: Get active schema
       description: Retrieves the currently active schema version.
@@ -225,7 +428,103 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /:
+  /api/schemas/validate:
+    post:
+      summary: Validate SDL
+      description: Validates GraphQL Schema Definition Language syntax.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sdl:
+                  type: string
+                  description: GraphQL Schema Definition Language
+                  example: "type Query { hello: String }"
+              required:
+                - sdl
+      responses:
+        '200':
+          description: SDL validation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+        '400':
+          description: Bad request - invalid SDL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/schemas/check-compatibility:
+    post:
+      summary: Check schema compatibility
+      description: Checks compatibility between a new schema and the currently active schema.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sdl:
+                  type: string
+                  description: GraphQL Schema Definition Language
+                  example: "type Query { hello: String world: String }"
+              required:
+                - sdl
+      responses:
+        '200':
+          description: Compatibility check completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  compatible:
+                    type: boolean
+                    example: true
+                  changeType:
+                    type: string
+                    enum: [major, minor, patch]
+                    example: "minor"
+                  breakingChanges:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/graphql:
     post:
       summary: GraphQL endpoint
       description: |
@@ -392,6 +691,40 @@ components:
           type: integer
           description: ID of the previous version
           example: null
+
+    SchemaVersion:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique schema version ID
+          example: 1
+        from_version:
+          type: string
+          description: Source version for the change
+          example: "1.0.0"
+        to_version:
+          type: string
+          description: Target version for the change
+          example: "1.1.0"
+        change_type:
+          type: string
+          enum: [major, minor, patch]
+          description: Type of version change
+          example: "minor"
+        changes:
+          type: object
+          description: Detailed changes made (JSONB)
+          example: {"added_fields": ["world"], "removed_fields": []}
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2024-01-01T00:00:00Z"
+        created_by:
+          type: string
+          description: Entity ID of the creator
+          example: "entity-123"
 
     SchemaVersionsListResponse:
       type: object
