@@ -40,7 +40,10 @@ func LoadSdlSchema(AppConfig *Cfg) {
 	schema, err := os.ReadFile(SDLFilePath)
 
 	if err != nil {
-		panic(err)
+		// If schema.graphql doesn't exist, create empty schema
+		AppConfig.Sdl = []byte{}
+		AppConfig.Schema = &ast.Document{}
+		return
 	}
 
 	// Wrap as a GraphQL source
@@ -52,7 +55,10 @@ func LoadSdlSchema(AppConfig *Cfg) {
 	doc, err := parser.Parse(parser.ParseParams{Source: src})
 
 	if err != nil {
-		panic(err)
+		// If parsing fails, create empty schema
+		AppConfig.Sdl = []byte{}
+		AppConfig.Schema = &ast.Document{}
+		return
 	}
 
 	AppConfig.Sdl = schema
@@ -67,20 +73,24 @@ func LoadConfig() {
 
 	AppConfig = &Cfg{}
 
+	// Try to load config.json, but don't panic if it doesn't exist
 	file, err := os.ReadFile(ConfigFilePath)
-
 	if err != nil {
-		panic(err)
-	}
-
-	err = json.Unmarshal(file, AppConfig)
-
-	if err != nil {
-		panic(err)
+		// If config.json doesn't exist, create a default configuration
+		AppConfig = &Cfg{
+			Options:     &Options{Providers: []*provider.Provider{}},
+			Environment: getEnv("ENVIRONMENT", "production"),
+		}
+	} else {
+		err = json.Unmarshal(file, AppConfig)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	// Load schema configuration
 	AppConfig.SchemaConfig = LoadSchemaConfig()
 
+	// Try to load schema, but don't panic if it doesn't exist
 	LoadSdlSchema(AppConfig)
 }

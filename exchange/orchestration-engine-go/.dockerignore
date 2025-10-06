@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+README.md
+
+# Test files
+*_test.go
+tests/
+test_*
+
+# Development files
+config.json
+schema.graphql
+config.example.json
+config.example.json.bak
+
+# Build artifacts
+orchestration-engine-go
+orchestration-engine
+schema-server
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
