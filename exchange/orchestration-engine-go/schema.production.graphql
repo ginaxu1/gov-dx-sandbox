@@ -1,0 +1,8 @@
+type Query {
+  health: String
+}
+
+type Mutation {
+  # Placeholder for future mutations
+  _empty: String
+}

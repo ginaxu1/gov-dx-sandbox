@@ -23,8 +23,8 @@ paths:
 
   /sdl:
     get:
-      summary: Get GraphQL SDL
-      description: Returns the SDL (Schema Definition Language) string of the GraphQL API.
+      summary: Get active GraphQL SDL
+      description: Returns the currently active SDL (Schema Definition Language) string of the GraphQL API.
       responses:
         '200':
           description: Successful SDL response
@@ -37,3 +37,116 @@ paths:
                     type: string
                 example:
                   sdl: "type Query { hello: String }"
+        '404':
+          description: No active schema found
+    post:
+      summary: Create new schema version
+      description: Creates a new version of the GraphQL schema.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: string
+                  example: "1.0.0"
+                sdl:
+                  type: string
+                  example: "type Query { hello: String }"
+                created_by:
+                  type: string
+                  example: "admin"
+              required:
+                - sdl
+                - created_by
+      responses:
+        '200':
+          description: Schema created successfully
+        '400':
+          description: Invalid request or SDL syntax
+
+  /sdl/versions:
+    get:
+      summary: Get all schema versions
+      description: Returns a list of all schema versions.
+      responses:
+        '200':
+          description: List of schema versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    version:
+                      type: string
+                    sdl:
+                      type: string
+                    is_active:
+                      type: boolean
+                    created_at:
+                      type: string
+                      format: date-time
+                    created_by:
+                      type: string
+
+  /sdl/validate:
+    post:
+      summary: Validate SDL syntax
+      description: Validates GraphQL SDL syntax.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sdl:
+                  type: string
+                  example: "type Query { hello: String }"
+              required:
+                - sdl
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+
+  /sdl/check-compatibility:
+    post:
+      summary: Check backward compatibility
+      description: Checks if a new SDL is backward compatible with the active schema.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sdl:
+                  type: string
+                  example: "type Query { hello: String world: String }"
+              required:
+                - sdl
+      responses:
+        '200':
+          description: Compatibility check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  compatible:
+                    type: boolean
+                  reason:
+                    type: string
