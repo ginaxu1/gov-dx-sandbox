@@ -89,7 +89,7 @@ func RunServer(f *federator.Federator) {
 		sdl := configs.AppConfig.Sdl
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		response := map[string]string{"sdl": string(sdl)}
+		response := map[string]string{"sdl": *sdl}
 
 		err := json.NewEncoder(w).Encode(response)
 
