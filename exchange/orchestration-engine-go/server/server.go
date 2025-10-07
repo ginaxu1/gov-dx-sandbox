@@ -2,14 +2,18 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
 
 type Response struct {
@@ -21,6 +25,27 @@ const DefaultPort = "4000"
 // RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
 	mux := http.NewServeMux()
+
+	// Initialize database connection
+	dbConnectionString := getDatabaseConnectionString()
+	schemaDB, err := database.NewSchemaDB(dbConnectionString)
+	if err != nil {
+		logger.Log.Error("Failed to connect to database", "error", err)
+		// Continue without database for now
+		schemaDB = nil
+	}
+
+	// Initialize schema service and handler
+	var schemaService *services.SchemaService
+	if schemaDB != nil {
+		schemaService = services.NewSchemaService(schemaDB)
+	} else {
+		// Fallback to in-memory service if database is not available
+		schemaService = nil
+		logger.Log.Warn("Running without database - schema management disabled")
+	}
+
+	schemaHandler := handlers.NewSchemaHandler(schemaService)
 	// /health route
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -34,6 +59,21 @@ func RunServer(f *federator.Federator) {
 			return
 		}
 	})
+
+	// Schema management routes
+	mux.HandleFunc("/sdl", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			schemaHandler.GetActiveSchema(w, r)
+		} else if r.Method == http.MethodPost {
+			schemaHandler.CreateSchema(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/sdl/versions", schemaHandler.GetSchemas)
+	mux.HandleFunc("/sdl/validate", schemaHandler.ValidateSDL)
+	mux.HandleFunc("/sdl/check-compatibility", schemaHandler.CheckCompatibility)
+	mux.HandleFunc("/sdl/versions/", schemaHandler.ActivateSchema) // This will need URL parsing
 
 	mux.HandleFunc("/public/sdl", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -141,4 +181,43 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// getDatabaseConnectionString returns the database connection string from environment variables
+func getDatabaseConnectionString() string {
+	// Check for Choreo environment variables first
+	choreoHost := os.Getenv("CHOREO_DB_OE_HOSTNAME")
+	choreoUser := os.Getenv("CHOREO_DB_OE_USERNAME")
+	choreoPassword := os.Getenv("CHOREO_DB_OE_PASSWORD")
+	choreoDB := os.Getenv("CHOREO_DB_OE_DATABASENAME")
+
+	// Use Choreo variables if available, otherwise fall back to standard environment variables
+	var host, port, user, password, dbname, sslmode string
+
+	if choreoHost != "" {
+		host = choreoHost
+		port = getEnv("CHOREO_DB_OE_PORT", "5432")
+		user = choreoUser
+		password = choreoPassword
+		dbname = choreoDB
+		sslmode = "require" // Choreo typically requires SSL
+	} else {
+		host = getEnv("DB_HOST", "localhost")
+		port = getEnv("DB_PORT", "5432")
+		user = getEnv("DB_USER", "postgres")
+		password = getEnv("DB_PASSWORD", "password")
+		dbname = getEnv("DB_NAME", "orchestration_engine")
+		sslmode = getEnv("DB_SSLMODE", "disable")
+	}
+
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode)
+}
+
+// getEnv gets an environment variable with a default value
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

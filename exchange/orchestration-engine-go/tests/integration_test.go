@@ -34,15 +34,15 @@ func TestCompleteFederationFlow(t *testing.T) {
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
-		fields, args, err := federator.ProviderSchemaCollector(schema, queryDoc)
+		response, err := federator.ProviderSchemaCollector(schema, queryDoc)
 		assert.NoError(t, err, "Should extract source info directives")
-		assert.Len(t, fields, 3, "Should extract 3 fields")
-		assert.Len(t, args, 1, "Should extract 1 argument")
+		assert.Len(t, response.ProviderFieldMap, 3, "Should extract 3 response.ProviderFieldMap")
+		assert.Len(t, response.Arguments, 1, "Should extract 1 argument")
 
 		// Step 4: Build provider queries
 		_ = createMockArgMappings()
 		argSources := createMockArgSources()
-		requests, err := federator.QueryBuilder(fields, argSources)
+		requests, err := federator.QueryBuilder(response.ProviderFieldMap, argSources)
 		assert.NoError(t, err, "Should build provider queries")
 		assert.Len(t, requests, 2, "Should create 2 provider requests")
 
@@ -74,19 +74,19 @@ func TestCompleteFederationFlow(t *testing.T) {
 		}
 
 		// Step 6: Accumulate response
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
-		assert.NotNil(t, response.Data, "Should have response data")
-		assert.Contains(t, response.Data, "personInfo", "Should contain personInfo")
+		accumulatedResponse := federator.AccumulateResponse(queryDoc, federatedResponse)
+		assert.NotNil(t, accumulatedResponse.Data, "Should have response data")
+		assert.Contains(t, accumulatedResponse.Data, "personInfo", "Should contain personInfo")
 
 		// Step 7: Verify final response structure
-		personInfo := response.Data["personInfo"].(map[string]interface{})
+		personInfo := accumulatedResponse.Data["personInfo"].(map[string]interface{})
 		assert.Equal(t, "John Doe", personInfo["fullName"])
 		assert.Equal(t, "John", personInfo["name"])
 		assert.Equal(t, "123 Main St", personInfo["address"])
 	})
 
 	t.Run("Array Field Federation", func(t *testing.T) {
-		// Test complete flow for query with array fields
+		// Test complete flow for query with array response.ProviderFieldMap
 		query := `
 			query {
 				personInfo(nic: "123456789V") {
@@ -109,14 +109,14 @@ func TestCompleteFederationFlow(t *testing.T) {
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
-		fields, args, err := federator.ProviderSchemaCollector(schema, queryDoc)
+		response, err := federator.ProviderSchemaCollector(schema, queryDoc)
 		assert.NoError(t, err, "Should extract source info directives")
-		assert.Len(t, fields, 5, "Should extract 5 fields (including array fields)")
-		assert.Len(t, args, 1, "Should extract 1 argument")
+		assert.Len(t, response.ProviderFieldMap, 5, "Should extract 5 response.ProviderFieldMap (including array response.ProviderFieldMap)")
+		assert.Len(t, response.Arguments, 1, "Should extract 1 argument")
 
 		// Step 4: Build provider queries
 		argSources := createMockArgSources()
-		requests, err := federator.QueryBuilder(fields, argSources)
+		requests, err := federator.QueryBuilder(response.ProviderFieldMap, argSources)
 		assert.NoError(t, err, "Should build provider queries")
 		assert.Len(t, requests, 2, "Should create 2 provider requests")
 
@@ -160,12 +160,12 @@ func TestCompleteFederationFlow(t *testing.T) {
 		}
 
 		// Step 6: Accumulate response
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
-		assert.NotNil(t, response.Data, "Should have response data")
-		assert.Contains(t, response.Data, "personInfo", "Should contain personInfo")
+		accumulatedResponse := federator.AccumulateResponse(queryDoc, federatedResponse)
+		assert.NotNil(t, accumulatedResponse.Data, "Should have response data")
+		assert.Contains(t, accumulatedResponse.Data, "personInfo", "Should contain personInfo")
 
 		// Step 7: Verify final response structure with array
-		personInfo := response.Data["personInfo"].(map[string]interface{})
+		personInfo := accumulatedResponse.Data["personInfo"].(map[string]interface{})
 		assert.Equal(t, "John Doe", personInfo["fullName"])
 
 		// Verify array field
@@ -210,14 +210,14 @@ func TestCompleteFederationFlow(t *testing.T) {
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
-		fields, args, err := federator.ProviderSchemaCollector(schema, queryDoc)
+		response, err := federator.ProviderSchemaCollector(schema, queryDoc)
 		assert.NoError(t, err, "Should extract source info directives")
-		assert.Len(t, fields, 3, "Should extract 3 fields")
-		assert.Len(t, args, 1, "Should extract 1 argument")
+		assert.Len(t, response.ProviderFieldMap, 3, "Should extract 3 response.ProviderFieldMap")
+		assert.Len(t, response.Arguments, 1, "Should extract 1 argument")
 
 		// Step 4: Build provider queries
 		argSources := createMockBulkArgSources()
-		requests, err := federator.QueryBuilder(fields, argSources)
+		requests, err := federator.QueryBuilder(response.ProviderFieldMap, argSources)
 		assert.NoError(t, err, "Should build provider queries")
 		assert.Len(t, requests, 2, "Should create 2 provider requests")
 
@@ -260,12 +260,12 @@ func TestCompleteFederationFlow(t *testing.T) {
 		}
 
 		// Step 6: Accumulate response
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
-		assert.NotNil(t, response.Data, "Should have response data")
-		assert.Contains(t, response.Data, "personInfos", "Should contain personInfos")
+		accumulatedResponse := federator.AccumulateResponse(queryDoc, federatedResponse)
+		assert.NotNil(t, accumulatedResponse.Data, "Should have response data")
+		assert.Contains(t, accumulatedResponse.Data, "personInfos", "Should contain personInfos")
 
 		// Step 7: Verify final response structure with bulk array
-		personInfos := response.Data["personInfos"].([]interface{})
+		personInfos := accumulatedResponse.Data["personInfos"].([]interface{})
 		assert.Len(t, personInfos, 2, "Should have 2 persons")
 
 		// Verify first person
@@ -282,7 +282,7 @@ func TestCompleteFederationFlow(t *testing.T) {
 	})
 
 	t.Run("Mixed Object and Array Federation", func(t *testing.T) {
-		// Test complete flow for query with both object and array fields
+		// Test complete flow for query with both object and array response.ProviderFieldMap
 		query := `
 			query {
 				personInfo(nic: "123456789V") {
@@ -309,14 +309,14 @@ func TestCompleteFederationFlow(t *testing.T) {
 		assert.NotNil(t, schema, "Should load schema successfully")
 
 		// Step 3: Extract source info directives
-		fields, args, err := federator.ProviderSchemaCollector(schema, queryDoc)
+		response, err := federator.ProviderSchemaCollector(schema, queryDoc)
 		assert.NoError(t, err, "Should extract source info directives")
-		assert.Len(t, fields, 6, "Should extract 6 fields")
-		assert.Len(t, args, 2, "Should extract 2 arguments")
+		assert.Len(t, response.ProviderFieldMap, 6, "Should extract 6 response.ProviderFieldMap")
+		assert.Len(t, response.Arguments, 2, "Should extract 2 arguments")
 
 		// Step 4: Build provider queries
 		argSources := createMockMixedArgSources()
-		requests, err := federator.QueryBuilder(fields, argSources)
+		requests, err := federator.QueryBuilder(response.ProviderFieldMap, argSources)
 		assert.NoError(t, err, "Should build provider queries")
 		assert.Len(t, requests, 2, "Should create 2 provider requests")
 
@@ -360,13 +360,13 @@ func TestCompleteFederationFlow(t *testing.T) {
 		}
 
 		// Step 6: Accumulate response
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
-		assert.NotNil(t, response.Data, "Should have response data")
+		accumulatedResponse := federator.AccumulateResponse(queryDoc, federatedResponse)
+		assert.NotNil(t, accumulatedResponse.Data, "Should have response data")
 
 		// Step 7: Verify final response structure with mixed data
 		// Verify personInfo object
-		assert.Contains(t, response.Data, "personInfo")
-		personInfo := response.Data["personInfo"].(map[string]interface{})
+		assert.Contains(t, accumulatedResponse.Data, "personInfo")
+		personInfo := accumulatedResponse.Data["personInfo"].(map[string]interface{})
 		assert.Equal(t, "John Doe", personInfo["fullName"])
 
 		// Verify ownedVehicles array
@@ -374,8 +374,8 @@ func TestCompleteFederationFlow(t *testing.T) {
 		assert.Len(t, ownedVehicles, 2, "Should have 2 owned vehicles")
 
 		// Verify vehicles array (bulk query result)
-		assert.Contains(t, response.Data, "vehicles")
-		vehicles := response.Data["vehicles"].([]interface{})
+		assert.Contains(t, accumulatedResponse.Data, "vehicles")
+		vehicles := accumulatedResponse.Data["vehicles"].([]interface{})
 		assert.Len(t, vehicles, 2, "Should have 2 vehicles")
 	})
 }
@@ -430,13 +430,13 @@ func TestFederationErrorHandling(t *testing.T) {
 		}
 
 		// Accumulate response
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
+		accumulatedResponse := federator.AccumulateResponse(queryDoc, federatedResponse)
 
 		// Verify error handling
-		assert.NotNil(t, response.Data, "Should have response data")
-		assert.Contains(t, response.Data, "personInfo", "Should contain personInfo")
+		assert.NotNil(t, accumulatedResponse.Data, "Should have response data")
+		assert.Contains(t, accumulatedResponse.Data, "personInfo", "Should contain personInfo")
 
-		personInfo := response.Data["personInfo"].(map[string]interface{})
+		personInfo := accumulatedResponse.Data["personInfo"].(map[string]interface{})
 		assert.Equal(t, "John Doe", personInfo["fullName"])
 
 		// Verify that ownedVehicles is not present due to provider error
@@ -491,13 +491,13 @@ func TestFederationErrorHandling(t *testing.T) {
 		}
 
 		// Accumulate response
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
+		accumulatedResponse := federator.AccumulateResponse(queryDoc, federatedResponse)
 
 		// Verify partial array response structure
-		assert.NotNil(t, response.Data, "Should have response data")
-		assert.Contains(t, response.Data, "personInfos", "Should contain personInfos")
+		assert.NotNil(t, accumulatedResponse.Data, "Should have response data")
+		assert.Contains(t, accumulatedResponse.Data, "personInfos", "Should contain personInfos")
 
-		personInfos := response.Data["personInfos"].([]interface{})
+		personInfos := accumulatedResponse.Data["personInfos"].([]interface{})
 		assert.Len(t, personInfos, 1, "Should have 1 person due to partial failure")
 
 		// Verify the successful person
