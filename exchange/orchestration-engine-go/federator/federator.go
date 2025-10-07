@@ -2,8 +2,11 @@ package federator
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -25,6 +28,7 @@ type Federator struct {
 	ProviderHandler *provider.Handler
 	Client          *http.Client
 	Schema          *ast.Document
+	SchemaService   interface{} // Will be *services.SchemaService, using interface{} to avoid circular import
 }
 
 type FederationServiceAST struct {
@@ -63,9 +67,10 @@ func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderRe
 }
 
 // Initialize sets up the Federator with providers and an HTTP client.
-func Initialize(providerHandler *provider.Handler) *Federator {
+func Initialize(providerHandler *provider.Handler, schemaService interface{}) *Federator {
 	federator := &Federator{
 		ProviderHandler: providerHandler,
+		SchemaService:   schemaService,
 	}
 
 	// Initialize with providers from config if available
@@ -113,17 +118,72 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		logger.Log.Error("Failed to parse query", "Error", err)
 	}
 
-	// Get schema document from config
-	schema, err := configs.AppConfig.GetSchemaDocument()
-	if err != nil {
-		logger.Log.Error("Failed to get schema document", "Error", err)
-		return graphql.Response{
-			Data: nil,
-			Errors: []interface{}{
-				&graphql.JSONError{
-					Message: "Failed to get schema document: " + err.Error(),
+	// Get schema document from database or config
+	var schema *ast.Document
+
+	// First try to get from database if schema service is available
+	if f.SchemaService != nil {
+		// Use reflection to call GetActiveSchema method
+		schemaServiceValue := reflect.ValueOf(f.SchemaService)
+		if schemaServiceValue.IsValid() && !schemaServiceValue.IsNil() {
+			getActiveSchemaMethod := schemaServiceValue.MethodByName("GetActiveSchema")
+			if getActiveSchemaMethod.IsValid() {
+				results := getActiveSchemaMethod.Call([]reflect.Value{})
+				if len(results) >= 2 && !results[1].IsNil() {
+					// Error occurred
+					logger.Log.Warn("Failed to get active schema from database", "Error", results[1].Interface())
+				} else if len(results) >= 1 && !results[0].IsNil() {
+					// Got schema from database
+					schemaRecord := results[0].Interface()
+					// Extract SDL from schema record using reflection
+					schemaRecordValue := reflect.ValueOf(schemaRecord)
+					// If it's a pointer, dereference it
+					if schemaRecordValue.Kind() == reflect.Ptr {
+						schemaRecordValue = schemaRecordValue.Elem()
+					}
+					sdlField := schemaRecordValue.FieldByName("SDL")
+					if sdlField.IsValid() && sdlField.Kind() == reflect.String {
+						sdlString := sdlField.String()
+						src := source.NewSource(&source.Source{
+							Body: []byte(sdlString),
+							Name: "ActiveSchema",
+						})
+						schema, err = parser.Parse(parser.ParseParams{Source: src})
+						if err != nil {
+							logger.Log.Error("Failed to parse active schema from database", "Error", err)
+							schema = nil
+						}
+					}
+				}
+			}
+		}
+	} else {
+		logger.Log.Info("SchemaService is nil, skipping database schema lookup")
+	}
+
+	// Fallback to config if no schema from database
+	if schema == nil && configs.AppConfig != nil && configs.AppConfig.Schema != nil {
+		schema, err = configs.AppConfig.GetSchemaDocument()
+		if err != nil {
+			logger.Log.Warn("Failed to get schema from config", "Error", err)
+			schema = nil
+		}
+	}
+
+	// Final fallback to schema.graphql file if no schema from database or config
+	if schema == nil {
+		logger.Log.Info("No schema found in database or config, attempting to load schema.graphql file")
+		schema, err = f.loadSchemaFromFile()
+		if err != nil {
+			logger.Log.Error("Failed to load schema from file", "Error", err)
+			return graphql.Response{
+				Data: nil,
+				Errors: []interface{}{
+					&graphql.JSONError{
+						Message: "No active schema found. Please create and activate a schema using the schema management API first, or ensure schema.graphql file exists.",
+					},
 				},
-			},
+			}
 		}
 	}
 
@@ -140,7 +200,13 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		}
 	}
 
-	var requiredArguments = FindRequiredArguments(schemaCollection.ProviderFieldMap, configs.AppConfig.ArgMapping)
+	// Safely get argument mapping with nil check
+	var argMapping []*graphql.ArgMapping
+	if configs.AppConfig != nil && configs.AppConfig.ArgMapping != nil {
+		argMapping = configs.AppConfig.ArgMapping
+	}
+
+	var requiredArguments = FindRequiredArguments(schemaCollection.ProviderFieldMap, argMapping)
 
 	var extractedArgs = ExtractRequiredArguments(requiredArguments, schemaCollection.Arguments)
 
@@ -150,58 +216,76 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		PushVariablesFromVariableDefinition(request, extractedArgs, schemaCollection.VariableDefinitions)
 	}
 
-	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientURL)
-	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientURL)
+	// Safely initialize PDP and CE clients with nil checks
+	var pdpClient *policy.PdpClient
+	var ceClient *consent.CEClient
 
-	pdpResponse, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
-		ConsumerId:     consumerInfo.Subscriber,
-		AppId:          consumerInfo.ApplicationId,
-		RequestId:      "request_123",
-		RequiredFields: schemaCollection.ProviderFieldMap,
-	})
-
-	if err != nil {
-		logger.Log.Info("PDP request failed", "error", err)
-		return graphql.Response{
-			Data: nil,
-			Errors: []interface{}{
-				map[string]interface{}{
-					"message": "PDP request failed",
-					"extensions": map[string]interface{}{
-						"code": errors.CodePDPError,
-					},
-				},
-			},
+	if configs.AppConfig != nil {
+		if configs.AppConfig.PdpConfig.ClientURL != "" {
+			pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientURL)
+		}
+		if configs.AppConfig.CeConfig.ClientURL != "" {
+			ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientURL)
 		}
 	}
 
-	if pdpResponse == nil {
-		logger.Log.Error("Failed to get response from PDP")
-		return graphql.Response{
-			Data: nil,
-			Errors: []interface{}{
-				map[string]interface{}{
-					"message": "Failed to get response from PDP",
-					"extensions": map[string]interface{}{
-						"code": errors.CodePDPNoResponse,
-					},
-				},
-			},
-		}
-	}
+	// Check if PDP client is available before making request
+	var pdpResponse *policy.PdpResponse
+	if pdpClient == nil {
+		logger.Log.Warn("PDP client not available, skipping policy check")
+		// Continue without PDP check - this allows the system to work without PDP
+	} else {
+		var err error
+		pdpResponse, err = pdpClient.MakePdpRequest(&policy.PdpRequest{
+			ConsumerId:     consumerInfo.Subscriber,
+			AppId:          consumerInfo.ApplicationId,
+			RequestId:      "request_123",
+			RequiredFields: schemaCollection.ProviderFieldMap,
+		})
 
-	if !pdpResponse.Allowed {
-		logger.Log.Info("Request not allowed by PDP")
-		return graphql.Response{
-			Data: nil,
-			Errors: []interface{}{
-				map[string]interface{}{
-					"message": "Request not allowed by PDP",
-					"extensions": map[string]interface{}{
-						"code": errors.CodePDPNotAllowed,
+		if err != nil {
+			logger.Log.Info("PDP request failed", "error", err)
+			return graphql.Response{
+				Data: nil,
+				Errors: []interface{}{
+					map[string]interface{}{
+						"message": "PDP request failed",
+						"extensions": map[string]interface{}{
+							"code": errors.CodePDPError,
+						},
 					},
 				},
-			},
+			}
+		}
+
+		if pdpResponse == nil {
+			logger.Log.Error("Failed to get response from PDP")
+			return graphql.Response{
+				Data: nil,
+				Errors: []interface{}{
+					map[string]interface{}{
+						"message": "Failed to get response from PDP",
+						"extensions": map[string]interface{}{
+							"code": errors.CodePDPNoResponse,
+						},
+					},
+				},
+			}
+		}
+
+		if !pdpResponse.Allowed {
+			logger.Log.Info("Request not allowed by PDP")
+			return graphql.Response{
+				Data: nil,
+				Errors: []interface{}{
+					map[string]interface{}{
+						"message": "Request not allowed by PDP",
+						"extensions": map[string]interface{}{
+							"code": errors.CodePDPNotAllowed,
+						},
+					},
+				},
+			}
 		}
 	}
 
@@ -221,8 +305,25 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		}
 	}
 
-	if pdpResponse.ConsentRequired {
+	// Handle consent check only if PDP client was available and consent is required
+	if pdpClient != nil && pdpResponse != nil && pdpResponse.ConsentRequired {
 		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
+
+		// Check if CE client is available
+		if ceClient == nil {
+			logger.Log.Warn("CE client not available, skipping consent check")
+			return graphql.Response{
+				Data: nil,
+				Errors: []interface{}{
+					map[string]interface{}{
+						"message": "Consent required but consent engine not available",
+						"extensions": map[string]interface{}{
+							"code": errors.CodeCEError,
+						},
+					},
+				},
+			}
+		}
 
 		ceRequest := &consent.CERequest{
 			AppId:     consumerInfo.ApplicationId,
@@ -402,4 +503,44 @@ func (f *Federator) mergeResponses(responses []ProviderResponse) graphql.Respons
 	}
 
 	return merged
+}
+
+// loadSchemaFromFile loads the schema from schema.graphql file as a fallback
+func (f *Federator) loadSchemaFromFile() (*ast.Document, error) {
+	// Try to read schema.graphql file from current directory
+	schemaData, err := os.ReadFile("schema.graphql")
+	if err != nil {
+		// Try alternative paths
+		alternativePaths := []string{
+			"./schema.graphql",
+			"../schema.graphql",
+			"../../schema.graphql",
+		}
+
+		for _, path := range alternativePaths {
+			schemaData, err = os.ReadFile(path)
+			if err == nil {
+				logger.Log.Info("Successfully found schema.graphql at", "path", path)
+				break
+			}
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("could not find schema.graphql file in any expected location: %w", err)
+		}
+	}
+
+	// Parse the schema file
+	src := source.NewSource(&source.Source{
+		Body: schemaData,
+		Name: "SchemaFile",
+	})
+
+	schema, err := parser.Parse(parser.ParseParams{Source: src})
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Log.Info("Successfully loaded schema from schema.graphql file")
+	return schema, nil
 }

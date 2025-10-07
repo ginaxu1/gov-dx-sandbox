@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
@@ -46,6 +47,9 @@ func RunServer(f *federator.Federator) {
 	}
 
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
+
+	// Set the schema service in the federator
+	f.SchemaService = schemaService
 	// /health route
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -106,7 +110,24 @@ func RunServer(f *federator.Federator) {
 			return
 		}
 
-		response := f.FederateQuery(req, consumerAssertion)
+		// Add panic recovery for federator calls
+		var response graphql.Response
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Log.Error("Panic in FederateQuery", "panic", r, "stack", string(debug.Stack()))
+					response = graphql.Response{
+						Data: nil,
+						Errors: []interface{}{
+							map[string]interface{}{
+								"message": fmt.Sprintf("Internal server error: %v", r),
+							},
+						},
+					}
+				}
+			}()
+			response = f.FederateQuery(req, consumerAssertion)
+		}()
 
 		w.WriteHeader(http.StatusOK)
 		// Set content type to application/json
