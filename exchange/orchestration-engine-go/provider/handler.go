@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
 )
 
 // Handler is the main struct that holds all the provider handling information
@@ -52,13 +50,4 @@ func (h *Handler) AddProvider(serviceKey string, provider *Provider) {
 	defer h.mu.Unlock()
 	h.Providers[serviceKey] = provider
 	provider.Client = h.HttpClient
-}
-
-// StartTokenRefreshProcess starts the token refresh process for all providers that use OAuth2 authentication.
-func (h *Handler) StartTokenRefreshProcess() {
-	for _, p := range h.Providers {
-		if p != nil && p.Auth != nil && p.Auth.Type == auth.AuthTypeOAuth2 {
-			p.StartTokenRefresh()
-		}
-	}
 }
