@@ -64,19 +64,22 @@ func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderRe
 
 // Initialize sets up the Federator with providers and an HTTP client.
 func Initialize(providerHandler *provider.Handler) *Federator {
-	options := configs.AppConfig.Options
-
 	federator := &Federator{
 		ProviderHandler: providerHandler,
 	}
 
-	// Initialize with options if provided
-
-	if options != nil {
-		for _, p := range options.Providers {
+	// Initialize with providers from config if available
+	if configs.AppConfig != nil && configs.AppConfig.Providers != nil {
+		for _, p := range configs.AppConfig.Providers {
+			// Convert ProviderConfig to Provider
+			providerInstance := &provider.Provider{
+				ServiceUrl: p.ProviderURL,
+				ServiceKey: p.ProviderKey,
+				Auth:       p.Auth,
+			}
 			// print service url
-			logger.Log.Info("Adding Provider from the Config File", "Provider Key", p.ServiceKey, "Provider Url", p.ServiceUrl)
-			providerHandler.AddProvider(p.ServiceKey, p)
+			logger.Log.Info("Adding Provider from the Config File", "Provider Key", p.ProviderKey, "Provider Url", p.ProviderURL)
+			providerHandler.AddProvider(p.ProviderKey, providerInstance)
 		}
 	} else {
 		logger.Log.Info("No Providers found in the Config File")
@@ -110,7 +113,19 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		logger.Log.Error("Failed to parse query", "Error", err)
 	}
 
-	var schema = configs.AppConfig.Schema
+	// Get schema document from config
+	schema, err := configs.AppConfig.GetSchemaDocument()
+	if err != nil {
+		logger.Log.Error("Failed to get schema document", "Error", err)
+		return graphql.Response{
+			Data: nil,
+			Errors: []interface{}{
+				&graphql.JSONError{
+					Message: "Failed to get schema document: " + err.Error(),
+				},
+			},
+		}
+	}
 
 	// Collect the directives from the query
 	schemaCollection, err := ProviderSchemaCollector(schema, doc)
@@ -135,8 +150,8 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		PushVariablesFromVariableDefinition(request, extractedArgs, schemaCollection.VariableDefinitions)
 	}
 
-	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientUrl)
-	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientUrl)
+	var pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientURL)
+	var ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientURL)
 
 	pdpResponse, err := pdpClient.MakePdpRequest(&policy.PdpRequest{
 		ConsumerId:     consumerInfo.Subscriber,
@@ -292,16 +307,14 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	responses := f.performFederation(federationRequest)
 
 	// Build schema info map for array-aware processing
-	schemaInfoMap, err := BuildSchemaInfoMap(schema, doc)
-	if err != nil {
-		logger.Log.Error("Failed to build schema info map", "Error", err)
-		return graphql.Response{
-			Data: nil,
-			Errors: []interface{}{
-				err.(*graphql.JSONError),
-			},
+	var schemaInfoMap map[string]*SourceSchemaInfo
+	if schema != nil {
+		schemaInfoMap, err = BuildSchemaInfoMap(schema, doc)
+		if err != nil {
+			logger.Log.Error("Failed to build schema info map", "Error", err)
 		}
 	}
+	// Error handling is done above in the if block
 
 	// Transform the federated responses back to the original query structure using array-aware processing
 	var response = AccumulateResponseWithSchemaInfo(doc, responses, schemaInfoMap)
