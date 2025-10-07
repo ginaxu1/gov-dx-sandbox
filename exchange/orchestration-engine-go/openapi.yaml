@@ -344,35 +344,6 @@ paths:
         '500':
           description: Internal server error
 
-  /public/sdl:
-    get:
-      summary: Get public SDL
-      description: Returns the public SDL (Schema Definition Language) string from configuration.
-      tags:
-        - Schema Management
-      responses:
-        '200':
-          description: Successful SDL response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  sdl:
-                    type: string
-                example:
-                  sdl: "type Query { hello: String }"
-        '500':
-          description: SDL not configured
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "SDL not configured"
-
 components:
   securitySchemes:
     bearerAuth:
