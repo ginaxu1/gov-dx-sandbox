@@ -80,9 +80,12 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 
 	// Handle provider schemas: GET /api/v1/providers/:providerId/schemas
 	if len(parts) == 2 && parts[1] == "schemas" {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			h.getProviderSchemas(w, r, providerID)
-		} else {
+		case http.MethodPost:
+			h.createProviderSchema(w, r, providerID)
+		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
@@ -95,6 +98,28 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 			h.getProviderSchemaSubmissions(w, r, providerID)
 		case http.MethodPost:
 			h.createProviderSchemaSubmission(w, r, providerID)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	// Handle specific provider schema: PUT /api/v1/providers/:providerId/schemas/:schemaId
+	if len(parts) == 3 && parts[1] == "schemas" {
+		switch r.Method {
+		case http.MethodPut:
+			h.updateProviderSchema(w, r, providerID, parts[2])
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	// Handle specific provider schema submission: PUT /api/v1/providers/:providerId/schema-submissions/:submissionId
+	if len(parts) == 3 && parts[1] == "schema-submissions" {
+		switch r.Method {
+		case http.MethodPut:
+			h.updateProviderSchemaSubmission(w, r, providerID, parts[2])
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -159,6 +184,28 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 			h.getConsumerApplicationSubmissions(w, r, consumerID)
 		case http.MethodPost:
 			h.createConsumerApplicationSubmission(w, r, consumerID)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	// Handle specific consumer application: PUT /api/v1/consumers/:consumerId/applications/:applicationId
+	if len(parts) == 3 && parts[1] == "applications" {
+		switch r.Method {
+		case http.MethodPut:
+			h.updateConsumerApplication(w, r, consumerID, parts[2])
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	// Handle specific consumer application submission: PUT /api/v1/consumers/:consumerId/application-submissions/:submissionId
+	if len(parts) == 3 && parts[1] == "application-submissions" {
+		switch r.Method {
+		case http.MethodPut:
+			h.updateConsumerApplicationSubmission(w, r, consumerID, parts[2])
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -253,6 +300,40 @@ func (h *V1Handler) getProvider(w http.ResponseWriter, r *http.Request, provider
 	utils.RespondWithSuccess(w, http.StatusOK, provider)
 }
 
+func (h *V1Handler) createProviderSchema(w http.ResponseWriter, r *http.Request, providerID string) {
+	var req models.CreateProviderSchemaRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	schema, err := h.providerService.CreateProviderSchema(providerID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, schema)
+}
+
+func (h *V1Handler) updateProviderSchema(w http.ResponseWriter, r *http.Request, providerID, schemaID string) {
+	var req models.UpdateProviderSchemaRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	schema, err := h.providerService.UpdateProviderSchema(providerID, schemaID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, schema)
+}
+
 func (h *V1Handler) getProviderSchemas(w http.ResponseWriter, r *http.Request, providerID string) {
 	schemas, err := h.providerService.GetProviderSchemas(providerID)
 	if err != nil {
@@ -263,22 +344,6 @@ func (h *V1Handler) getProviderSchemas(w http.ResponseWriter, r *http.Request, p
 	response := models.CollectionResponse{
 		Items: schemas,
 		Count: len(schemas),
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-func (h *V1Handler) getProviderSchemaSubmissions(w http.ResponseWriter, r *http.Request, providerID string) {
-	status := r.URL.Query().Get("status")
-
-	submissions, err := h.providerService.GetProviderSchemaSubmissions(providerID, status)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := models.CollectionResponse{
-		Items: submissions,
-		Count: len(submissions),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
@@ -298,6 +363,39 @@ func (h *V1Handler) createProviderSchemaSubmission(w http.ResponseWriter, r *htt
 	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
+}
+
+func (h *V1Handler) updateProviderSchemaSubmission(w http.ResponseWriter, r *http.Request, providerID, submissionID string) {
+	var req models.UpdateProviderSchemaSubmissionRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	submission, err := h.providerService.UpdateProviderSchemaSubmission(providerID, submissionID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
+}
+
+func (h *V1Handler) getProviderSchemaSubmissions(w http.ResponseWriter, r *http.Request, providerID string) {
+	status := r.URL.Query().Get("status")
+
+	submissions, err := h.providerService.GetProviderSchemaSubmissions(providerID, status)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := models.CollectionResponse{
+		Items: submissions,
+		Count: len(submissions),
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 // Consumer handlers
@@ -344,6 +442,40 @@ func (h *V1Handler) getConsumer(w http.ResponseWriter, r *http.Request, consumer
 	utils.RespondWithSuccess(w, http.StatusOK, consumer)
 }
 
+func (h *V1Handler) createConsumerApplication(w http.ResponseWriter, r *http.Request, consumerID string) {
+	var req models.CreateConsumerApplicationRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	application, err := h.consumerService.CreateConsumerApplication(consumerID, req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, application)
+}
+
+func (h *V1Handler) updateConsumerApplication(w http.ResponseWriter, r *http.Request, consumerID, applicationID string) {
+	var req models.UpdateConsumerApplicationRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	application, err := h.consumerService.UpdateConsumerApplication(consumerID, applicationID, req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, application)
+}
+
 func (h *V1Handler) getConsumerApplications(w http.ResponseWriter, r *http.Request, consumerID string) {
 	applications, err := h.consumerService.GetConsumerApplications(consumerID)
 	if err != nil {
@@ -354,22 +486,6 @@ func (h *V1Handler) getConsumerApplications(w http.ResponseWriter, r *http.Reque
 	response := models.CollectionResponse{
 		Items: applications,
 		Count: len(applications),
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-func (h *V1Handler) getConsumerApplicationSubmissions(w http.ResponseWriter, r *http.Request, consumerID string) {
-	status := r.URL.Query().Get("status")
-
-	submissions, err := h.consumerService.GetConsumerApplicationSubmissions(consumerID, status)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := models.CollectionResponse{
-		Items: submissions,
-		Count: len(submissions),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
@@ -389,6 +505,39 @@ func (h *V1Handler) createConsumerApplicationSubmission(w http.ResponseWriter, r
 	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
+}
+
+func (h *V1Handler) updateConsumerApplicationSubmission(w http.ResponseWriter, r *http.Request, consumerID, submissionID string) {
+	var req models.UpdateConsumerApplicationSubmissionRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	submission, err := h.consumerService.UpdateConsumerApplicationSubmission(consumerID, submissionID, req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
+}
+
+func (h *V1Handler) getConsumerApplicationSubmissions(w http.ResponseWriter, r *http.Request, consumerID string) {
+	status := r.URL.Query().Get("status")
+
+	submissions, err := h.consumerService.GetConsumerApplicationSubmissions(consumerID, status)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := models.CollectionResponse{
+		Items: submissions,
+		Count: len(submissions),
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 // Entity handlers

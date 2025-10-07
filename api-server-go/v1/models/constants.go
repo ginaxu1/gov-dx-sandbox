@@ -5,8 +5,12 @@ const (
 	StatusPending  = "pending"
 	StatusApproved = "approved"
 	StatusRejected = "rejected"
-	StatusActive   = "active"
-	StatusInactive = "inactive"
+)
+
+// Application versioning constants
+const (
+	ActiveVersion     = "active"
+	DeprecatedVersion = "deprecated"
 )
 
 // Entity type constants
