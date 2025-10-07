@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ type Federator struct {
 	ProviderHandler *provider.Handler
 	Client          *http.Client
 	Schema          *ast.Document
+	SchemaService   interface{} // Will be *services.SchemaService, using interface{} to avoid circular import
 }
 
 type FederationServiceAST struct {
@@ -63,9 +65,10 @@ func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderRe
 }
 
 // Initialize sets up the Federator with providers and an HTTP client.
-func Initialize(providerHandler *provider.Handler) *Federator {
+func Initialize(providerHandler *provider.Handler, schemaService interface{}) *Federator {
 	federator := &Federator{
 		ProviderHandler: providerHandler,
+		SchemaService:   schemaService,
 	}
 
 	// Initialize with providers from config if available
@@ -113,15 +116,55 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 		logger.Log.Error("Failed to parse query", "Error", err)
 	}
 
-	// Get schema document from config
-	schema, err := configs.AppConfig.GetSchemaDocument()
-	if err != nil {
-		logger.Log.Error("Failed to get schema document", "Error", err)
+	// Get schema document from database or config
+	var schema *ast.Document
+
+	// First try to get from database if schema service is available
+	if f.SchemaService != nil {
+		// Use reflection to call GetActiveSchema method
+		getActiveSchemaMethod := reflect.ValueOf(f.SchemaService).MethodByName("GetActiveSchema")
+		if getActiveSchemaMethod.IsValid() {
+			results := getActiveSchemaMethod.Call([]reflect.Value{})
+			if len(results) >= 2 && !results[1].IsNil() {
+				// Error occurred
+				logger.Log.Warn("Failed to get active schema from database", "Error", results[1].Interface())
+			} else if len(results) >= 1 && !results[0].IsNil() {
+				// Got schema from database
+				schemaRecord := results[0].Interface()
+				// Extract SDL from schema record using reflection
+				sdlField := reflect.ValueOf(schemaRecord).FieldByName("SDL")
+				if sdlField.IsValid() && sdlField.Kind() == reflect.String {
+					sdlString := sdlField.String()
+					src := source.NewSource(&source.Source{
+						Body: []byte(sdlString),
+						Name: "ActiveSchema",
+					})
+					schema, err = parser.Parse(parser.ParseParams{Source: src})
+					if err != nil {
+						logger.Log.Error("Failed to parse active schema from database", "Error", err)
+						schema = nil
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to config if no schema from database
+	if schema == nil && configs.AppConfig != nil && configs.AppConfig.Schema != nil {
+		schema, err = configs.AppConfig.GetSchemaDocument()
+		if err != nil {
+			logger.Log.Warn("Failed to get schema from config", "Error", err)
+			schema = nil
+		}
+	}
+
+	// If still no schema, return error
+	if schema == nil {
 		return graphql.Response{
 			Data: nil,
 			Errors: []interface{}{
 				&graphql.JSONError{
-					Message: "Failed to get schema document: " + err.Error(),
+					Message: "No active schema found. Please create and activate a schema using the schema management API first.",
 				},
 			},
 		}

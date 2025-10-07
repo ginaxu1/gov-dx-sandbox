@@ -46,6 +46,9 @@ func RunServer(f *federator.Federator) {
 	}
 
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
+
+	// Set the schema service in the federator
+	f.SchemaService = schemaService
 	// /health route
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
