@@ -2,12 +2,131 @@ openapi: 3.0.3
 info:
   title: Orchestration Engine API
   version: 1.0.0
-
+  description: |
+    The Orchestration Engine provides GraphQL federation and unified schema management capabilities.
+    It supports multiple schema versions, schema activation/deactivation, and GraphQL query routing.
 paths:
+  /:
+    post:
+      summary: Execute GraphQL query
+      description: |
+        Executes a GraphQL query against the orchestration engine. This endpoint supports
+        federated queries that can retrieve data from multiple providers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: The GraphQL query string
+                  example: |
+                    query GetData {
+                      personInfo(nic: "199512345678") {
+                        ownedVehicles {
+                          regNo
+                          make
+                          model
+                          year
+                        }
+                      }
+                    }
+                variables:
+                  type: object
+                  description: Variables for the GraphQL query
+                  additionalProperties: true
+                  example:
+                    nic: "199512345678"
+                operationName:
+                  type: string
+                  description: Name of the operation to execute (for queries with multiple operations)
+                  example: "GetData"
+              required:
+                - query
+      responses:
+        '200':
+          description: Successful GraphQL response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: The result of the GraphQL query execution
+                    additionalProperties: true
+                  errors:
+                    type: array
+                    description: List of errors that occurred during query execution
+                    items:
+                      type: object
+                      properties:
+                        message:
+                          type: string
+                        locations:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              line:
+                                type: integer
+                              column:
+                                type: integer
+                        path:
+                          type: array
+                          items:
+                            type: string
+                example:
+                  data:
+                    personInfo:
+                      ownedVehicles:
+                        - regNo: "ABC-1234"
+                          make: "Toyota"
+                          model: "Camry"
+                          year: 2020
+        '400':
+          description: Bad request - invalid GraphQL query or request format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "bad request: invalid JSON"
+        '401':
+          description: Unauthorized - invalid or missing authentication token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Unauthorized: invalid token"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Internal server error"
+      security:
+        - bearerAuth: []
+      tags:
+        - GraphQL
+
   /health:
     get:
       summary: Health check
       description: Returns a health check message.
+      tags:
+        - Health
       responses:
         '200':
           description: Successful health response
@@ -19,12 +138,14 @@ paths:
                   message:
                     type: string
                 example:
-                  message: "OK"
+                  message: "OpenDIF Server is Healthy!"
 
   /sdl:
     get:
       summary: Get active GraphQL SDL
       description: Returns the currently active SDL (Schema Definition Language) string of the GraphQL API.
+      tags:
+        - Schema Management
       responses:
         '200':
           description: Successful SDL response
@@ -39,9 +160,13 @@ paths:
                   sdl: "type Query { hello: String }"
         '404':
           description: No active schema found
+        '503':
+          description: Schema management not available - database not connected
     post:
       summary: Create new schema version
       description: Creates a new version of the GraphQL schema.
+      tags:
+        - Schema Management
       requestBody:
         required: true
         content:
@@ -64,13 +189,39 @@ paths:
       responses:
         '200':
           description: Schema created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  version:
+                    type: string
+                  sdl:
+                    type: string
+                  status:
+                    type: string
+                  is_active:
+                    type: boolean
+                  created_at:
+                    type: string
+                    format: date-time
+                  created_by:
+                    type: string
+                  checksum:
+                    type: string
         '400':
           description: Invalid request or SDL syntax
+        '503':
+          description: Schema management not available - database not connected
 
   /sdl/versions:
     get:
       summary: Get all schema versions
       description: Returns a list of all schema versions.
+      tags:
+        - Schema Management
       responses:
         '200':
           description: List of schema versions
@@ -94,11 +245,15 @@ paths:
                       format: date-time
                     created_by:
                       type: string
+        '503':
+          description: Schema management not available - database not connected
 
   /sdl/validate:
     post:
       summary: Validate SDL syntax
       description: Validates GraphQL SDL syntax.
+      tags:
+        - Schema Management
       requestBody:
         required: true
         content:
@@ -121,11 +276,15 @@ paths:
                 properties:
                   valid:
                     type: boolean
+        '503':
+          description: Schema management not available - database not connected
 
   /sdl/check-compatibility:
     post:
       summary: Check backward compatibility
       description: Checks if a new SDL is backward compatible with the active schema.
+      tags:
+        - Schema Management
       requestBody:
         required: true
         content:
@@ -150,3 +309,85 @@ paths:
                     type: boolean
                   reason:
                     type: string
+        '503':
+          description: Schema management not available - database not connected
+
+  /sdl/versions/{version}/activate:
+    post:
+      summary: Activate schema version
+      description: Activates a specific schema version, making it the active schema.
+      tags:
+        - Schema Management
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: The version of the schema to activate
+          schema:
+            type: string
+            example: "1.0.0"
+      responses:
+        '200':
+          description: Schema activated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Schema activated successfully"
+        '404':
+          description: Schema version not found
+        '503':
+          description: Schema management not available - database not connected
+        '500':
+          description: Internal server error
+
+  /public/sdl:
+    get:
+      summary: Get public SDL
+      description: Returns the public SDL (Schema Definition Language) string from configuration.
+      tags:
+        - Schema Management
+      responses:
+        '200':
+          description: Successful SDL response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sdl:
+                    type: string
+                example:
+                  sdl: "type Query { hello: String }"
+        '500':
+          description: SDL not configured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "SDL not configured"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: GraphQL
+    description: GraphQL query execution endpoints
+  - name: Schema Management
+    description: Schema versioning and management endpoints
+  - name: Health
+    description: Health check endpoints

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
@@ -73,7 +74,16 @@ func RunServer(f *federator.Federator) {
 	mux.HandleFunc("/sdl/versions", schemaHandler.GetSchemas)
 	mux.HandleFunc("/sdl/validate", schemaHandler.ValidateSDL)
 	mux.HandleFunc("/sdl/check-compatibility", schemaHandler.CheckCompatibility)
-	mux.HandleFunc("/sdl/versions/", schemaHandler.ActivateSchema) // This will need URL parsing
+
+	// Handle activation endpoint with proper path matching
+	mux.HandleFunc("/sdl/versions/", func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is an activation request
+		if strings.HasSuffix(r.URL.Path, "/activate") && r.Method == http.MethodPost {
+			schemaHandler.ActivateSchema(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
 
 	mux.HandleFunc("/public/sdl", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
