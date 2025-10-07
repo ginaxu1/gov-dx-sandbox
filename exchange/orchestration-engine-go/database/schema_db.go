@@ -109,28 +109,6 @@ func (s *SchemaDB) CreateSchema(schema *Schema) error {
 	return nil
 }
 
-// GetSchemaByVersion retrieves a schema by version
-func (s *SchemaDB) GetSchemaByVersion(version string) (*Schema, error) {
-	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
-			  FROM unified_schemas WHERE version = $1`
-
-	row := s.db.QueryRow(query, version)
-
-	schema := &Schema{}
-	err := row.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.Status,
-		&schema.Description, &schema.CreatedAt, &schema.UpdatedAt, &schema.CreatedBy,
-		&schema.Checksum, &schema.IsActive)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("schema version %s not found", version)
-		}
-		return nil, fmt.Errorf("failed to get schema: %w", err)
-	}
-
-	return schema, nil
-}
-
 // GetActiveSchema retrieves the currently active schema
 func (s *SchemaDB) GetActiveSchema() (*Schema, error) {
 	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
