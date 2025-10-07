@@ -11,8 +11,31 @@ type CreateProviderSchemaSubmissionRequest struct {
 	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
 }
 
+// UpdateProviderSchemaSubmissionRequest updates the status of a provider schema submission
 type UpdateProviderSchemaSubmissionRequest struct {
-	Status *string `json:"status,omitempty"`
+	SchemaName        *string `json:"schemaName,omitempty"`
+	SchemaDescription *string `json:"schemaDescription,omitempty"`
+	SDL               *string `json:"sdl,omitempty"`
+	SchemaEndpoint    *string `json:"schemaEndpoint,omitempty"`
+	Status            *string `json:"status,omitempty"`
+	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
+}
+
+// CreateProviderSchemaRequest creates a new provider schema
+type CreateProviderSchemaRequest struct {
+	SchemaName        string  `json:"schemaName" validate:"required"`
+	SchemaDescription *string `json:"schemaDescription,omitempty"`
+	SDL               string  `json:"sdl" validate:"required"`
+	Endpoint          string  `json:"endpoint" validate:"required"`
+}
+
+// UpdateProviderSchemaRequest updates an existing provider schema
+type UpdateProviderSchemaRequest struct {
+	SchemaName        *string `json:"schemaName,omitempty"`
+	SchemaDescription *string `json:"schemaDescription,omitempty"`
+	SDL               *string `json:"sdl,omitempty"`
+	Endpoint          *string `json:"endpoint,omitempty"`
+	Version           *string `json:"version,omitempty"`
 }
 
 // CreateConsumerApplicationSubmissionRequest Consumer Application Submission DTOs
@@ -23,8 +46,28 @@ type CreateConsumerApplicationSubmissionRequest struct {
 	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
 }
 
+// UpdateConsumerApplicationSubmissionRequest updates the status of a consumer application submission
 type UpdateConsumerApplicationSubmissionRequest struct {
-	Status *string `json:"status,omitempty"`
+	ApplicationName        *string  `json:"applicationName,omitempty"`
+	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
+	SelectedFields         []string `json:"selectedFields,omitempty"`
+	Status                 *string  `json:"status,omitempty"`
+	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
+}
+
+// CreateConsumerApplicationRequest creates a new consumer application
+type CreateConsumerApplicationRequest struct {
+	ApplicationName        string   `json:"applicationName" validate:"required"`
+	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
+	SelectedFields         []string `json:"selectedFields" validate:"required,min=1"`
+}
+
+// UpdateConsumerApplicationRequest updates an existing consumer application
+type UpdateConsumerApplicationRequest struct {
+	ApplicationName        *string  `json:"applicationName,omitempty"`
+	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
+	SelectedFields         []string `json:"selectedFields,omitempty"`
+	Version                *string  `json:"version,omitempty"`
 }
 
 type CreateEntityRequest struct {
