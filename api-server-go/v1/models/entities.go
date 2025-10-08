@@ -18,7 +18,7 @@ func (Entity) TableName() string {
 // Provider represents the providers table
 type Provider struct {
 	ProviderID string `gorm:"primarykey;column:provider_id" json:"providerId"`
-	EntityID   string `gorm:"column:entity_id;not null" json:"entityId"`
+	EntityID   string `gorm:"column:entity_id;not null;unique" json:"entityId"`
 	BaseModel
 
 	// Relationships
@@ -33,7 +33,7 @@ func (Provider) TableName() string {
 // Consumer represents the consumers table
 type Consumer struct {
 	ConsumerID string `gorm:"primarykey;column:consumer_id" json:"consumerId"`
-	EntityID   string `gorm:"column:entity_id;not null" json:"entityId"`
+	EntityID   string `gorm:"column:entity_id;not null;unique" json:"entityId"`
 	BaseModel
 
 	// Relationships
