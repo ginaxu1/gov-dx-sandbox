@@ -7,6 +7,10 @@ import (
 	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/parser"
+	"github.com/graphql-go/graphql/language/source"
 )
 
 // Schema represents a GraphQL schema with basic versioning
@@ -207,11 +211,116 @@ func (s *SchemaService) hasAddedFields(oldSDL, newSDL string) bool {
 	return len(newSDL) > len(oldSDL)
 }
 
-// hasTypeChanges checks if field types were changed
+// hasTypeChanges checks if field types were changed by parsing SDL and comparing type definitions
 func (s *SchemaService) hasTypeChanges(oldSDL, newSDL string) bool {
-	// Simple check - look for type changes in field definitions
-	// This is a simplified implementation
-	return strings.Contains(newSDL, "String!") && strings.Contains(oldSDL, "Int!")
+	// Parse both SDL strings into AST documents
+	oldDoc, err := s.parseSDL(oldSDL)
+	if err != nil {
+		logger.Log.Warn("Failed to parse old SDL for type change detection", "Error", err)
+		return false
+	}
+
+	newDoc, err := s.parseSDL(newSDL)
+	if err != nil {
+		logger.Log.Warn("Failed to parse new SDL for type change detection", "Error", err)
+		return false
+	}
+
+	// Extract field definitions from both schemas
+	oldFields := s.extractFieldDefinitions(oldDoc)
+	newFields := s.extractFieldDefinitions(newDoc)
+
+	// Compare field types systematically
+	return s.compareFieldTypes(oldFields, newFields)
+}
+
+// parseSDL parses a GraphQL SDL string into an AST document
+func (s *SchemaService) parseSDL(sdl string) (*ast.Document, error) {
+	src := source.NewSource(&source.Source{
+		Body: []byte(sdl),
+		Name: "SchemaSDL",
+	})
+
+	doc, err := parser.Parse(parser.ParseParams{Source: src})
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SDL: %w", err)
+	}
+
+	return doc, nil
+}
+
+// FieldTypeInfo represents a field with its type information
+type FieldTypeInfo struct {
+	TypeName       string
+	FieldName      string
+	TypeDefinition string
+}
+
+// extractFieldDefinitions extracts all field definitions from a schema document
+func (s *SchemaService) extractFieldDefinitions(doc *ast.Document) map[string]FieldTypeInfo {
+	fields := make(map[string]FieldTypeInfo)
+
+	for _, def := range doc.Definitions {
+		if objectType, ok := def.(*ast.ObjectDefinition); ok {
+			for _, field := range objectType.Fields {
+				if field != nil && field.Name != nil {
+					fieldKey := fmt.Sprintf("%s.%s", objectType.Name.Value, field.Name.Value)
+					typeDef := s.getTypeDefinition(field.Type)
+					fields[fieldKey] = FieldTypeInfo{
+						TypeName:       objectType.Name.Value,
+						FieldName:      field.Name.Value,
+						TypeDefinition: typeDef,
+					}
+				}
+			}
+		}
+	}
+
+	return fields
+}
+
+// getTypeDefinition converts a GraphQL type to its string representation
+func (s *SchemaService) getTypeDefinition(t ast.Type) string {
+	switch typeNode := t.(type) {
+	case *ast.NonNull:
+		return s.getTypeDefinition(typeNode.Type) + "!"
+	case *ast.List:
+		return "[" + s.getTypeDefinition(typeNode.Type) + "]"
+	case *ast.Named:
+		if typeNode.Name != nil {
+			return typeNode.Name.Value
+		}
+	}
+	return "Unknown"
+}
+
+// compareFieldTypes compares field types between old and new schemas
+func (s *SchemaService) compareFieldTypes(oldFields, newFields map[string]FieldTypeInfo) bool {
+	// Check for type changes in existing fields
+	for fieldKey, oldField := range oldFields {
+		if newField, exists := newFields[fieldKey]; exists {
+			// Field exists in both schemas, check if type changed
+			if oldField.TypeDefinition != newField.TypeDefinition {
+				logger.Log.Info("Type change detected",
+					"field", fieldKey,
+					"oldType", oldField.TypeDefinition,
+					"newType", newField.TypeDefinition)
+				return true
+			}
+		}
+	}
+
+	// Check for removed fields (breaking change)
+	for fieldKey := range oldFields {
+		if _, exists := newFields[fieldKey]; !exists {
+			logger.Log.Info("Field removed (breaking change)", "field", fieldKey)
+			return true
+		}
+	}
+
+	// Note: Adding new fields is not a breaking change, so we don't check for that
+
+	return false
 }
 
 // hasDeprecatedFields checks if any fields are marked as deprecated
