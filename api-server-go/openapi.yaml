@@ -1112,6 +1112,237 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConsentRecord'
 
+  # V1 API Endpoints
+  /api/v1/providers/{providerId}:
+    get:
+      summary: Get Provider (V1)
+      description: Retrieve provider information by ID
+      operationId: getProviderV1
+      tags:
+        - V1 API
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider ID
+      responses:
+        '200':
+          description: Provider information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderResponseV1'
+        '404':
+          description: Provider not found
+
+  /api/v1/providers/{providerId}/schemas:
+    get:
+      summary: Get Provider Schemas (V1)
+      description: Retrieve approved schemas for a provider
+      operationId: getProviderSchemasV1
+      tags:
+        - V1 API
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider ID
+      responses:
+        '200':
+          description: List of approved schemas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+
+  /api/v1/providers/{providerId}/schema-submissions:
+    get:
+      summary: Get Provider Schema Submissions (V1)
+      description: Retrieve schema submissions for a provider
+      operationId: getProviderSchemaSubmissionsV1
+      tags:
+        - V1 API
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+          description: Filter by submission status
+      responses:
+        '200':
+          description: List of schema submissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+    post:
+      summary: Create Provider Schema Submission (V1)
+      description: Create a new schema submission for a provider
+      operationId: createProviderSchemaSubmissionV1
+      tags:
+        - V1 API
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderSchemaSubmissionRequestV1'
+      responses:
+        '201':
+          description: Schema submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSchemaSubmissionResponseV1'
+        '400':
+          description: Bad request
+
+  /api/v1/consumers/{consumerId}:
+    get:
+      summary: Get Consumer (V1)
+      description: Retrieve consumer information by ID
+      operationId: getConsumerV1
+      tags:
+        - V1 API
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Consumer ID
+      responses:
+        '200':
+          description: Consumer information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerResponseV1'
+        '404':
+          description: Consumer not found
+
+  /api/v1/consumers/{consumerId}/applications:
+    get:
+      summary: Get Consumer Applications (V1)
+      description: Retrieve applications for a consumer
+      operationId: getConsumerApplicationsV1
+      tags:
+        - V1 API
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Consumer ID
+      responses:
+        '200':
+          description: List of consumer applications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+
+  /api/v1/consumers/{consumerId}/application-submissions:
+    get:
+      summary: Get Consumer Application Submissions (V1)
+      description: Retrieve application submissions for a consumer
+      operationId: getConsumerApplicationSubmissionsV1
+      tags:
+        - V1 API
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Consumer ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+          description: Filter by submission status
+      responses:
+        '200':
+          description: List of application submissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+    post:
+      summary: Create Consumer Application Submission (V1)
+      description: Create a new application submission for a consumer
+      operationId: createConsumerApplicationSubmissionV1
+      tags:
+        - V1 API
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Consumer ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsumerApplicationSubmissionRequestV1'
+      responses:
+        '201':
+          description: Application submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApplicationSubmissionResponseV1'
+        '400':
+          description: Bad request
+
+  /api/v1/entities/{entityId}:
+    get:
+      summary: Get Entity (V1)
+      description: Retrieve entity information by ID, including provider and consumer IDs if available
+      operationId: getEntityV1
+      tags:
+        - V1 API
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Entity ID
+      responses:
+        '200':
+          description: Entity information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityResponseV1'
+        '404':
+          description: Entity not found
+
 components:
   schemas:
     Consumer:
@@ -1799,6 +2030,233 @@ components:
           type: string
           description: Who last updated the consent
 
+    # V1 API Schemas
+    EntityResponseV1:
+      type: object
+      properties:
+        entityId:
+          type: string
+          description: Unique entity identifier
+        name:
+          type: string
+          description: Entity name
+        entityType:
+          type: string
+          description: Type of entity (provider, consumer, etc.)
+        email:
+          type: string
+          description: Contact email
+        phoneNumber:
+          type: string
+          description: Phone number
+        providerId:
+          type: string
+          nullable: true
+          description: Provider ID if entity is a provider
+        consumerId:
+          type: string
+          nullable: true
+          description: Consumer ID if entity is a consumer
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    ProviderResponseV1:
+      type: object
+      properties:
+        providerId:
+          type: string
+          description: Provider ID
+        entityId:
+          type: string
+          description: Associated entity ID
+        name:
+          type: string
+          description: Provider name
+        entityType:
+          type: string
+          description: Entity type
+        email:
+          type: string
+          description: Contact email
+        phoneNumber:
+          type: string
+          description: Phone number
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    ConsumerResponseV1:
+      type: object
+      properties:
+        consumerId:
+          type: string
+          description: Consumer ID
+        entityId:
+          type: string
+          description: Associated entity ID
+        name:
+          type: string
+          description: Consumer name
+        entityType:
+          type: string
+          description: Entity type
+        email:
+          type: string
+          description: Contact email
+        phoneNumber:
+          type: string
+          description: Phone number
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    CreateProviderSchemaSubmissionRequestV1:
+      type: object
+      required:
+        - schemaName
+        - sdl
+        - schemaEndpoint
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          description: Description of the schema
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        schemaEndpoint:
+          type: string
+          description: Schema endpoint URL
+        previousSchemaId:
+          type: string
+          description: Previous schema ID for updates
+
+    ProviderSchemaSubmissionResponseV1:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          description: Submission ID
+        previousSchemaId:
+          type: string
+          nullable: true
+          description: Previous schema ID
+        schemaName:
+          type: string
+          description: Schema name
+        schemaDescription:
+          type: string
+          nullable: true
+          description: Schema description
+        sdl:
+          type: string
+          description: GraphQL SDL
+        schemaEndpoint:
+          type: string
+          description: Schema endpoint
+        status:
+          type: string
+          description: Submission status
+        providerId:
+          type: string
+          description: Provider ID
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    CreateConsumerApplicationSubmissionRequestV1:
+      type: object
+      required:
+        - applicationName
+        - selectedFields
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          description: Description of the application
+        selectedFields:
+          type: array
+          items:
+            type: string
+          description: List of selected data fields
+        previousApplicationId:
+          type: string
+          description: Previous application ID for updates
+
+    ConsumerApplicationSubmissionResponseV1:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          description: Submission ID
+        previousApplicationId:
+          type: string
+          nullable: true
+          description: Previous application ID
+        applicationName:
+          type: string
+          description: Application name
+        applicationDescription:
+          type: string
+          nullable: true
+          description: Application description
+        selectedFields:
+          type: array
+          items:
+            type: string
+          description: Selected fields
+        consumerId:
+          type: string
+          description: Consumer ID
+        status:
+          type: string
+          description: Submission status
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    CollectionResponseV1:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+          description: Collection items
+        count:
+          type: integer
+          description: Total count of items
+
 tags:
   - name: Health
     description: Health check endpoints
@@ -1824,3 +2282,5 @@ tags:
     description: Provider field metadata management
   - name: Consent Records
     description: Consent record management operations
+  - name: V1 API
+    description: Version 1 API endpoints with GORM and normalized database schema
