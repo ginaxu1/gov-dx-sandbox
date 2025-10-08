@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -74,12 +75,66 @@ func TestVersionComparison(t *testing.T) {
 	if !isVersionGreater("2.0.0", "1.9.9") {
 		t.Error("2.0.0 should be greater than 1.9.9")
 	}
+
+	// Test the problematic case: 2.0.0 vs 10.0.0
+	if isVersionGreater("2.0.0", "10.0.0") {
+		t.Error("2.0.0 should NOT be greater than 10.0.0 (semantic versioning)")
+	}
+
+	// Test edge cases
+	if !isVersionGreater("10.0.0", "2.0.0") {
+		t.Error("10.0.0 should be greater than 2.0.0")
+	}
+
+	if !isVersionGreater("1.0.1", "1.0.0") {
+		t.Error("1.0.1 should be greater than 1.0.0")
+	}
+
+	if !isVersionGreater("1.1.0", "1.0.9") {
+		t.Error("1.1.0 should be greater than 1.0.9")
+	}
 }
 
 func isVersionGreater(version1, version2 string) bool {
-	// Simple version comparison (semantic versioning)
-	// This is a simplified implementation
-	return version1 > version2
+	// Proper semantic version comparison
+	// Parse version strings into major.minor.patch components
+	v1Parts := strings.Split(version1, ".")
+	v2Parts := strings.Split(version2, ".")
+
+	// Ensure both versions have at least 3 parts (major.minor.patch)
+	if len(v1Parts) < 3 || len(v2Parts) < 3 {
+		// Fallback to string comparison if format is invalid
+		return version1 > version2
+	}
+
+	// Compare major version
+	v1Major, err1 := strconv.Atoi(v1Parts[0])
+	v2Major, err2 := strconv.Atoi(v2Parts[0])
+	if err1 != nil || err2 != nil {
+		return version1 > version2 // Fallback to string comparison
+	}
+	if v1Major != v2Major {
+		return v1Major > v2Major
+	}
+
+	// Compare minor version
+	v1Minor, err1 := strconv.Atoi(v1Parts[1])
+	v2Minor, err2 := strconv.Atoi(v2Parts[1])
+	if err1 != nil || err2 != nil {
+		return version1 > version2 // Fallback to string comparison
+	}
+	if v1Minor != v2Minor {
+		return v1Minor > v2Minor
+	}
+
+	// Compare patch version
+	v1Patch, err1 := strconv.Atoi(v1Parts[2])
+	v2Patch, err2 := strconv.Atoi(v2Parts[2])
+	if err1 != nil || err2 != nil {
+		return version1 > version2 // Fallback to string comparison
+	}
+
+	return v1Patch > v2Patch
 }
 
 // Test backward compatibility checking

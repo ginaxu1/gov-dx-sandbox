@@ -154,8 +154,8 @@ func (s *SchemaService) isValidSDL(sdl string) bool {
 }
 
 func (s *SchemaService) isBackwardCompatible(oldSDL, newSDL string) (bool, string) {
-	compatible, _, _ := s.analyzeCompatibility(oldSDL, newSDL)
-	return compatible, "compatible"
+	compatible, reason, _ := s.analyzeCompatibility(oldSDL, newSDL)
+	return compatible, reason
 }
 
 // analyzeCompatibility performs detailed compatibility analysis
