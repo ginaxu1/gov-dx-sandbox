@@ -257,15 +257,16 @@ func TestSchemaCollection(t *testing.T) {
 			require.NoError(t, err, "Should parse query successfully")
 
 			// Extract source info directives
-			fields, args, err := federator.ProviderSchemaCollector(schema, queryDoc)
+			response, err := federator.ProviderSchemaCollector(schema, queryDoc)
 
 			assert.NoError(t, err, tt.description)
-			assert.Len(t, fields, len(tt.expectedFields), "Should extract correct number of fields")
-			assert.Len(t, args, tt.expectedArgs, "Should extract correct number of arguments")
+			assert.NotNil(t, response, "Response should not be nil")
+			assert.Len(t, response.ProviderFieldMap, len(tt.expectedFields), "Should extract correct number of fields")
+			assert.Len(t, response.Arguments, tt.expectedArgs, "Should extract correct number of arguments")
 
 			// Verify extracted fields
 			for _, expectedField := range tt.expectedFields {
-				assert.Contains(t, fields, expectedField, "Should contain field: %s", expectedField)
+				assert.Contains(t, response.ProviderFieldMap, expectedField, "Should contain field: %s", expectedField)
 			}
 		})
 	}

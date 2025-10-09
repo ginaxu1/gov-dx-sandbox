@@ -56,6 +56,10 @@ func ExtractRequiredArguments(argMap []*graphql.ArgMapping, arguments []*ast.Arg
 	requiredArgs := make([]*ArgSource, 0)
 
 	for _, arg := range arguments {
+		if arg == nil || arg.Name == nil {
+			continue
+		}
+
 		for _, mapping := range argMap {
 			if mapping == nil {
 				continue
@@ -87,12 +91,15 @@ func PushArgumentsToProviderQueryAst(args []*ArgSource, queryAst *FederationServ
 	visitor.Visit(queryAst.QueryAst, &visitor.VisitorOptions{
 		Enter: func(p visitor.VisitFuncParams) (string, interface{}) {
 			// if the node is a field, append it to path
-			if field, ok := p.Node.(*ast.Field); ok {
+			if field, ok := p.Node.(*ast.Field); ok && field.Name != nil {
 				path = append(path, field.Name.Value)
 
 				// now check whether the current path matches any argument's TargetArgPath
 				var currentPath = strings.Join(path, ".")
 				for _, arg := range args {
+					if arg == nil || arg.ArgMapping == nil {
+						continue
+					}
 					// Check if the current path matches the target path exactly or is a proper prefix
 					if isPathPrefix(arg.TargetArgPath, currentPath) {
 						field.Arguments = append(field.Arguments, &ast.Argument{
@@ -154,6 +161,10 @@ func ExtractArrayRequiredArguments(argMap []*graphql.ArgMapping, arguments []*as
 	requiredArgs := make([]*ArgSource, 0)
 
 	for _, arg := range arguments {
+		if arg == nil || arg.Name == nil {
+			continue
+		}
+
 		for _, mapping := range argMap {
 			if mapping == nil {
 				continue
