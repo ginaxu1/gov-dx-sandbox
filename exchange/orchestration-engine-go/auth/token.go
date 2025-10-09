@@ -33,10 +33,21 @@ func GetConsumerJwtFromToken(r *http.Request) (*ConsumerAssertion, error) {
 		}, nil
 	}
 
-	// Example token (normally comes from request header: X-JWT-Assertion)
+	// Check for token in X-JWT-Assertion header first, then Authorization header
 	tokenString := r.Header.Get("X-JWT-Assertion")
 	if tokenString == "" {
-		return nil, fmt.Errorf("missing token")
+		// Fallback to standard Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			return nil, fmt.Errorf("missing token")
+		}
+
+		// Remove "Bearer " prefix if present
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
+		} else {
+			tokenString = authHeader
+		}
 	}
 
 	// Parse without validation (only safe if API gateway already validated it!)
