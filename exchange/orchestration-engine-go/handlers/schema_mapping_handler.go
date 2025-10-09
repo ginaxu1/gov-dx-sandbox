@@ -304,3 +304,65 @@ func (h *SchemaMappingHandler) CheckCompatibility(w http.ResponseWriter, r *http
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
+
+// Field Mapping Handlers for Active Schema (used by /sdl/* routes)
+
+// CreateFieldMappingForActiveSchema handles POST /sdl/mappings
+func (h *SchemaMappingHandler) CreateFieldMappingForActiveSchema(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get active unified schema
+	activeSchema, err := h.schemaMappingService.GetActiveUnifiedSchema()
+	if err != nil {
+		logger.Log.Error("Failed to get active unified schema", "error", err)
+		http.Error(w, "No active unified schema found", http.StatusNotFound)
+		return
+	}
+
+	var req models.FieldMappingRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Log.Error("Failed to decode request body", "error", err)
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.schemaMappingService.CreateFieldMapping(activeSchema.ID, &req)
+	if err != nil {
+		logger.Log.Error("Failed to create field mapping", "error", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(response)
+}
+
+// GetFieldMappingsForActiveSchema handles GET /sdl/mappings
+func (h *SchemaMappingHandler) GetFieldMappingsForActiveSchema(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get active unified schema
+	activeSchema, err := h.schemaMappingService.GetActiveUnifiedSchema()
+	if err != nil {
+		logger.Log.Error("Failed to get active unified schema", "error", err)
+		http.Error(w, "No active unified schema found", http.StatusNotFound)
+		return
+	}
+
+	mappings, err := h.schemaMappingService.GetFieldMappings(activeSchema.ID)
+	if err != nil {
+		logger.Log.Error("Failed to get field mappings", "error", err)
+		http.Error(w, "Failed to get field mappings", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(mappings)
+}
