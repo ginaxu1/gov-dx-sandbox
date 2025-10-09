@@ -369,7 +369,7 @@ DELETE FROM unified_schemas WHERE created_by = 'test-user';
 #### TC-014: Get All Unified Schemas
 **Command**:
 ```bash
-curl -X GET http://localhost:4000/admin/unified-schemas
+curl -X GET http://localhost:4000/sdl/versions
 ```
 **Expected Result**: **PASSED** - Returns list of unified schemas
 ```json
@@ -390,7 +390,7 @@ curl -X GET http://localhost:4000/admin/unified-schemas
 #### TC-015: Get Active Unified Schema
 **Command**:
 ```bash
-curl -X GET http://localhost:4000/admin/unified-schemas/latest
+curl -X GET http://localhost:4000/sdl/versions/latest
 ```
 **Expected Result**: **PASSED** - Returns currently active unified schema
 ```json
@@ -409,7 +409,7 @@ curl -X GET http://localhost:4000/admin/unified-schemas/latest
 #### TC-016: Create New Unified Schema
 **Command**:
 ```bash
-curl -X POST http://localhost:4000/admin/unified-schemas \
+curl -X POST http://localhost:4000/sdl \
   -H "Content-Type: application/json" \
   -d '{
     "version": "1.1.0",
@@ -434,7 +434,7 @@ curl -X POST http://localhost:4000/admin/unified-schemas \
 #### TC-017: Activate Unified Schema
 **Command**:
 ```bash
-curl -X PUT http://localhost:4000/admin/unified-schemas/1.1.0/activate
+curl -X POST http://localhost:4000/sdl/versions/1.1.0/activate
 ```
 **Expected Result**: **PASSED** - Activates the specified schema version
 ```json
@@ -448,7 +448,7 @@ curl -X PUT http://localhost:4000/admin/unified-schemas/1.1.0/activate
 #### TC-018: Get All Provider Schemas
 **Command**:
 ```bash
-curl -X GET http://localhost:4000/admin/provider-schemas
+curl -X GET http://localhost:4000/sdl/providers
 ```
 **Expected Result**: **PASSED** - Returns provider schemas organized by provider ID
 ```json
@@ -477,7 +477,7 @@ curl -X GET http://localhost:4000/admin/provider-schemas
 #### TC-019: Create Field Mapping
 **Command**:
 ```bash
-curl -X POST http://localhost:4000/admin/unified-schemas/1.1.0/mappings \
+curl -X POST http://localhost:4000/sdl/mappings \
   -H "Content-Type: application/json" \
   -d '{
     "unified_field_path": "personInfo.fullName",
@@ -509,7 +509,7 @@ curl -X POST http://localhost:4000/admin/unified-schemas/1.1.0/mappings \
 #### TC-020: Get Field Mappings
 **Command**:
 ```bash
-curl -X GET http://localhost:4000/admin/unified-schemas/1.1.0/mappings
+curl -X GET http://localhost:4000/sdl/versions/1.1.0/mappings
 ```
 **Expected Result**: **PASSED** - Returns all field mappings for the schema
 ```json
@@ -532,7 +532,7 @@ curl -X GET http://localhost:4000/admin/unified-schemas/1.1.0/mappings
 #### TC-021: Update Field Mapping
 **Command**:
 ```bash
-curl -X PUT http://localhost:4000/admin/unified-schemas/1.1.0/mappings/{mapping_id} \
+curl -X PUT http://localhost:4000/sdl/mappings/{mapping_id} \
   -H "Content-Type: application/json" \
   -d '{
     "unified_field_path": "personInfo.fullName",
@@ -550,7 +550,7 @@ curl -X PUT http://localhost:4000/admin/unified-schemas/1.1.0/mappings/{mapping_
 #### TC-022: Delete Field Mapping
 **Command**:
 ```bash
-curl -X DELETE http://localhost:4000/admin/unified-schemas/1.1.0/mappings/{mapping_id}
+curl -X DELETE http://localhost:4000/sdl/mappings/{mapping_id}
 ```
 **Expected Result**: **PASSED** - Deletes field mapping (204 No Content)
 
@@ -559,7 +559,7 @@ curl -X DELETE http://localhost:4000/admin/unified-schemas/1.1.0/mappings/{mappi
 #### TC-023: Check Schema Compatibility
 **Command**:
 ```bash
-curl -X POST http://localhost:4000/admin/schemas/compatibility/check \
+curl -X POST http://localhost:4000/sdl/check-compatibility \
   -H "Content-Type: application/json" \
   -d '{
     "old_version": "1.0.0",
@@ -578,7 +578,7 @@ curl -X POST http://localhost:4000/admin/schemas/compatibility/check \
 #### TC-024: Check Breaking Changes
 **Command**:
 ```bash
-curl -X POST http://localhost:4000/admin/schemas/compatibility/check \
+curl -X POST http://localhost:4000/sdl/check-compatibility \
   -H "Content-Type: application/json" \
   -d '{
     "old_version": "1.0.0",
@@ -599,7 +599,7 @@ curl -X POST http://localhost:4000/admin/schemas/compatibility/check \
 #### TC-025: Test Invalid Schema Creation
 **Command**:
 ```bash
-curl -X POST http://localhost:4000/admin/unified-schemas \
+curl -X POST http://localhost:4000/sdl \
   -H "Content-Type: application/json" \
   -d '{
     "version": "",
@@ -622,7 +622,7 @@ curl -X POST http://localhost:4000/admin/unified-schemas \
 #### TC-026: Test Non-existent Schema
 **Command**:
 ```bash
-curl -X GET http://localhost:4000/admin/unified-schemas/999.0.0/mappings
+curl -X GET http://localhost:4000/sdl/versions/999.0.0/mappings
 ```
 **Expected Result**: **PASSED** - Returns 404 Not Found
 

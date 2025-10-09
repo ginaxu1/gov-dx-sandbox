@@ -108,7 +108,7 @@ func (h *MockSchemaHandler) CreateUnifiedSchema(w http.ResponseWriter, r *http.R
 }
 
 func (h *MockSchemaHandler) ActivateUnifiedSchema(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
+	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -152,7 +152,7 @@ func (h *MockSchemaHandler) GetProviderSchemas(w http.ResponseWriter, r *http.Re
 // Test cases for API endpoints
 func TestGetUnifiedSchemas(t *testing.T) {
 	handler := &MockSchemaHandler{}
-	req, err := http.NewRequest("GET", "/admin/unified-schemas", nil)
+	req, err := http.NewRequest("GET", "/sdl/versions", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -171,7 +171,7 @@ func TestGetUnifiedSchemas(t *testing.T) {
 
 func TestGetLatestUnifiedSchema(t *testing.T) {
 	handler := &MockSchemaHandler{}
-	req, err := http.NewRequest("GET", "/admin/unified-schemas/latest", nil)
+	req, err := http.NewRequest("GET", "/sdl", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -234,7 +234,7 @@ func TestCreateUnifiedSchema(t *testing.T) {
 			jsonBody, err := json.Marshal(tt.requestBody)
 			require.NoError(t, err)
 
-			req, err := http.NewRequest("POST", "/admin/unified-schemas", bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequest("POST", "/sdl", bytes.NewBuffer(jsonBody))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 
@@ -255,7 +255,7 @@ func TestCreateUnifiedSchema(t *testing.T) {
 
 func TestActivateUnifiedSchema(t *testing.T) {
 	handler := &MockSchemaHandler{}
-	req, err := http.NewRequest("PUT", "/admin/unified-schemas/1.2.0/activate", nil)
+	req, err := http.NewRequest("POST", "/sdl/versions/1.2.0/activate", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -271,7 +271,7 @@ func TestActivateUnifiedSchema(t *testing.T) {
 
 func TestGetProviderSchemas(t *testing.T) {
 	handler := &MockSchemaHandler{}
-	req, err := http.NewRequest("GET", "/admin/provider-schemas", nil)
+	req, err := http.NewRequest("GET", "/sdl/providers", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -308,7 +308,7 @@ func TestFieldMappingEndpoints(t *testing.T) {
 		jsonBody, err := json.Marshal(mapping)
 		require.NoError(t, err)
 
-		_, err = http.NewRequest("POST", "/admin/unified-schemas/1.1.0/mappings", bytes.NewBuffer(jsonBody))
+		_, err = http.NewRequest("POST", "/sdl/mappings", bytes.NewBuffer(jsonBody))
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
@@ -319,7 +319,7 @@ func TestFieldMappingEndpoints(t *testing.T) {
 	})
 
 	t.Run("get field mappings", func(t *testing.T) {
-		_, err := http.NewRequest("GET", "/admin/unified-schemas/1.1.0/mappings", nil)
+		_, err := http.NewRequest("GET", "/sdl/mappings", nil)
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
@@ -338,7 +338,7 @@ func TestFieldMappingEndpoints(t *testing.T) {
 		jsonBody, err := json.Marshal(update)
 		require.NoError(t, err)
 
-		_, err = http.NewRequest("PUT", "/admin/unified-schemas/1.1.0/mappings/mapping-123", bytes.NewBuffer(jsonBody))
+		_, err = http.NewRequest("PUT", "/sdl/mappings/mapping-123", bytes.NewBuffer(jsonBody))
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
@@ -349,7 +349,7 @@ func TestFieldMappingEndpoints(t *testing.T) {
 	})
 
 	t.Run("delete field mapping", func(t *testing.T) {
-		_, err := http.NewRequest("DELETE", "/admin/unified-schemas/1.1.0/mappings/mapping-123", nil)
+		_, err := http.NewRequest("DELETE", "/sdl/mappings/mapping-123", nil)
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
@@ -364,7 +364,7 @@ func TestFieldMappingEndpoints(t *testing.T) {
 func TestAPIErrorHandling(t *testing.T) {
 	t.Run("invalid JSON in request body", func(t *testing.T) {
 		handler := &MockSchemaHandler{}
-		req, err := http.NewRequest("POST", "/admin/unified-schemas", bytes.NewBufferString("invalid json"))
+		req, err := http.NewRequest("POST", "/sdl", bytes.NewBufferString("invalid json"))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -376,7 +376,7 @@ func TestAPIErrorHandling(t *testing.T) {
 
 	t.Run("unsupported HTTP method", func(t *testing.T) {
 		handler := &MockSchemaHandler{}
-		req, err := http.NewRequest("DELETE", "/admin/unified-schemas", nil)
+		req, err := http.NewRequest("DELETE", "/sdl", nil)
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
