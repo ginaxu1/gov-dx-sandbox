@@ -461,7 +461,7 @@ func (s *ConsumerService) updateProviderMetadataForApprovedApp(app *models.Consu
 
 	for _, field := range app.RequiredFields {
 		// Default grant duration to 30 days if not specified
-		grantDuration := "30d"
+		grantDuration := "P30D"
 		if field.GrantDuration != "" {
 			grantDuration = field.GrantDuration
 		}

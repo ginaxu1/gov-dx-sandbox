@@ -26,8 +26,8 @@ func TestConsumerAppPDPUpdate(t *testing.T) {
 	app, err := service.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer.ConsumerID,
 		RequiredFields: []models.RequiredField{
-			{FieldName: "person.fullName", GrantDuration: "30d"},
-			{FieldName: "person.nic", GrantDuration: "60d"},
+			{FieldName: "person.fullName", GrantDuration: "P30D"},
+			{FieldName: "person.nic", GrantDuration: "P60D"},
 		},
 	})
 	if err != nil {
@@ -104,9 +104,9 @@ func TestConsumerAppRequiredFieldsPersistence(t *testing.T) {
 	app, err := service.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer.ConsumerID,
 		RequiredFields: []models.RequiredField{
-			{FieldName: "person.fullName", GrantDuration: "30d"},
-			{FieldName: "person.nic", GrantDuration: "60d"},
-			{FieldName: "person.address", GrantDuration: "90d"},
+			{FieldName: "person.fullName", GrantDuration: "P30D"},
+			{FieldName: "person.nic", GrantDuration: "P60D"},
+			{FieldName: "person.address", GrantDuration: "P90D"},
 		},
 	})
 	if err != nil {
@@ -129,9 +129,9 @@ func TestConsumerAppRequiredFieldsPersistence(t *testing.T) {
 
 	// Verify each field
 	expectedFields := map[string]string{
-		"person.fullName": "30d",
-		"person.nic":      "60d",
-		"person.address":  "90d",
+		"person.fullName": "P30D",
+		"person.nic":      "P60D",
+		"person.address":  "P90D",
 	}
 
 	for _, field := range retrievedApp.RequiredFields {

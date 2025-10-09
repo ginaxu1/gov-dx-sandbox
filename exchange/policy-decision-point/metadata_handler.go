@@ -63,18 +63,27 @@ func (h *MetadataHandler) UpdateProviderMetadata(w http.ResponseWriter, r *http.
 
 	// Update metadata with new grants
 	updated := 0
+	var updateErrors []string
 	for _, fieldGrant := range req.Fields {
 		if err := h.updateFieldMetadata(metadata, req.ApplicationID, fieldGrant); err != nil {
 			slog.Error("Failed to update field metadata", "field", fieldGrant.FieldName, "error", err)
+			updateErrors = append(updateErrors, fmt.Sprintf("field %s: %v", fieldGrant.FieldName, err))
 			continue
 		}
 		updated++
 	}
 
+	// If no fields were updated successfully, return an error
+	if updated == 0 {
+		slog.Error("No fields were updated successfully", "errors", updateErrors)
+		http.Error(w, fmt.Sprintf("Failed to update any fields: %v", updateErrors), http.StatusBadRequest)
+		return
+	}
+
 	// Save updated metadata to database
 	if err := h.dbService.UpdateProviderMetadata(metadata); err != nil {
-		slog.Error("Failed to save metadata to database", "error", err)
-		http.Error(w, "Failed to save metadata", http.StatusInternalServerError)
+		slog.Error("Failed to save metadata to database", "error", err, "applicationId", req.ApplicationID)
+		http.Error(w, fmt.Sprintf("Failed to save metadata: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -102,22 +111,38 @@ func (h *MetadataHandler) UpdateProviderMetadata(w http.ResponseWriter, r *http.
 func (h *MetadataHandler) updateFieldMetadata(metadata *models.ProviderMetadata, applicationID string, fieldGrant models.ProviderFieldGrant) error {
 	fieldName := fieldGrant.FieldName
 
+	// Validate input
+	if fieldName == "" {
+		return fmt.Errorf("field name cannot be empty")
+	}
+	if applicationID == "" {
+		return fmt.Errorf("application ID cannot be empty")
+	}
+
+	// Ensure metadata.Fields is initialized
+	if metadata.Fields == nil {
+		metadata.Fields = make(map[string]models.ProviderMetadataField)
+	}
+
 	// Get or create field metadata
 	field, exists := metadata.Fields[fieldName]
 	if !exists {
 		// Create new field metadata with default values
 		field = models.ProviderMetadataField{
-			Owner:             "external", // Default owner
-			Provider:          "",         // Will be set when we have provider info
-			ConsentRequired:   false,      // Default to false
-			AccessControlType: "public",   // Default to public
+			Owner:    "external",       // Default owner
+			Provider: "system-default", // Use system-default provider for fields without specific provider
+			// This ensures data integrity by maintaining foreign key relationships
+			// The 'system-default' entity must exist in the entities table
+			ConsentRequired:   false,    // Default to false
+			AccessControlType: "public", // Default to public
 			AllowList:         []models.PDPAllowListEntry{},
 		}
 	}
 
-	// Parse grant duration to get expiration timestamp
+	// Parse grant duration to get expiration timestamp (ISO 8601 format)
 	expiresAt, err := h.parseGrantDuration(fieldGrant.GrantDuration)
 	if err != nil {
+		slog.Error("Failed to parse grant duration", "duration", fieldGrant.GrantDuration, "error", err)
 		return fmt.Errorf("invalid grant duration %s: %w", fieldGrant.GrantDuration, err)
 	}
 
@@ -150,56 +175,15 @@ func (h *MetadataHandler) updateFieldMetadata(metadata *models.ProviderMetadata,
 	return nil
 }
 
-// parseGrantDuration parses a grant duration string and returns the expiration timestamp
+// parseGrantDuration parses an ISO 8601 duration string and returns the expiration timestamp
+// Supported format: ISO 8601 (P30D, P1M, P1Y, PT1H, PT30M, P1Y2M3DT4H5M6S)
 func (h *MetadataHandler) parseGrantDuration(duration string) (int64, error) {
 	if duration == "" {
 		// Default to 30 days if no duration specified
 		return time.Now().Add(30 * 24 * time.Hour).Unix(), nil
 	}
 
-	// Simple duration parsing - can be enhanced
-	// Supported formats: "30d", "1M", "1y", "24h", "60m"
-	now := time.Now()
-
-	switch {
-	case len(duration) > 1 && duration[len(duration)-1:] == "d":
-		days, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.AddDate(0, 0, days).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "M":
-		months, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.AddDate(0, months, 0).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "y":
-		years, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.AddDate(years, 0, 0).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "h":
-		hours, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.Add(time.Duration(hours) * time.Hour).Unix(), nil
-
-	case len(duration) > 1 && duration[len(duration)-1:] == "m":
-		minutes, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		return now.Add(time.Duration(minutes) * time.Minute).Unix(), nil
-
-	default:
-		return 0, fmt.Errorf("unsupported duration format: %s", duration)
-	}
+	return parseISODuration(duration)
 }
 
 // parseInt parses an integer from string

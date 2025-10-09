@@ -22,11 +22,11 @@ COPY shared/ /app/shared/
 # Copy local models
 COPY models/ /app/models/
 
-# Copy vendor directory
-COPY vendor/ /app/vendor/
+# Download dependencies
+RUN go mod download
 
-# Build the application with build info using vendored dependencies
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor \
+# Build the application with build info
+RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
     -o /app/service_binary .
 

@@ -62,7 +62,7 @@ paths:
                     - "personInfo.fullName"
                     - "personInfo.nic"
               session_id: "session_123"
-              grant_duration: "1h"
+              grant_duration: "PT1H"
       responses:
         '201':
           description: Consent created successfully.
@@ -80,7 +80,7 @@ paths:
                 created_at: "2025-09-21T10:30:00Z"
                 updated_at: "2025-09-21T10:30:00Z"
                 expires_at: "2025-09-22T10:30:00Z"
-                grant_duration: "30d"
+                grant_duration: "P30D"
                 fields: ["personInfo.permanentAddress", "personInfo.photo"]
                 session_id: "session_123"
                 consent_portal_url: "https://consent-portal.example.com/?consent_id=consent_8d255282"
@@ -154,7 +154,7 @@ paths:
             example:
               status: "approved"
               updated_by: "user@example.com"
-              grant_duration: "30d"
+              grant_duration: "P30D"
               reason: "User approved consent via portal"
       responses:
         '200':
@@ -212,7 +212,7 @@ paths:
             example:
               status: "approved"
               updated_by: "user@example.com"
-              grant_duration: "30d"
+              grant_duration: "P30D"
               reason: "User approved consent via portal"
               fields: ["personInfo.permanentAddress", "personInfo.fullName"]
       responses:
@@ -351,9 +351,10 @@ components:
           example: session_123
         grant_duration:
           type: string
-          description: Duration for which the consent is valid (optional)
-          example: 1h
-          default: 1h
+          description: Duration for which the consent is valid in ISO 8601 format (optional)
+          example: PT1H
+          default: PT1H
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
     DataField:
       type: object
       required:
@@ -400,7 +401,8 @@ components:
         grant_duration:
           type: string
           description: Duration of the granted access (optional)
-          example: 30d
+          example: P30D
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
         reason:
           type: string
           description: Reason for the status update (optional)
@@ -425,7 +427,8 @@ components:
         grant_duration:
           type: string
           description: Duration of the granted access (optional)
-          example: 30d
+          example: P30D
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
         reason:
           type: string
           description: Reason for the status update (optional)
@@ -490,7 +493,8 @@ components:
         grant_duration:
           type: string
           description: Duration of the granted access
-          example: 30d
+          example: P30D
+          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
         fields:
           type: array
           description: List of data fields covered by this consent

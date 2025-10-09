@@ -136,32 +136,3 @@ func parseComponent(duration, suffix string) (int, string, error) {
 	remaining := re.ReplaceAllString(duration, "")
 	return value, remaining, nil
 }
-
-// convertLegacyDuration converts legacy duration format to ISO 8601
-func convertLegacyDuration(legacyDuration string) string {
-	if legacyDuration == "" {
-		return "P30D" // Default to 30 days
-	}
-
-	// Convert common legacy formats to ISO 8601
-	switch {
-	case len(legacyDuration) > 1 && legacyDuration[len(legacyDuration)-1:] == "d":
-		days := legacyDuration[:len(legacyDuration)-1]
-		return fmt.Sprintf("P%sD", days)
-	case len(legacyDuration) > 1 && legacyDuration[len(legacyDuration)-1:] == "M":
-		months := legacyDuration[:len(legacyDuration)-1]
-		return fmt.Sprintf("P%sM", months)
-	case len(legacyDuration) > 1 && legacyDuration[len(legacyDuration)-1:] == "y":
-		years := legacyDuration[:len(legacyDuration)-1]
-		return fmt.Sprintf("P%sY", years)
-	case len(legacyDuration) > 1 && legacyDuration[len(legacyDuration)-1:] == "h":
-		hours := legacyDuration[:len(legacyDuration)-1]
-		return fmt.Sprintf("PT%sH", hours)
-	case len(legacyDuration) > 1 && legacyDuration[len(legacyDuration)-1:] == "m":
-		minutes := legacyDuration[:len(legacyDuration)-1]
-		return fmt.Sprintf("PT%sM", minutes)
-	default:
-		// If it doesn't match any known format, assume it's already ISO 8601 or default to P30D
-		return legacyDuration
-	}
-}

@@ -93,9 +93,9 @@ func TestAdminApprovalTriggersPDPUpdate(t *testing.T) {
 	app, err := consumerService.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer.ConsumerID,
 		RequiredFields: []models.RequiredField{
-			{FieldName: "person.fullName", GrantDuration: "30d"},
-			{FieldName: "person.nic", GrantDuration: "60d"},
-			{FieldName: "person.birthDate", GrantDuration: "90d"},
+			{FieldName: "person.fullName", GrantDuration: "P30D"},
+			{FieldName: "person.nic", GrantDuration: "P60D"},
+			{FieldName: "person.birthDate", GrantDuration: "P90D"},
 		},
 	})
 	if err != nil {
@@ -146,9 +146,9 @@ func TestAdminApprovalViaHTTP(t *testing.T) {
 	// Create a consumer app with required fields
 	appReq := map[string]interface{}{
 		"requiredFields": []map[string]interface{}{
-			{"fieldName": "person.fullName", "grantDuration": "30d"},
-			{"fieldName": "person.nic", "grantDuration": "60d"},
-			{"fieldName": "person.address", "grantDuration": "90d"},
+			{"fieldName": "person.fullName", "grantDuration": "P30D"},
+			{"fieldName": "person.nic", "grantDuration": "P60D"},
+			{"fieldName": "person.address", "grantDuration": "P90D"},
 		},
 	}
 
@@ -227,9 +227,9 @@ func TestPDPMetadataUpdateRequestFormat(t *testing.T) {
 	app := &models.ConsumerApp{
 		ConsumerID: "test-consumer-123",
 		RequiredFields: []models.RequiredField{
-			{FieldName: "person.fullName", GrantDuration: "30d"},
-			{FieldName: "person.nic", GrantDuration: "60d"},
-			{FieldName: "person.birthDate", GrantDuration: "90d"},
+			{FieldName: "person.fullName", GrantDuration: "P30D"},
+			{FieldName: "person.nic", GrantDuration: "P60D"},
+			{FieldName: "person.birthDate", GrantDuration: "P90D"},
 		},
 	}
 
@@ -238,7 +238,7 @@ func TestPDPMetadataUpdateRequestFormat(t *testing.T) {
 
 	for _, field := range app.RequiredFields {
 		// Default grant duration to 30 days if not specified
-		grantDuration := "30d"
+		grantDuration := "P30D"
 		if field.GrantDuration != "" {
 			grantDuration = field.GrantDuration
 		}
@@ -266,9 +266,9 @@ func TestPDPMetadataUpdateRequestFormat(t *testing.T) {
 
 	// Verify each field
 	expectedFields := map[string]string{
-		"person.fullName":  "30d",
-		"person.nic":       "60d",
-		"person.birthDate": "90d",
+		"person.fullName":  "P30D",
+		"person.nic":       "P60D",
+		"person.birthDate": "P90D",
 	}
 
 	for _, field := range req.Fields {
@@ -366,27 +366,27 @@ func TestAdminApprovalWithDifferentFieldTypes(t *testing.T) {
 		{
 			name: "Short duration fields",
 			requiredFields: []models.RequiredField{
-				{FieldName: "person.fullName", GrantDuration: "1d"},
-				{FieldName: "person.nic", GrantDuration: "7d"},
+				{FieldName: "person.fullName", GrantDuration: "P1D"},
+				{FieldName: "person.nic", GrantDuration: "P7D"},
 			},
 			expectedCount: 2,
 		},
 		{
 			name: "Long duration fields",
 			requiredFields: []models.RequiredField{
-				{FieldName: "person.birthDate", GrantDuration: "1y"},
-				{FieldName: "person.address", GrantDuration: "2y"},
-				{FieldName: "person.contactInfo", GrantDuration: "6M"},
+				{FieldName: "person.birthDate", GrantDuration: "P1Y"},
+				{FieldName: "person.address", GrantDuration: "P2Y"},
+				{FieldName: "person.contactInfo", GrantDuration: "P6M"},
 			},
 			expectedCount: 3,
 		},
 		{
 			name: "Mixed duration fields",
 			requiredFields: []models.RequiredField{
-				{FieldName: "person.fullName", GrantDuration: "30d"},
-				{FieldName: "person.nic", GrantDuration: "1M"},
-				{FieldName: "person.birthDate", GrantDuration: "1y"},
-				{FieldName: "person.address", GrantDuration: ""}, // Should default to 30d
+				{FieldName: "person.fullName", GrantDuration: "P30D"},
+				{FieldName: "person.nic", GrantDuration: "P1M"},
+				{FieldName: "person.birthDate", GrantDuration: "P1Y"},
+				{FieldName: "person.address", GrantDuration: ""}, // Should default to P30D
 			},
 			expectedCount: 4,
 		},
@@ -463,7 +463,7 @@ func TestAdminApprovalErrorHandling(t *testing.T) {
 	app, err := consumerService.CreateConsumerApp(models.CreateConsumerAppRequest{
 		ConsumerID: consumer.ConsumerID,
 		RequiredFields: []models.RequiredField{
-			{FieldName: "person.fullName", GrantDuration: "30d"},
+			{FieldName: "person.fullName", GrantDuration: "P30D"},
 		},
 	})
 	if err != nil {
@@ -472,7 +472,7 @@ func TestAdminApprovalErrorHandling(t *testing.T) {
 
 	// Test case 3: Update with invalid required fields
 	invalidFields := []models.RequiredField{
-		{FieldName: "", GrantDuration: "30d"}, // Empty field name
+		{FieldName: "", GrantDuration: "P30D"}, // Empty field name
 	}
 
 	updateReqWithInvalidFields := models.UpdateConsumerAppRequest{
@@ -519,7 +519,7 @@ func TestAdminApprovalConcurrency(t *testing.T) {
 		app, err := consumerService.CreateConsumerApp(models.CreateConsumerAppRequest{
 			ConsumerID: consumer.ConsumerID,
 			RequiredFields: []models.RequiredField{
-				{FieldName: fmt.Sprintf("person.field%d", i), GrantDuration: "30d"},
+				{FieldName: fmt.Sprintf("person.field%d", i), GrantDuration: "P30D"},
 			},
 		})
 		if err != nil {
