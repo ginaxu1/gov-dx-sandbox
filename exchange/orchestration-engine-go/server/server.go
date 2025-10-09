@@ -36,6 +36,16 @@ func RunServer(f *federator.Federator) {
 		schemaDB = nil
 	}
 
+	// Initialize schema mapping database connection
+	var schemaMappingDB *database.SchemaMappingDB
+	if schemaDB != nil {
+		schemaMappingDB, err = database.NewSchemaMappingDB(dbConnectionString)
+		if err != nil {
+			logger.Log.Error("Failed to connect to schema mapping database", "error", err)
+			schemaMappingDB = nil
+		}
+	}
+
 	// Initialize schema service and handler
 	var schemaService *services.SchemaService
 	if schemaDB != nil {
@@ -47,6 +57,17 @@ func RunServer(f *federator.Federator) {
 	}
 
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
+
+	// Initialize schema mapping service and handler
+	var schemaMappingService *services.SchemaMappingService
+	var schemaMappingHandler *handlers.SchemaMappingHandler
+	if schemaMappingDB != nil {
+		schemaMappingService = services.NewSchemaMappingService(schemaMappingDB)
+		compatibilityChecker := services.NewCompatibilityChecker()
+		schemaMappingHandler = handlers.NewSchemaMappingHandler(schemaMappingService, compatibilityChecker)
+	} else {
+		logger.Log.Warn("Running without schema mapping database - schema mapping disabled")
+	}
 
 	// Set the schema service in the federator
 	f.SchemaService = schemaService
@@ -87,6 +108,62 @@ func RunServer(f *federator.Federator) {
 			http.NotFound(w, r)
 		}
 	})
+
+	// Schema Mapping Routes (Admin Portal)
+	if schemaMappingHandler != nil {
+		// Unified Schema Management
+		mux.HandleFunc("/admin/unified-schemas", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				schemaMappingHandler.GetUnifiedSchemas(w, r)
+			} else if r.Method == http.MethodPost {
+				schemaMappingHandler.CreateUnifiedSchema(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})
+		mux.HandleFunc("/admin/unified-schemas/latest", schemaMappingHandler.GetLatestUnifiedSchema)
+
+		// Provider Schema Management
+		mux.HandleFunc("/admin/provider-schemas", schemaMappingHandler.GetProviderSchemas)
+
+		// Unified Schema Management with Field Mappings
+		mux.HandleFunc("/admin/unified-schemas/", func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
+
+			// Handle activation endpoint
+			if strings.HasSuffix(path, "/activate") && r.Method == http.MethodPut {
+				schemaMappingHandler.ActivateUnifiedSchema(w, r)
+				return
+			}
+
+			// Handle field mappings
+			if strings.Contains(path, "/mappings") {
+				if strings.Contains(path, "/mappings/") && (r.Method == http.MethodPut || r.Method == http.MethodDelete) {
+					// Update or delete specific mapping
+					if r.Method == http.MethodPut {
+						schemaMappingHandler.UpdateFieldMapping(w, r)
+					} else {
+						schemaMappingHandler.DeleteFieldMapping(w, r)
+					}
+				} else if r.Method == http.MethodPost {
+					// Create new mapping
+					schemaMappingHandler.CreateFieldMapping(w, r)
+				} else if r.Method == http.MethodGet {
+					// Get all mappings
+					schemaMappingHandler.GetFieldMappings(w, r)
+				} else {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+				return
+			}
+
+			// No matching route
+			http.NotFound(w, r)
+		})
+
+		// Compatibility Check
+		mux.HandleFunc("/admin/schemas/compatibility/check", schemaMappingHandler.CheckCompatibility)
+	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

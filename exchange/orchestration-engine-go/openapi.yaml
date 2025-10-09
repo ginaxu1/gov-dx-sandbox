@@ -4,7 +4,9 @@ info:
   version: 1.0.0
   description: |
     The Orchestration Engine provides GraphQL federation and unified schema management capabilities.
-    It supports multiple schema versions, schema activation/deactivation, and GraphQL query routing.
+    It supports multiple schema versions, schema activation/deactivation, GraphQL query routing,
+    and admin portal functionality for managing unified schemas and field mappings between
+    provider schemas and consumer-facing unified schemas.
 paths:
   /:
     post:
@@ -344,7 +346,492 @@ paths:
         '500':
           description: Internal server error
 
+  # Schema Mapping Management Endpoints (Admin Portal)
+  /admin/unified-schemas:
+    get:
+      summary: Get all unified schemas
+      description: Returns a list of all unified schema versions with their metadata.
+      tags:
+        - Schema Mapping
+      responses:
+        '200':
+          description: List of unified schemas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UnifiedSchema'
+        '500':
+          description: Internal server error
+    post:
+      summary: Create new unified schema
+      description: Creates a new version of the unified schema with backward compatibility checking.
+      tags:
+        - Schema Mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUnifiedSchemaRequest'
+      responses:
+        '201':
+          description: Unified schema created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUnifiedSchemaResponse'
+        '400':
+          description: Bad request - validation failed or backward compatibility check failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+
+  /admin/unified-schemas/latest:
+    get:
+      summary: Get active unified schema
+      description: Returns the currently active unified schema.
+      tags:
+        - Schema Mapping
+      responses:
+        '200':
+          description: Active unified schema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnifiedSchema'
+        '404':
+          description: No active unified schema found
+        '500':
+          description: Internal server error
+
+  /admin/unified-schemas/{version}/activate:
+    put:
+      summary: Activate unified schema version
+      description: Activates a specific unified schema version, making it the active schema.
+      tags:
+        - Schema Mapping
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: The version of the unified schema to activate
+          schema:
+            type: string
+            example: "1.2.0"
+      responses:
+        '200':
+          description: Schema activated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivateSchemaResponse'
+        '404':
+          description: Unified schema version not found
+        '500':
+          description: Internal server error
+
+  /admin/provider-schemas:
+    get:
+      summary: Get all provider schemas
+      description: Returns all active provider schemas organized by provider ID.
+      tags:
+        - Schema Mapping
+      responses:
+        '200':
+          description: Provider schemas organized by provider ID
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/ProviderSchema'
+        '500':
+          description: Internal server error
+
+  /admin/unified-schemas/{version}/mappings:
+    get:
+      summary: Get field mappings for unified schema
+      description: Returns all field mappings for a specific unified schema version.
+      tags:
+        - Schema Mapping
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: The version of the unified schema
+          schema:
+            type: string
+            example: "1.2.0"
+      responses:
+        '200':
+          description: List of field mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FieldMappingResponse'
+        '404':
+          description: Unified schema version not found
+        '500':
+          description: Internal server error
+    post:
+      summary: Create field mapping
+      description: Creates a new field mapping between unified schema and provider schema.
+      tags:
+        - Schema Mapping
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: The version of the unified schema
+          schema:
+            type: string
+            example: "1.2.0"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldMappingRequest'
+      responses:
+        '201':
+          description: Field mapping created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldMappingResponse'
+        '400':
+          description: Bad request - validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Unified schema version not found
+        '500':
+          description: Internal server error
+
+  /admin/unified-schemas/{version}/mappings/{mapping_id}:
+    put:
+      summary: Update field mapping
+      description: Updates an existing field mapping.
+      tags:
+        - Schema Mapping
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: The version of the unified schema
+          schema:
+            type: string
+            example: "1.2.0"
+        - name: mapping_id
+          in: path
+          required: true
+          description: The ID of the field mapping to update
+          schema:
+            type: string
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldMappingRequest'
+      responses:
+        '200':
+          description: Field mapping updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldMappingResponse'
+        '400':
+          description: Bad request - validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Field mapping not found
+        '500':
+          description: Internal server error
+    delete:
+      summary: Delete field mapping
+      description: Deletes an existing field mapping.
+      tags:
+        - Schema Mapping
+      parameters:
+        - name: version
+          in: path
+          required: true
+          description: The version of the unified schema
+          schema:
+            type: string
+            example: "1.2.0"
+        - name: mapping_id
+          in: path
+          required: true
+          description: The ID of the field mapping to delete
+          schema:
+            type: string
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '204':
+          description: Field mapping deleted successfully
+        '404':
+          description: Field mapping not found
+        '500':
+          description: Internal server error
+
+  /admin/schemas/compatibility/check:
+    post:
+      summary: Check schema compatibility
+      description: Checks backward compatibility between two schema versions.
+      tags:
+        - Schema Mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompatibilityCheckRequest'
+      responses:
+        '200':
+          description: Compatibility check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompatibilityResult'
+        '400':
+          description: Bad request - invalid schema versions
+        '500':
+          description: Internal server error
+
 components:
+  schemas:
+    # Schema Mapping Models
+    UnifiedSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        version:
+          type: string
+          example: "1.2.0"
+        sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+        is_active:
+          type: boolean
+          example: true
+        notes:
+          type: string
+          example: "Added new field for vehicle information"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: string
+          example: "admin_user_123"
+        status:
+          type: string
+          enum: [draft, pending_approval, active, deprecated]
+          example: "active"
+
+    CreateUnifiedSchemaRequest:
+      type: object
+      required:
+        - version
+        - sdl
+        - createdBy
+      properties:
+        version:
+          type: string
+          example: "1.2.0"
+        sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+        notes:
+          type: string
+          example: "Added new field for vehicle information"
+        createdBy:
+          type: string
+          example: "admin_user_123"
+
+    CreateUnifiedSchemaResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        version:
+          type: string
+          example: "1.2.0"
+        sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+        is_active:
+          type: boolean
+          example: false
+        notes:
+          type: string
+          example: "Added new field for vehicle information"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: string
+          example: "admin_user_123"
+
+    ActivateSchemaResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Schema activated successfully"
+
+    ProviderSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        provider_id:
+          type: string
+          example: "dmt_provider"
+        schema_name:
+          type: string
+          example: "DMT Schema v1.0"
+        sdl:
+          type: string
+          example: "type Query { getVehicleInfo(regNo: String): VehicleInfo }"
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    FieldMappingRequest:
+      type: object
+      required:
+        - unified_field_path
+        - provider_id
+        - provider_field_path
+        - field_type
+      properties:
+        unified_field_path:
+          type: string
+          example: "personInfo.ownedVehicles"
+        provider_id:
+          type: string
+          example: "dmt_provider"
+        provider_field_path:
+          type: string
+          example: "getVehicleInfo.data"
+        field_type:
+          type: string
+          example: "VehicleInfo"
+        is_required:
+          type: boolean
+          example: false
+        directives:
+          type: object
+          additionalProperties: true
+          example:
+            sourceInfo: "dmt_provider:getVehicleInfo.data"
+
+    FieldMappingResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        unified_field_path:
+          type: string
+          example: "personInfo.ownedVehicles"
+        provider_id:
+          type: string
+          example: "dmt_provider"
+        provider_field_path:
+          type: string
+          example: "getVehicleInfo.data"
+        field_type:
+          type: string
+          example: "VehicleInfo"
+        is_required:
+          type: boolean
+          example: false
+        directives:
+          type: object
+          additionalProperties: true
+          example:
+            sourceInfo: "dmt_provider:getVehicleInfo.data"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    CompatibilityCheckRequest:
+      type: object
+      required:
+        - old_version
+        - new_sdl
+      properties:
+        old_version:
+          type: string
+          example: "1.1.0"
+        new_sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+
+    CompatibilityResult:
+      type: object
+      properties:
+        compatible:
+          type: boolean
+          example: true
+        breaking_changes:
+          type: array
+          items:
+            type: string
+          example: []
+        warnings:
+          type: array
+          items:
+            type: string
+          example: ["New field added: personInfo.email (String)"]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Validation failed"
+        code:
+          type: string
+          example: "VALIDATION_ERROR"
+        details:
+          type: object
+          additionalProperties: true
+          example:
+            field: "version"
+            message: "Version is required"
+
   securitySchemes:
     bearerAuth:
       type: http
@@ -360,5 +847,7 @@ tags:
     description: GraphQL query execution endpoints
   - name: Schema Management
     description: Schema versioning and management endpoints
+  - name: Schema Mapping
+    description: Admin portal endpoints for unified schema and field mapping management
   - name: Health
     description: Health check endpoints
