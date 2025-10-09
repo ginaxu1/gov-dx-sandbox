@@ -130,61 +130,7 @@ func RunServer(f *federator.Federator) {
 		http.NotFound(w, r)
 	})
 
-	// Schema Mapping Routes (Admin Portal)
-	if schemaMappingHandler != nil {
-		// Unified Schema Management
-		mux.HandleFunc("/admin/unified-schemas", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				schemaMappingHandler.GetUnifiedSchemas(w, r)
-			} else if r.Method == http.MethodPost {
-				schemaMappingHandler.CreateUnifiedSchema(w, r)
-			} else {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-		})
-		mux.HandleFunc("/admin/unified-schemas/latest", schemaMappingHandler.GetLatestUnifiedSchema)
-
-		// Provider Schema Management
-		mux.HandleFunc("/admin/provider-schemas", schemaMappingHandler.GetProviderSchemas)
-
-		// Unified Schema Management with Field Mappings
-		mux.HandleFunc("/admin/unified-schemas/", func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.Path
-
-			// Handle activation endpoint
-			if strings.HasSuffix(path, "/activate") && r.Method == http.MethodPut {
-				schemaMappingHandler.ActivateUnifiedSchema(w, r)
-				return
-			}
-
-			// Handle field mappings
-			if strings.Contains(path, "/mappings") {
-				if strings.Contains(path, "/mappings/") && (r.Method == http.MethodPut || r.Method == http.MethodDelete) {
-					// Update or delete specific mapping
-					if r.Method == http.MethodPut {
-						schemaMappingHandler.UpdateFieldMapping(w, r)
-					} else {
-						schemaMappingHandler.DeleteFieldMapping(w, r)
-					}
-				} else if r.Method == http.MethodPost {
-					// Create new mapping
-					schemaMappingHandler.CreateFieldMapping(w, r)
-				} else if r.Method == http.MethodGet {
-					// Get all mappings
-					schemaMappingHandler.GetFieldMappings(w, r)
-				} else {
-					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				}
-				return
-			}
-
-			// No matching route
-			http.NotFound(w, r)
-		})
-
-		// Compatibility Check
-		mux.HandleFunc("/admin/schemas/compatibility/check", schemaMappingHandler.CheckCompatibility)
-	}
+	// Note: Admin routes have been consolidated into /sdl/* routes above
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

@@ -148,26 +148,26 @@ func TestSchemaValidation(t *testing.T) {
 // TestDatabaseErrorHandling tests error handling
 func TestDatabaseErrorHandling(t *testing.T) {
 	// Test with invalid connection string
-	_, err := database.NewSchemaDB("invalid connection string")
+	_, err := database.NewSchemaMappingDB("invalid connection string")
 	if err == nil {
 		t.Error("Expected error with invalid connection string")
 	}
 
 	// Test with valid connection but invalid operations
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
+	db, err := database.NewSchemaMappingDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
 	if err != nil {
 		t.Skip("Skipping test - no database connection")
 	}
 	defer db.Close()
 
 	// Test getting non-existent schema
-	_, err = db.GetSchemaByVersion("non-existent")
+	_, err = db.GetUnifiedSchemaByVersion("non-existent")
 	if err == nil {
 		t.Error("Expected error when getting non-existent schema")
 	}
 
 	// Test activating non-existent schema
-	err = db.ActivateSchema("non-existent")
+	err = db.ActivateUnifiedSchema("non-existent")
 	if err == nil {
 		t.Error("Expected error when activating non-existent schema")
 	}
@@ -176,7 +176,7 @@ func TestDatabaseErrorHandling(t *testing.T) {
 // Helper function to check if database connection is available
 func hasDatabaseConnection() bool {
 	// Try to connect to database
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
+	db, err := database.NewSchemaMappingDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
 	if err != nil {
 		return false
 	}
