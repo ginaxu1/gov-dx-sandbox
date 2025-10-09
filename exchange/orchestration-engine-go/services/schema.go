@@ -147,10 +147,8 @@ func (s *SchemaService) CheckCompatibility(newSDL string) (bool, string) {
 		return true, "no active schema to compare against"
 	}
 
-	// Use the new comprehensive compatibility checker
-	checker := NewSchemaCompatibilityChecker()
-	result := checker.CheckCompatibility(activeSchema.SDL, newSDL)
-	return result.IsCompatible, result.Reason
+	compatible, reason, _ := s.analyzeCompatibility(activeSchema.SDL, newSDL)
+	return compatible, reason
 }
 
 // Helper methods
@@ -160,17 +158,44 @@ func (s *SchemaService) isValidSDL(sdl string) bool {
 }
 
 func (s *SchemaService) isBackwardCompatible(oldSDL, newSDL string) (bool, string) {
-	// Use the new comprehensive compatibility checker
-	checker := NewSchemaCompatibilityChecker()
-	result := checker.CheckCompatibility(oldSDL, newSDL)
-	return result.IsCompatible, result.Reason
+	compatible, reason, _ := s.analyzeCompatibility(oldSDL, newSDL)
+	return compatible, reason
 }
 
-// analyzeCompatibility performs detailed compatibility analysis using the new checker
+// analyzeCompatibility performs detailed compatibility analysis
 func (s *SchemaService) analyzeCompatibility(oldSDL, newSDL string) (bool, string, map[string]interface{}) {
-	checker := NewSchemaCompatibilityChecker()
-	result := checker.CheckCompatibility(oldSDL, newSDL)
-	return result.IsCompatible, result.Reason, result.Changes
+	changes := map[string]interface{}{
+		"breaking":     []string{},
+		"non_breaking": []string{},
+		"warnings":     []string{},
+	}
+
+	// Simple analysis - in a real implementation, this would use a GraphQL parser
+	// For now, we'll do basic string analysis
+
+	// Check for removed fields (breaking change)
+	if s.hasRemovedFields(oldSDL, newSDL) {
+		changes["breaking"] = append(changes["breaking"].([]string), "Fields have been removed")
+		return false, "breaking changes detected", changes
+	}
+
+	// Check for added fields (non-breaking change)
+	if s.hasAddedFields(oldSDL, newSDL) {
+		changes["non_breaking"] = append(changes["non_breaking"].([]string), "New fields have been added")
+	}
+
+	// Check for type changes (breaking change)
+	if s.hasTypeChanges(oldSDL, newSDL) {
+		changes["breaking"] = append(changes["breaking"].([]string), "Field types have been changed")
+		return false, "breaking changes detected", changes
+	}
+
+	// Check for deprecated fields (warning)
+	if s.hasDeprecatedFields(newSDL) {
+		changes["warnings"] = append(changes["warnings"].([]string), "Some fields are marked as deprecated")
+	}
+
+	return true, "compatible", changes
 }
 
 // hasRemovedFields checks if any fields were removed using AST comparison
@@ -186,22 +211,37 @@ func (s *SchemaService) hasRemovedFields(oldSDL, newSDL string) bool {
 		logger.Log.Warn("Failed to parse new SDL for field removal detection", "Error", err)
 		return false
 	}
-
 	// Extract field definitions from both schemas
 	oldFields := s.extractFieldDefinitions(oldDoc)
 	newFields := s.extractFieldDefinitions(newDoc)
 
-	// Check if any field from the old schema is missing in the new schema
-	for fieldKey, oldField := range oldFields {
-		if newField, exists := newFields[fieldKey]; !exists {
-			// Field was removed
-			logger.Log.Debug("Field removed", "type", oldField.TypeName, "field", oldField.FieldName)
+	// Group old fields by type name
+	oldFieldsByType := make(map[string]map[string]FieldTypeInfo)
+	for _, fieldInfo := range oldFields {
+		if oldFieldsByType[fieldInfo.TypeName] == nil {
+			oldFieldsByType[fieldInfo.TypeName] = make(map[string]FieldTypeInfo)
+		}
+		oldFieldsByType[fieldInfo.TypeName][fieldInfo.FieldName] = fieldInfo
+	}
+
+	// Group new fields by type name
+	newFieldsByType := make(map[string]map[string]FieldTypeInfo)
+	for _, fieldInfo := range newFields {
+		if newFieldsByType[fieldInfo.TypeName] == nil {
+			newFieldsByType[fieldInfo.TypeName] = make(map[string]FieldTypeInfo)
+		}
+		newFieldsByType[fieldInfo.TypeName][fieldInfo.FieldName] = fieldInfo
+	}
+
+	// For each type in oldFields, check if any field is missing in newFields
+	for typeName, oldTypeFields := range oldFieldsByType {
+		newTypeFields, ok := newFieldsByType[typeName]
+		if !ok {
+			// The entire type was removed, which is a breaking change
 			return true
-		} else {
-			// Field exists, check if type changed
-			if oldField.TypeDefinition != newField.TypeDefinition {
-				logger.Log.Debug("Field type changed", "type", oldField.TypeName, "field", oldField.FieldName,
-					"oldType", oldField.TypeDefinition, "newType", newField.TypeDefinition)
+		}
+		for fieldName := range oldTypeFields {
+			if _, exists := newTypeFields[fieldName]; !exists {
 				return true
 			}
 		}
@@ -209,34 +249,10 @@ func (s *SchemaService) hasRemovedFields(oldSDL, newSDL string) bool {
 	return false
 }
 
-// hasAddedFields checks if new fields were added using AST comparison
+// hasAddedFields checks if new fields were added
 func (s *SchemaService) hasAddedFields(oldSDL, newSDL string) bool {
-	// Parse both SDL strings into AST documents
-	oldDoc, err := s.parseSDL(oldSDL)
-	if err != nil {
-		logger.Log.Warn("Failed to parse old SDL for field addition detection", "Error", err)
-		return false
-	}
-	newDoc, err := s.parseSDL(newSDL)
-	if err != nil {
-		logger.Log.Warn("Failed to parse new SDL for field addition detection", "Error", err)
-		return false
-	}
-
-	// Extract field definitions from both schemas
-	oldFields := s.extractFieldDefinitions(oldDoc)
-	newFields := s.extractFieldDefinitions(newDoc)
-
-	// Check if any field in the new schema is not in the old schema
-	for fieldKey, newField := range newFields {
-		if _, exists := oldFields[fieldKey]; !exists {
-			// New field was added
-			logger.Log.Debug("Field added", "type", newField.TypeName, "field", newField.FieldName)
-			return true
-		}
-	}
-
-	return false
+	// Simple check - if new SDL is longer, fields might have been added
+	return len(newSDL) > len(oldSDL)
 }
 
 // hasTypeChanges checks if field types were changed by parsing SDL and comparing type definitions
