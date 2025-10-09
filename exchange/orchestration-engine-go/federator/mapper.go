@@ -505,15 +505,21 @@ func PushArgumentValue(arg *ast.Argument, val interface{}) {
 // PushVariablesFromVariableDefinition replaces variable references in arguments with actual values from the request.
 func PushVariablesFromVariableDefinition(request graphql.Request, extractedArgs []*ArgSource, variableDefinitions []*ast.VariableDefinition) {
 	for _, arg := range extractedArgs {
+		if arg == nil || arg.Argument == nil || arg.Argument.Value == nil {
+			continue
+		}
+
 		if arg.Argument.Value.GetKind() == "Variable" {
-			varName := arg.Argument.Value.(*ast.Variable).Name.Value
-			if val, exists := request.Variables[varName]; exists {
-				// find the corresponding variable definition
-				for _, v := range variableDefinitions {
-					if v.Variable.Name.Value == varName {
-						// replace the argument value with the variable value
-						PushArgumentValue(arg.Argument, val)
-						break
+			if variable, ok := arg.Argument.Value.(*ast.Variable); ok && variable.Name != nil {
+				varName := variable.Name.Value
+				if val, exists := request.Variables[varName]; exists {
+					// find the corresponding variable definition
+					for _, v := range variableDefinitions {
+						if v != nil && v.Variable != nil && v.Variable.Name != nil && v.Variable.Name.Value == varName {
+							// replace the argument value with the variable value
+							PushArgumentValue(arg.Argument, val)
+							break
+						}
 					}
 				}
 			}
