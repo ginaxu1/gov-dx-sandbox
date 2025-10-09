@@ -29,11 +29,15 @@ func RunServer(f *federator.Federator) {
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
+	logger.Log.Info("Attempting to connect to database")
 	schemaMappingDB, err := database.NewSchemaMappingDB(dbConnectionString)
 	if err != nil {
 		logger.Log.Error("Failed to connect to database", "error", err)
+		logger.Log.Warn("Continuing without database - schema management will be disabled")
 		// Continue without database for now
 		schemaMappingDB = nil
+	} else {
+		logger.Log.Info("Successfully connected to database")
 	}
 
 	// Initialize schema service and handler (now using unified schema database)
@@ -243,13 +247,16 @@ func getDatabaseConnectionString() string {
 	// Use Choreo variables if available, otherwise fall back to standard environment variables
 	var host, port, user, password, dbname, sslmode string
 
-	if choreoHost != "" {
+	if choreoHost != "" && choreoUser != "" && choreoPassword != "" && choreoDB != "" {
 		host = choreoHost
 		port = getEnv("CHOREO_DB_OE_PORT", "5432")
 		user = choreoUser
 		password = choreoPassword
 		dbname = choreoDB
-		sslmode = "require" // Choreo typically requires SSL
+		// Try different SSL modes for Choreo compatibility
+		sslmode = getEnv("DB_SSLMODE", "prefer") // Changed from "require" to "prefer"
+		logger.Log.Info("Using Choreo database configuration",
+			"host", host, "port", port, "user", user, "dbname", dbname, "sslmode", sslmode)
 	} else {
 		host = getEnv("DB_HOST", "localhost")
 		port = getEnv("DB_PORT", "5432")
@@ -257,10 +264,18 @@ func getDatabaseConnectionString() string {
 		password = getEnv("DB_PASSWORD", "password")
 		dbname = getEnv("DB_NAME", "orchestration_engine")
 		sslmode = getEnv("DB_SSLMODE", "disable")
+		logger.Log.Info("Using standard database configuration",
+			"host", host, "port", port, "user", user, "dbname", dbname, "sslmode", sslmode)
 	}
 
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+	connectionString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslmode)
+
+	logger.Log.Info("Database connection string generated", "connectionString",
+		fmt.Sprintf("host=%s port=%s user=%s password=*** dbname=%s sslmode=%s",
+			host, port, user, dbname, sslmode))
+
+	return connectionString
 }
 
 // getEnv gets an environment variable with a default value
