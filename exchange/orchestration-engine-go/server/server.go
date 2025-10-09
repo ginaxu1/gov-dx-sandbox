@@ -29,27 +29,17 @@ func RunServer(f *federator.Federator) {
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
-	schemaDB, err := database.NewSchemaDB(dbConnectionString)
+	schemaMappingDB, err := database.NewSchemaMappingDB(dbConnectionString)
 	if err != nil {
 		logger.Log.Error("Failed to connect to database", "error", err)
 		// Continue without database for now
-		schemaDB = nil
+		schemaMappingDB = nil
 	}
 
-	// Initialize schema mapping database connection
-	var schemaMappingDB *database.SchemaMappingDB
-	if schemaDB != nil {
-		schemaMappingDB, err = database.NewSchemaMappingDB(dbConnectionString)
-		if err != nil {
-			logger.Log.Error("Failed to connect to schema mapping database", "error", err)
-			schemaMappingDB = nil
-		}
-	}
-
-	// Initialize schema service and handler
+	// Initialize schema service and handler (now using unified schema database)
 	var schemaService *services.SchemaService
-	if schemaDB != nil {
-		schemaService = services.NewSchemaService(schemaDB)
+	if schemaMappingDB != nil {
+		schemaService = services.NewSchemaService(schemaMappingDB)
 	} else {
 		// Fallback to in-memory service if database is not available
 		schemaService = nil
@@ -85,7 +75,7 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
-	// Schema management routes
+	// Schema management routes (enhanced with field mapping support)
 	mux.HandleFunc("/sdl", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			schemaHandler.GetActiveSchema(w, r)
@@ -99,14 +89,45 @@ func RunServer(f *federator.Federator) {
 	mux.HandleFunc("/sdl/validate", schemaHandler.ValidateSDL)
 	mux.HandleFunc("/sdl/check-compatibility", schemaHandler.CheckCompatibility)
 
-	// Handle activation endpoint with proper path matching
-	mux.HandleFunc("/sdl/versions/", func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is an activation request
-		if strings.HasSuffix(r.URL.Path, "/activate") && r.Method == http.MethodPost {
+	// Enhanced schema management with field mapping support
+	mux.HandleFunc("/sdl/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Handle activation endpoint
+		if strings.HasSuffix(path, "/activate") && r.Method == http.MethodPost {
 			schemaHandler.ActivateSchema(w, r)
-		} else {
-			http.NotFound(w, r)
+			return
 		}
+
+		// Handle field mappings for active schema
+		if strings.Contains(path, "/mappings") {
+			if strings.Contains(path, "/mappings/") && (r.Method == http.MethodPut || r.Method == http.MethodDelete) {
+				// Update or delete specific mapping
+				if r.Method == http.MethodPut {
+					schemaMappingHandler.UpdateFieldMapping(w, r)
+				} else {
+					schemaMappingHandler.DeleteFieldMapping(w, r)
+				}
+			} else if r.Method == http.MethodPost {
+				// Create new mapping for active schema
+				schemaMappingHandler.CreateFieldMappingForActiveSchema(w, r)
+			} else if r.Method == http.MethodGet {
+				// Get all mappings for active schema
+				schemaMappingHandler.GetFieldMappingsForActiveSchema(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Handle provider schemas
+		if strings.HasSuffix(path, "/providers") && r.Method == http.MethodGet {
+			schemaMappingHandler.GetProviderSchemas(w, r)
+			return
+		}
+
+		// No matching route
+		http.NotFound(w, r)
 	})
 
 	// Schema Mapping Routes (Admin Portal)

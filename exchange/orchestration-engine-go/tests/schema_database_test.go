@@ -15,14 +15,17 @@ func TestDatabaseSchemaOperations(t *testing.T) {
 	}
 
 	// Create test database connection
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
+	connectionString := "host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable"
+
+	// Create schema mapping database
+	schemaMappingDB, err := database.NewSchemaMappingDB(connectionString)
 	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
+		t.Fatalf("Failed to connect to schema mapping database: %v", err)
 	}
-	defer db.Close()
+	defer schemaMappingDB.Close()
 
 	// Create schema service
-	schemaService := services.NewSchemaService(db)
+	schemaService := services.NewSchemaService(schemaMappingDB)
 
 	// Test 1: Create schema
 	t.Run("CreateSchema", func(t *testing.T) {
@@ -119,13 +122,15 @@ func TestSchemaValidation(t *testing.T) {
 		t.Skip("Skipping database tests - no database connection")
 	}
 
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
-	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
+	connectionString := "host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable"
 
-	schemaService := services.NewSchemaService(db)
+	schemaMappingDB, err := database.NewSchemaMappingDB(connectionString)
+	if err != nil {
+		t.Fatalf("Failed to connect to schema mapping database: %v", err)
+	}
+	defer schemaMappingDB.Close()
+
+	schemaService := services.NewSchemaService(schemaMappingDB)
 
 	// Test valid SDL
 	valid := schemaService.ValidateSDL("type Query { hello: String }")
@@ -186,13 +191,15 @@ func TestSchemaVersioning(t *testing.T) {
 		t.Skip("Skipping database tests - no database connection")
 	}
 
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
-	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
+	connectionString := "host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable"
 
-	schemaService := services.NewSchemaService(db)
+	schemaMappingDB, err := database.NewSchemaMappingDB(connectionString)
+	if err != nil {
+		t.Fatalf("Failed to connect to schema mapping database: %v", err)
+	}
+	defer schemaMappingDB.Close()
+
+	schemaService := services.NewSchemaService(schemaMappingDB)
 
 	// Create multiple schema versions
 	versions := []string{"1.0.0", "1.1.0", "2.0.0"}

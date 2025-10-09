@@ -8,6 +8,7 @@ import (
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/models"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -26,11 +27,11 @@ type Schema struct {
 
 // SchemaService handles schema management operations
 type SchemaService struct {
-	db *database.SchemaDB
+	db *database.SchemaMappingDB
 }
 
 // NewSchemaService creates a new schema service
-func NewSchemaService(db *database.SchemaDB) *SchemaService {
+func NewSchemaService(db *database.SchemaMappingDB) *SchemaService {
 	return &SchemaService{
 		db: db,
 	}
@@ -46,32 +47,31 @@ func (s *SchemaService) CreateSchema(version, sdl, createdBy string) (*Schema, e
 	// Generate checksum
 	checksum := s.generateChecksum(sdl)
 
-	// Create schema
-	schema := &database.Schema{
+	// Create unified schema
+	unifiedSchema := &models.UnifiedSchema{
 		ID:        s.generateID(),
 		Version:   version,
 		SDL:       sdl,
-		Status:    "inactive",
 		IsActive:  false,
-		CreatedAt: time.Now(),
+		Notes:     "", // Empty for basic schema creation
 		CreatedBy: createdBy,
-		Checksum:  checksum,
+		Status:    "draft",
 	}
 
 	// Save to database
-	if err := s.db.CreateSchema(schema); err != nil {
+	if err := s.db.CreateUnifiedSchema(unifiedSchema); err != nil {
 		return nil, fmt.Errorf("failed to save schema to database: %w", err)
 	}
 
 	// Convert to service schema
 	serviceSchema := &Schema{
-		ID:        schema.ID,
-		Version:   schema.Version,
-		SDL:       schema.SDL,
-		IsActive:  schema.IsActive,
-		CreatedAt: schema.CreatedAt,
-		CreatedBy: schema.CreatedBy,
-		Checksum:  schema.Checksum,
+		ID:        unifiedSchema.ID,
+		Version:   unifiedSchema.Version,
+		SDL:       unifiedSchema.SDL,
+		IsActive:  unifiedSchema.IsActive,
+		CreatedAt: unifiedSchema.CreatedAt,
+		CreatedBy: unifiedSchema.CreatedBy,
+		Checksum:  checksum,
 	}
 
 	return serviceSchema, nil
@@ -79,24 +79,27 @@ func (s *SchemaService) CreateSchema(version, sdl, createdBy string) (*Schema, e
 
 // GetActiveSchema returns the currently active schema
 func (s *SchemaService) GetActiveSchema() (*Schema, error) {
-	dbSchema, err := s.db.GetActiveSchema()
+	unifiedSchema, err := s.db.GetActiveUnifiedSchema()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active schema: %w", err)
 	}
 
-	if dbSchema == nil {
+	if unifiedSchema == nil {
 		return nil, nil // No active schema
 	}
 
+	// Generate checksum for compatibility
+	checksum := s.generateChecksum(unifiedSchema.SDL)
+
 	// Convert to service schema
 	serviceSchema := &Schema{
-		ID:        dbSchema.ID,
-		Version:   dbSchema.Version,
-		SDL:       dbSchema.SDL,
-		IsActive:  dbSchema.IsActive,
-		CreatedAt: dbSchema.CreatedAt,
-		CreatedBy: dbSchema.CreatedBy,
-		Checksum:  dbSchema.Checksum,
+		ID:        unifiedSchema.ID,
+		Version:   unifiedSchema.Version,
+		SDL:       unifiedSchema.SDL,
+		IsActive:  unifiedSchema.IsActive,
+		CreatedAt: unifiedSchema.CreatedAt,
+		CreatedBy: unifiedSchema.CreatedBy,
+		Checksum:  checksum,
 	}
 
 	return serviceSchema, nil
@@ -104,27 +107,28 @@ func (s *SchemaService) GetActiveSchema() (*Schema, error) {
 
 // ActivateSchema activates a specific schema version
 func (s *SchemaService) ActivateSchema(version string) error {
-	return s.db.ActivateSchema(version)
+	return s.db.ActivateUnifiedSchema(version)
 }
 
 // GetAllSchemas returns all schemas
 func (s *SchemaService) GetAllSchemas() ([]Schema, error) {
-	dbSchemas, err := s.db.GetAllSchemas()
+	unifiedSchemas, err := s.db.GetAllUnifiedSchemas()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get schemas: %w", err)
 	}
 
 	// Convert to service schemas
-	schemas := make([]Schema, len(dbSchemas))
-	for i, dbSchema := range dbSchemas {
+	schemas := make([]Schema, len(unifiedSchemas))
+	for i, unifiedSchema := range unifiedSchemas {
+		checksum := s.generateChecksum(unifiedSchema.SDL)
 		schemas[i] = Schema{
-			ID:        dbSchema.ID,
-			Version:   dbSchema.Version,
-			SDL:       dbSchema.SDL,
-			IsActive:  dbSchema.IsActive,
-			CreatedAt: dbSchema.CreatedAt,
-			CreatedBy: dbSchema.CreatedBy,
-			Checksum:  dbSchema.Checksum,
+			ID:        unifiedSchema.ID,
+			Version:   unifiedSchema.Version,
+			SDL:       unifiedSchema.SDL,
+			IsActive:  unifiedSchema.IsActive,
+			CreatedAt: unifiedSchema.CreatedAt,
+			CreatedBy: unifiedSchema.CreatedBy,
+			Checksum:  checksum,
 		}
 	}
 
