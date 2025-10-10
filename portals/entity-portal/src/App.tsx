@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthContext } from "@asgardeo/auth-react";
 import { Navbar } from "./components/Navbar";
-// import { Dashboard } from './pages/Dashboard';
 import { SchemasPage } from './pages/Schemas';
 import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
 import { Logs } from "./pages/Logs";
@@ -28,6 +27,7 @@ function App() {
   const [view, setView] = useState<'provider' | 'consumer' | null>(null);
   const [entityData, setEntityData] = useState<EntityProps | null>(null);
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
+  const [loading, setLoading] = useState(false);
 
   // Save entity state to localStorage to persist through auth redirects
   const saveEntityStateToStorage = (entityInfo: EntityProps, viewType: 'provider' | 'consumer' | null) => {
@@ -76,7 +76,23 @@ function App() {
 
   useEffect(() => {
     const fetchEntityInfo = async () => {
+      if (!state.isAuthenticated) {
+        return;
+      }
+
+      setLoading(true);
+      
       try {
+        // First check localStorage for existing data
+        const storedState = getEntityStateFromStorage();
+        if (storedState.entityData) {
+          console.log('Loading entity data from storage');
+          setEntityData(storedState.entityData);
+          setView(storedState.view);
+          return;
+        }
+
+        // Fetch fresh data from API
         const userBasicInfo = await getBasicUserInfo();
         console.log('Fetching entity info from user attributes:', userBasicInfo);
 
@@ -88,25 +104,29 @@ function App() {
         const fetchedEntityInfoFromDB = await fetchEntityInfoFromDB(entityId);
         if (fetchedEntityInfoFromDB) {
           const entityInfo: EntityProps = {
-            entityId: fetchedEntityInfoFromDB.entityId || '', // User ID -> entityId
-            name: fetchedEntityInfoFromDB.name || '', // Last Name -> name
-            email: fetchedEntityInfoFromDB.email || '', // Email -> email
-            entityType: fetchedEntityInfoFromDB.entityType || '', // Entity Type -> entityType
-            phoneNumber: fetchedEntityInfoFromDB.phoneNumber || '', // Phone Number -> phoneNumber
-            providerId: fetchedEntityInfoFromDB.providerId || '', // Provider ID -> providerId
-            consumerId: fetchedEntityInfoFromDB.consumerId || '', // ConsumerID -> consumerId
-            createdAt: fetchedEntityInfoFromDB.createdAt || '', // Created At -> createdAt
-            updatedAt: fetchedEntityInfoFromDB.updatedAt || '', // Updated At -> updatedAt
+            entityId: fetchedEntityInfoFromDB.entityId || '',
+            name: fetchedEntityInfoFromDB.name || '',
+            email: fetchedEntityInfoFromDB.email || '',
+            entityType: fetchedEntityInfoFromDB.entityType || '',
+            phoneNumber: fetchedEntityInfoFromDB.phoneNumber || '',
+            providerId: fetchedEntityInfoFromDB.providerId || '',
+            consumerId: fetchedEntityInfoFromDB.consumerId || '',
+            createdAt: fetchedEntityInfoFromDB.createdAt || '',
+            updatedAt: fetchedEntityInfoFromDB.updatedAt || '',
             roles: []
           };
+          
+          // Determine roles based on IDs
           if (entityInfo.consumerId !== '') {
             entityInfo.roles.push('consumer');
           }
           if (entityInfo.providerId !== '') {
             entityInfo.roles.push('provider');
           }
+          
           console.log('Parsed entity info from DB:', entityInfo);
           setEntityData(entityInfo);
+          
           // Determine initial view based on available IDs
           let initialView: 'provider' | 'consumer' | null = null;
           if (entityInfo.providerId) {
@@ -120,7 +140,7 @@ function App() {
           saveEntityStateToStorage(entityInfo, initialView);
         } else {
           // Fallback to empty entity data if fetch fails
-          setEntityData({
+          const emptyEntityData: EntityProps = {
             entityId: '',
             name: '',
             email: '',
@@ -131,12 +151,13 @@ function App() {
             roles: [],
             providerId: undefined,
             consumerId: undefined,
-          });
+          };
+          setEntityData(emptyEntityData);
         }
       } catch (error) {
         console.error('Failed to fetch entity info:', error);
         // Fallback to empty entity data if fetch fails
-        setEntityData({
+        const emptyEntityData: EntityProps = {
           entityId: '',
           name: '',
           email: '',
@@ -147,21 +168,14 @@ function App() {
           roles: [],
           providerId: undefined,
           consumerId: undefined,
-        });
+        };
+        setEntityData(emptyEntityData);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchEntityInfo();
 
-    // Check if we have stored entity data (after auth redirect)
-    if (state.isAuthenticated && !entityData) {
-      const storedState = getEntityStateFromStorage();
-      if (storedState.entityData) {
-        setEntityData(storedState.entityData);
-        setView(storedState.view);
-      } else {
-        fetchEntityInfo();
-      }
-    }
+    fetchEntityInfo();
   }, [state.isAuthenticated]);
 
   const canSwitchView = () => {
@@ -181,18 +195,14 @@ function App() {
     }
   };
 
-  // Handle sign in with state preservation (like consent-portal)
   const handleSignIn = () => {
-    // Ensure entity state is saved before redirect
-    if (entityData) {
-      saveEntityStateToStorage(entityData, view);
-    }
     signIn();
   };
 
-  // Handle sign out with state cleanup (like consent-portal)
   const handleSignOut = () => {
     clearEntityStateFromStorage();
+    setEntityData(null);
+    setView(null);
     signOut();
   };
 
@@ -218,7 +228,7 @@ function App() {
   }
 
   // Show loading while fetching entity data
-  if (!entityData) {
+  if (loading || !entityData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center relative">
         <div className="text-center">
@@ -261,7 +271,7 @@ function App() {
                   />
                 } 
               />
-              <Route path="/provider/logs" element={<Logs />} />
+              <Route path="/provider/logs" element={<Logs role="provider" providerId={entityData?.providerId || ''} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           ) : (
@@ -284,6 +294,7 @@ function App() {
                   />
                 } 
               />
+              <Route path="/consumer/logs" element={<Logs role="consumer" consumerId={entityData?.consumerId || ''} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}

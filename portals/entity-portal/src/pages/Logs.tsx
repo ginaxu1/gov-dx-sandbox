@@ -4,7 +4,6 @@ import {
     Search, 
     Download, 
     RefreshCw, 
-    AlertTriangle, 
     CheckCircle, 
     XCircle, 
     Info,
@@ -14,117 +13,79 @@ import {
 interface LogEntry {
     id: string;
     timestamp: string;
-    level: 'info' | 'warning' | 'error' | 'success';
-    service: string;
-    message: string;
-    details?: string;
+    status: 'failure' | 'success';
+    requestedData: string;
+    consumerId: string;
+    providerId: string;
 }
 
-export const Logs: React.FC = () => {
+interface LogsProps {
+    role: 'provider' | 'consumer';
+    consumerId?: string;
+    providerId?: string;
+}
+
+export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [levelFilter, setLevelFilter] = useState<string>('all');
-    const [serviceFilter, setServiceFilter] = useState<string>('all');
     const [loading, setLoading] = useState(true);
     const [autoRefresh, setAutoRefresh] = useState(false);
 
-    // Mock log data
-    const mockLogs: LogEntry[] = [
-        {
-            id: '1',
-            timestamp: '2024-01-15T10:30:45Z',
-            level: 'info',
-            service: 'GraphQL Schema Registry',
-            message: 'Schema registered successfully',
-            details: 'Government Identity Schema v1.2 registered by provider-123'
-        },
-        {
-            id: '2',
-            timestamp: '2024-01-15T10:28:12Z',
-            level: 'success',
-            service: 'API Gateway',
-            message: 'API request processed',
-            details: 'GET /api/person/info - Response time: 145ms'
-        },
-        {
-            id: '3',
-            timestamp: '2024-01-15T10:25:33Z',
-            level: 'warning',
-            service: 'Authentication Service',
-            message: 'Rate limit approaching',
-            details: 'Client app-456 has made 950/1000 requests in the current hour'
-        },
-        {
-            id: '4',
-            timestamp: '2024-01-15T10:22:18Z',
-            level: 'error',
-            service: 'Data Provider',
-            message: 'External service timeout',
-            details: 'Healthcare Records API failed to respond within 30 seconds'
-        },
-        {
-            id: '5',
-            timestamp: '2024-01-15T10:20:05Z',
-            level: 'info',
-            service: 'Application Registry',
-            message: 'New application approved',
-            details: 'Tax Management Portal approved for production access'
-        },
-        {
-            id: '6',
-            timestamp: '2024-01-15T10:18:42Z',
-            level: 'success',
-            service: 'Schema Validator',
-            message: 'Schema validation passed',
-            details: 'Vehicle Registration Schema passed all validation checks'
+
+    const fetchLogs = async () => {
+        setLoading(true);
+        try {
+            const logs = await fetch(`http://localhost:3000/logs${role === 'consumer' ? `?consumerId=${consumerId}` : `?providerId=${providerId}`}`).then(res => res.json());
+            setLogs(logs);
+            setFilteredLogs(logs);
+        } catch (error) {
+            console.error('Error fetching logs:', error);
+        } finally {
+            setLoading(false);
         }
-    ];
+    };
 
     useEffect(() => {
-        const fetchLogs = async () => {
-            setLoading(true);
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setLogs(mockLogs);
-            setFilteredLogs(mockLogs);
-            setLoading(false);
-        };
-
         fetchLogs();
     }, []);
 
+    // Auto-refresh functionality
+    useEffect(() => {
+        if (autoRefresh) {
+            const interval = setInterval(() => {
+                fetchLogs();
+            }, 30000); // Refresh every 30 seconds
+
+            return () => clearInterval(interval);
+        }
+    }, [autoRefresh]);
+
     useEffect(() => {
         let filtered = logs;
-
         // Filter by search term
         if (searchTerm) {
             filtered = filtered.filter(log =>
-                log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                log.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                log.details?.toLowerCase().includes(searchTerm.toLowerCase())
+                log.requestedData.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.consumerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.providerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.id.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
-        // Filter by level
+        // Filter by status (replacing level filter)
         if (levelFilter !== 'all') {
-            filtered = filtered.filter(log => log.level === levelFilter);
-        }
-
-        // Filter by service
-        if (serviceFilter !== 'all') {
-            filtered = filtered.filter(log => log.service === serviceFilter);
+            filtered = filtered.filter(log => log.status === levelFilter);
         }
 
         setFilteredLogs(filtered);
-    }, [logs, searchTerm, levelFilter, serviceFilter]);
+    }, [logs, searchTerm, levelFilter]);
 
-    const getLogIcon = (level: string) => {
-        switch (level) {
-            case 'error':
+    const getLogIcon = (status: string) => {
+        switch (status) {
+            case 'failure':
                 return <XCircle className="w-5 h-5 text-red-500" />;
-            case 'warning':
-                return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
             case 'success':
                 return <CheckCircle className="w-5 h-5 text-green-500" />;
             default:
@@ -132,12 +93,10 @@ export const Logs: React.FC = () => {
         }
     };
 
-    const getLogBorderColor = (level: string) => {
-        switch (level) {
-            case 'error':
+    const getLogBorderColor = (status: string) => {
+        switch (status) {
+            case 'failure':
                 return 'border-l-red-500 bg-red-50';
-            case 'warning':
-                return 'border-l-yellow-500 bg-yellow-50';
             case 'success':
                 return 'border-l-green-500 bg-green-50';
             default:
@@ -149,11 +108,10 @@ export const Logs: React.FC = () => {
         return new Date(timestamp).toLocaleString();
     };
 
-    const services = [...new Set(logs.map(log => log.service))];
-    const levels = ['info', 'success', 'warning', 'error'];
+    const statuses = ['success', 'failure'];
 
     const handleRefresh = () => {
-        setLogs([...mockLogs].sort(() => Math.random() - 0.5));
+        fetchLogs();
     };
 
     if (loading) {
@@ -239,22 +197,10 @@ export const Logs: React.FC = () => {
                                 onChange={(e) => setLevelFilter(e.target.value)}
                                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
-                                <option value="all">All Levels</option>
-                                {levels.map(level => (
-                                    <option key={level} value={level}>
-                                        {level.charAt(0).toUpperCase() + level.slice(1)}
-                                    </option>
-                                ))}
-                            </select>
-                            <select
-                                value={serviceFilter}
-                                onChange={(e) => setServiceFilter(e.target.value)}
-                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="all">All Services</option>
-                                {services.map(service => (
-                                    <option key={service} value={service}>
-                                        {service}
+                                <option value="all">All Status</option>
+                                {statuses.map(status => (
+                                    <option key={status} value={status}>
+                                        {status.charAt(0).toUpperCase() + status.slice(1)}
                                     </option>
                                 ))}
                             </select>
@@ -263,21 +209,35 @@ export const Logs: React.FC = () => {
                 </div>
 
                 {/* Log Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    {levels.map(level => {
-                        const count = logs.filter(log => log.level === level).length;
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    {/* Total Logs */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Total Logs</p>
+                                <p className="text-2xl font-bold text-gray-900">{logs.length}</p>
+                                <p className="text-xs text-gray-500">All entries</p>
+                            </div>
+                            <div className="p-3 rounded-full bg-gray-100">
+                                <Activity className="w-5 h-5 text-blue-500" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {statuses.map(status => {
+                        const count = logs.filter(log => log.status === status).length;
                         const percentage = logs.length > 0 ? (count / logs.length * 100) : 0;
                         
                         return (
-                            <div key={level} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                            <div key={status} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-600 capitalize">{level} Logs</p>
+                                        <p className="text-sm font-medium text-gray-600 capitalize">{status} Logs</p>
                                         <p className="text-2xl font-bold text-gray-900">{count}</p>
                                         <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of total</p>
                                     </div>
                                     <div className="p-3 rounded-full bg-gray-100">
-                                        {getLogIcon(level)}
+                                        {getLogIcon(status)}
                                     </div>
                                 </div>
                             </div>
@@ -305,7 +265,7 @@ export const Logs: React.FC = () => {
                             <div className="text-center py-12">
                                 <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {searchTerm || levelFilter !== 'all' || serviceFilter !== 'all' 
+                                    {searchTerm || levelFilter !== 'all' 
                                         ? 'No logs match your filters' 
                                         : 'No logs available'
                                     }
@@ -314,23 +274,38 @@ export const Logs: React.FC = () => {
                         ) : (
                             <div className="divide-y divide-gray-200">
                                 {filteredLogs.map((log) => (
-                                    <div key={log.id} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getLogBorderColor(log.level)}`}>
+                                    <div key={log.id} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getLogBorderColor(log.status)}`}>
                                         <div className="flex items-start space-x-3">
                                             <div className="flex-shrink-0 mt-1">
-                                                {getLogIcon(log.level)}
+                                                {getLogIcon(log.status)}
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <p className="text-sm font-medium text-gray-900">{log.message}</p>
+                                                    <p className="text-sm font-medium text-gray-900">
+                                                        Data Request: {log.requestedData}
+                                                    </p>
                                                     <div className="flex items-center text-xs text-gray-500">
                                                         <Clock className="w-3 h-3 mr-1" />
                                                         {formatTimestamp(log.timestamp)}
                                                     </div>
                                                 </div>
-                                                <p className="text-sm text-gray-600 mb-2">{log.service}</p>
-                                                {log.details && (
-                                                    <p className="text-xs text-gray-500 bg-white p-2 rounded border">{log.details}</p>
-                                                )}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                                                    <p className="text-sm text-gray-600">
+                                                        <span className="font-medium">Consumer:</span> {log.consumerId}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600">
+                                                        <span className="font-medium">Provider:</span> {log.providerId}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                        log.status === 'success' 
+                                                            ? 'bg-green-100 text-green-800' 
+                                                            : 'bg-red-100 text-red-800'
+                                                    }`}>
+                                                        {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
