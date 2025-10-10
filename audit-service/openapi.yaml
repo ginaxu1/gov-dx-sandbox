@@ -24,6 +24,8 @@ servers:
   - url: https://audit-service.gov-dx-sandbox.com
     description: Production server
 
+security: []
+
 paths:
   /health:
     get:
@@ -101,7 +103,7 @@ paths:
             example: "2024-12-31"
         - name: limit
           in: query
-          description: Maximum number of logs to return (default: 50, max: 1000)
+          description: Maximum number of logs to return (default 50, max 1000)
           required: false
           schema:
             type: integer

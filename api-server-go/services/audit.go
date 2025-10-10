@@ -31,14 +31,22 @@ func NewAuditService(auditServiceURL string) *AuditService {
 
 // SendAuditLog sends an audit log to the audit-service
 func (s *AuditService) SendAuditLog(ctx context.Context, auditReq *models.AuditLogRequest) error {
+	// Convert to new simplified log structure
+	logReq := models.LogRequest{
+		Status:        s.mapTransactionStatus(auditReq.TransactionStatus),
+		RequestedData: s.extractGraphQLQuery(auditReq.RequestedData),
+		ConsumerID:    auditReq.ConsumerID,
+		ProviderID:    auditReq.ProviderID,
+	}
+
 	// Serialize the request
-	reqBody, err := json.Marshal(auditReq)
+	reqBody, err := json.Marshal(logReq)
 	if err != nil {
 		return fmt.Errorf("failed to marshal audit request: %w", err)
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", s.auditServiceURL+"/audit/logs", bytes.NewBuffer(reqBody))
+	// Create HTTP request to new /api/logs endpoint
+	req, err := http.NewRequestWithContext(ctx, "POST", s.auditServiceURL+"/api/logs", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("failed to create audit request: %w", err)
 	}
@@ -58,13 +66,13 @@ func (s *AuditService) SendAuditLog(ctx context.Context, auditReq *models.AuditL
 	}
 
 	// Parse response
-	var auditResp models.AuditLogResponse
-	if err := json.NewDecoder(resp.Body).Decode(&auditResp); err != nil {
+	var logResp models.Log
+	if err := json.NewDecoder(resp.Body).Decode(&logResp); err != nil {
 		slog.Warn("Failed to parse audit response", "error", err)
 		// Don't return error here as the audit was likely successful
 	}
 
-	slog.Debug("Audit log sent successfully", "event_id", auditReq.EventID, "status", auditResp.Status)
+	slog.Debug("Audit log sent successfully", "log_id", logResp.ID, "status", logResp.Status)
 	return nil
 }
 
@@ -123,4 +131,40 @@ func (s *AuditService) DetermineTransactionStatus(statusCode int) string {
 		return "SUCCESS"
 	}
 	return "FAILURE"
+}
+
+// mapTransactionStatus maps the old transaction status to new simplified status
+func (s *AuditService) mapTransactionStatus(transactionStatus string) string {
+	if transactionStatus == "SUCCESS" {
+		return "success"
+	}
+	return "failure"
+}
+
+// extractGraphQLQuery extracts GraphQL query from request data
+func (s *AuditService) extractGraphQLQuery(requestData json.RawMessage) string {
+	if len(requestData) == 0 {
+		return "No query data"
+	}
+
+	// Try to parse as JSON and extract query field
+	var data map[string]interface{}
+	if err := json.Unmarshal(requestData, &data); err != nil {
+		// If not JSON, return as string
+		return string(requestData)
+	}
+
+	// Look for common GraphQL query fields
+	if query, ok := data["query"].(string); ok {
+		return query
+	}
+	if query, ok := data["Query"].(string); ok {
+		return query
+	}
+	if query, ok := data["operationName"].(string); ok {
+		return query
+	}
+
+	// If no query field found, return the raw data as string
+	return string(requestData)
 }
