@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Settings, CheckCircle } from 'lucide-react';
-import  { GraphQLSchemaExplorer } from '../components/GraphQLSchemaExplorer';
+import { GraphQLSchemaExplorer } from '../components/GraphQLSchemaExplorer';
+import { ApplicationService } from '../services/applicationService';
+import { RegistrationSuccess } from '../components/RegistrationSuccess';
+import type { ApplicationRegistration as ApplicationRegistrationData } from '../types/applications';
 
 interface ApplicationRegistrationProps {
     consumerId: string;
@@ -68,19 +71,56 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
     const [applicationName, setApplicationName] = useState('');
     const [description, setDescription] = useState('');
     const [selectedFields, setSelectedFields] = useState<string[]>([]);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string>('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Handle form submission logic here
-        console.log('Application Name:', applicationName);
-        console.log('Description:', description);
-        console.log('Selected Fields:', selectedFields);
-        navigate('/consumer/applications');
+        
+        if (isSubmitting) return;
+        
+        setIsSubmitting(true);
+        setError('');
+        
+        try {
+            const applicationData: ApplicationRegistrationData = {
+                applicationName: applicationName,
+                applicationDescription: description,
+                selectedFields: selectedFields,
+            };
+            
+            await ApplicationService.registerApplication(consumerId, applicationData);
+            
+            // Show success page on successful registration
+            setShowSuccess(true);
+        } catch (error) {
+            console.error('Error registering application:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to register application';
+            setError(errorMessage);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const handleBack = () => {
         navigate('/consumer/applications');
     };
+
+    const handleSuccessRedirect = () => {
+        navigate('/consumer/applications');
+    };
+
+    // Show success page after successful registration
+    if (showSuccess) {
+        return (
+            <RegistrationSuccess 
+                type="application"
+                title={applicationName}
+                onRedirect={handleSuccessRedirect}
+            />
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -111,6 +151,23 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                         </div>
                     </div>
                 </div>
+
+                {/* Error Alert */}
+                {error && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                        <div className="flex items-center">
+                            <div className="flex-shrink-0">
+                                <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-red-800">Registration Error</h3>
+                                <div className="mt-2 text-sm text-red-700">{error}</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     {/* Application Details Section */}
@@ -123,7 +180,7 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                         </div>
                         <div className="p-6 sm:p-8">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="lg:col-span-1">
+                                {/* <div className="lg:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="consumerId">
                                         Consumer ID
                                     </label>
@@ -137,7 +194,7 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                                     <p className="mt-2 text-sm text-gray-500">
                                         Your unique consumer identifier (automatically assigned)
                                     </p>
-                                </div>
+                                </div> */}
                                 <div className="lg:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="applicationName">
                                         Application Name *
@@ -227,10 +284,10 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={!applicationName.trim() || selectedFields.length === 0}
+                                    disabled={!applicationName.trim() || selectedFields.length === 0 || isSubmitting}
                                     className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                 >
-                                    Register Application
+                                    {isSubmitting ? 'Registering...' : 'Register Application'}
                                 </button>
                             </div>
                         </div>

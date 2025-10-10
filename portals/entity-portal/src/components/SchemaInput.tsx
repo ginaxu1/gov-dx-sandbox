@@ -1,5 +1,5 @@
 // components/SchemaInput.tsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import type { IntrospectionResult } from '../types/graphql';
 import { SchemaService } from '../services/schemaService';
 
@@ -74,7 +74,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
     setEndpoint('');
     setSdlContent('');
     setJsonFile(null);
-  }
+  };
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
@@ -84,7 +84,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
         <div className="flex flex-col sm:flex-row gap-2 mb-6 bg-gray-50 p-2 rounded-lg">
           <button
             type="button"
-            onClick={() => {setInputMethod('endpoint'); clearMemory();}}
+            onClick={() => { setInputMethod('endpoint'); clearMemory(); }}
             className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
               inputMethod === 'endpoint'
                 ? 'bg-blue-600 text-white shadow-sm'
@@ -100,7 +100,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => {setInputMethod('json'); clearMemory();}}
+            onClick={() => { setInputMethod('json'); clearMemory(); }}
             className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
               inputMethod === 'json'
                 ? 'bg-blue-600 text-white shadow-sm'
@@ -116,7 +116,7 @@ export const SchemaInput: React.FC<SchemaInputProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => {setInputMethod('sdl'); clearMemory();}}
+            onClick={() => { setInputMethod('sdl'); clearMemory(); }}
             className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
               inputMethod === 'sdl'
                 ? 'bg-blue-600 text-white shadow-sm'
@@ -243,7 +243,7 @@ type User {
 
         <button
           type="submit"
-          disabled={loading || !endpoint || (inputMethod==="json" && !jsonFile) || (inputMethod==="sdl" && !sdlContent)}
+          disabled={loading || !endpoint || (inputMethod === "json" && !jsonFile) || (inputMethod === "sdl" && !sdlContent)}
           className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-sm disabled:shadow-none"
         >
           {loading ? (

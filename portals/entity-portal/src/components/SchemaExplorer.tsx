@@ -1,5 +1,5 @@
 // components/SchemaExplorer.tsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import type { FieldConfiguration as FieldConfig, GraphQLType } from '../types/graphql';
 import { FieldConfiguration } from './FieldConfiguration';
 
@@ -70,8 +70,8 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
             configured++;
           }
         } else {
-            if (config?.accessControlType && config?.source && (config?.isOwner === false ? config?.owner.trim() : true)) {
-              configured++;
+          if (config?.accessControlType && config?.source && (config?.isOwner === false ? config?.owner.trim() : true)) {
+            configured++;
           }
         }
       });
@@ -165,7 +165,7 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
               <div className="px-4 pb-4 space-y-4 border-t border-gray-100">
                 <div className="pt-4">
                   {type.fields.map((field) => {
-                    const config = configurations[type.name]?.[field.name] 
+                    const config = configurations[type.name]?.[field.name];
                     return (
                       <FieldConfiguration
                         key={field.name}

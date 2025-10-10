@@ -8,6 +8,7 @@ declare global {
   interface Window {
     configs: {
       apiUrl: string;
+      logsUrl: string;
       VITE_CLIENT_ID: string;
       VITE_BASE_URL: string;
       VITE_SCOPE: string;
