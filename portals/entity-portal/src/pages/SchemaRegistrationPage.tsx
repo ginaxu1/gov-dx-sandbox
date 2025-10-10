@@ -1,18 +1,13 @@
 // pages/SchemaRegistrationPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
-import type { IntrospectionResult, FieldConfiguration, SchemaRegistration, GraphQLType } from '../types/graphql';
+import type { IntrospectionResult, FieldConfiguration, SchemaRegistration, GraphQLType, ApprovedSchema} from '../types/graphql';
 import { SchemaInput } from '../components/SchemaInput';
 import { SchemaExplorer } from '../components/SchemaExplorer';
 import { SchemaService } from '../services/schemaService';
 
 interface SchemaRegistrationPageProps {
   providerId: string;
-}
-
-interface SchemaProps {
-  id: number;
-  name: string;
 }
 
 export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
@@ -26,22 +21,19 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [userDefinedTypes, setUserDefinedTypes] = useState<GraphQLType[]>([]);
-  const [previous_schema, setPreviousSchema] = useState<SchemaProps | null>(null);
-  const [registeredSchemas, setRegisteredSchemas] = useState<SchemaProps[]>([]);
+  const [previous_schema, setPreviousSchema] = useState<ApprovedSchema | null>(null);
+  const [registeredSchemas, setRegisteredSchemas] = useState<ApprovedSchema[]>([]);
   const [schemaName, setSchemaName] = useState<string>('');
+  const [schemaDescription, setSchemaDescription] = useState<string>('');
 
   useEffect(() => {
     // Fetch registered schemas from the API
     const fetchRegisteredSchemas = async () => {
       try {
-        // Simulate API call
-        // Replace this with actual API call
-        const fetchedRegisteredSchemas = [
-          { id: 1, name: 'Schema 1' },
-          { id: 2, name: 'Schema 2' },
-          { id: 3, name: 'Schema 3' },
-        ];
-        setRegisteredSchemas(fetchedRegisteredSchemas);
+        const response: ApprovedSchema[] = await SchemaService.getApprovedSchemas(providerId);
+        if (response) {
+          setRegisteredSchemas(response);
+        }
       } catch (error) {
         setError('Failed to fetch registered schemas');
       }
@@ -131,7 +123,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
       const registration: SchemaRegistration = {
         sdl,
         schemaName: schemaName || 'Untitled Schema',
-        previousSchemaId: previous_schema ? previous_schema.id.toString() : null,
+        schemaDescription,
+        previousSchemaId: previous_schema ? previous_schema.schemaId : null,
         schemaEndpoint: endpoint,
       };
       
@@ -331,6 +324,19 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 />
               </div>
+              <div className="mt-4">
+                <label htmlFor="schemaDescription" className="block text-sm font-medium text-gray-700 mb-2">
+                  Schema Description
+                </label>
+                <textarea
+                  id="schemaDescription"
+                  value={schemaDescription}
+                  onChange={(e) => setSchemaDescription(e.target.value)}
+                  placeholder="Enter schema description..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  rows={3}
+                />
+              </div>
               {/* Previous Schema Selection */}
                 <div className="mt-4">
                 <label htmlFor="previousSchemaId" className="block text-sm font-medium text-gray-700 mb-2">
@@ -338,11 +344,11 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                 </label>
                 <select
                   id="previousSchemaId"
-                  value={previous_schema?.id || ''}
+                  value={previous_schema?.schemaId || ''}
                   onChange={(e) => {
                   const selectedId = e.target.value;
                   if (selectedId) {
-                    const selectedSchema = registeredSchemas.find(schema => schema.id.toString() === selectedId);
+                    const selectedSchema = registeredSchemas.find(schema => schema.schemaId.toString() === selectedId);
                     setPreviousSchema(selectedSchema || null);
                   } else {
                     setPreviousSchema(null);
@@ -352,8 +358,8 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                 >
                   <option value="">None</option>
                   {registeredSchemas.map((schema) => (
-                  <option key={schema.id} value={schema.id}>
-                    {schema.name}
+                  <option key={schema.schemaId} value={schema.schemaId}>
+                    {schema.schemaName}
                   </option>
                   ))}
                 </select>
