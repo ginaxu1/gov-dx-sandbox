@@ -78,10 +78,31 @@ export class ApplicationService {
       });
 
       if (!response.ok) {
-        throw new Error(`Application registration failed! status: ${response.status}`);
+        let errorMessage = `Application registration failed with status: ${response.status}`;
+        
+        try {
+          // Try to get error details from response
+          const errorData = await response.json();
+          if (errorData.message) {
+            errorMessage += ` - ${errorData.message}`;
+          } else if (errorData.error) {
+            errorMessage += ` - ${errorData.error}`;
+          } else if (typeof errorData === 'string') {
+            errorMessage += ` - ${errorData}`;
+          }
+        } catch (jsonError) {
+          // If we can't parse the error response, use the status text
+          errorMessage += ` - ${response.statusText || 'Unknown error'}`;
+        }
+        
+        throw new Error(errorMessage);
       }
     } catch (error) {
-      throw new Error(`Failed to register application: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Re-throw network errors or already formatted errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to the server. Please check your connection and try again.');
+      }
+      throw error;
     }
   }
 

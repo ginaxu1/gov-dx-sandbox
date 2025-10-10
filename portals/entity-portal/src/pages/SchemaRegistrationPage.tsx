@@ -1,10 +1,12 @@
 // pages/SchemaRegistrationPage.tsx
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { IntrospectionResult, FieldConfiguration, SchemaRegistration, GraphQLType, ApprovedSchema} from '../types/graphql';
 import { SchemaInput } from '../components/SchemaInput';
 import { SchemaExplorer } from '../components/SchemaExplorer';
 import { SchemaService } from '../services/schemaService';
+import { RegistrationSuccess } from '../components/RegistrationSuccess';
 
 interface SchemaRegistrationPageProps {
   providerId: string;
@@ -13,18 +15,19 @@ interface SchemaRegistrationPageProps {
 export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   providerId,
 }) => {
+  const navigate = useNavigate();
   const [step, setStep] = useState<'input' | 'configure'>('input');
   const [schema, setSchema] = useState<IntrospectionResult | null>(null);
   const [endpoint, setEndpoint] = useState<string>('');
   const [configurations, setConfigurations] = useState<Record<string, Record<string, FieldConfiguration>>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [userDefinedTypes, setUserDefinedTypes] = useState<GraphQLType[]>([]);
   const [previous_schema, setPreviousSchema] = useState<ApprovedSchema | null>(null);
   const [registeredSchemas, setRegisteredSchemas] = useState<ApprovedSchema[]>([]);
   const [schemaName, setSchemaName] = useState<string>('');
   const [schemaDescription, setSchemaDescription] = useState<string>('');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     // Fetch registered schemas from the API
@@ -114,7 +117,6 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
 
     setLoading(true);
     setError('');
-    setSuccess('');
 
     try {
       // Generate SDL with directives
@@ -129,19 +131,14 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
       };
       
       await SchemaService.registerSchema(providerId, registration);
-      setSuccess('Schema registered successfully!');
       
-      // Reset form after successful registration
-      setTimeout(() => {
-        setStep('input');
-        setSchema(null);
-        setConfigurations({});
-        // setProviderId('');
-        setSuccess('');
-      }, 3000);
+      // Show success page on successful registration
+      setShowSuccess(true);
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Registration failed');
+      console.error('Error registering schema:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -153,6 +150,21 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
     setConfigurations({});
     setError('');
   };
+
+  const handleSuccessRedirect = () => {
+    navigate('/provider/schemas');
+  };
+
+  // Show success page after successful registration
+  if (showSuccess) {
+    return (
+      <RegistrationSuccess 
+        type="schema"
+        title={schemaName || 'Schema'}
+        onRedirect={handleSuccessRedirect}
+      />
+    );
+  }
 
   const getSchemaStats = () => {
     if (!schema) return null;
@@ -229,20 +241,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
           </div>
         )}
 
-        {/* Success Alert */}
-        {success && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <CheckCircle className="h-5 w-5 text-green-400" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-green-800">Success</h3>
-                <div className="mt-2 text-sm text-green-700">{success}</div>
-              </div>
-            </div>
-          </div>
-        )}
+
 
         {/* Schema Stats */}
         {stats && step === 'configure' && (
