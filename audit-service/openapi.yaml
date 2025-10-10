@@ -24,7 +24,8 @@ servers:
   - url: https://audit-service.gov-dx-sandbox.com
     description: Production server
 
-security: []
+security:
+  - bearerAuth: []
 
 paths:
   /health:
@@ -228,6 +229,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
   schemas:
     Log:
       type: object

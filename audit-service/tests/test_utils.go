@@ -25,7 +25,7 @@ type TestServer struct {
 	Handler      *handlers.AuditHandler
 }
 
-// SetupTestServer creates a test server based on environment configuration
+// SetupTestServer creates a test server using PostgreSQL (only option currently supported)
 func SetupTestServer(t *testing.T) *TestServer {
 	// Check if we should use PostgreSQL for testing
 	usePostgres := os.Getenv("TEST_USE_POSTGRES") == "true"

@@ -116,9 +116,12 @@ func (s *AuditService) ExtractConsumerIDFromRequest(r *http.Request) string {
 		return consumerID
 	}
 
-	// 4. Try to extract from request body
-	if consumerID := s.extractConsumerIDFromBody(r); consumerID != "" {
-		return consumerID
+	// 4. Try to extract from request body (using shared body reader)
+	body, err := s.readRequestBodyOnce(r)
+	if err == nil && len(body) > 0 {
+		if consumerID := s.extractConsumerIDFromBodyData(body); consumerID != "" {
+			return consumerID
+		}
 	}
 
 	return ""
@@ -164,9 +167,12 @@ func (s *AuditService) ExtractProviderIDFromRequest(r *http.Request) string {
 		return providerID
 	}
 
-	// 4. Try to extract from request body
-	if providerID := s.extractProviderIDFromBody(r); providerID != "" {
-		return providerID
+	// 4. Try to extract from request body (using shared body reader)
+	body, err := s.readRequestBodyOnce(r)
+	if err == nil && len(body) > 0 {
+		if providerID := s.extractProviderIDFromBodyData(body); providerID != "" {
+			return providerID
+		}
 	}
 
 	return ""
@@ -201,16 +207,25 @@ func (s *AuditService) mapTransactionStatus(transactionStatus string) string {
 	return "failure"
 }
 
-// extractConsumerIDFromBody extracts consumer ID from request body
-func (s *AuditService) extractConsumerIDFromBody(r *http.Request) string {
+// readRequestBodyOnce reads the request body once and caches it for reuse
+func (s *AuditService) readRequestBodyOnce(r *http.Request) ([]byte, error) {
 	// Read the request body
 	body, err := io.ReadAll(r.Body)
-	if err != nil || len(body) == 0 {
-		return ""
+	if err != nil {
+		return nil, err
 	}
 
 	// Restore the body for the next handler
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	return body, nil
+}
+
+// extractConsumerIDFromBodyData extracts consumer ID from cached body data
+func (s *AuditService) extractConsumerIDFromBodyData(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
 
 	// Try to parse as JSON
 	var data map[string]interface{}
@@ -235,16 +250,11 @@ func (s *AuditService) extractConsumerIDFromBody(r *http.Request) string {
 	return ""
 }
 
-// extractProviderIDFromBody extracts provider ID from request body
-func (s *AuditService) extractProviderIDFromBody(r *http.Request) string {
-	// Read the request body
-	body, err := io.ReadAll(r.Body)
-	if err != nil || len(body) == 0 {
+// extractProviderIDFromBodyData extracts provider ID from cached body data
+func (s *AuditService) extractProviderIDFromBodyData(body []byte) string {
+	if len(body) == 0 {
 		return ""
 	}
-
-	// Restore the body for the next handler
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	// Try to parse as JSON
 	var data map[string]interface{}
@@ -281,24 +291,22 @@ func (s *AuditService) ExtractGraphQLQueryFromRequest(r *http.Request) string {
 		return query
 	}
 
-	// 3. Try to extract from request body
-	if query := s.extractGraphQLQueryFromBody(r); query != "" {
-		return query
+	// 3. Try to extract from request body (using shared body reader)
+	body, err := s.readRequestBodyOnce(r)
+	if err == nil && len(body) > 0 {
+		if query := s.extractGraphQLQueryFromBodyData(body); query != "" {
+			return query
+		}
 	}
 
 	return ""
 }
 
-// extractGraphQLQueryFromBody extracts GraphQL query from request body
-func (s *AuditService) extractGraphQLQueryFromBody(r *http.Request) string {
-	// Read the request body
-	body, err := io.ReadAll(r.Body)
-	if err != nil || len(body) == 0 {
+// extractGraphQLQueryFromBodyData extracts GraphQL query from cached body data
+func (s *AuditService) extractGraphQLQueryFromBodyData(body []byte) string {
+	if len(body) == 0 {
 		return ""
 	}
-
-	// Restore the body for the next handler
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	// Try to parse as JSON
 	var data map[string]interface{}
