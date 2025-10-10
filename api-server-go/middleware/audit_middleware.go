@@ -40,9 +40,9 @@ func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler
 		auditCtx.UserAgent = r.Header.Get("User-Agent")
 		auditCtx.IPAddress = m.getClientIP(r)
 
-		// Extract entity IDs from path
-		auditCtx.ConsumerID = m.auditService.ExtractConsumerIDFromPath(r.URL.Path)
-		auditCtx.ProviderID = m.auditService.ExtractProviderIDFromPath(r.URL.Path)
+		// Extract entity IDs using enhanced extraction logic
+		auditCtx.ConsumerID = m.auditService.ExtractConsumerIDFromRequest(r)
+		auditCtx.ProviderID = m.auditService.ExtractProviderIDFromRequest(r)
 
 		// If no specific entity ID found, use a default based on the endpoint
 		if auditCtx.ConsumerID == "" && auditCtx.ProviderID == "" {
@@ -75,11 +75,18 @@ func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler
 		auditCtx.Status = m.auditService.DetermineTransactionStatus(responseWrapper.statusCode)
 		auditCtx.EndTime = time.Now()
 
-		// Ensure we have valid JSON for request and response data
-		if len(auditCtx.RequestData) == 0 {
-			auditCtx.RequestData = []byte("{}")
+		// Extract GraphQL query using enhanced extraction logic
+		graphqlQuery := m.auditService.ExtractGraphQLQueryFromRequest(r)
+		if graphqlQuery != "" {
+			// If we found a GraphQL query, use it as the requested data
+			auditCtx.RequestData = []byte(graphqlQuery)
 		} else {
-			auditCtx.RequestData = m.ensureValidJSON(auditCtx.RequestData)
+			// Ensure we have valid JSON for request and response data
+			if len(auditCtx.RequestData) == 0 {
+				auditCtx.RequestData = []byte("{}")
+			} else {
+				auditCtx.RequestData = m.ensureValidJSON(auditCtx.RequestData)
+			}
 		}
 
 		// Log the request
