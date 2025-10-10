@@ -47,16 +47,16 @@ func main() {
 		w.Write([]byte("Audit Service is healthy"))
 	})
 
-	// Audit endpoints
-	mux.HandleFunc("/audit/events", auditHandler.GetAuditEvents)            // Admin Portal
-	mux.HandleFunc("/audit/providers", auditHandler.GetProviderAuditEvents) // Provider Portal
-	mux.HandleFunc("/audit/consumers", auditHandler.GetConsumerAuditEvents) // Consumer Portal
-
-	// Audit log ingestion endpoint (for api-server-go to send audit logs)
-	mux.HandleFunc("/audit/logs", auditHandler.CreateAuditLog) // Create audit log
-
-	// Manual audit log creation endpoint (for testing purposes)
-	mux.HandleFunc("/audit/create", auditHandler.CreateAuditLogManual) // Manual create audit log
+	// API endpoints for log access
+	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			auditHandler.GetLogs(w, r)
+		} else if r.Method == http.MethodPost {
+			auditHandler.CreateLog(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	// Start server
 	log.Printf("Audit Service starting on port %s", port)

@@ -60,3 +60,21 @@ func (ac *AuditContext) ToAuditLogRequest() *AuditLogRequest {
 		IPAddress:         ac.IPAddress,
 	}
 }
+
+// Log represents a simplified audit log entry for API responses (matches audit-service)
+type Log struct {
+	ID            string    `json:"id"`
+	Timestamp     time.Time `json:"timestamp"`
+	Status        string    `json:"status"`
+	RequestedData string    `json:"requestedData"`
+	ConsumerID    string    `json:"consumerId"`
+	ProviderID    string    `json:"providerId"`
+}
+
+// LogRequest represents the request structure for creating logs (matches audit-service)
+type LogRequest struct {
+	Status        string `json:"status"`
+	RequestedData string `json:"requestedData"`
+	ConsumerID    string `json:"consumerId"`
+	ProviderID    string `json:"providerId"`
+}
