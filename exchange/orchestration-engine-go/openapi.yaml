@@ -4,7 +4,9 @@ info:
   version: 1.0.0
   description: |
     The Orchestration Engine provides GraphQL federation and unified schema management capabilities.
-    It supports multiple schema versions, schema activation/deactivation, and GraphQL query routing.
+    It supports multiple schema versions, schema activation/deactivation, GraphQL query routing,
+    and admin portal functionality for managing unified schemas and field mappings between
+    provider schemas and consumer-facing unified schemas.
 paths:
   /:
     post:
@@ -345,6 +347,224 @@ paths:
           description: Internal server error
 
 components:
+  schemas:
+    # Schema Mapping Models
+    UnifiedSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        version:
+          type: string
+          example: "1.2.0"
+        sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+        is_active:
+          type: boolean
+          example: true
+        notes:
+          type: string
+          example: "Added new field for vehicle information"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: string
+          example: "admin_user_123"
+        status:
+          type: string
+          enum: [draft, pending_approval, active, deprecated]
+          example: "active"
+
+    CreateUnifiedSchemaRequest:
+      type: object
+      required:
+        - version
+        - sdl
+        - createdBy
+      properties:
+        version:
+          type: string
+          example: "1.2.0"
+        sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+        notes:
+          type: string
+          example: "Added new field for vehicle information"
+        createdBy:
+          type: string
+          example: "admin_user_123"
+
+    CreateUnifiedSchemaResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        version:
+          type: string
+          example: "1.2.0"
+        sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+        is_active:
+          type: boolean
+          example: false
+        notes:
+          type: string
+          example: "Added new field for vehicle information"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: string
+          example: "admin_user_123"
+
+    ActivateSchemaResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Schema activated successfully"
+
+    ProviderSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        provider_id:
+          type: string
+          example: "dmt_provider"
+        schema_name:
+          type: string
+          example: "DMT Schema v1.0"
+        sdl:
+          type: string
+          example: "type Query { getVehicleInfo(regNo: String): VehicleInfo }"
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    FieldMappingRequest:
+      type: object
+      required:
+        - unified_field_path
+        - provider_id
+        - provider_field_path
+        - field_type
+      properties:
+        unified_field_path:
+          type: string
+          example: "personInfo.ownedVehicles"
+        provider_id:
+          type: string
+          example: "dmt_provider"
+        provider_field_path:
+          type: string
+          example: "getVehicleInfo.data"
+        field_type:
+          type: string
+          example: "VehicleInfo"
+        is_required:
+          type: boolean
+          example: false
+        directives:
+          type: object
+          additionalProperties: true
+          example:
+            sourceInfo: "dmt_provider:getVehicleInfo.data"
+
+    FieldMappingResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        unified_field_path:
+          type: string
+          example: "personInfo.ownedVehicles"
+        provider_id:
+          type: string
+          example: "dmt_provider"
+        provider_field_path:
+          type: string
+          example: "getVehicleInfo.data"
+        field_type:
+          type: string
+          example: "VehicleInfo"
+        is_required:
+          type: boolean
+          example: false
+        directives:
+          type: object
+          additionalProperties: true
+          example:
+            sourceInfo: "dmt_provider:getVehicleInfo.data"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    CompatibilityCheckRequest:
+      type: object
+      required:
+        - old_version
+        - new_sdl
+      properties:
+        old_version:
+          type: string
+          example: "1.1.0"
+        new_sdl:
+          type: string
+          example: "type Query { personInfo(nic: String): PersonInfo }"
+
+    CompatibilityResult:
+      type: object
+      properties:
+        compatible:
+          type: boolean
+          example: true
+        breaking_changes:
+          type: array
+          items:
+            type: string
+          example: []
+        warnings:
+          type: array
+          items:
+            type: string
+          example: ["New field added: personInfo.email (String)"]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Validation failed"
+        code:
+          type: string
+          example: "VALIDATION_ERROR"
+        details:
+          type: object
+          additionalProperties: true
+          example:
+            field: "version"
+            message: "Version is required"
+
   securitySchemes:
     bearerAuth:
       type: http
@@ -360,5 +580,7 @@ tags:
     description: GraphQL query execution endpoints
   - name: Schema Management
     description: Schema versioning and management endpoints
+  - name: Schema Mapping
+    description: Admin portal endpoints for unified schema and field mapping management
   - name: Health
     description: Health check endpoints

@@ -20,13 +20,16 @@ func TestSchemaAPIEndpoints(t *testing.T) {
 	}
 
 	// Setup
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
-	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
+	connectionString := "host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable"
 
-	schemaService := services.NewSchemaService(db)
+	// Create schema mapping database
+	schemaMappingDB, err := database.NewSchemaMappingDB(connectionString)
+	if err != nil {
+		t.Fatalf("Failed to connect to schema mapping database: %v", err)
+	}
+	defer schemaMappingDB.Close()
+
+	schemaService := services.NewSchemaService(schemaMappingDB)
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
 
 	// Test 1: Create schema
@@ -191,13 +194,16 @@ func TestSchemaAPIErrorHandling(t *testing.T) {
 		t.Skip("Skipping integration tests - no database connection")
 	}
 
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
-	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
+	connectionString := "host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable"
 
-	schemaService := services.NewSchemaService(db)
+	// Create schema mapping database
+	schemaMappingDB, err := database.NewSchemaMappingDB(connectionString)
+	if err != nil {
+		t.Fatalf("Failed to connect to schema mapping database: %v", err)
+	}
+	defer schemaMappingDB.Close()
+
+	schemaService := services.NewSchemaService(schemaMappingDB)
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
 
 	// Test 1: Create schema with invalid JSON

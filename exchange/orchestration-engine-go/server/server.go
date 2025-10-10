@@ -29,17 +29,21 @@ func RunServer(f *federator.Federator) {
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
-	schemaDB, err := database.NewSchemaDB(dbConnectionString)
+	logger.Log.Info("Attempting to connect to database")
+	schemaMappingDB, err := database.NewSchemaMappingDB(dbConnectionString)
 	if err != nil {
 		logger.Log.Error("Failed to connect to database", "error", err)
+		logger.Log.Warn("Continuing without database - schema management will be disabled")
 		// Continue without database for now
-		schemaDB = nil
+		schemaMappingDB = nil
+	} else {
+		logger.Log.Info("Successfully connected to database")
 	}
 
-	// Initialize schema service and handler
+	// Initialize schema service and handler (now using unified schema database)
 	var schemaService *services.SchemaService
-	if schemaDB != nil {
-		schemaService = services.NewSchemaService(schemaDB)
+	if schemaMappingDB != nil {
+		schemaService = services.NewSchemaService(schemaMappingDB)
 	} else {
 		// Fallback to in-memory service if database is not available
 		schemaService = nil
@@ -47,6 +51,17 @@ func RunServer(f *federator.Federator) {
 	}
 
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
+
+	// Initialize schema mapping service and handler
+	var schemaMappingService *services.SchemaMappingService
+	var schemaMappingHandler *handlers.SchemaMappingHandler
+	if schemaMappingDB != nil {
+		schemaMappingService = services.NewSchemaMappingService(schemaMappingDB)
+		compatibilityChecker := services.NewCompatibilityChecker()
+		schemaMappingHandler = handlers.NewSchemaMappingHandler(schemaMappingService, compatibilityChecker)
+	} else {
+		logger.Log.Warn("Running without schema mapping database - schema mapping disabled")
+	}
 
 	// Set the schema service in the federator
 	f.SchemaService = schemaService
@@ -64,7 +79,7 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
-	// Schema management routes
+	// Schema management routes (enhanced with field mapping support)
 	mux.HandleFunc("/sdl", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			schemaHandler.GetActiveSchema(w, r)
@@ -78,15 +93,48 @@ func RunServer(f *federator.Federator) {
 	mux.HandleFunc("/sdl/validate", schemaHandler.ValidateSDL)
 	mux.HandleFunc("/sdl/check-compatibility", schemaHandler.CheckCompatibility)
 
-	// Handle activation endpoint with proper path matching
-	mux.HandleFunc("/sdl/versions/", func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is an activation request
-		if strings.HasSuffix(r.URL.Path, "/activate") && r.Method == http.MethodPost {
+	// Enhanced schema management with field mapping support
+	mux.HandleFunc("/sdl/", func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Handle activation endpoint
+		if strings.HasSuffix(path, "/activate") && r.Method == http.MethodPost {
 			schemaHandler.ActivateSchema(w, r)
-		} else {
-			http.NotFound(w, r)
+			return
 		}
+
+		// Handle field mappings for active schema
+		if strings.Contains(path, "/mappings") {
+			if strings.Contains(path, "/mappings/") && (r.Method == http.MethodPut || r.Method == http.MethodDelete) {
+				// Update or delete specific mapping
+				if r.Method == http.MethodPut {
+					schemaMappingHandler.UpdateFieldMapping(w, r)
+				} else {
+					schemaMappingHandler.DeleteFieldMapping(w, r)
+				}
+			} else if r.Method == http.MethodPost {
+				// Create new mapping for active schema
+				schemaMappingHandler.CreateFieldMappingForActiveSchema(w, r)
+			} else if r.Method == http.MethodGet {
+				// Get all mappings for active schema
+				schemaMappingHandler.GetFieldMappingsForActiveSchema(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Handle provider schemas
+		if strings.HasSuffix(path, "/providers") && r.Method == http.MethodGet {
+			schemaMappingHandler.GetProviderSchemas(w, r)
+			return
+		}
+
+		// No matching route
+		http.NotFound(w, r)
 	})
+
+	// Note: Admin routes have been consolidated into /sdl/* routes above
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -199,13 +247,16 @@ func getDatabaseConnectionString() string {
 	// Use Choreo variables if available, otherwise fall back to standard environment variables
 	var host, port, user, password, dbname, sslmode string
 
-	if choreoHost != "" {
+	if choreoHost != "" && choreoUser != "" && choreoPassword != "" && choreoDB != "" {
 		host = choreoHost
 		port = getEnv("CHOREO_DB_OE_PORT", "5432")
 		user = choreoUser
 		password = choreoPassword
 		dbname = choreoDB
-		sslmode = "require" // Choreo typically requires SSL
+		// Try different SSL modes for Choreo compatibility
+		sslmode = getEnv("DB_SSLMODE", "prefer") // Changed from "require" to "prefer"
+		logger.Log.Info("Using Choreo database configuration",
+			"host", host, "port", port, "user", user, "dbname", dbname, "sslmode", sslmode)
 	} else {
 		host = getEnv("DB_HOST", "localhost")
 		port = getEnv("DB_PORT", "5432")
@@ -213,10 +264,18 @@ func getDatabaseConnectionString() string {
 		password = getEnv("DB_PASSWORD", "password")
 		dbname = getEnv("DB_NAME", "orchestration_engine")
 		sslmode = getEnv("DB_SSLMODE", "disable")
+		logger.Log.Info("Using standard database configuration",
+			"host", host, "port", port, "user", user, "dbname", dbname, "sslmode", sslmode)
 	}
 
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+	connectionString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslmode)
+
+	logger.Log.Info("Database connection string generated", "connectionString",
+		fmt.Sprintf("host=%s port=%s user=%s password=*** dbname=%s sslmode=%s",
+			host, port, user, dbname, sslmode))
+
+	return connectionString
 }
 
 // getEnv gets an environment variable with a default value
