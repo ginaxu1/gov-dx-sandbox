@@ -137,7 +137,7 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                         </div>
                         <div className="p-6 sm:p-8">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="lg:col-span-1">
+                                {/* <div className="lg:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="consumerId">
                                         Consumer ID
                                     </label>
@@ -151,7 +151,7 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                                     <p className="mt-2 text-sm text-gray-500">
                                         Your unique consumer identifier (automatically assigned)
                                     </p>
-                                </div>
+                                </div> */}
                                 <div className="lg:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="applicationName">
                                         Application Name *

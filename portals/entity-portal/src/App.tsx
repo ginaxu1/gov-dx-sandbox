@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthContext } from "@asgardeo/auth-react";
 import { Navbar } from "./components/Navbar";
-import { Dashboard } from './pages/Dashboard';
+// import { Dashboard } from './pages/Dashboard';
 import { SchemasPage } from './pages/Schemas';
 import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
 import { Logs } from "./pages/Logs";
@@ -9,13 +9,19 @@ import { ApplicationsPage as Applications } from "./pages/Applications";
 import { useEffect, useState } from "react";
 import { ApplicationRegistration } from './pages/ApplicationRegistration';
 import { Shield } from 'lucide-react';
+import MemberInfo  from './pages/MemberInfo';
 
 interface EntityProps {
-  id: string;
+  entityId: string;
   name: string;
-  userName: string;
+  email: string;
+  entityType: 'gov' | 'business' | '';
+  phoneNumber: string;
   providerId?: string;
   consumerId?: string;
+  createdAt: string;
+  updatedAt: string;
+  roles: Array<'provider' | 'consumer'>;
 }
 
 function App() {
@@ -53,24 +59,54 @@ function App() {
     localStorage.removeItem('entity_view');
   };
 
+  const fetchEntityInfoFromDB = async (entityId: string) => {
+    try {
+      // fetch entity info from API
+      const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch entity info');
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching entity info:', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const fetchEntityInfo = async () => {
       try {
         const userBasicInfo = await getBasicUserInfo();
         console.log('Fetching entity info from user attributes:', userBasicInfo);
-        
-        if (userBasicInfo) {
+
+        const entityId = userBasicInfo.memberId;
+        if (!entityId) {
+          throw new Error('User does not have a memberId attribute');
+        }
+
+        const fetchedEntityInfoFromDB = await fetchEntityInfoFromDB(entityId);
+        if (fetchedEntityInfoFromDB) {
           const entityInfo: EntityProps = {
-            id: userBasicInfo.userid || '', // User ID -> id
-            name: userBasicInfo.displayName || userBasicInfo.name || '', // Last Name -> name
-            userName: userBasicInfo.username || '', // Email -> userEmail
-            providerId: userBasicInfo.providerId || '', // Provider ID -> providerId
-            consumerId: userBasicInfo.consumerId || '', // ConsumerID -> consumerId
+            entityId: fetchedEntityInfoFromDB.entityId || '', // User ID -> entityId
+            name: fetchedEntityInfoFromDB.name || '', // Last Name -> name
+            email: fetchedEntityInfoFromDB.email || '', // Email -> email
+            entityType: fetchedEntityInfoFromDB.entityType || '', // Entity Type -> entityType
+            phoneNumber: fetchedEntityInfoFromDB.phoneNumber || '', // Phone Number -> phoneNumber
+            providerId: fetchedEntityInfoFromDB.providerId || '', // Provider ID -> providerId
+            consumerId: fetchedEntityInfoFromDB.consumerId || '', // ConsumerID -> consumerId
+            createdAt: fetchedEntityInfoFromDB.createdAt || '', // Created At -> createdAt
+            updatedAt: fetchedEntityInfoFromDB.updatedAt || '', // Updated At -> updatedAt
+            roles: []
           };
-          
-          console.log('Parsed entity info:', entityInfo);
+          if (entityInfo.consumerId !== '') {
+            entityInfo.roles.push('consumer');
+          }
+          if (entityInfo.providerId !== '') {
+            entityInfo.roles.push('provider');
+          }
+          console.log('Parsed entity info from DB:', entityInfo);
           setEntityData(entityInfo);
-          
           // Determine initial view based on available IDs
           let initialView: 'provider' | 'consumer' | null = null;
           if (entityInfo.providerId) {
@@ -82,19 +118,39 @@ function App() {
           
           // Save to localStorage for auth redirect recovery
           saveEntityStateToStorage(entityInfo, initialView);
+        } else {
+          // Fallback to empty entity data if fetch fails
+          setEntityData({
+            entityId: '',
+            name: '',
+            email: '',
+            phoneNumber: '',
+            entityType: '',
+            createdAt: '',
+            updatedAt: '',
+            roles: [],
+            providerId: undefined,
+            consumerId: undefined,
+          });
         }
       } catch (error) {
         console.error('Failed to fetch entity info:', error);
         // Fallback to empty entity data if fetch fails
         setEntityData({
-          id: '',
+          entityId: '',
           name: '',
-          userName: '',
+          email: '',
+          phoneNumber: '',
+          entityType: '',
+          createdAt: '',
+          updatedAt: '',
+          roles: [],
           providerId: undefined,
           consumerId: undefined,
         });
       }
     };
+    fetchEntityInfo();
 
     // Check if we have stored entity data (after auth redirect)
     if (state.isAuthenticated && !entityData) {
@@ -187,7 +243,15 @@ function App() {
         <Routes>
           {view === 'provider' ? (
             <>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<MemberInfo 
+                name={entityData.name}
+                email={entityData.email}
+                phoneNumber={entityData.phoneNumber}
+                entityType={entityData.entityType}
+                roles={entityData.roles}
+                createdAt={entityData.createdAt}
+                updatedAt={entityData.updatedAt}
+              />} />
               <Route path="/provider/schemas" element={<SchemasPage providerId={entityData?.providerId || ''} />} />
               <Route 
                 path="/provider/schemas/new" 
@@ -202,7 +266,15 @@ function App() {
             </>
           ) : (
             <>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<MemberInfo
+                name={entityData.name}
+                email={entityData.email}
+                phoneNumber={entityData.phoneNumber}
+                entityType={entityData.entityType}
+                roles={entityData.roles}
+                createdAt={entityData.createdAt}
+                updatedAt={entityData.updatedAt}
+              />} />
               <Route path="/consumer/applications" element={<Applications consumerId={entityData?.consumerId || ''} />} />
               <Route 
                 path="/consumer/applications/new" 
