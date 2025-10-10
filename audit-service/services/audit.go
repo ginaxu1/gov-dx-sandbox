@@ -13,11 +13,6 @@ type AuditService struct {
 	db *sql.DB
 }
 
-// DB returns the database connection (for internal use)
-func (s *AuditService) DB() *sql.DB {
-	return s.db
-}
-
 // NewAuditService creates a new audit service
 func NewAuditService(db *sql.DB) *AuditService {
 	return &AuditService{db: db}
