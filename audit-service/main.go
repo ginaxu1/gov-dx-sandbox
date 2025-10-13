@@ -14,6 +14,13 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// Build information - set during build
+var (
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
+)
+
 func main() {
 	// Database configuration
 	dbHost := getEnv("CHOREO_DB_AUDIT_HOSTNAME", getEnv("DB_HOST", "localhost"))
@@ -54,6 +61,21 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
+	// Version endpoint
+	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		response := map[string]string{
+			"version":   Version,
+			"buildTime": BuildTime,
+			"gitCommit": GitCommit,
+			"service":   "audit-service",
+		}
+
+		json.NewEncoder(w).Encode(response)
+	})
+
 	// API endpoints for log access
 	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
@@ -67,6 +89,7 @@ func main() {
 
 	// Start server
 	log.Printf("Audit Service starting on port %s", port)
+	log.Printf("Version: %s, Build Time: %s, Git Commit: %s", Version, BuildTime, GitCommit)
 	log.Printf("Database: %s:%s/%s", dbHost, dbPort, dbName)
 	log.Printf("Database configuration - Choreo Host: %s, Fallback Host: %s",
 		os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"), os.Getenv("DB_HOST"))
