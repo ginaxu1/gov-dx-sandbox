@@ -147,6 +147,39 @@ func (s *AuditService) extractConsumerIDFromPath(path string) string {
 	return ""
 }
 
+// ExtractConsumerIDFromRequestWithBody extracts consumer ID from request using pre-read body data
+func (s *AuditService) ExtractConsumerIDFromRequestWithBody(r *http.Request, body []byte) string {
+	// 1. Try to extract from path first
+	if consumerID := s.extractConsumerIDFromPath(r.URL.Path); consumerID != "" {
+		return consumerID
+	}
+
+	// 2. Try to extract from headers
+	if consumerID := r.Header.Get("X-Consumer-ID"); consumerID != "" {
+		return consumerID
+	}
+	if consumerID := r.Header.Get("X-User-ID"); consumerID != "" {
+		return consumerID
+	}
+
+	// 3. Try to extract from query parameters
+	if consumerID := r.URL.Query().Get("consumerId"); consumerID != "" {
+		return consumerID
+	}
+	if consumerID := r.URL.Query().Get("consumer_id"); consumerID != "" {
+		return consumerID
+	}
+
+	// 4. Try to extract from pre-read body data
+	if len(body) > 0 {
+		if consumerID := s.extractConsumerIDFromBodyData(body); consumerID != "" {
+			return consumerID
+		}
+	}
+
+	return ""
+}
+
 // ExtractProviderIDFromRequest extracts provider ID from request path, headers, query params, or body
 func (s *AuditService) ExtractProviderIDFromRequest(r *http.Request) string {
 	// 1. Try to extract from path first
@@ -170,6 +203,36 @@ func (s *AuditService) ExtractProviderIDFromRequest(r *http.Request) string {
 	// 4. Try to extract from request body (using shared body reader)
 	body, err := s.readRequestBodyOnce(r)
 	if err == nil && len(body) > 0 {
+		if providerID := s.extractProviderIDFromBodyData(body); providerID != "" {
+			return providerID
+		}
+	}
+
+	return ""
+}
+
+// ExtractProviderIDFromRequestWithBody extracts provider ID from request using pre-read body data
+func (s *AuditService) ExtractProviderIDFromRequestWithBody(r *http.Request, body []byte) string {
+	// 1. Try to extract from path first
+	if providerID := s.extractProviderIDFromPath(r.URL.Path); providerID != "" {
+		return providerID
+	}
+
+	// 2. Try to extract from headers
+	if providerID := r.Header.Get("X-Provider-ID"); providerID != "" {
+		return providerID
+	}
+
+	// 3. Try to extract from query parameters
+	if providerID := r.URL.Query().Get("providerId"); providerID != "" {
+		return providerID
+	}
+	if providerID := r.URL.Query().Get("provider_id"); providerID != "" {
+		return providerID
+	}
+
+	// 4. Try to extract from pre-read body data
+	if len(body) > 0 {
 		if providerID := s.extractProviderIDFromBodyData(body); providerID != "" {
 			return providerID
 		}
@@ -300,6 +363,44 @@ func (s *AuditService) ExtractGraphQLQueryFromRequest(r *http.Request) string {
 	}
 
 	return ""
+}
+
+// ExtractGraphQLQueryFromRequestWithBody extracts GraphQL query from request using pre-read body data
+func (s *AuditService) ExtractGraphQLQueryFromRequestWithBody(r *http.Request, body []byte) string {
+	// 1. Try to extract from headers
+	if query := r.Header.Get("X-GraphQL-Query"); query != "" {
+		return query
+	}
+
+	// 2. Try to extract from query parameters
+	if query := r.URL.Query().Get("query"); query != "" {
+		return query
+	}
+
+	// 3. Try to extract from pre-read body data
+	if len(body) > 0 {
+		if query := s.extractGraphQLQueryFromBodyData(body); query != "" {
+			return query
+		}
+	}
+
+	return ""
+}
+
+// ExtractAllFromRequestWithBody extracts consumer ID, provider ID, and GraphQL query from request using a single body read
+func (s *AuditService) ExtractAllFromRequestWithBody(r *http.Request) (consumerID, providerID, graphqlQuery string, body []byte, err error) {
+	// Read the request body once
+	body, err = s.readRequestBodyOnce(r)
+	if err != nil {
+		return "", "", "", nil, err
+	}
+
+	// Extract all information using the pre-read body data
+	consumerID = s.ExtractConsumerIDFromRequestWithBody(r, body)
+	providerID = s.ExtractProviderIDFromRequestWithBody(r, body)
+	graphqlQuery = s.ExtractGraphQLQueryFromRequestWithBody(r, body)
+
+	return consumerID, providerID, graphqlQuery, body, nil
 }
 
 // extractGraphQLQueryFromBodyData extracts GraphQL query from cached body data
