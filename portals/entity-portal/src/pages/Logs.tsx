@@ -19,6 +19,15 @@ interface LogEntry {
     providerId: string;
 }
 
+interface FilterOptions {
+    status?: 'all' | 'failure' | 'success';
+    startDate?: string;
+    endDate?: string;
+    byConsumerId?: string;
+    byProviderId?: string;
+    searchTerm?: string;
+}
+
 interface LogsProps {
     role: 'provider' | 'consumer';
     consumerId?: string;
@@ -28,10 +37,33 @@ interface LogsProps {
 export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [levelFilter, setLevelFilter] = useState<string>('all');
+    const [filters, setFilters] = useState<FilterOptions>({
+        status: 'all',
+        searchTerm: '',
+        startDate: '',
+        endDate: '',
+        byConsumerId: role === 'provider' ? '' : undefined, // Only show for providers
+        byProviderId: role === 'consumer' ? '' : undefined  // Only show for consumers
+    });
     const [loading, setLoading] = useState(true);
     const [autoRefresh, setAutoRefresh] = useState(false);
+
+    // Helper function to update filters
+    const updateFilter = <K extends keyof FilterOptions>(key: K, value: FilterOptions[K]) => {
+        setFilters(prev => ({ ...prev, [key]: value }));
+    };
+
+    // Helper function to clear all filters
+    const clearAllFilters = () => {
+        setFilters({
+            status: 'all',
+            searchTerm: '',
+            startDate: '',
+            endDate: '',
+            byConsumerId: role === 'provider' ? '' : undefined,
+            byProviderId: role === 'consumer' ? '' : undefined
+        });
+    };
 
 
     const fetchLogs = async () => {
@@ -49,7 +81,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
 
     useEffect(() => {
         fetchLogs();
-    }, []);
+    }, [role, consumerId, providerId]);
 
     // Auto-refresh functionality
     useEffect(() => {
@@ -64,23 +96,51 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
 
     useEffect(() => {
         let filtered = logs;
+        
         // Filter by search term
-        if (searchTerm) {
+        if (filters.searchTerm) {
             filtered = filtered.filter(log =>
-                log.requestedData.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                log.consumerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                log.providerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                log.id.toLowerCase().includes(searchTerm.toLowerCase())
+                log.requestedData.toLowerCase().includes(filters.searchTerm!.toLowerCase()) ||
+                log.consumerId.toLowerCase().includes(filters.searchTerm!.toLowerCase()) ||
+                log.providerId.toLowerCase().includes(filters.searchTerm!.toLowerCase()) ||
+                log.id.toLowerCase().includes(filters.searchTerm!.toLowerCase())
             );
         }
 
-        // Filter by status (replacing level filter)
-        if (levelFilter !== 'all') {
-            filtered = filtered.filter(log => log.status === levelFilter);
+        // Filter by status
+        if (filters.status && filters.status !== 'all') {
+            filtered = filtered.filter(log => log.status === filters.status);
+        }
+
+        // Filter by consumer ID (only for providers)
+        if (role === 'provider' && filters.byConsumerId) {
+            filtered = filtered.filter(log => 
+                log.consumerId.toLowerCase().includes(filters.byConsumerId!.toLowerCase())
+            );
+        }
+
+        // Filter by provider ID (only for consumers)
+        if (role === 'consumer' && filters.byProviderId) {
+            filtered = filtered.filter(log => 
+                log.providerId.toLowerCase().includes(filters.byProviderId!.toLowerCase())
+            );
+        }
+
+        // Filter by date range
+        if (filters.startDate) {
+            filtered = filtered.filter(log => 
+                new Date(log.timestamp) >= new Date(filters.startDate!)
+            );
+        }
+
+        if (filters.endDate) {
+            filtered = filtered.filter(log => 
+                new Date(log.timestamp) <= new Date(filters.endDate!)
+            );
         }
 
         setFilteredLogs(filtered);
-    }, [logs, searchTerm, levelFilter]);
+    }, [logs, filters, role]);
 
     const getLogIcon = (status: string) => {
         switch (status) {
@@ -178,32 +238,85 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
 
                 {/* Filters */}
                 <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-                    <div className="flex flex-col lg:flex-row gap-4">
-                        <div className="flex-1">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                                <input
-                                    type="text"
-                                    placeholder="Search logs..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
+                    <div className="space-y-4">
+                        {/* Search and Status Row */}
+                        <div className="flex flex-col lg:flex-row gap-4">
+                            <div className="flex-1">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search logs..."
+                                        value={filters.searchTerm || ''}
+                                        onChange={(e) => updateFilter('searchTerm', e.target.value)}
+                                        className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <select
+                                    value={filters.status || 'all'}
+                                    onChange={(e) => updateFilter('status', e.target.value as 'all' | 'failure' | 'success')}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="all">All Status</option>
+                                    {statuses.map(status => (
+                                        <option key={status} value={status}>
+                                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            <select
-                                value={levelFilter}
-                                onChange={(e) => setLevelFilter(e.target.value)}
+                        
+                        {/* Additional Filters Row - Role specific */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {/* Show Consumer ID filter only for providers */}
+                            {role === 'provider' && (
+                                <input
+                                    type="text"
+                                    placeholder="Filter by Consumer ID"
+                                    value={filters.byConsumerId || ''}
+                                    onChange={(e) => updateFilter('byConsumerId', e.target.value)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            )}
+                            
+                            {/* Show Provider ID filter only for consumers */}
+                            {role === 'consumer' && (
+                                <input
+                                    type="text"
+                                    placeholder="Filter by Provider ID"
+                                    value={filters.byProviderId || ''}
+                                    onChange={(e) => updateFilter('byProviderId', e.target.value)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            )}
+                            
+                            <input
+                                type="date"
+                                placeholder="Start Date"
+                                value={filters.startDate || ''}
+                                onChange={(e) => updateFilter('startDate', e.target.value)}
                                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <input
+                                type="date"
+                                placeholder="End Date"
+                                value={filters.endDate || ''}
+                                onChange={(e) => updateFilter('endDate', e.target.value)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+                        
+                        {/* Clear Filters Button */}
+                        <div className="flex justify-end">
+                            <button
+                                onClick={clearAllFilters}
+                                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                             >
-                                <option value="all">All Status</option>
-                                {statuses.map(status => (
-                                    <option key={status} value={status}>
-                                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                                    </option>
-                                ))}
-                            </select>
+                                Clear All Filters
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -214,9 +327,9 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-gray-600">Total Logs</p>
-                                <p className="text-2xl font-bold text-gray-900">{logs.length}</p>
-                                <p className="text-xs text-gray-500">All entries</p>
+                                <p className="text-sm font-medium text-gray-600">Filtered Logs</p>
+                                <p className="text-2xl font-bold text-gray-900">{filteredLogs.length}</p>
+                                <p className="text-xs text-gray-500">of {logs.length} total</p>
                             </div>
                             <div className="p-3 rounded-full bg-gray-100">
                                 <Activity className="w-5 h-5 text-blue-500" />
@@ -225,8 +338,8 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                     </div>
                     
                     {statuses.map(status => {
-                        const count = logs.filter(log => log.status === status).length;
-                        const percentage = logs.length > 0 ? (count / logs.length * 100) : 0;
+                        const count = filteredLogs.filter(log => log.status === status).length;
+                        const percentage = filteredLogs.length > 0 ? (count / filteredLogs.length * 100) : 0;
                         
                         return (
                             <div key={status} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
@@ -234,7 +347,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                                     <div>
                                         <p className="text-sm font-medium text-gray-600 capitalize">{status} Logs</p>
                                         <p className="text-2xl font-bold text-gray-900">{count}</p>
-                                        <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of total</p>
+                                        <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of filtered</p>
                                     </div>
                                     <div className="p-3 rounded-full bg-gray-100">
                                         {getLogIcon(status)}
@@ -265,7 +378,10 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                             <div className="text-center py-12">
                                 <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {searchTerm || levelFilter !== 'all' 
+                                    {filters.searchTerm || filters.status !== 'all' || 
+                                     (role === 'provider' && filters.byConsumerId) ||
+                                     (role === 'consumer' && filters.byProviderId) ||
+                                     filters.startDate || filters.endDate
                                         ? 'No logs match your filters' 
                                         : 'No logs available'
                                     }
