@@ -12,20 +12,18 @@ info:
     with simplified log structure for easy consumption by admin and entity portals.
   version: 1.0.0
   contact:
-    name: Gov DX Sandbox Team
-    email: support@gov-dx-sandbox.com
+    name: OpenDIF Team
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
 
 servers:
+  - url: https://audit-service-dev.choreo.dev
+    description: Choreo Development Environment
+  - url: https://audit-service.choreo.dev
+    description: Choreo Production Environment
   - url: http://localhost:3001
-    description: Local development server
-  - url: https://audit-service.gov-dx-sandbox.com
-    description: Production server
-
-security:
-  - bearerAuth: []
+    description: Local Development Environment
 
 paths:
   /health:
@@ -39,17 +37,26 @@ paths:
         '200':
           description: Service is healthy
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: "Audit Service is healthy"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
         '500':
           description: Service is unhealthy
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: "Service unavailable"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: unhealthy
+                  error:
+                    type: string
+                    example: "Service unavailable"
 
   /api/logs:
     get:
@@ -229,12 +236,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: JWT token for authentication
   schemas:
     Log:
       type: object

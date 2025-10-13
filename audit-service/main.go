@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -43,8 +44,14 @@ func main() {
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Audit Service is healthy"))
+
+		response := map[string]string{
+			"status": "healthy",
+		}
+
+		json.NewEncoder(w).Encode(response)
 	})
 
 	// API endpoints for log access
