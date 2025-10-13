@@ -9,15 +9,8 @@ import {
     Info,
     Clock
 } from 'lucide-react';
-
-interface LogEntry {
-    id: string;
-    timestamp: string;
-    status: 'failure' | 'success';
-    requestedData: string;
-    consumerId: string;
-    providerId: string;
-}
+import { logService } from '../services/logService';
+import type { LogEntry } from '../services/logService';
 
 interface FilterOptions {
     status?: 'all' | 'failure' | 'success';
@@ -69,11 +62,19 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const logs = await fetch(`http://localhost:3000/logs${role === 'consumer' ? `?consumerId=${consumerId}` : `?providerId=${providerId}`}`).then(res => res.json());
+            const entityId = role === 'consumer' ? consumerId : providerId;
+            if (!entityId) {
+                throw new Error(`Missing ${role} ID`);
+            }
+            
+            const logs = await logService.fetchLogsByRole(role, entityId);
             setLogs(logs);
             setFilteredLogs(logs);
         } catch (error) {
             console.error('Error fetching logs:', error);
+            // Optionally show user-friendly error message
+            setLogs([]);
+            setFilteredLogs([]);
         } finally {
             setLoading(false);
         }
@@ -174,6 +175,39 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
         fetchLogs();
     };
 
+    const handleExport = async () => {
+        try {
+            const entityId = role === 'consumer' ? consumerId : providerId;
+            if (!entityId) {
+                throw new Error(`Missing ${role} ID`);
+            }
+
+            // Convert current filters to query params for export
+            const queryParams = {
+                [role === 'consumer' ? 'consumerId' : 'providerId']: entityId,
+                status: filters.status !== 'all' ? filters.status : undefined,
+                ...(role === 'provider' && filters.byConsumerId ? { consumerId: filters.byConsumerId } : {}),
+                ...(role === 'consumer' && filters.byProviderId ? { providerId: filters.byProviderId } : {}),
+                startDate: filters.startDate || undefined,
+                endDate: filters.endDate || undefined,
+                search: filters.searchTerm || undefined
+            };
+
+            const blob = await logService.exportLogs(queryParams, 'csv');
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${role}-logs-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Error exporting logs:', error);
+            // Optionally show user-friendly error message
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100">
@@ -228,7 +262,10 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                                 <Activity className="w-4 h-4" />
                                 <span>Auto Refresh</span>
                             </button>
-                            <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            <button 
+                                onClick={handleExport}
+                                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
                                 <Download className="w-4 h-4" />
                                 <span>Export</span>
                             </button>
