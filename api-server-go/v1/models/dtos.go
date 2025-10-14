@@ -2,17 +2,18 @@ package models
 
 // Request/Response DTOs for V1 API endpoints
 
-// CreateProviderSchemaSubmissionRequest Provider Schema Submission DTOs
-type CreateProviderSchemaSubmissionRequest struct {
+// CreateSchemaSubmissionRequest Provider Schema Submission DTOs
+type CreateSchemaSubmissionRequest struct {
 	SchemaName        string  `json:"schemaName" validate:"required"`
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
 	SDL               string  `json:"sdl" validate:"required"`
 	SchemaEndpoint    string  `json:"schemaEndpoint" validate:"required"`
 	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
+	ProviderID        string  `json:"providerID" validate:"required"`
 }
 
-// UpdateProviderSchemaSubmissionRequest updates the status of a provider schema submission
-type UpdateProviderSchemaSubmissionRequest struct {
+// UpdateSchemaSubmissionRequest updates the status of a provider schema submission
+type UpdateSchemaSubmissionRequest struct {
 	SchemaName        *string `json:"schemaName,omitempty"`
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
 	SDL               *string `json:"sdl,omitempty"`
@@ -21,16 +22,17 @@ type UpdateProviderSchemaSubmissionRequest struct {
 	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
 }
 
-// CreateProviderSchemaRequest creates a new provider schema
-type CreateProviderSchemaRequest struct {
+// CreateSchemaRequest creates a new provider schema
+type CreateSchemaRequest struct {
 	SchemaName        string  `json:"schemaName" validate:"required"`
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
 	SDL               string  `json:"sdl" validate:"required"`
 	Endpoint          string  `json:"endpoint" validate:"required"`
+	ProviderID        string  `json:"providerID" validate:"required"`
 }
 
-// UpdateProviderSchemaRequest updates an existing provider schema
-type UpdateProviderSchemaRequest struct {
+// UpdateSchemaRequest updates an existing provider schema
+type UpdateSchemaRequest struct {
 	SchemaName        *string `json:"schemaName,omitempty"`
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
 	SDL               *string `json:"sdl,omitempty"`
@@ -38,36 +40,38 @@ type UpdateProviderSchemaRequest struct {
 	Version           *string `json:"version,omitempty"`
 }
 
-// CreateConsumerApplicationSubmissionRequest Consumer Application Submission DTOs
-type CreateConsumerApplicationSubmissionRequest struct {
+// CreateApplicationSubmissionRequest Consumer Application Submission DTOs
+type CreateApplicationSubmissionRequest struct {
 	ApplicationName        string   `json:"applicationName" validate:"required"`
 	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
 	SelectedFields         []string `json:"selectedFields" validate:"required,min=1"`
 	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
+	ConsumerID             string   `json:"consumerID" validate:"required"`
 }
 
-// UpdateConsumerApplicationSubmissionRequest updates the status of a consumer application submission
-type UpdateConsumerApplicationSubmissionRequest struct {
-	ApplicationName        *string  `json:"applicationName,omitempty"`
-	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
-	SelectedFields         []string `json:"selectedFields,omitempty"`
-	Status                 *string  `json:"status,omitempty"`
-	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
+// UpdateApplicationSubmissionRequest updates the status of a consumer application submission
+type UpdateApplicationSubmissionRequest struct {
+	ApplicationName        *string   `json:"applicationName,omitempty"`
+	ApplicationDescription *string   `json:"applicationDescription,omitempty"`
+	SelectedFields         *[]string `json:"selectedFields,omitempty" validate:"required,min=1"`
+	Status                 *string   `json:"status,omitempty"`
+	PreviousApplicationID  *string   `json:"previousApplicationId,omitempty"`
 }
 
-// CreateConsumerApplicationRequest creates a new consumer application
-type CreateConsumerApplicationRequest struct {
+// CreateApplicationRequest creates a new consumer application
+type CreateApplicationRequest struct {
 	ApplicationName        string   `json:"applicationName" validate:"required"`
 	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
 	SelectedFields         []string `json:"selectedFields" validate:"required,min=1"`
+	ConsumerID             string   `json:"consumerID" validate:"required"`
 }
 
-// UpdateConsumerApplicationRequest updates an existing consumer application
-type UpdateConsumerApplicationRequest struct {
-	ApplicationName        *string  `json:"applicationName,omitempty"`
-	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
-	SelectedFields         []string `json:"selectedFields,omitempty"`
-	Version                *string  `json:"version,omitempty"`
+// UpdateApplicationRequest updates an existing consumer application
+type UpdateApplicationRequest struct {
+	ApplicationName        *string   `json:"applicationName,omitempty"`
+	ApplicationDescription *string   `json:"applicationDescription,omitempty"`
+	SelectedFields         *[]string `json:"selectedFields,omitempty" validate:"required,min=1"`
+	Version                *string   `json:"version,omitempty"`
 }
 
 type CreateEntityRequest struct {
@@ -159,7 +163,7 @@ type ConsumerResponse struct {
 	UpdatedAt   string `json:"updatedAt"`
 }
 
-type ProviderSchemaResponse struct {
+type SchemaResponse struct {
 	SchemaID          string  `json:"schemaId"`
 	ProviderID        string  `json:"providerId"`
 	SchemaName        string  `json:"schemaName"`
@@ -171,7 +175,7 @@ type ProviderSchemaResponse struct {
 	UpdatedAt         string  `json:"updatedAt"`
 }
 
-type ProviderSchemaSubmissionResponse struct {
+type SchemaSubmissionResponse struct {
 	SubmissionID      string  `json:"submissionId"`
 	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
 	SchemaName        string  `json:"schemaName"`
@@ -184,7 +188,7 @@ type ProviderSchemaSubmissionResponse struct {
 	UpdatedAt         string  `json:"updatedAt"`
 }
 
-type ConsumerApplicationResponse struct {
+type ApplicationResponse struct {
 	ApplicationID          string   `json:"applicationId"`
 	ApplicationName        string   `json:"applicationName"`
 	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
@@ -195,7 +199,7 @@ type ConsumerApplicationResponse struct {
 	UpdatedAt              string   `json:"updatedAt"`
 }
 
-type ConsumerApplicationSubmissionResponse struct {
+type ApplicationSubmissionResponse struct {
 	SubmissionID           string   `json:"submissionId"`
 	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
 	ApplicationName        string   `json:"applicationName"`

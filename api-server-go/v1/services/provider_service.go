@@ -133,23 +133,23 @@ func (s *ProviderService) UpdateProvider(providerID string, req *models.UpdatePr
 }
 
 // CreateProviderSchema creates a new approved schema for a provider
-func (s *ProviderService) CreateProviderSchema(providerID string, req *models.CreateProviderSchemaRequest) (*models.ProviderSchemaResponse, error) {
+func (s *ProviderService) CreateProviderSchema(req *models.CreateSchemaRequest) (*models.SchemaResponse, error) {
 	// Verify provider exists
 	var provider models.Provider
-	err := s.db.First(&provider, "provider_id = ?", providerID).Error
+	err := s.db.First(&provider, "provider_id = ?", req.ProviderID).Error
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
 	}
 
 	// Create schema
-	schema := models.ProviderSchema{
+	schema := models.Schema{
 		SchemaID:          "schema_" + uuid.New().String(),
 		SchemaName:        req.SchemaName,
 		SDL:               req.SDL,
 		Endpoint:          req.Endpoint,
 		Version:           models.ActiveVersion,
 		SchemaDescription: req.SchemaDescription,
-		ProviderID:        providerID,
+		ProviderID:        req.ProviderID,
 	}
 
 	err = s.db.Create(&schema).Error
@@ -157,7 +157,7 @@ func (s *ProviderService) CreateProviderSchema(providerID string, req *models.Cr
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
-	return &models.ProviderSchemaResponse{
+	return &models.SchemaResponse{
 		SchemaID:          schema.SchemaID,
 		ProviderID:        schema.ProviderID,
 		SchemaName:        schema.SchemaName,
@@ -171,8 +171,8 @@ func (s *ProviderService) CreateProviderSchema(providerID string, req *models.Cr
 }
 
 // UpdateProviderSchema updates an existing approved schema for a provider
-func (s *ProviderService) UpdateProviderSchema(providerID, schemaID string, req *models.UpdateProviderSchemaRequest) (*models.ProviderSchemaResponse, error) {
-	var schema models.ProviderSchema
+func (s *ProviderService) UpdateProviderSchema(schemaID string, req *models.UpdateSchemaRequest) (*models.SchemaResponse, error) {
+	var schema models.Schema
 	err := s.db.First(&schema, "schema_id = ?", schemaID).Error
 	if err != nil {
 		return nil, fmt.Errorf("schema not found: %w", err)
@@ -199,7 +199,7 @@ func (s *ProviderService) UpdateProviderSchema(providerID, schemaID string, req 
 		return nil, fmt.Errorf("failed to update schema: %w", err)
 	}
 
-	return &models.ProviderSchemaResponse{
+	return &models.SchemaResponse{
 		SchemaID:          schema.SchemaID,
 		ProviderID:        schema.ProviderID,
 		SchemaName:        schema.SchemaName,
@@ -213,17 +213,17 @@ func (s *ProviderService) UpdateProviderSchema(providerID, schemaID string, req 
 }
 
 // GetProviderSchemas retrieves approved schemas for a provider
-func (s *ProviderService) GetProviderSchemas(providerID string) ([]models.ProviderSchemaResponse, error) {
-	var schemas []models.ProviderSchema
+func (s *ProviderService) GetProviderSchemas(providerID string) ([]models.SchemaResponse, error) {
+	var schemas []models.Schema
 
 	err := s.db.Preload("Provider").Preload("Provider.Entity").Where("provider_id = ?", providerID).Find(&schemas).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch schemas: %w", err)
 	}
 
-	response := make([]models.ProviderSchemaResponse, len(schemas))
+	response := make([]models.SchemaResponse, len(schemas))
 	for i, schema := range schemas {
-		response[i] = models.ProviderSchemaResponse{
+		response[i] = models.SchemaResponse{
 			SchemaID:          schema.SchemaID,
 			ProviderID:        schema.ProviderID,
 			SchemaName:        schema.SchemaName,
@@ -240,16 +240,16 @@ func (s *ProviderService) GetProviderSchemas(providerID string) ([]models.Provid
 }
 
 // CreateProviderSchemaSubmission creates a new schema submission
-func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req models.CreateProviderSchemaSubmissionRequest) (*models.ProviderSchemaSubmissionResponse, error) {
+func (s *ProviderService) CreateProviderSchemaSubmission(req models.CreateSchemaSubmissionRequest) (*models.SchemaSubmissionResponse, error) {
 	// Verify provider exists
 	var provider models.Provider
-	err := s.db.First(&provider, "provider_id = ?", providerID).Error
+	err := s.db.First(&provider, "provider_id = ?", req.ProviderID).Error
 	if err != nil {
 		return nil, fmt.Errorf("provider not found: %w", err)
 	}
 
 	// Create submission
-	submission := models.ProviderSchemaSubmission{
+	submission := models.SchemaSubmission{
 		SubmissionID:      "sub_" + uuid.New().String(),
 		PreviousSchemaID:  req.PreviousSchemaID,
 		SchemaName:        req.SchemaName,
@@ -257,7 +257,7 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 		SDL:               req.SDL,
 		SchemaEndpoint:    req.SchemaEndpoint,
 		Status:            models.StatusPending,
-		ProviderID:        providerID,
+		ProviderID:        req.ProviderID,
 	}
 
 	err = s.db.Create(&submission).Error
@@ -265,7 +265,7 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 		return nil, fmt.Errorf("failed to create schema submission: %w", err)
 	}
 
-	return &models.ProviderSchemaSubmissionResponse{
+	return &models.SchemaSubmissionResponse{
 		SubmissionID:      submission.SubmissionID,
 		PreviousSchemaID:  submission.PreviousSchemaID,
 		SchemaName:        submission.SchemaName,
@@ -280,8 +280,8 @@ func (s *ProviderService) CreateProviderSchemaSubmission(providerID string, req 
 }
 
 // UpdateProviderSchemaSubmission updates an existing schema submission
-func (s *ProviderService) UpdateProviderSchemaSubmission(providerID, submissionID string, req *models.UpdateProviderSchemaSubmissionRequest) (*models.ProviderSchemaSubmissionResponse, error) {
-	var submission models.ProviderSchemaSubmission
+func (s *ProviderService) UpdateProviderSchemaSubmission(submissionID string, req *models.UpdateSchemaSubmissionRequest) (*models.SchemaSubmissionResponse, error) {
+	var submission models.SchemaSubmission
 	err := s.db.First(&submission, "submission_id = ?", submissionID).Error
 	if err != nil {
 		return nil, fmt.Errorf("schema submission not found: %w", err)
@@ -311,7 +311,7 @@ func (s *ProviderService) UpdateProviderSchemaSubmission(providerID, submissionI
 		return nil, fmt.Errorf("failed to update schema submission: %w", err)
 	}
 
-	return &models.ProviderSchemaSubmissionResponse{
+	return &models.SchemaSubmissionResponse{
 		SubmissionID:      submission.SubmissionID,
 		PreviousSchemaID:  submission.PreviousSchemaID,
 		SchemaName:        submission.SchemaName,
@@ -326,8 +326,8 @@ func (s *ProviderService) UpdateProviderSchemaSubmission(providerID, submissionI
 }
 
 // GetProviderSchemaSubmissions retrieves schema submissions for a provider
-func (s *ProviderService) GetProviderSchemaSubmissions(providerID string, status string) ([]models.ProviderSchemaSubmissionResponse, error) {
-	var submissions []models.ProviderSchemaSubmission
+func (s *ProviderService) GetProviderSchemaSubmissions(providerID string, status string) ([]models.SchemaSubmissionResponse, error) {
+	var submissions []models.SchemaSubmission
 
 	query := s.db.Preload("Provider").Preload("Provider.Entity").Preload("PreviousSchema").Where("provider_id = ?", providerID)
 	if status != "" {
@@ -339,9 +339,9 @@ func (s *ProviderService) GetProviderSchemaSubmissions(providerID string, status
 		return nil, fmt.Errorf("failed to fetch schema submissions: %w", err)
 	}
 
-	response := make([]models.ProviderSchemaSubmissionResponse, len(submissions))
+	response := make([]models.SchemaSubmissionResponse, len(submissions))
 	for i, submission := range submissions {
-		response[i] = models.ProviderSchemaSubmissionResponse{
+		response[i] = models.SchemaSubmissionResponse{
 			SubmissionID:      submission.SubmissionID,
 			PreviousSchemaID:  submission.PreviousSchemaID,
 			SchemaName:        submission.SchemaName,

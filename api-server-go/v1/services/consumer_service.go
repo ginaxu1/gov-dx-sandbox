@@ -135,21 +135,21 @@ func (s *ConsumerService) GetConsumer(consumerID string) (*models.ConsumerRespon
 }
 
 // CreateConsumerApplication creates a new consumer application
-func (s *ConsumerService) CreateConsumerApplication(consumerID string, req models.CreateConsumerApplicationRequest) (*models.ConsumerApplicationResponse, error) {
+func (s *ConsumerService) CreateConsumerApplication(req models.CreateApplicationRequest) (*models.ApplicationResponse, error) {
 	// Verify consumer exists
 	var consumer models.Consumer
-	err := s.db.First(&consumer, "consumer_id = ?", consumerID).Error
+	err := s.db.First(&consumer, "consumer_id = ?", req.ConsumerID).Error
 	if err != nil {
 		return nil, fmt.Errorf("consumer not found: %w", err)
 	}
 
 	// Create application
-	application := models.ConsumerApplication{
+	application := models.Application{
 		ApplicationID:          "app_" + uuid.New().String(),
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
 		SelectedFields:         models.StringArray(req.SelectedFields),
-		ConsumerID:             consumerID,
+		ConsumerID:             req.ConsumerID,
 		Version:                models.ActiveVersion,
 	}
 
@@ -158,11 +158,11 @@ func (s *ConsumerService) CreateConsumerApplication(consumerID string, req model
 		return nil, fmt.Errorf("failed to create application: %w", err)
 	}
 
-	return &models.ConsumerApplicationResponse{
+	return &models.ApplicationResponse{
 		ApplicationID:          application.ApplicationID,
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         []string(application.SelectedFields),
+		SelectedFields:         application.SelectedFields,
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
@@ -171,8 +171,8 @@ func (s *ConsumerService) CreateConsumerApplication(consumerID string, req model
 }
 
 // UpdateConsumerApplication updates an existing consumer application
-func (s *ConsumerService) UpdateConsumerApplication(consumerID, applicationID string, req models.UpdateConsumerApplicationRequest) (*models.ConsumerApplicationResponse, error) {
-	var application models.ConsumerApplication
+func (s *ConsumerService) UpdateConsumerApplication(applicationID string, req models.UpdateApplicationRequest) (*models.ApplicationResponse, error) {
+	var application models.Application
 	err := s.db.First(&application, "application_id = ?", applicationID).Error
 	if err != nil {
 		return nil, fmt.Errorf("application not found: %w", err)
@@ -186,7 +186,7 @@ func (s *ConsumerService) UpdateConsumerApplication(consumerID, applicationID st
 		application.ApplicationDescription = req.ApplicationDescription
 	}
 	if req.SelectedFields != nil {
-		application.SelectedFields = models.StringArray(req.SelectedFields)
+		application.SelectedFields = *req.SelectedFields
 	}
 	if req.Version != nil {
 		application.Version = *req.Version
@@ -196,7 +196,7 @@ func (s *ConsumerService) UpdateConsumerApplication(consumerID, applicationID st
 		return nil, fmt.Errorf("failed to update application: %w", err)
 	}
 
-	return &models.ConsumerApplicationResponse{
+	return &models.ApplicationResponse{
 		ApplicationID:          application.ApplicationID,
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
@@ -209,17 +209,17 @@ func (s *ConsumerService) UpdateConsumerApplication(consumerID, applicationID st
 }
 
 // GetConsumerApplications retrieves applications for a consumer
-func (s *ConsumerService) GetConsumerApplications(consumerID string) ([]models.ConsumerApplicationResponse, error) {
-	var applications []models.ConsumerApplication
+func (s *ConsumerService) GetConsumerApplications(consumerID string) ([]models.ApplicationResponse, error) {
+	var applications []models.Application
 
 	err := s.db.Preload("Consumer").Preload("Consumer.Entity").Where("consumer_id = ?", consumerID).Find(&applications).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch applications: %w", err)
 	}
 
-	response := make([]models.ConsumerApplicationResponse, len(applications))
+	response := make([]models.ApplicationResponse, len(applications))
 	for i, app := range applications {
-		response[i] = models.ConsumerApplicationResponse{
+		response[i] = models.ApplicationResponse{
 			ApplicationID:          app.ApplicationID,
 			ApplicationName:        app.ApplicationName,
 			ApplicationDescription: app.ApplicationDescription,
@@ -235,22 +235,22 @@ func (s *ConsumerService) GetConsumerApplications(consumerID string) ([]models.C
 }
 
 // CreateConsumerApplicationSubmission creates a new application submission
-func (s *ConsumerService) CreateConsumerApplicationSubmission(consumerID string, req models.CreateConsumerApplicationSubmissionRequest) (*models.ConsumerApplicationSubmissionResponse, error) {
+func (s *ConsumerService) CreateConsumerApplicationSubmission(req models.CreateApplicationSubmissionRequest) (*models.ApplicationSubmissionResponse, error) {
 	// Verify consumer exists
 	var consumer models.Consumer
-	err := s.db.First(&consumer, "consumer_id = ?", consumerID).Error
+	err := s.db.First(&consumer, "consumer_id = ?", req.ConsumerID).Error
 	if err != nil {
 		return nil, fmt.Errorf("consumer not found: %w", err)
 	}
 
 	// Create submission
-	submission := models.ConsumerApplicationSubmission{
+	submission := models.ApplicationSubmission{
 		SubmissionID:           "sub_" + uuid.New().String(),
 		PreviousApplicationID:  req.PreviousApplicationID,
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
 		SelectedFields:         models.StringArray(req.SelectedFields),
-		ConsumerID:             consumerID,
+		ConsumerID:             req.ConsumerID,
 		Status:                 models.StatusPending,
 	}
 
@@ -259,7 +259,7 @@ func (s *ConsumerService) CreateConsumerApplicationSubmission(consumerID string,
 		return nil, fmt.Errorf("failed to create application submission: %w", err)
 	}
 
-	return &models.ConsumerApplicationSubmissionResponse{
+	return &models.ApplicationSubmissionResponse{
 		SubmissionID:           submission.SubmissionID,
 		PreviousApplicationID:  submission.PreviousApplicationID,
 		ApplicationName:        submission.ApplicationName,
@@ -273,8 +273,8 @@ func (s *ConsumerService) CreateConsumerApplicationSubmission(consumerID string,
 }
 
 // UpdateConsumerApplicationSubmission updates an existing application submission
-func (s *ConsumerService) UpdateConsumerApplicationSubmission(consumerID, submissionID string, req models.UpdateConsumerApplicationSubmissionRequest) (*models.ConsumerApplicationSubmissionResponse, error) {
-	var submission models.ConsumerApplicationSubmission
+func (s *ConsumerService) UpdateConsumerApplicationSubmission(submissionID string, req models.UpdateApplicationSubmissionRequest) (*models.ApplicationSubmissionResponse, error) {
+	var submission models.ApplicationSubmission
 	err := s.db.First(&submission, "submission_id = ?", submissionID).Error
 	if err != nil {
 		return nil, fmt.Errorf("application submission not found: %w", err)
@@ -288,7 +288,7 @@ func (s *ConsumerService) UpdateConsumerApplicationSubmission(consumerID, submis
 		submission.ApplicationDescription = req.ApplicationDescription
 	}
 	if req.SelectedFields != nil {
-		submission.SelectedFields = models.StringArray(req.SelectedFields)
+		submission.SelectedFields = *req.SelectedFields
 	}
 	if req.Status != nil {
 		submission.Status = *req.Status
@@ -298,7 +298,7 @@ func (s *ConsumerService) UpdateConsumerApplicationSubmission(consumerID, submis
 		return nil, fmt.Errorf("failed to update application submission: %w", err)
 	}
 
-	return &models.ConsumerApplicationSubmissionResponse{
+	return &models.ApplicationSubmissionResponse{
 		SubmissionID:           submission.SubmissionID,
 		PreviousApplicationID:  submission.PreviousApplicationID,
 		ApplicationName:        submission.ApplicationName,
@@ -312,8 +312,8 @@ func (s *ConsumerService) UpdateConsumerApplicationSubmission(consumerID, submis
 }
 
 // GetConsumerApplicationSubmissions retrieves application submissions for a consumer
-func (s *ConsumerService) GetConsumerApplicationSubmissions(consumerID string, status string) ([]models.ConsumerApplicationSubmissionResponse, error) {
-	var submissions []models.ConsumerApplicationSubmission
+func (s *ConsumerService) GetConsumerApplicationSubmissions(consumerID string, status string) ([]models.ApplicationSubmissionResponse, error) {
+	var submissions []models.ApplicationSubmission
 
 	query := s.db.Preload("Consumer").Preload("Consumer.Entity").Preload("PreviousApplication").Where("consumer_id = ?", consumerID)
 	if status != "" {
@@ -325,9 +325,9 @@ func (s *ConsumerService) GetConsumerApplicationSubmissions(consumerID string, s
 		return nil, fmt.Errorf("failed to fetch application submissions: %w", err)
 	}
 
-	response := make([]models.ConsumerApplicationSubmissionResponse, len(submissions))
+	response := make([]models.ApplicationSubmissionResponse, len(submissions))
 	for i, submission := range submissions {
-		response[i] = models.ConsumerApplicationSubmissionResponse{
+		response[i] = models.ApplicationSubmissionResponse{
 			SubmissionID:           submission.SubmissionID,
 			PreviousApplicationID:  submission.PreviousApplicationID,
 			ApplicationName:        submission.ApplicationName,
