@@ -43,4 +43,4 @@ configurations:
 dependencies:
   connectionReferences:
   - name: DB_AUDIT
-    resourceRef: database:opendif-db/defaultdb
+    resourceRef: database:opendif-db/testdb
