@@ -34,7 +34,7 @@ func (h *AuditHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	filter := h.parseLogFilterParams(r)
 
 	// Get logs
-	response, err := h.auditService.GetLogs(filter)
+	response, err := h.auditService.GetLogs(r.Context(), filter)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to retrieve logs: %v", err), http.StatusInternalServerError)
 		return
@@ -82,7 +82,7 @@ func (h *AuditHandler) CreateLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create log
-	log, err := h.auditService.CreateLog(&req)
+	log, err := h.auditService.CreateLog(r.Context(), &req)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create log: %v", err), http.StatusInternalServerError)
 		return

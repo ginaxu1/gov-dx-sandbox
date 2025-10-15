@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -19,7 +20,7 @@ func NewAuditService(db *sql.DB) *AuditService {
 }
 
 // GetLogs retrieves logs with optional filtering
-func (s *AuditService) GetLogs(filter *models.LogFilter) (*models.LogResponse, error) {
+func (s *AuditService) GetLogs(ctx context.Context, filter *models.LogFilter) (*models.LogResponse, error) {
 	query := `
 		SELECT id, timestamp, status, requested_data, consumer_id, provider_id
 		FROM audit_logs
@@ -74,8 +75,8 @@ func (s *AuditService) GetLogs(filter *models.LogFilter) (*models.LogResponse, e
 		argIndex++
 	}
 
-	// Execute query
-	rows, err := s.db.Query(query, args...)
+	// Execute query with context
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		slog.Error("Failed to query logs", "error", err)
 		return nil, fmt.Errorf("failed to query logs: %w", err)
@@ -101,7 +102,7 @@ func (s *AuditService) GetLogs(filter *models.LogFilter) (*models.LogResponse, e
 	}
 
 	// Get total count for pagination
-	total, err := s.getLogsTotalCount(filter)
+	total, err := s.getLogsTotalCount(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +116,7 @@ func (s *AuditService) GetLogs(filter *models.LogFilter) (*models.LogResponse, e
 }
 
 // CreateLog creates a new log entry
-func (s *AuditService) CreateLog(logReq *models.LogRequest) (*models.Log, error) {
+func (s *AuditService) CreateLog(ctx context.Context, logReq *models.LogRequest) (*models.Log, error) {
 	query := `
 		INSERT INTO audit_logs (status, requested_data, consumer_id, provider_id)
 		VALUES ($1, $2, $3, $4)
@@ -123,7 +124,7 @@ func (s *AuditService) CreateLog(logReq *models.LogRequest) (*models.Log, error)
 	`
 
 	var log models.Log
-	err := s.db.QueryRow(query, logReq.Status, logReq.RequestedData, logReq.ConsumerID, logReq.ProviderID).Scan(
+	err := s.db.QueryRowContext(ctx, query, logReq.Status, logReq.RequestedData, logReq.ConsumerID, logReq.ProviderID).Scan(
 		&log.ID,
 		&log.Timestamp,
 		&log.Status,
@@ -141,7 +142,7 @@ func (s *AuditService) CreateLog(logReq *models.LogRequest) (*models.Log, error)
 }
 
 // getLogsTotalCount gets the total count of logs matching the filter
-func (s *AuditService) getLogsTotalCount(filter *models.LogFilter) (int64, error) {
+func (s *AuditService) getLogsTotalCount(ctx context.Context, filter *models.LogFilter) (int64, error) {
 	query := "SELECT COUNT(*) FROM audit_logs WHERE 1=1"
 	args := []interface{}{}
 	argIndex := 1
@@ -178,7 +179,7 @@ func (s *AuditService) getLogsTotalCount(filter *models.LogFilter) (int64, error
 	}
 
 	var total int64
-	err := s.db.QueryRow(query, args...).Scan(&total)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&total)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get logs total count: %w", err)
 	}
