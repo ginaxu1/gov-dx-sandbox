@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/audit"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
@@ -47,6 +48,10 @@ func RunServer(f *federator.Federator) {
 	}
 
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
+
+	// Initialize audit client
+	auditClient := audit.NewAuditClient()
+	logger.Log.Info("Audit client initialized", "base_url", auditClient.BaseURL())
 
 	// Set the schema service in the federator
 	f.SchemaService = schemaService
@@ -128,6 +133,26 @@ func RunServer(f *federator.Federator) {
 			}()
 			response = f.FederateQuery(req, consumerAssertion)
 		}()
+
+		// Log the query execution to audit service
+		// Determine status based on response
+		status := "success"
+		if len(response.Errors) > 0 {
+			status = "failure"
+		}
+
+		// Extract consumer and provider information from the consumer assertion
+		consumerID := ""
+		providerID := ""
+		if consumerAssertion != nil {
+			consumerID = consumerAssertion.ApplicationId
+			// For now, we'll use a default provider ID or extract from the query
+			// In a real implementation, you might want to extract this from the query or context
+			providerID = "orchestration-engine"
+		}
+
+		// Log asynchronously to avoid blocking the response
+		auditClient.LogQueryAsync(req.Query, status, consumerID, providerID)
 
 		w.WriteHeader(http.StatusOK)
 		// Set content type to application/json
