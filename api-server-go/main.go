@@ -15,6 +15,7 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
+	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
 	"github.com/joho/godotenv"
 )
 
@@ -237,10 +238,15 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
+	// Setup CORS middleware
+	corsMiddleware := v1middleware.NewCORSMiddleware()
+
 	// Setup audit middleware
 	auditServiceURL := getEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
 	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
-	handler := auditMiddleware.AuditLoggingMiddleware(mux)
+
+	// Apply middleware chain: CORS -> Audit
+	handler := corsMiddleware(auditMiddleware.AuditLoggingMiddleware(mux))
 
 	// Start server
 	port := os.Getenv("PORT")

@@ -9,7 +9,7 @@ import {
     Info,
     Clock
 } from 'lucide-react';
-import { logService } from '../services/logService';
+import { LogService } from '../services/logService';
 import type { LogEntry } from '../services/logService';
 
 interface FilterOptions {
@@ -22,12 +22,9 @@ interface FilterOptions {
 }
 
 interface LogsProps {
-    role: 'provider' | 'consumer';
-    consumerId?: string;
-    providerId?: string;
 }
 
-export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
+export const Logs: React.FC<LogsProps> = () => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
     const [filters, setFilters] = useState<FilterOptions>({
@@ -35,8 +32,8 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
         searchTerm: '',
         startDate: '',
         endDate: '',
-        byConsumerId: role === 'provider' ? '' : undefined, // Only show for providers
-        byProviderId: role === 'consumer' ? '' : undefined  // Only show for consumers
+        byConsumerId: '',
+        byProviderId: ''
     });
     const [loading, setLoading] = useState(true);
     const [autoRefresh, setAutoRefresh] = useState(false);
@@ -53,21 +50,15 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
             searchTerm: '',
             startDate: '',
             endDate: '',
-            byConsumerId: role === 'provider' ? '' : undefined,
-            byProviderId: role === 'consumer' ? '' : undefined
+            byConsumerId: '',
+            byProviderId: ''
         });
     };
-
 
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const entityId = role === 'consumer' ? consumerId : providerId;
-            if (!entityId) {
-                throw new Error(`Missing ${role} ID`);
-            }
-            
-            const logs = await logService.fetchLogsByRole(role, entityId);
+            const logs = await LogService.fetchLogsWithParams();
             setLogs(logs);
             setFilteredLogs(logs);
         } catch (error) {
@@ -82,7 +73,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
 
     useEffect(() => {
         fetchLogs();
-    }, [role, consumerId, providerId]);
+    }, []);
 
     // Auto-refresh functionality
     useEffect(() => {
@@ -113,15 +104,15 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
             filtered = filtered.filter(log => log.status === filters.status);
         }
 
-        // Filter by consumer ID (only for providers)
-        if (role === 'provider' && filters.byConsumerId) {
+        // Filter by consumer ID
+        if (filters.byConsumerId) {
             filtered = filtered.filter(log => 
                 log.consumerId.toLowerCase().includes(filters.byConsumerId!.toLowerCase())
             );
         }
 
-        // Filter by provider ID (only for consumers)
-        if (role === 'consumer' && filters.byProviderId) {
+        // Filter by provider ID
+        if (filters.byProviderId) {
             filtered = filtered.filter(log => 
                 log.providerId.toLowerCase().includes(filters.byProviderId!.toLowerCase())
             );
@@ -141,7 +132,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
         }
 
         setFilteredLogs(filtered);
-    }, [logs, filters, role]);
+    }, [logs, filters]);
 
     const getLogIcon = (status: string) => {
         switch (status) {
@@ -177,27 +168,21 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
 
     const handleExport = async () => {
         try {
-            const entityId = role === 'consumer' ? consumerId : providerId;
-            if (!entityId) {
-                throw new Error(`Missing ${role} ID`);
-            }
-
             // Convert current filters to query params for export
             const queryParams = {
-                [role === 'consumer' ? 'consumerId' : 'providerId']: entityId,
                 status: filters.status !== 'all' ? filters.status : undefined,
-                ...(role === 'provider' && filters.byConsumerId ? { consumerId: filters.byConsumerId } : {}),
-                ...(role === 'consumer' && filters.byProviderId ? { providerId: filters.byProviderId } : {}),
+                consumerId: filters.byConsumerId || undefined,
+                providerId: filters.byProviderId || undefined,
                 startDate: filters.startDate || undefined,
                 endDate: filters.endDate || undefined,
                 search: filters.searchTerm || undefined
             };
 
-            const blob = await logService.exportLogs(queryParams, 'csv');
+            const blob = await LogService.exportLogs(queryParams, 'csv');
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${role}-logs-${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `logs-${new Date().toISOString().split('T')[0]}.csv`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -306,30 +291,22 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                             </div>
                         </div>
                         
-                        {/* Additional Filters Row - Role specific */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {/* Show Consumer ID filter only for providers */}
-                            {role === 'provider' && (
-                                <input
-                                    type="text"
-                                    placeholder="Filter by Consumer ID"
-                                    value={filters.byConsumerId || ''}
-                                    onChange={(e) => updateFilter('byConsumerId', e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                            )}
-                            
-                            {/* Show Provider ID filter only for consumers */}
-                            {role === 'consumer' && (
-                                <input
-                                    type="text"
-                                    placeholder="Filter by Provider ID"
-                                    value={filters.byProviderId || ''}
-                                    onChange={(e) => updateFilter('byProviderId', e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                            )}
-                            
+                        {/* Additional Filters Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <input
+                                type="text"
+                                placeholder="Filter by Consumer ID"
+                                value={filters.byConsumerId || ''}
+                                onChange={(e) => updateFilter('byConsumerId', e.target.value)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Filter by Provider ID"
+                                value={filters.byProviderId || ''}
+                                onChange={(e) => updateFilter('byProviderId', e.target.value)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
                             <input
                                 type="date"
                                 placeholder="Start Date"
@@ -384,7 +361,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                                     <div>
                                         <p className="text-sm font-medium text-gray-600 capitalize">{status} Logs</p>
                                         <p className="text-2xl font-bold text-gray-900">{count}</p>
-                                        <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of filtered</p>
+                                        <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of total</p>
                                     </div>
                                     <div className="p-3 rounded-full bg-gray-100">
                                         {getLogIcon(status)}
@@ -415,10 +392,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                             <div className="text-center py-12">
                                 <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {filters.searchTerm || filters.status !== 'all' || 
-                                     (role === 'provider' && filters.byConsumerId) ||
-                                     (role === 'consumer' && filters.byProviderId) ||
-                                     filters.startDate || filters.endDate
+                                    {filters.searchTerm || filters.status !== 'all' || filters.byConsumerId || filters.byProviderId || filters.startDate || filters.endDate
                                         ? 'No logs match your filters' 
                                         : 'No logs available'
                                     }
