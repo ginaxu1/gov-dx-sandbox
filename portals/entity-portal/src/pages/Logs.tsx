@@ -9,7 +9,7 @@ import {
     Info,
     Clock
 } from 'lucide-react';
-import { logService } from '../services/logService';
+import { LogService } from '../services/logService';
 import type { LogEntry } from '../services/logService';
 
 interface FilterOptions {
@@ -62,12 +62,10 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const entityId = role === 'consumer' ? consumerId : providerId;
-            if (!entityId) {
-                throw new Error(`Missing ${role} ID`);
-            }
             
-            const logs = await logService.fetchLogsByRole(role, entityId);
+            const logs = await LogService.fetchLogsWithParams({
+                [role === 'consumer' ? 'consumerId' : 'providerId']: role === 'consumer' ? consumerId : providerId
+            });
             setLogs(logs);
             setFilteredLogs(logs);
         } catch (error) {
@@ -193,7 +191,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                 search: filters.searchTerm || undefined
             };
 
-            const blob = await logService.exportLogs(queryParams, 'csv');
+            const blob = await LogService.exportLogs(queryParams, 'csv');
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

@@ -103,6 +103,14 @@ function App() {
 
         const fetchedEntityInfoFromDB = await fetchEntityInfoFromDB(entityId);
         if (fetchedEntityInfoFromDB) {
+          const roles: Array<'provider' | 'consumer'> = [];
+          if (fetchedEntityInfoFromDB.consumerId && fetchedEntityInfoFromDB.consumerId !== '') {
+            roles.push('consumer');
+          }
+          if (fetchedEntityInfoFromDB.providerId && fetchedEntityInfoFromDB.providerId !== '') {
+            roles.push('provider');
+          }
+
           const entityInfo: EntityProps = {
             entityId: fetchedEntityInfoFromDB.entityId || '',
             name: fetchedEntityInfoFromDB.name || '',
@@ -113,16 +121,8 @@ function App() {
             consumerId: fetchedEntityInfoFromDB.consumerId || '',
             createdAt: fetchedEntityInfoFromDB.createdAt || '',
             updatedAt: fetchedEntityInfoFromDB.updatedAt || '',
-            roles: []
+            roles: roles
           };
-          
-          // Determine roles based on IDs
-          if (entityInfo.consumerId !== '') {
-            entityInfo.roles.push('consumer');
-          }
-          if (entityInfo.providerId !== '') {
-            entityInfo.roles.push('provider');
-          }
           
           console.log('Parsed entity info from DB:', entityInfo);
           setEntityData(entityInfo);

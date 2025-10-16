@@ -282,34 +282,6 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
           <div className="space-y-6">
             {/* Provider ID Input */}
             <div className="bg-white p-6 rounded-lg shadow-md">
-              {/* <div>
-                <label htmlFor="providerName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Provider Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="providerName"
-                  value={providerName}
-                  placeholder="Provider Name"
-                  disabled
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
-                />
-              </div> */}
-              {/* <div className="mt-4">
-                <label htmlFor="providerId" className="block text-sm font-medium text-gray-700 mb-2">
-                  Provider ID <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="providerId"
-                  value={providerId}
-                  placeholder="Provider ID"
-                  disabled
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
-                />
-              </div> */}
               <div>
                 <label htmlFor="schemaName" className="block text-sm font-medium text-gray-700 mb-2">
                   Schema Name <span className="text-red-500">*</span>
