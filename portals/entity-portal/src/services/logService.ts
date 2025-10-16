@@ -29,7 +29,7 @@ class LogService {
 
     constructor() {
         // Default to localhost for now, can be configured based on environment
-        this.baseUrl = 'http://localhost:3000';
+        this.baseUrl = window.configs.logsUrl;
     }
 
     /**
