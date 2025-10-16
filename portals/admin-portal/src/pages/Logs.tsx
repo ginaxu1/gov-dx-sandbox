@@ -9,7 +9,7 @@ import {
     Info,
     Clock
 } from 'lucide-react';
-import { logService } from '../services/logService';
+import { LogService } from '../services/logService';
 import type { LogEntry } from '../services/logService';
 
 interface FilterOptions {
@@ -58,7 +58,7 @@ export const Logs: React.FC<LogsProps> = () => {
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const logs = await logService.fetchLogs();
+            const logs = await LogService.fetchLogsWithParams();
             setLogs(logs);
             setFilteredLogs(logs);
         } catch (error) {
@@ -178,7 +178,7 @@ export const Logs: React.FC<LogsProps> = () => {
                 search: filters.searchTerm || undefined
             };
 
-            const blob = await logService.exportLogs(queryParams, 'csv');
+            const blob = await LogService.exportLogs(queryParams, 'csv');
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

@@ -9,8 +9,7 @@ import {
     Clock,
     CheckCircle,
     User,
-    Calendar,
-    Tag
+    Calendar
 } from 'lucide-react';
 
 import type { ApprovedApplication, ApplicationSubmission } from '../types/applications';
@@ -73,27 +72,28 @@ export const Applications: React.FC<ApplicationsProps> = () => {
             searchByVersion: ''
         });
     };
-    const fetchSubmissions = async () => {
-        try {
-            const response = await ApplicationService.getApplicationSubmissions();
-            setSubmissions(response);
-        } catch (error) {
-            console.error('Error fetching submissions:', error);
-        }
-    };
-    const fetchApproved = async () => {
-        try {
-            const response = await ApplicationService.getApprovedApplications();
-            setApproved(response);
-        } catch (error) {
-            console.error('Error fetching approved applications:', error);
-        }
-    };
+
     const fetchApplications = async () => {
         setLoading(true);
-        await fetchSubmissions();
-        await fetchApproved();
-        setLoading(false);
+        try {
+            const [submissionsData, approvedData] = await Promise.all([
+                ApplicationService.getApplicationSubmissions(),
+                ApplicationService.getApprovedApplications()
+            ]);
+            
+            setSubmissions(submissionsData);
+            setApproved(approvedData);
+            setFilteredSubmissions(submissionsData);
+            setFilteredApproved(approvedData);
+        } catch (error) {
+            console.error('Error fetching applications:', error);
+            setSubmissions([]);
+            setApproved([]);
+            setFilteredSubmissions([]);
+            setFilteredApproved([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
@@ -128,9 +128,9 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                 app.consumerId.toLowerCase().includes(submissionFilters.searchByConsumerId!.toLowerCase())
             );
         }
-        if (submissionFilters.searchByStatus) {
+        if (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all') {
             filtered = filtered.filter(app =>
-                app.status.toLowerCase().includes(submissionFilters.searchByStatus!.toLowerCase())
+                app.status === submissionFilters.searchByStatus
             );
         }
         setFilteredSubmissions(filtered);
@@ -153,9 +153,9 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                 app.consumerId.toLowerCase().includes(approvedFilters.searchByConsumerId!.toLowerCase())
             );
         }
-        if (approvedFilters.searchByVersion) {
+        if (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all') {
             filtered = filtered.filter(app =>
-                app.version.toLowerCase().includes(approvedFilters.searchByVersion!.toLowerCase())
+                app.version === approvedFilters.searchByVersion
             );
         }
         setFilteredApproved(filtered);
@@ -181,30 +181,128 @@ export const Applications: React.FC<ApplicationsProps> = () => {
 
     const handleExportSubmissions = async () => {
         try {
-            console.log('Exporting submissions with filters:', submissionFilters);
-            // TODO: Implement actual export logic
+            const dataToExport = filteredSubmissions.map(app => ({
+                submissionId: app.submissionId,
+                applicationName: app.applicationName,
+                applicationDescription: app.applicationDescription || '',
+                consumerId: app.consumerId,
+                status: app.status,
+                selectedFields: app.selectedFields?.join('; ') || '',
+                fieldCount: app.selectedFields?.length || 0
+            }));
+
+            const csvContent = [
+                // CSV headers
+                ['Submission ID', 'Application Name', 'Description', 'Consumer ID', 'Status', 'Selected Fields', 'Field Count'].join(','),
+                // CSV data
+                ...dataToExport.map(row => [
+                    row.submissionId,
+                    `"${row.applicationName.replace(/"/g, '""')}"`,
+                    `"${row.applicationDescription.replace(/"/g, '""')}"`,
+                    row.consumerId,
+                    row.status,
+                    `"${row.selectedFields.replace(/"/g, '""')}"`,
+                    row.fieldCount
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `application-submissions-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         } catch (error) {
-            console.error('Error exporting submissions:', error);
+            console.error('Error exporting application submissions:', error);
         }
     };
 
     const handleExportApproved = async () => {
         try {
-            console.log('Exporting approved applications with filters:', approvedFilters);
-            // TODO: Implement actual export logic
+            const dataToExport = filteredApproved.map(app => ({
+                applicationId: app.applicationId,
+                applicationName: app.applicationName,
+                applicationDescription: app.applicationDescription || '',
+                consumerId: app.consumerId,
+                version: app.version,
+                selectedFields: app.selectedFields?.join('; ') || '',
+                fieldCount: app.selectedFields?.length || 0,
+                createdAt: app.createdAt,
+                updatedAt: app.updatedAt
+            }));
+
+            const csvContent = [
+                // CSV headers
+                ['Application ID', 'Application Name', 'Description', 'Consumer ID', 'Version', 'Selected Fields', 'Field Count', 'Created At', 'Updated At'].join(','),
+                // CSV data
+                ...dataToExport.map(row => [
+                    row.applicationId,
+                    `"${row.applicationName.replace(/"/g, '""')}"`,
+                    `"${row.applicationDescription.replace(/"/g, '""')}"`,
+                    row.consumerId,
+                    row.version,
+                    `"${row.selectedFields.replace(/"/g, '""')}"`,
+                    row.fieldCount,
+                    row.createdAt,
+                    row.updatedAt
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `approved-applications-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         } catch (error) {
             console.error('Error exporting approved applications:', error);
         }
     };
 
     const handleReview = (application: ApplicationSubmission) => {
-        console.log('Reviewing application:', application.submissionId, application.applicationName);
-        // TODO: Implement review logic
+        // TODO: Navigate to application review page or open modal
+        // For now, log the application details
+        console.log('Opening application for review:', {
+            submissionId: application.submissionId,
+            applicationName: application.applicationName,
+            consumerId: application.consumerId,
+            status: application.status,
+            selectedFields: application.selectedFields,
+            fieldCount: application.selectedFields?.length || 0
+        });
+        
+        // In a real implementation, this would:
+        // 1. Navigate to a dedicated review page: navigate(`/applications/review/${application.submissionId}`)
+        // 2. Or open a modal with application details and approval/rejection controls
+        // 3. Allow viewing and editing the selected fields
+        // 4. Provide approval/rejection functionality with comments
+        // 5. Show field configuration and access control settings
     };
 
     const handleEdit = (application: ApprovedApplication) => {
-        console.log('Editing application:', application.applicationId, application.applicationName);
-        // TODO: Implement edit logic
+        // TODO: Navigate to application edit page or open modal
+        // For now, log the application details
+        console.log('Opening application for editing:', {
+            applicationId: application.applicationId,
+            applicationName: application.applicationName,
+            consumerId: application.consumerId,
+            version: application.version,
+            selectedFields: application.selectedFields,
+            fieldCount: application.selectedFields?.length || 0
+        });
+        
+        // In a real implementation, this would:
+        // 1. Navigate to a dedicated edit page: navigate(`/applications/edit/${application.applicationId}`)
+        // 2. Or open a modal with editable application details
+        // 3. Allow updating application name, description, and selected fields
+        // 4. Provide version management capabilities
+        // 5. Handle application update through ApplicationService.updateApplication
     };
 
     if (loading) {
@@ -297,29 +395,27 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-600">Pending Reviews</p>
-                                <p className="text-2xl font-bold text-gray-900">{filteredSubmissions.filter(app => app.status === 'pending').length}</p>
-                                <p className="text-xs text-gray-500">of {submissions.length} total</p>
+                                <p className="text-2xl font-bold text-gray-900">{submissions.filter(app => app.status === 'pending').length}</p>
+                                <p className="text-xs text-gray-500">awaiting action</p>
                             </div>
                             <div className="p-3 rounded-full bg-yellow-100">
-                                <Tag className="w-5 h-5 text-yellow-500" />
+                                <Clock className="w-5 h-5 text-yellow-500" />
                             </div>
                         </div>
                     </div>
+                    
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-600">Active Versions</p>
-                                <p className="text-2xl font-bold text-gray-900">{filteredApproved.filter(app => app.version === 'active').length}</p>
-                                <p className="text-xs text-gray-500">of {approved.length} total</p>
+                                <p className="text-2xl font-bold text-gray-900">{approved.filter(app => app.version === 'active').length}</p>
+                                <p className="text-xs text-gray-500">currently active</p>
                             </div>
                             <div className="p-3 rounded-full bg-blue-100">
-                                <Tag className="w-5 h-5 text-blue-500" />
+                                <FileText className="w-5 h-5 text-blue-500" />
                             </div>
                         </div>
-                        <div className="p-6">
-                        </div>
                     </div>
-
                 </div>
 
                 {/* Submissions Section */}
@@ -406,7 +502,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                 <div className="text-center py-12">
                                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                     <p className="text-gray-500 text-lg">
-                                        {submissionFilters.searchByName || submissionFilters.searchByDescription || submissionFilters.searchByConsumerId || submissionFilters.searchByStatus
+                                        {submissionFilters.searchByName || submissionFilters.searchByDescription || submissionFilters.searchByConsumerId || (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all')
                                             ? 'No submissions match your filters' 
                                             : 'No submissions available'
                                         }
@@ -426,7 +522,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                                             {application.applicationName}
                                                         </h3>
                                                         <div className="flex items-center text-xs text-gray-500">
-                                                            <User className="w-3 h-3 mr-1" />
+                                                            <Calendar className="w-3 h-3 mr-1" />
                                                             Consumer: {application.consumerId}
                                                         </div>
                                                     </div>
@@ -568,7 +664,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             <div className="text-center py-12">
                                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {approvedFilters.searchByName || approvedFilters.searchByDescription || approvedFilters.searchByConsumerId || approvedFilters.searchByVersion
+                                    {approvedFilters.searchByName || approvedFilters.searchByDescription || approvedFilters.searchByConsumerId || (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all')
                                         ? 'No approved applications match your filters' 
                                         : 'No approved applications available'
                                     }
