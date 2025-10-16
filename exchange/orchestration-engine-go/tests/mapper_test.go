@@ -141,20 +141,20 @@ func TestProviderSchemaCollector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			queryDoc := ParseTestQuery(t, tt.query)
 
-			fields, args, err := federator.ProviderSchemaCollector(schema, queryDoc)
+			response, err := federator.ProviderSchemaCollector(schema, queryDoc)
 
 			if tt.expectError {
 				assert.Error(t, err, tt.description)
-				assert.Nil(t, fields)
-				assert.Nil(t, args)
+				assert.Nil(t, response)
 			} else {
 				assert.NoError(t, err, tt.description)
-				assert.Len(t, fields, len(tt.expectedFields), "Should extract correct number of fields")
-				assert.Len(t, args, tt.expectedArgs, "Should extract correct number of arguments")
+				assert.NotNil(t, response, "Response should not be nil")
+				assert.Len(t, response.ProviderFieldMap, len(tt.expectedFields), "Should extract correct number of fields")
+				assert.Len(t, response.Arguments, tt.expectedArgs, "Should extract correct number of arguments")
 
 				// Verify extracted fields
 				for _, expectedField := range tt.expectedFields {
-					assert.Contains(t, fields, expectedField, "Should contain field: %s", expectedField)
+					assert.Contains(t, response.ProviderFieldMap, expectedField, "Should contain field: %s", expectedField)
 				}
 			}
 		})
