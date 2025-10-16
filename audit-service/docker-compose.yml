@@ -4,7 +4,7 @@ services:
   audit-service:
     build: .
     ports:
-      - "3002:3002"
+      - "3001:3001"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -12,7 +12,7 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=gov_dx_sandbox
       - DB_SSLMODE=disable
-      - PORT=3002
+      - PORT=3001
     depends_on:
       - postgres
     restart: unless-stopped
