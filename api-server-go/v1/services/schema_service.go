@@ -306,7 +306,7 @@ func (s *SchemaService) GetSchemaSubmissions(providerID *string, statusFilter *[
 	query = query.Order("created_at DESC")
 
 	if statusFilter != nil && len(*statusFilter) > 0 {
-		query = query.Where("status IN ?", statusFilter)
+		query = query.Where("status IN ?", *statusFilter)
 	}
 
 	err := query.Find(&submissions).Error
