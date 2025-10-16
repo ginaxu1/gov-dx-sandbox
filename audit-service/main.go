@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gov-dx-sandbox/audit-service/handlers"
@@ -115,6 +117,32 @@ func main() {
 	// Server configuration
 	serverPort := *port
 
+	// Setup structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
+
+	slog.Info("Starting audit service",
+		"environment", *env,
+		"port", serverPort,
+		"version", Version,
+		"build_time", BuildTime,
+		"git_commit", GitCommit)
+
+	// Log database configuration being used
+	slog.Info("Database configuration",
+		"choreo_host", os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"),
+		"choreo_port", os.Getenv("CHOREO_DB_AUDIT_PORT"),
+		"choreo_user", os.Getenv("CHOREO_DB_AUDIT_USERNAME"),
+		"choreo_database", os.Getenv("CHOREO_DB_AUDIT_DATABASENAME"),
+		"fallback_host", os.Getenv("DB_HOST"),
+		"fallback_port", os.Getenv("DB_PORT"))
+
+	// Context for graceful shutdown
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Initialize database connection
 	dbConfig := NewDatabaseConfig()
 	slog.Info("Connecting to database",
@@ -150,15 +178,11 @@ func main() {
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-
-		// Simple health check - just return healthy if service is running
-		// Database connectivity is checked during startup, not in health check
 		w.WriteHeader(http.StatusOK)
 		response := map[string]string{
 			"service": "audit-service",
 			"status":  "healthy",
 		}
-
 		json.NewEncoder(w).Encode(response)
 	})
 
@@ -166,14 +190,12 @@ func main() {
 	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-
 		response := map[string]string{
 			"version":   Version,
 			"buildTime": BuildTime,
 			"gitCommit": GitCommit,
 			"service":   "audit-service",
 		}
-
 		json.NewEncoder(w).Encode(response)
 	})
 
@@ -188,20 +210,7 @@ func main() {
 		}
 	})
 
-	// Start server
-	slog.Info("Audit Service starting",
-		"environment", *env,
-		"port", serverPort,
-		"version", Version,
-		"buildTime", BuildTime,
-		"gitCommit", GitCommit)
-	slog.Info("Database configuration",
-		"host", dbConfig.Host,
-		"port", dbConfig.Port,
-		"database", dbConfig.Database,
-		"choreoHost", os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"),
-		"fallbackHost", os.Getenv("DB_HOST"))
-
+	// Create server
 	server := &http.Server{
 		Addr:         ":" + serverPort,
 		Handler:      mux,
@@ -210,10 +219,30 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		slog.Error("Server failed to start", "error", err)
-		os.Exit(1)
+	// Start server in a goroutine
+	go func() {
+		slog.Info("Audit Service starting", "port", serverPort)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("Server failed to start", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	slog.Info("Shutting down server...")
+
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Server forced to shutdown", "error", err)
 	}
+
+	slog.Info("Server exited")
 }
 
 // ConnectDB establishes a connection to the PostgreSQL database with retry logic

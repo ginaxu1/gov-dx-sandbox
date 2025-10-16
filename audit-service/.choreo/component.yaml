@@ -27,7 +27,7 @@ endpoints:
 dependencies:
   connectionReferences:
   - name: DB_AUDIT
-    resourceRef: database:opendif-db/testdb
+    resourceRef: database:opendif-db/defaultdb
 
 configurations:
   # +optional List of environment variables to be injected into the component.
