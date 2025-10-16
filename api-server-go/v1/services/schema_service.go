@@ -116,7 +116,7 @@ func (s *SchemaService) GetSchema(schemaID string) (*models.SchemaResponse, erro
 func (s *SchemaService) GetSchemas(providerID *string) ([]*models.SchemaResponse, error) {
 	var schemas []models.Schema
 	query := s.db
-	if providerID != nil {
+	if providerID != nil && *providerID != "" {
 		query = query.Where("provider_id = ?", *providerID)
 	}
 
@@ -298,7 +298,7 @@ func (s *SchemaService) GetSchemaSubmission(submissionID string) (*models.Schema
 func (s *SchemaService) GetSchemaSubmissions(providerID *string, statusFilter *[]string) ([]*models.SchemaSubmissionResponse, error) {
 	var submissions []models.SchemaSubmission
 	query := s.db.Preload("PreviousSchema").Preload("Provider")
-	if providerID != nil {
+	if providerID != nil && *providerID != "" {
 		query = query.Where("provider_id = ?", *providerID)
 	}
 

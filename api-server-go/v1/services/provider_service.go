@@ -326,11 +326,11 @@ func (s *ProviderService) UpdateProviderSchemaSubmission(submissionID string, re
 }
 
 // GetProviderSchemaSubmissions retrieves schema submissions for a provider
-func (s *ProviderService) GetProviderSchemaSubmissions(providerID string, status string) ([]models.SchemaSubmissionResponse, error) {
+func (s *ProviderService) GetProviderSchemaSubmissions(providerID string, status *string) ([]models.SchemaSubmissionResponse, error) {
 	var submissions []models.SchemaSubmission
 
 	query := s.db.Preload("Provider").Preload("Provider.Entity").Preload("PreviousSchema").Where("provider_id = ?", providerID)
-	if status != "" {
+	if status != nil && *status != "" {
 		query = query.Where("status = ?", status)
 	}
 

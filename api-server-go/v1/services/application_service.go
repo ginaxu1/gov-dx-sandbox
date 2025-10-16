@@ -113,7 +113,7 @@ func (s *ApplicationService) GetApplication(applicationID string) (*models.Appli
 func (s *ApplicationService) GetApplications(consumerID *string) ([]models.ApplicationResponse, error) {
 	var applications []models.Application
 	query := s.db.Preload("Consumer")
-	if consumerID != nil {
+	if consumerID != nil && *consumerID != "" {
 		query = query.Where("consumer_id = ?", *consumerID)
 	}
 
@@ -285,7 +285,7 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statusFilter *[]string) ([]models.ApplicationSubmissionResponse, error) {
 	var submissions []models.ApplicationSubmission
 	query := s.db.Preload("Consumer").Preload("PreviousApplication")
-	if consumerID != nil {
+	if consumerID != nil && *consumerID != "" {
 		query = query.Where("consumer_id = ?", *consumerID)
 	}
 	if statusFilter != nil && len(*statusFilter) > 0 {

@@ -312,11 +312,11 @@ func (s *ConsumerService) UpdateConsumerApplicationSubmission(submissionID strin
 }
 
 // GetConsumerApplicationSubmissions retrieves application submissions for a consumer
-func (s *ConsumerService) GetConsumerApplicationSubmissions(consumerID string, status string) ([]models.ApplicationSubmissionResponse, error) {
+func (s *ConsumerService) GetConsumerApplicationSubmissions(consumerID string, status *string) ([]models.ApplicationSubmissionResponse, error) {
 	var submissions []models.ApplicationSubmission
 
 	query := s.db.Preload("Consumer").Preload("Consumer.Entity").Preload("PreviousApplication").Where("consumer_id = ?", consumerID)
-	if status != "" {
+	if status != nil && *status != "" {
 		query = query.Where("status = ?", status)
 	}
 

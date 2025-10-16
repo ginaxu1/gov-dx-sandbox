@@ -24,9 +24,11 @@ type V1Handler struct {
 func NewV1Handler(db *gorm.DB) *V1Handler {
 	entityService := services.NewEntityService(db)
 	return &V1Handler{
-		entityService:   entityService,
-		providerService: services.NewProviderService(db, entityService),
-		consumerService: services.NewConsumerService(db, entityService),
+		entityService:      entityService,
+		providerService:    services.NewProviderService(db, entityService),
+		consumerService:    services.NewConsumerService(db, entityService),
+		schemaService:      services.NewSchemaService(db),
+		applicationService: services.NewApplicationService(db),
 	}
 }
 
@@ -53,8 +55,8 @@ func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	mux.Handle("/api/v1/applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
 
 	// ApplicationSubmission routes
-	mux.Handle("/api/v1/applications-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
-	mux.Handle("/api/v1/applications-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
+	mux.Handle("/api/v1/application-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
+	mux.Handle("/api/v1/application-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
 
 	// Entity routes
 	mux.Handle("/api/v1/entities", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
