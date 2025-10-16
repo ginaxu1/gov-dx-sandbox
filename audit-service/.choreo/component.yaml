@@ -1,5 +1,6 @@
 # +required The configuration file schema version
 schemaVersion: 1.2
+
 # +optional Incoming connection details for the component
 endpoints:
   # REST API Endpoint for Audit Service
@@ -22,6 +23,12 @@ endpoints:
     # The path should be relative to the docker context.
     schemaFilePath: openapi.yaml
 
+# +optional Dependencies for the component
+dependencies:
+  connectionReferences:
+  - name: DB_AUDIT
+    resourceRef: database:opendif-db/testdb
+
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
@@ -38,9 +45,3 @@ configurations:
           # +optional default value is string if not specified
           # Allowed types - string, number, boolean, secret
           type: number
-
-# +optional Dependencies for the component
-dependencies:
-  connectionReferences:
-  - name: DB_AUDIT
-    resourceRef: database:opendif-db/testdb

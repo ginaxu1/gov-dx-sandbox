@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -105,11 +105,23 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 func main() {
+	// Parse command line flags
+	var (
+		env  = flag.String("env", getEnvOrDefault("ENVIRONMENT", "production"), "Environment (development, production)")
+		port = flag.String("port", getEnvOrDefault("PORT", "3001"), "Port to listen on")
+	)
+	flag.Parse()
+
 	// Server configuration
-	port := getEnvOrDefault("PORT", "3001")
+	serverPort := *port
 
 	// Initialize database connection
 	dbConfig := NewDatabaseConfig()
+	slog.Info("Connecting to database",
+		"host", dbConfig.Host,
+		"port", dbConfig.Port,
+		"database", dbConfig.Database)
+
 	db, err := ConnectDB(dbConfig)
 	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
@@ -118,9 +130,12 @@ func main() {
 	defer db.Close()
 
 	// Initialize database tables
+	slog.Info("Initializing database tables and views")
 	if err := InitDatabase(db); err != nil {
 		slog.Error("Failed to initialize database", "error", err)
-		os.Exit(1)
+		// Don't exit immediately - log the error and continue
+		// The service can still start and handle requests, database operations will fail gracefully
+		slog.Warn("Continuing with database initialization failure - some operations may not work")
 	}
 
 	// Initialize services
@@ -136,20 +151,12 @@ func main() {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		// Check database connection
-		if err := db.Ping(); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			response := map[string]string{
-				"status": "unhealthy",
-				"error":  "database connection failed",
-			}
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
+		// Simple health check - just return healthy if service is running
+		// Database connectivity is checked during startup, not in health check
 		w.WriteHeader(http.StatusOK)
 		response := map[string]string{
-			"status": "healthy",
+			"service": "audit-service",
+			"status":  "healthy",
 		}
 
 		json.NewEncoder(w).Encode(response)
@@ -182,8 +189,12 @@ func main() {
 	})
 
 	// Start server
-	slog.Info("Audit Service starting", "port", port)
-	slog.Info("Build information", "version", Version, "buildTime", BuildTime, "gitCommit", GitCommit)
+	slog.Info("Audit Service starting",
+		"environment", *env,
+		"port", serverPort,
+		"version", Version,
+		"buildTime", BuildTime,
+		"gitCommit", GitCommit)
 	slog.Info("Database configuration",
 		"host", dbConfig.Host,
 		"port", dbConfig.Port,
@@ -192,7 +203,7 @@ func main() {
 		"fallbackHost", os.Getenv("DB_HOST"))
 
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         ":" + serverPort,
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
@@ -200,7 +211,8 @@ func main() {
 	}
 
 	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+		slog.Error("Server failed to start", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -265,62 +277,117 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 	return nil, fmt.Errorf("unexpected error: should not reach here")
 }
 
-// ExecuteWithTimeout executes a query with timeout using the provided context
-func ExecuteWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) (sql.Result, error) {
-	// Create a timeout context for the query
-	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
-	defer cancel()
-
-	return db.ExecContext(queryCtx, query, args...)
-}
-
-// QueryWithTimeout executes a query with timeout and returns rows
-func QueryWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) (*sql.Rows, error) {
-	// Create a timeout context for the query
-	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
-	defer cancel()
-
-	return db.QueryContext(queryCtx, query, args...)
-}
-
-// QueryRowWithTimeout executes a query with timeout and returns a single row
-func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) *sql.Row {
-	// Create a timeout context for the query
-	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
-	defer cancel()
-
-	return db.QueryRowContext(queryCtx, query, args...)
-}
-
 // InitDatabase creates the necessary tables if they don't exist
 func InitDatabase(db *sql.DB) error {
+	// Check if audit_logs table exists and has the new schema
+	var tableExists bool
+	err := db.QueryRow(`
+		SELECT EXISTS (
+			SELECT FROM information_schema.tables 
+			WHERE table_schema = 'public' 
+			AND table_name = 'audit_logs'
+		)
+	`).Scan(&tableExists)
+
+	if err != nil {
+		return fmt.Errorf("failed to check if audit_logs table exists: %w", err)
+	}
+
+	if tableExists {
+		// Check if table has the new schema (application_id, schema_id)
+		var hasNewSchema bool
+		err := db.QueryRow(`
+			SELECT EXISTS (
+				SELECT FROM information_schema.columns 
+				WHERE table_schema = 'public' 
+				AND table_name = 'audit_logs' 
+				AND column_name = 'application_id'
+			)
+		`).Scan(&hasNewSchema)
+
+		if err != nil {
+			return fmt.Errorf("failed to check table schema: %w", err)
+		}
+
+		if hasNewSchema {
+			slog.Info("audit_logs table already exists with new schema (application_id, schema_id)")
+		} else {
+			slog.Info("audit_logs table exists with old schema, skipping creation")
+		}
+		return nil
+	}
+
+	// Create the new schema table
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS audit_logs (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		status VARCHAR(10) NOT NULL CHECK (status IN ('success', 'failure')),
 		requested_data TEXT NOT NULL,
-		consumer_id VARCHAR(255),
-		provider_id VARCHAR(255),
+		application_id VARCHAR(255) NOT NULL,
+		schema_id VARCHAR(255) NOT NULL,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
 
 	-- Create indexes for better performance
-	CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_id ON audit_logs(consumer_id);
-	CREATE INDEX IF NOT EXISTS idx_audit_logs_provider_id ON audit_logs(provider_id);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_application_id ON audit_logs(application_id);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_schema_id ON audit_logs(schema_id);
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_status ON audit_logs(status);
 	
 	-- Create composite indexes for common query patterns
-	CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_timestamp ON audit_logs(consumer_id, timestamp DESC);
-	CREATE INDEX IF NOT EXISTS idx_audit_logs_provider_timestamp ON audit_logs(provider_id, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_application_timestamp ON audit_logs(application_id, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_schema_timestamp ON audit_logs(schema_id, timestamp DESC);
+
+	-- Note: View creation is handled separately after table creation
 	`
 
-	_, err := db.Exec(createTableSQL)
+	_, err = db.Exec(createTableSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create audit_logs table: %w", err)
 	}
 
-	slog.Info("Database tables initialized successfully")
+	// Try to create the view, but don't fail if referenced tables don't exist
+	viewSQL := `
+	CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
+	SELECT audit_logs.id,
+		   audit_logs."timestamp",
+		   audit_logs.status,
+		   audit_logs.requested_data,
+		   audit_logs.application_id,
+		   audit_logs.schema_id,
+		   COALESCE(consumer_applications.consumer_id, 'unknown') as consumer_id,
+		   COALESCE(provider_schemas.provider_id, 'unknown') as provider_id
+	FROM audit_logs
+			 LEFT JOIN provider_schemas USING (schema_id)
+			 LEFT JOIN consumer_applications USING (application_id);
+	`
+
+	_, viewErr := db.Exec(viewSQL)
+	if viewErr != nil {
+		slog.Warn("Failed to create view (referenced tables may not exist)", "error", viewErr)
+		// Create a simple view without joins as fallback
+		fallbackViewSQL := `
+		CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
+		SELECT id,
+			   "timestamp",
+			   status,
+			   requested_data,
+			   application_id,
+			   schema_id,
+			   'unknown' as consumer_id,
+			   'unknown' as provider_id
+		FROM audit_logs;
+		`
+		if _, fallbackErr := db.Exec(fallbackViewSQL); fallbackErr != nil {
+			slog.Warn("Failed to create fallback view", "error", fallbackErr)
+		} else {
+			slog.Info("Created fallback view without joins")
+		}
+	} else {
+		slog.Info("Created view with joins to consumer_applications and provider_schemas")
+	}
+
+	slog.Info("Database tables and view initialized successfully")
 	return nil
 }

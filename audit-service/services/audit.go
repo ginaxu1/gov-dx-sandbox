@@ -22,8 +22,8 @@ func NewAuditService(db *sql.DB) *AuditService {
 // GetLogs retrieves logs with optional filtering
 func (s *AuditService) GetLogs(ctx context.Context, filter *models.LogFilter) (*models.LogResponse, error) {
 	query := `
-		SELECT id, timestamp, status, requested_data, consumer_id, provider_id
-		FROM audit_logs
+		SELECT id, timestamp, status, requested_data, application_id, schema_id, consumer_id, provider_id
+		FROM audit_logs_with_provider_consumer
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -91,6 +91,8 @@ func (s *AuditService) GetLogs(ctx context.Context, filter *models.LogFilter) (*
 			&log.Timestamp,
 			&log.Status,
 			&log.RequestedData,
+			&log.ApplicationID,
+			&log.SchemaID,
 			&log.ConsumerID,
 			&log.ProviderID,
 		)
@@ -117,25 +119,42 @@ func (s *AuditService) GetLogs(ctx context.Context, filter *models.LogFilter) (*
 
 // CreateLog creates a new log entry
 func (s *AuditService) CreateLog(ctx context.Context, logReq *models.LogRequest) (*models.Log, error) {
-	query := `
-		INSERT INTO audit_logs (status, requested_data, consumer_id, provider_id)
+	// First insert the log entry
+	insertQuery := `
+		INSERT INTO audit_logs (status, requested_data, application_id, schema_id)
 		VALUES ($1, $2, $3, $4)
-		RETURNING id, timestamp, status, requested_data, consumer_id, provider_id
+		RETURNING id
+	`
+
+	var logID string
+	err := s.db.QueryRowContext(ctx, insertQuery, logReq.Status, logReq.RequestedData, logReq.ApplicationID, logReq.SchemaID).Scan(&logID)
+	if err != nil {
+		slog.Error("Failed to create log", "error", err)
+		return nil, fmt.Errorf("failed to create log: %w", err)
+	}
+
+	// Then fetch the complete log entry with joined data
+	fetchQuery := `
+		SELECT id, timestamp, status, requested_data, application_id, schema_id, consumer_id, provider_id
+		FROM audit_logs_with_provider_consumer
+		WHERE id = $1
 	`
 
 	var log models.Log
-	err := s.db.QueryRowContext(ctx, query, logReq.Status, logReq.RequestedData, logReq.ConsumerID, logReq.ProviderID).Scan(
+	err = s.db.QueryRowContext(ctx, fetchQuery, logID).Scan(
 		&log.ID,
 		&log.Timestamp,
 		&log.Status,
 		&log.RequestedData,
+		&log.ApplicationID,
+		&log.SchemaID,
 		&log.ConsumerID,
 		&log.ProviderID,
 	)
 
 	if err != nil {
-		slog.Error("Failed to create log", "error", err)
-		return nil, fmt.Errorf("failed to create log: %w", err)
+		slog.Error("Failed to fetch created log", "error", err)
+		return nil, fmt.Errorf("failed to fetch created log: %w", err)
 	}
 
 	return &log, nil
@@ -143,7 +162,7 @@ func (s *AuditService) CreateLog(ctx context.Context, logReq *models.LogRequest)
 
 // getLogsTotalCount gets the total count of logs matching the filter
 func (s *AuditService) getLogsTotalCount(ctx context.Context, filter *models.LogFilter) (int64, error) {
-	query := "SELECT COUNT(*) FROM audit_logs WHERE 1=1"
+	query := "SELECT COUNT(*) FROM audit_logs_with_provider_consumer WHERE 1=1"
 	args := []interface{}{}
 	argIndex := 1
 

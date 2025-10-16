@@ -15,7 +15,6 @@ RUN apk add --no-cache git ca-certificates tzdata
 # Copy go mod files and source code
 COPY go.mod go.sum ./
 COPY . ./
-
 # Download dependencies
 RUN go mod download
 
@@ -53,8 +52,7 @@ ENV CONFIG_DIR=/app/config
 ENV ENVIRONMENT=production
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
-# Run the application
-CMD ["./service_binary"]
+CMD ["./service_binary", "-env=${ENVIRONMENT:-production}", "-port=3001"]

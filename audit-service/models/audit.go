@@ -10,6 +10,8 @@ type Log struct {
 	Timestamp     time.Time `json:"timestamp" db:"timestamp"`
 	Status        string    `json:"status" db:"status"`
 	RequestedData string    `json:"requestedData" db:"requested_data"`
+	ApplicationID string    `json:"applicationId" db:"application_id"`
+	SchemaID      string    `json:"schemaId" db:"schema_id"`
 	ConsumerID    string    `json:"consumerId" db:"consumer_id"`
 	ProviderID    string    `json:"providerId" db:"provider_id"`
 }
@@ -37,6 +39,6 @@ type LogResponse struct {
 type LogRequest struct {
 	Status        string `json:"status" validate:"required,oneof=success failure"`
 	RequestedData string `json:"requestedData" validate:"required"`
-	ConsumerID    string `json:"consumerId,omitempty"`
-	ProviderID    string `json:"providerId,omitempty"`
+	ApplicationID string `json:"applicationId" validate:"required"`
+	SchemaID      string `json:"schemaId" validate:"required"`
 }

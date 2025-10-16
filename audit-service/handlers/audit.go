@@ -75,6 +75,16 @@ func (h *AuditHandler) CreateLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.ApplicationID == "" {
+		http.Error(w, "Missing required field: applicationId", http.StatusBadRequest)
+		return
+	}
+
+	if req.SchemaID == "" {
+		http.Error(w, "Missing required field: schemaId", http.StatusBadRequest)
+		return
+	}
+
 	// Validate status
 	if req.Status != "success" && req.Status != "failure" {
 		http.Error(w, "Invalid status. Must be 'success' or 'failure'", http.StatusBadRequest)
