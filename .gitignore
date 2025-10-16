@@ -36,4 +36,3 @@ mocks/mock-dmt/Config.toml
 !**/.choreo/
 !**/.choreo/**
 portals/entity-portal/public/config.js
-portals/admin-portal/public/config.js
