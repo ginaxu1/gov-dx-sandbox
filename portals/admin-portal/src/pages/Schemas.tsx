@@ -5,155 +5,114 @@ import {
     Download, 
     RefreshCw, 
     Eye,
-    Edit3,
     Clock,
     CheckCircle,
     User,
     Calendar,
     FileCode,
-    Layers
+    Layers,
+    XCircle
 } from 'lucide-react';
 
-interface Schema {
-    schemaId: string;
-    name: string;
-    schemaType: 'data' | 'api' | 'event';
-    version: string;
-    description: string;
-    submittedBy: string;
-    submittedByEmail: string;
-    status: 'submitted' | 'approved' | 'rejected';
-    createdAt: string;
-    updatedAt: string;
-    approvedAt?: string;
-    approvedBy?: string;
-    fields?: number;
-    usageCount?: number;
+import type { ApprovedSchema, SchemaSubmission  } from '../types/graphql';
+import { SchemaService } from '../services/schemaService';
+
+interface FilterOptionsApproved {
+    searchByName?: string;
+    searchByDescription?: string;
+    searchByProviderId?: string;
+    searchByVersion: 'active' | 'deprecated' | 'all';
 }
 
-interface FilterOptions {
-    schemaType?: 'all' | 'data' | 'api' | 'event';
+const schemaVersions = ['active', 'deprecated'];
+const schemaStatuses = ['pending', 'approved', 'rejected'];
+
+interface FilterOptionsSubmissions {
     searchByName?: string;
-    submittedBy?: string;
-    startDate?: string;
-    endDate?: string;
-    version?: string;
+    searchByDescription?: string;
+    searchByProviderId?: string;
+    searchByStatus: 'pending' | 'approved' | 'rejected' | 'all';
 }
 
 interface SchemasProps {
 }
 
 export const Schemas: React.FC<SchemasProps> = () => {
-    const [submissions, setSubmissions] = useState<Schema[]>([]);
-    const [approved, setApproved] = useState<Schema[]>([]);
-    const [filteredSubmissions, setFilteredSubmissions] = useState<Schema[]>([]);
-    const [filteredApproved, setFilteredApproved] = useState<Schema[]>([]);
-    
+    const [submissions, setSubmissions] = useState<SchemaSubmission[]>([]);
+    const [approved, setApproved] = useState<ApprovedSchema[]>([]);
+    const [filteredSubmissions, setFilteredSubmissions] = useState<SchemaSubmission[]>([]);
+    const [filteredApproved, setFilteredApproved] = useState<ApprovedSchema[]>([]);
+
+    const getSchemaTypeIcon = (schemaStatus?: 'pending' | 'approved' | 'rejected', schemaVersion?: 'active' | 'deprecated') => {
+        if (schemaStatus === 'pending') return <Clock className="text-yellow-500" />;
+        if (schemaStatus === 'approved') return <CheckCircle className="text-green-500" />;
+        if (schemaStatus === 'rejected') return <XCircle className="text-red-500" />;
+        if (schemaVersion === 'active') return <Layers className="text-blue-500" />;
+        if (schemaVersion === 'deprecated') return <FileCode className="text-gray-500" />;
+        return <Database className="text-gray-400" />;
+    };
+
+    const getSchemaTypeBorderColor = (schemaStatus?: 'pending' | 'approved' | 'rejected', schemaVersion?: 'active' | 'deprecated') => {
+        if (schemaStatus === 'pending') return 'border-yellow-500';
+        if (schemaStatus === 'approved') return 'border-green-500';
+        if (schemaStatus === 'rejected') return 'border-red-500';
+        if (schemaVersion === 'active') return 'border-blue-500';
+        if (schemaVersion === 'deprecated') return 'border-gray-500';
+        return 'border-gray-200';
+    };
+
     // Separate filters for submissions and approved
-    const [submissionFilters, setSubmissionFilters] = useState<FilterOptions>({
-        schemaType: 'all',
+    const [submissionFilters, setSubmissionFilters] = useState<FilterOptionsSubmissions>({
         searchByName: '',
-        submittedBy: '',
-        startDate: '',
-        endDate: '',
-        version: ''
+        searchByDescription: '',
+        searchByProviderId: '',
+        searchByStatus: 'all'
     });
-    
-    const [approvedFilters, setApprovedFilters] = useState<FilterOptions>({
-        schemaType: 'all',
+
+    const [approvedFilters, setApprovedFilters] = useState<FilterOptionsApproved>({
         searchByName: '',
-        submittedBy: '',
-        startDate: '',
-        endDate: '',
-        version: ''
+        searchByDescription: '',
+        searchByProviderId: '',
+        searchByVersion: 'all'
     });
     
     const [loading, setLoading] = useState(true);
     const [autoRefresh, setAutoRefresh] = useState(false);
 
     // Helper function to update submission filters
-    const updateSubmissionFilter = <K extends keyof FilterOptions>(key: K, value: FilterOptions[K]) => {
+    const updateSubmissionFilter = <K extends keyof FilterOptionsSubmissions>(key: K, value: FilterOptionsSubmissions[K]) => {
         setSubmissionFilters(prev => ({ ...prev, [key]: value }));
     };
 
     // Helper function to update approved filters
-    const updateApprovedFilter = <K extends keyof FilterOptions>(key: K, value: FilterOptions[K]) => {
+    const updateApprovedFilter = <K extends keyof FilterOptionsApproved>(key: K, value: FilterOptionsApproved[K]) => {
         setApprovedFilters(prev => ({ ...prev, [key]: value }));
     };
 
     // Helper function to clear submission filters
     const clearSubmissionFilters = () => {
         setSubmissionFilters({
-            schemaType: 'all',
             searchByName: '',
-            submittedBy: '',
-            startDate: '',
-            endDate: '',
-            version: ''
+            searchByDescription: '',
+            searchByProviderId: '',
+            searchByStatus: 'all'
         });
     };
 
     // Helper function to clear approved filters
     const clearApprovedFilters = () => {
         setApprovedFilters({
-            schemaType: 'all',
             searchByName: '',
-            submittedBy: '',
-            startDate: '',
-            endDate: '',
-            version: ''
+            searchByDescription: '',
+            searchByProviderId: '',
+            searchByVersion: 'all'
         });
     };
 
-    // Mock API calls - replace with actual service calls later
     const fetchSubmissions = async () => {
         try {
-            // Mock data for schema submissions
-            const mockSubmissions: Schema[] = [
-                {
-                    schemaId: 'schema_001',
-                    name: 'Patient Health Record',
-                    schemaType: 'data',
-                    version: '1.0.0',
-                    description: 'Schema for patient health records in healthcare system',
-                    submittedBy: 'Ministry of Health',
-                    submittedByEmail: 'health@gov.lk',
-                    status: 'submitted',
-                    createdAt: '2025-10-12T11:30:00Z',
-                    updatedAt: '2025-10-12T11:30:00Z',
-                    fields: 25,
-                    usageCount: 0
-                },
-                {
-                    schemaId: 'schema_002',
-                    name: 'Tax Submission API',
-                    schemaType: 'api',
-                    version: '2.1.0',
-                    description: 'API schema for tax submission endpoints',
-                    submittedBy: 'Tax Authority',
-                    submittedByEmail: 'tax@gov.lk',
-                    status: 'submitted',
-                    createdAt: '2025-10-11T16:20:00Z',
-                    updatedAt: '2025-10-11T16:20:00Z',
-                    fields: 18,
-                    usageCount: 0
-                },
-                {
-                    schemaId: 'schema_003',
-                    name: 'Vehicle Registration Event',
-                    schemaType: 'event',
-                    version: '1.2.0',
-                    description: 'Event schema for vehicle registration notifications',
-                    submittedBy: 'DMV',
-                    submittedByEmail: 'dmv@gov.lk',
-                    status: 'submitted',
-                    createdAt: '2025-10-10T10:15:00Z',
-                    updatedAt: '2025-10-10T10:15:00Z',
-                    fields: 12,
-                    usageCount: 0
-                }
-            ];
-            return mockSubmissions;
+            const data : SchemaSubmission[] = await SchemaService.getSchemaSubmissions();
+            return data;
         } catch (error) {
             console.error('Error fetching schema submissions:', error);
             return [];
@@ -162,58 +121,8 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
     const fetchApproved = async () => {
         try {
-            // Mock data for approved schemas
-            const mockApproved: Schema[] = [
-                {
-                    schemaId: 'schema_101',
-                    name: 'Identity Verification Schema',
-                    schemaType: 'data',
-                    version: '1.5.0',
-                    description: 'Schema for identity verification data structure',
-                    submittedBy: 'Registrar General',
-                    submittedByEmail: 'rg@gov.lk',
-                    status: 'approved',
-                    createdAt: '2025-10-01T09:00:00Z',
-                    updatedAt: '2025-10-05T15:30:00Z',
-                    approvedAt: '2025-10-05T15:30:00Z',
-                    approvedBy: 'admin@gov.lk',
-                    fields: 30,
-                    usageCount: 45
-                },
-                {
-                    schemaId: 'schema_102',
-                    name: 'Education Records API',
-                    schemaType: 'api',
-                    version: '3.0.0',
-                    description: 'API schema for education records endpoints',
-                    submittedBy: 'Ministry of Education',
-                    submittedByEmail: 'edu@gov.lk',
-                    status: 'approved',
-                    createdAt: '2025-09-28T13:00:00Z',
-                    updatedAt: '2025-10-03T17:45:00Z',
-                    approvedAt: '2025-10-03T17:45:00Z',
-                    approvedBy: 'admin@gov.lk',
-                    fields: 22,
-                    usageCount: 78
-                },
-                {
-                    schemaId: 'schema_103',
-                    name: 'Business Registration Event',
-                    schemaType: 'event',
-                    version: '2.0.0',
-                    description: 'Event schema for business registration notifications',
-                    submittedBy: 'Business Registry',
-                    submittedByEmail: 'business@gov.lk',
-                    status: 'approved',
-                    createdAt: '2025-09-25T12:30:00Z',
-                    updatedAt: '2025-09-30T11:15:00Z',
-                    approvedAt: '2025-09-30T11:15:00Z',
-                    approvedBy: 'admin@gov.lk',
-                    fields: 16,
-                    usageCount: 32
-                }
-            ];
-            return mockApproved;
+            const data : ApprovedSchema[] = await SchemaService.getApprovedSchemas();
+            return data;
         } catch (error) {
             console.error('Error fetching approved schemas:', error);
             return [];
@@ -264,115 +173,56 @@ export const Schemas: React.FC<SchemasProps> = () => {
         
         if (submissionFilters.searchByName) {
             filtered = filtered.filter(schema =>
-                schema.name.toLowerCase().includes(submissionFilters.searchByName!.toLowerCase()) ||
-                schema.description.toLowerCase().includes(submissionFilters.searchByName!.toLowerCase())
+                schema.schemaName.toLowerCase().includes(submissionFilters.searchByName!.toLowerCase())
             );
         }
-
-        if (submissionFilters.schemaType && submissionFilters.schemaType !== 'all') {
-            filtered = filtered.filter(schema => schema.schemaType === submissionFilters.schemaType);
-        }
-
-        if (submissionFilters.submittedBy) {
-            filtered = filtered.filter(schema => 
-                schema.submittedBy.toLowerCase().includes(submissionFilters.submittedBy!.toLowerCase())
+        if (submissionFilters.searchByDescription) {
+            filtered = filtered.filter(schema =>
+                schema.schemaDescription?.toLowerCase().includes(submissionFilters.searchByDescription!.toLowerCase())
             );
         }
-
-        if (submissionFilters.version) {
-            filtered = filtered.filter(schema => 
-                schema.version.toLowerCase().includes(submissionFilters.version!.toLowerCase())
+        if (submissionFilters.searchByProviderId) {
+            filtered = filtered.filter(schema =>
+                schema.providerId.toLowerCase().includes(submissionFilters.searchByProviderId!.toLowerCase())
             );
         }
-
-        if (submissionFilters.startDate) {
-            filtered = filtered.filter(schema => 
-                new Date(schema.createdAt) >= new Date(submissionFilters.startDate!)
+        if (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all') {
+            filtered = filtered.filter(schema =>
+                schema.status === submissionFilters.searchByStatus
             );
         }
-
-        if (submissionFilters.endDate) {
-            filtered = filtered.filter(schema => 
-                new Date(schema.createdAt) <= new Date(submissionFilters.endDate!)
-            );
-        }
-
         setFilteredSubmissions(filtered);
     }, [submissions, submissionFilters]);
 
     // Filter approved schemas
     useEffect(() => {
         let filtered = approved;
-        
         if (approvedFilters.searchByName) {
             filtered = filtered.filter(schema =>
-                schema.name.toLowerCase().includes(approvedFilters.searchByName!.toLowerCase()) ||
-                schema.description.toLowerCase().includes(approvedFilters.searchByName!.toLowerCase())
+                schema.schemaName.toLowerCase().includes(approvedFilters.searchByName!.toLowerCase())
             );
         }
-
-        if (approvedFilters.schemaType && approvedFilters.schemaType !== 'all') {
-            filtered = filtered.filter(schema => schema.schemaType === approvedFilters.schemaType);
-        }
-
-        if (approvedFilters.submittedBy) {
-            filtered = filtered.filter(schema => 
-                schema.submittedBy.toLowerCase().includes(approvedFilters.submittedBy!.toLowerCase())
+        if (approvedFilters.searchByDescription) {
+            filtered = filtered.filter(schema =>
+                schema.schemaDescription?.toLowerCase().includes(approvedFilters.searchByDescription!.toLowerCase())
             );
         }
-
-        if (approvedFilters.version) {
-            filtered = filtered.filter(schema => 
-                schema.version.toLowerCase().includes(approvedFilters.version!.toLowerCase())
+        if (approvedFilters.searchByProviderId) {
+            filtered = filtered.filter(schema =>
+                schema.providerId.toLowerCase().includes(approvedFilters.searchByProviderId!.toLowerCase())
             );
         }
-
-        if (approvedFilters.startDate) {
-            filtered = filtered.filter(schema => 
-                new Date(schema.createdAt) >= new Date(approvedFilters.startDate!)
+        if (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all') {
+            filtered = filtered.filter(schema =>
+                schema.version === approvedFilters.searchByVersion
             );
         }
-
-        if (approvedFilters.endDate) {
-            filtered = filtered.filter(schema => 
-                new Date(schema.createdAt) <= new Date(approvedFilters.endDate!)
-            );
-        }
-
         setFilteredApproved(filtered);
     }, [approved, approvedFilters]);
-
-    const getSchemaTypeIcon = (type: string) => {
-        switch (type) {
-            case 'data':
-                return <Database className="w-5 h-5 text-blue-500" />;
-            case 'api':
-                return <FileCode className="w-5 h-5 text-green-500" />;
-            case 'event':
-                return <Layers className="w-5 h-5 text-purple-500" />;
-            default:
-                return <Database className="w-5 h-5 text-gray-500" />;
-        }
-    };
-
-    const getSchemaTypeBorderColor = (type: string) => {
-        switch (type) {
-            case 'data':
-                return 'border-l-blue-500 bg-blue-50';
-            case 'api':
-                return 'border-l-green-500 bg-green-50';
-            case 'event':
-                return 'border-l-purple-500 bg-purple-50';
-            default:
-                return 'border-l-gray-500 bg-gray-50';
-        }
-    };
 
     const formatTimestamp = (timestamp: string) => {
         return new Date(timestamp).toLocaleString();
     };
-
-    const schemaTypes = ['data', 'api', 'event'];
 
     const handleRefresh = () => {
         fetchSchemas();
@@ -380,8 +230,42 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
     const handleExportSubmissions = async () => {
         try {
-            console.log('Exporting schema submissions with filters:', submissionFilters);
-            // TODO: Implement actual export logic
+            const dataToExport = filteredSubmissions.map(schema => ({
+                submissionId: schema.submissionId,
+                schemaName: schema.schemaName,
+                schemaDescription: schema.schemaDescription || '',
+                providerId: schema.providerId,
+                status: schema.status,
+                schemaEndpoint: schema.schemaEndpoint,
+                createdAt: schema.createdAt,
+                updatedAt: schema.updatedAt
+            }));
+
+            const csvContent = [
+                // CSV headers
+                ['Submission ID', 'Schema Name', 'Description', 'Provider ID', 'Status', 'Endpoint', 'Created At', 'Updated At'].join(','),
+                // CSV data
+                ...dataToExport.map(row => [
+                    row.submissionId,
+                    `"${row.schemaName.replace(/"/g, '""')}"`,
+                    `"${row.schemaDescription.replace(/"/g, '""')}"`,
+                    row.providerId,
+                    row.status,
+                    `"${row.schemaEndpoint.replace(/"/g, '""')}"`,
+                    row.createdAt,
+                    row.updatedAt
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `schema-submissions-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         } catch (error) {
             console.error('Error exporting schema submissions:', error);
         }
@@ -389,22 +273,66 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
     const handleExportApproved = async () => {
         try {
-            console.log('Exporting approved schemas with filters:', approvedFilters);
-            // TODO: Implement actual export logic
+            const dataToExport = filteredApproved.map(schema => ({
+                schemaId: schema.schemaId,
+                schemaName: schema.schemaName,
+                schemaDescription: schema.schemaDescription || '',
+                providerId: schema.providerId,
+                version: schema.version,
+                schemaEndpoint: schema.schemaEndpoint,
+                createdAt: schema.createdAt,
+                updatedAt: schema.updatedAt
+            }));
+
+            const csvContent = [
+                // CSV headers
+                ['Schema ID', 'Schema Name', 'Description', 'Provider ID', 'Version', 'Endpoint', 'Created At', 'Updated At'].join(','),
+                // CSV data
+                ...dataToExport.map(row => [
+                    row.schemaId,
+                    `"${row.schemaName.replace(/"/g, '""')}"`,
+                    `"${row.schemaDescription.replace(/"/g, '""')}"`,
+                    row.providerId,
+                    row.version,
+                    `"${row.schemaEndpoint.replace(/"/g, '""')}"`,
+                    row.createdAt,
+                    row.updatedAt
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `approved-schemas-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         } catch (error) {
             console.error('Error exporting approved schemas:', error);
         }
     };
 
-    const handleReview = (schema: Schema) => {
-        console.log('Reviewing schema:', schema.schemaId, schema.name);
-        // TODO: Implement review logic
+    const handleReview = (schema: SchemaSubmission) => {
+        // TODO: Navigate to schema review page or open modal
+        // For now, log the schema details
+        console.log('Opening schema for review:', {
+            submissionId: schema.submissionId,
+            schemaName: schema.schemaName,
+            providerId: schema.providerId,
+            status: schema.status,
+            endpoint: schema.schemaEndpoint
+        });
+        
+        // In a real implementation, this would:
+        // 1. Navigate to a dedicated review page: navigate(`/schemas/review/${schema.submissionId}`)
+        // 2. Or open a modal with schema details and approval/rejection controls
+        // 3. Allow viewing and editing the SDL content
+        // 4. Provide approval/rejection functionality with comments
     };
 
-    const handleEdit = (schema: Schema) => {
-        console.log('Editing schema:', schema.schemaId, schema.name);
-        // TODO: Implement edit logic
-    };
+
 
     if (loading) {
         return (
@@ -492,26 +420,31 @@ export const Schemas: React.FC<SchemasProps> = () => {
                         </div>
                     </div>
                     
-                    {schemaTypes.map(type => {
-                        const submissionCount = filteredSubmissions.filter(schema => schema.schemaType === type).length;
-                        const approvedCount = filteredApproved.filter(schema => schema.schemaType === type).length;
-                        const totalCount = submissionCount + approvedCount;
-                        
-                        return (
-                            <div key={type} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600 capitalize">{type} Schemas</p>
-                                        <p className="text-2xl font-bold text-gray-900">{totalCount}</p>
-                                        <p className="text-xs text-gray-500">{submissionCount} pending, {approvedCount} approved</p>
-                                    </div>
-                                    <div className="p-3 rounded-full bg-gray-100">
-                                        {getSchemaTypeIcon(type)}
-                                    </div>
-                                </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Pending Reviews</p>
+                                <p className="text-2xl font-bold text-gray-900">{submissions.filter(s => s.status === 'pending').length}</p>
+                                <p className="text-xs text-gray-500">awaiting action</p>
                             </div>
-                        );
-                    })}
+                            <div className="p-3 rounded-full bg-yellow-100">
+                                <Clock className="w-5 h-5 text-yellow-500" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Active Schemas</p>
+                                <p className="text-2xl font-bold text-gray-900">{approved.filter(s => s.version === 'active').length}</p>
+                                <p className="text-xs text-gray-500">currently active</p>
+                            </div>
+                            <div className="p-3 rounded-full bg-blue-100">
+                                <Layers className="w-5 h-5 text-blue-500" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Submissions Section */}
@@ -553,12 +486,12 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     </div>
                                     <div className="flex flex-col sm:flex-row gap-4">
                                         <select
-                                            value={submissionFilters.schemaType || 'all'}
-                                            onChange={(e) => updateSubmissionFilter('schemaType', e.target.value as 'all' | 'data' | 'api' | 'event')}
+                                            value={submissionFilters.searchByStatus || 'all'}
+                                            onChange={(e) => updateSubmissionFilter('searchByStatus', e.target.value as FilterOptionsSubmissions['searchByStatus'])}
                                             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                         >
                                             <option value="all">All Types</option>
-                                            {schemaTypes.map(type => (
+                                            {schemaStatuses.map(type => (
                                                 <option key={type} value={type}>
                                                     {type.charAt(0).toUpperCase() + type.slice(1)}
                                                 </option>
@@ -570,30 +503,16 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <input
                                         type="text"
-                                        placeholder="Filter by submitter"
-                                        value={submissionFilters.submittedBy || ''}
-                                        onChange={(e) => updateSubmissionFilter('submittedBy', e.target.value)}
+                                        placeholder="Filter by description"
+                                        value={submissionFilters.searchByDescription || ''}
+                                        onChange={(e) => updateSubmissionFilter('searchByDescription', e.target.value)}
                                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                     <input
                                         type="text"
-                                        placeholder="Filter by version"
-                                        value={submissionFilters.version || ''}
-                                        onChange={(e) => updateSubmissionFilter('version', e.target.value)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                    />
-                                    <input
-                                        type="date"
-                                        placeholder="Start Date"
-                                        value={submissionFilters.startDate || ''}
-                                        onChange={(e) => updateSubmissionFilter('startDate', e.target.value)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                    />
-                                    <input
-                                        type="date"
-                                        placeholder="End Date"
-                                        value={submissionFilters.endDate || ''}
-                                        onChange={(e) => updateSubmissionFilter('endDate', e.target.value)}
+                                        placeholder="Filter by provider ID"
+                                        value={submissionFilters.searchByProviderId || ''}
+                                        onChange={(e) => updateSubmissionFilter('searchByProviderId', e.target.value)}
                                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                 </div>
@@ -608,13 +527,14 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 </div>
                             </div>
                         </div>
-
+                        
+                        {/* Submission List */}
                         <div className="max-h-96 overflow-y-auto">
                             {filteredSubmissions.length === 0 ? (
                                 <div className="text-center py-12">
                                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                     <p className="text-gray-500 text-lg">
-                                        {submissionFilters.searchByName || submissionFilters.schemaType !== 'all' || submissionFilters.submittedBy || submissionFilters.version || submissionFilters.startDate || submissionFilters.endDate
+                                        {submissionFilters.searchByName || submissionFilters.searchByStatus !== 'all' || submissionFilters.searchByDescription || submissionFilters.searchByProviderId
                                             ? 'No schema submissions match your filters' 
                                             : 'No schema submissions available'
                                         }
@@ -623,15 +543,15 @@ export const Schemas: React.FC<SchemasProps> = () => {
                             ) : (
                                 <div className="divide-y divide-gray-200">
                                     {filteredSubmissions.map((schema) => (
-                                        <div key={schema.schemaId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getSchemaTypeBorderColor(schema.schemaType)}`}>
+                                        <div key={schema.submissionId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getSchemaTypeBorderColor(schema.status, undefined)}`}>
                                             <div className="flex items-start space-x-3">
                                                 <div className="flex-shrink-0 mt-1">
-                                                    {getSchemaTypeIcon(schema.schemaType)}
+                                                    {getSchemaTypeIcon(schema.status, undefined)}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <h3 className="text-lg font-semibold text-gray-900">
-                                                            {schema.name} v{schema.version}
+                                                            {schema.schemaName}
                                                         </h3>
                                                         <div className="flex items-center text-xs text-gray-500">
                                                             <Calendar className="w-3 h-3 mr-1" />
@@ -639,33 +559,29 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                                         </div>
                                                     </div>
                                                     
-                                                    <p className="text-sm text-gray-600 mb-3">{schema.description}</p>
+                                                    <p className="text-sm text-gray-600 mb-3">{schema.schemaDescription}</p>
                                                     
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                         <div className="flex items-center text-sm text-gray-600">
                                                             <User className="w-4 h-4 mr-2 text-gray-400" />
-                                                            <span>{schema.submittedBy}</span>
+                                                            <span>Provider: {schema.providerId}</span>
                                                         </div>
                                                         <div className="flex items-center text-sm text-gray-600">
-                                                            <span className="font-medium">Fields:</span> 
-                                                            <span className="ml-1">{schema.fields}</span>
+                                                            <span className="font-medium">Endpoint:</span> 
+                                                            <span className="ml-1 text-xs truncate">{schema.schemaEndpoint}</span>
                                                         </div>
                                                     </div>
 
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
                                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                                schema.schemaType === 'data' 
-                                                                    ? 'bg-blue-100 text-blue-800' 
-                                                                    : schema.schemaType === 'api'
+                                                                schema.status === 'pending' 
+                                                                    ? 'bg-yellow-100 text-yellow-800' 
+                                                                    : schema.status === 'approved'
                                                                     ? 'bg-green-100 text-green-800'
-                                                                    : 'bg-purple-100 text-purple-800'
+                                                                    : 'bg-red-100 text-red-800'
                                                             }`}>
-                                                                {schema.schemaType.charAt(0).toUpperCase() + schema.schemaType.slice(1)}
-                                                            </span>
-                                                            
-                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                                                Pending Review
+                                                                {schema.status.charAt(0).toUpperCase() + schema.status.slice(1)}
                                                             </span>
                                                         </div>
                                                         
@@ -679,7 +595,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                                     </div>
 
                                                     <div className="text-xs text-gray-500 mt-2">
-                                                        <p><span className="font-medium">Schema ID:</span> {schema.schemaId}</p>
+                                                        <p><span className="font-medium">Submission ID:</span> {schema.submissionId}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -729,47 +645,33 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 </div>
                                 <div className="flex flex-col sm:flex-row gap-4">
                                     <select
-                                        value={approvedFilters.schemaType || 'all'}
-                                        onChange={(e) => updateApprovedFilter('schemaType', e.target.value as 'all' | 'data' | 'api' | 'event')}
+                                        value={approvedFilters.searchByVersion || 'all'}
+                                        onChange={(e) => updateApprovedFilter('searchByVersion', e.target.value as FilterOptionsApproved['searchByVersion'])}
                                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                     >
-                                        <option value="all">All Types</option>
-                                        {schemaTypes.map(type => (
-                                            <option key={type} value={type}>
-                                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                                        <option value="all">All Versions</option>
+                                        {schemaVersions.map(version => (
+                                            <option key={version} value={version}>
+                                                {version.charAt(0).toUpperCase() + version.slice(1)}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <input
                                     type="text"
-                                    placeholder="Filter by submitter"
-                                    value={approvedFilters.submittedBy || ''}
-                                    onChange={(e) => updateApprovedFilter('submittedBy', e.target.value)}
+                                    placeholder="Filter by description"
+                                    value={approvedFilters.searchByDescription || ''}
+                                    onChange={(e) => updateApprovedFilter('searchByDescription', e.target.value)}
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 />
                                 <input
                                     type="text"
-                                    placeholder="Filter by version"
-                                    value={approvedFilters.version || ''}
-                                    onChange={(e) => updateApprovedFilter('version', e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                />
-                                <input
-                                    type="date"
-                                    placeholder="Start Date"
-                                    value={approvedFilters.startDate || ''}
-                                    onChange={(e) => updateApprovedFilter('startDate', e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                />
-                                <input
-                                    type="date"
-                                    placeholder="End Date"
-                                    value={approvedFilters.endDate || ''}
-                                    onChange={(e) => updateApprovedFilter('endDate', e.target.value)}
+                                    placeholder="Filter by provider ID"
+                                    value={approvedFilters.searchByProviderId || ''}
+                                    onChange={(e) => updateApprovedFilter('searchByProviderId', e.target.value)}
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 />
                             </div>
@@ -790,7 +692,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                             <div className="text-center py-12">
                                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {approvedFilters.searchByName || approvedFilters.schemaType !== 'all' || approvedFilters.submittedBy || approvedFilters.version || approvedFilters.startDate || approvedFilters.endDate
+                                    {approvedFilters.searchByName || approvedFilters.searchByVersion !== 'all' || approvedFilters.searchByDescription || approvedFilters.searchByProviderId
                                         ? 'No approved schemas match your filters' 
                                         : 'No approved schemas available'
                                     }
@@ -799,49 +701,43 @@ export const Schemas: React.FC<SchemasProps> = () => {
                         ) : (
                             <div className="divide-y divide-gray-200">
                                 {filteredApproved.map((schema) => (
-                                    <div key={schema.schemaId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getSchemaTypeBorderColor(schema.schemaType)}`}>
+                                    <div key={schema.schemaId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getSchemaTypeBorderColor(undefined, schema.version)}`}>
                                         <div className="flex items-start space-x-3">
                                             <div className="flex-shrink-0 mt-1">
-                                                {getSchemaTypeIcon(schema.schemaType)}
+                                                {getSchemaTypeIcon(undefined, schema.version)}
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between mb-2">
                                                     <h3 className="text-lg font-semibold text-gray-900">
-                                                        {schema.name} v{schema.version}
+                                                        {schema.schemaName}
                                                     </h3>
                                                     <div className="flex items-center text-xs text-gray-500">
                                                         <Calendar className="w-3 h-3 mr-1" />
-                                                        Approved: {formatTimestamp(schema.approvedAt!)}
+                                                        Updated: {formatTimestamp(schema.updatedAt)}
                                                     </div>
                                                 </div>
                                                 
-                                                <p className="text-sm text-gray-600 mb-3">{schema.description}</p>
+                                                <p className="text-sm text-gray-600 mb-3">{schema.schemaDescription || 'No description available'}</p>
                                                 
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <User className="w-4 h-4 mr-2 text-gray-400" />
-                                                        <span>{schema.submittedBy}</span>
+                                                        <span>Provider: {schema.providerId}</span>
                                                     </div>
                                                     <div className="flex items-center text-sm text-gray-600">
-                                                        <span className="font-medium">Fields:</span> 
-                                                        <span className="ml-1">{schema.fields}</span>
-                                                    </div>
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <span className="font-medium">Usage:</span> 
-                                                        <span className="ml-1">{schema.usageCount}</span>
+                                                        <span className="font-medium">Endpoint:</span> 
+                                                        <span className="ml-1 text-xs truncate">{schema.schemaEndpoint}</span>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
                                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                            schema.schemaType === 'data' 
+                                                            schema.version === 'active' 
                                                                 ? 'bg-blue-100 text-blue-800' 
-                                                                : schema.schemaType === 'api'
-                                                                ? 'bg-green-100 text-green-800'
-                                                                : 'bg-purple-100 text-purple-800'
+                                                                : 'bg-gray-100 text-gray-800'
                                                         }`}>
-                                                            {schema.schemaType.charAt(0).toUpperCase() + schema.schemaType.slice(1)}
+                                                            {schema.version.charAt(0).toUpperCase() + schema.version.slice(1)}
                                                         </span>
                                                         
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -850,17 +746,17 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                                     </div>
                                                     
                                                     <button
-                                                        onClick={() => handleEdit(schema)}
+                                                        onClick={() => console.log('View schema:', schema.schemaId)}
                                                         className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                                                     >
-                                                        <Edit3 className="w-4 h-4" />
-                                                        <span>Edit</span>
+                                                        <Eye className="w-4 h-4" />
+                                                        <span>View</span>
                                                     </button>
                                                 </div>
 
                                                 <div className="text-xs text-gray-500 mt-2 space-y-1">
                                                     <p><span className="font-medium">Schema ID:</span> {schema.schemaId}</p>
-                                                    <p><span className="font-medium">Submitted:</span> {formatTimestamp(schema.createdAt)} | <span className="font-medium">Approved by:</span> {schema.approvedBy}</p>
+                                                    <p><span className="font-medium">Created:</span> {formatTimestamp(schema.createdAt)}</p>
                                                 </div>
                                             </div>
                                         </div>

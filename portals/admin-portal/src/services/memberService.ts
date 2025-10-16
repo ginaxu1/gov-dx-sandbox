@@ -15,28 +15,21 @@ interface EntityResponse {
     count: number;
 }
 
-class MemberService {
-    private baseUrl: string;
-
-    constructor() {
-        // Get the API URL from window.configs or fallback to localhost
-        this.baseUrl = (window as any).configs?.apiUrl || 'https://localhost:8080/api/v1';
-    }
-
+export class MemberService {
     /**
      * Fetch all entities from the API
      * @returns Promise<EntityResponse>
      */
-    async fetchEntities(): Promise<EntityResponse> {
+    static async fetchEntities(): Promise<Entity[]> {
         try {
-            const response = await fetch(`${this.baseUrl}/entities`);
+            const response = await fetch(`${window.configs.apiUrl}/entities`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const data: EntityResponse = await response.json();
-            return data;
+            return data.items;
         } catch (error) {
             console.error('Error fetching entities:', error);
             throw error;
@@ -48,9 +41,9 @@ class MemberService {
      * @param params - Query parameters for filtering
      * @returns Promise<EntityResponse>
      */
-    async fetchEntitiesWithParams(params?: Record<string, string>): Promise<EntityResponse> {
+    static async fetchEntitiesWithParams(params?: Record<string, string>): Promise<EntityResponse> {
         try {
-            const url = new URL(`${this.baseUrl}/entities`);
+            const url = new URL(`${window.configs.apiUrl}/entities`);
             
             if (params) {
                 Object.entries(params).forEach(([key, value]) => {
@@ -79,9 +72,9 @@ class MemberService {
      * @param entityId - The entity ID to fetch
      * @returns Promise<Entity>
      */
-    async fetchEntityById(entityId: string): Promise<Entity> {
+    static async fetchEntityById(entityId: string): Promise<Entity> {
         try {
-            const response = await fetch(`${this.baseUrl}/entities/${entityId}`);
+            const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -100,9 +93,9 @@ class MemberService {
      * @param format - Export format (csv, json, etc.)
      * @returns Promise<Blob>
      */
-    async exportEntities(format: 'csv' | 'json' = 'csv'): Promise<Blob> {
+    static async exportEntities(format: 'csv' | 'json' = 'csv'): Promise<Blob> {
         try {
-            const response = await fetch(`${this.baseUrl}/entities/export?format=${format}`);
+            const response = await fetch(`${window.configs.apiUrl}/entities/export?format=${format}`);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -116,6 +109,4 @@ class MemberService {
     }
 }
 
-// Create and export a singleton instance
-export const memberService = new MemberService();
 export type { Entity, EntityResponse };

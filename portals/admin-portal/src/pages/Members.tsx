@@ -11,7 +11,7 @@ import {
     Calendar,
     User
 } from 'lucide-react';
-import { memberService } from '../services/memberService';
+import { MemberService } from '../services/memberService';
 import type { Entity } from '../services/memberService';
 
 interface FilterOptions {
@@ -54,9 +54,9 @@ export const Members: React.FC<MembersProps> = () => {
     const fetchEntities = async () => {
         setLoading(true);
         try {
-            const data = await memberService.fetchEntities();
-            setEntities(data.items);
-            setFilteredEntities(data.items);
+            const data: Entity[] = await MemberService.fetchEntities();
+            setEntities(data);
+            setFilteredEntities(data);
         } catch (error) {
             console.error('Error fetching entities:', error);
             // Optionally show user-friendly error message
@@ -156,7 +156,7 @@ export const Members: React.FC<MembersProps> = () => {
 
     const handleExport = async () => {
         try {
-            const blob = await memberService.exportEntities('csv');
+            const blob = await MemberService.exportEntities('csv');
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
