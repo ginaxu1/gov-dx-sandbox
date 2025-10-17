@@ -28,6 +28,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		SDL:               req.SDL,
 		Endpoint:          req.Endpoint,
 		ProviderID:        req.ProviderID,
+		Version:           models.ActiveVersion,
 	}
 	if err := s.db.Create(&schema).Error; err != nil {
 		return nil, fmt.Errorf("failed to create schema: %w", err)
@@ -39,6 +40,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		SchemaDescription: schema.SchemaDescription,
 		SDL:               schema.SDL,
 		Endpoint:          schema.Endpoint,
+		Version:           schema.Version,
 		ProviderID:        schema.ProviderID,
 		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
@@ -104,6 +106,7 @@ func (s *SchemaService) GetSchema(schemaID string) (*models.SchemaResponse, erro
 		SchemaDescription: schema.SchemaDescription,
 		SDL:               schema.SDL,
 		Endpoint:          schema.Endpoint,
+		Version:           schema.Version,
 		ProviderID:        schema.ProviderID,
 		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
@@ -136,6 +139,7 @@ func (s *SchemaService) GetSchemas(providerID *string) ([]*models.SchemaResponse
 			SchemaDescription: schema.SchemaDescription,
 			SDL:               schema.SDL,
 			Endpoint:          schema.Endpoint,
+			Version:           schema.Version,
 			ProviderID:        schema.ProviderID,
 			CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),

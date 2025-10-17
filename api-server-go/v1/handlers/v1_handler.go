@@ -724,11 +724,6 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 		return
 	}
 
-	if req.Version != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Schema version cannot be updated")
-		return
-	}
-
 	schema, err := h.schemaService.UpdateSchema(schemaID, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
