@@ -13,18 +13,22 @@ import (
 
 // V1Handler handles all V1 API routes
 type V1Handler struct {
-	providerService *services.ProviderService
-	consumerService *services.ConsumerService
-	entityService   *services.EntityService
+	providerService    *services.ProviderService
+	consumerService    *services.ConsumerService
+	entityService      *services.EntityService
+	applicationService *services.ApplicationService
+	schemaService      *services.SchemaService
 }
 
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) *V1Handler {
 	entityService := services.NewEntityService(db)
 	return &V1Handler{
-		entityService:   entityService,
-		providerService: services.NewProviderService(db, entityService),
-		consumerService: services.NewConsumerService(db, entityService),
+		entityService:      entityService,
+		providerService:    services.NewProviderService(db, entityService),
+		consumerService:    services.NewConsumerService(db, entityService),
+		schemaService:      services.NewSchemaService(db),
+		applicationService: services.NewApplicationService(db),
 	}
 }
 
@@ -34,9 +38,25 @@ func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	mux.Handle("/api/v1/providers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
 	mux.Handle("/api/v1/providers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
 
+	// Schema routes
+	mux.Handle("/api/v1/schemas", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
+	mux.Handle("/api/v1/schemas/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
+
+	// SchemaSubmission routes
+	mux.Handle("/api/v1/schema-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
+	mux.Handle("/api/v1/schema-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
+
 	// Consumer routes
 	mux.Handle("/api/v1/consumers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
 	mux.Handle("/api/v1/consumers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
+
+	// Application routes
+	mux.Handle("/api/v1/applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
+	mux.Handle("/api/v1/applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
+
+	// ApplicationSubmission routes
+	mux.Handle("/api/v1/application-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
+	mux.Handle("/api/v1/application-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
 
 	// Entity routes
 	mux.Handle("/api/v1/entities", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
@@ -85,22 +105,21 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 && parts[1] == "schemas" {
 		switch r.Method {
 		case http.MethodGet:
-			h.getProviderSchemas(w, r, providerID)
-		case http.MethodPost:
-			h.createProviderSchema(w, r, providerID)
+			h.getAllSchemas(w, r, &providerID)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	// Handle provider schema submissions: /api/v1/providers/:providerId/schema-submissions
+	// Handle provider schema submissions: /api/v1/providers/:providerId/schema-submissions?status=pending&status=rejected
 	if len(parts) == 2 && parts[1] == "schema-submissions" {
 		switch r.Method {
 		case http.MethodGet:
-			h.getProviderSchemaSubmissions(w, r, providerID)
+			status := r.URL.Query()["status"]
+			h.getAllSchemaSubmissions(w, r, &providerID, &status)
 		case http.MethodPost:
-			h.createProviderSchemaSubmission(w, r, providerID)
+			h.createSchemaSubmission(w, r, &providerID)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -111,7 +130,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 3 && parts[1] == "schemas" {
 		switch r.Method {
 		case http.MethodPut:
-			h.updateProviderSchema(w, r, providerID, parts[2])
+			h.updateSchema(w, r, parts[2])
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -122,7 +141,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 3 && parts[1] == "schema-submissions" {
 		switch r.Method {
 		case http.MethodPut:
-			h.updateProviderSchemaSubmission(w, r, providerID, parts[2])
+			h.updateSchemaSubmission(w, r, parts[2])
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -173,20 +192,21 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 	// Handle consumer applications: GET /api/v1/consumers/:consumerId/applications
 	if len(parts) == 2 && parts[1] == "applications" {
 		if r.Method == http.MethodGet {
-			h.getConsumerApplications(w, r, consumerID)
+			h.getAllApplications(w, r, &consumerID)
 		} else {
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	// Handle consumer application submissions: /api/v1/consumers/:consumerId/application-submissions
+	// Handle consumer application submissions: /api/v1/consumers/:consumerId/application-submissions?status=pending&status=rejected
 	if len(parts) == 2 && parts[1] == "application-submissions" {
 		switch r.Method {
 		case http.MethodGet:
-			h.getConsumerApplicationSubmissions(w, r, consumerID)
+			status := r.URL.Query()["status"]
+			h.getAllApplicationSubmissions(w, r, &consumerID, &status)
 		case http.MethodPost:
-			h.createConsumerApplicationSubmission(w, r, consumerID)
+			h.createApplicationSubmission(w, r, &consumerID)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -197,7 +217,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 3 && parts[1] == "applications" {
 		switch r.Method {
 		case http.MethodPut:
-			h.updateConsumerApplication(w, r, consumerID, parts[2])
+			h.updateApplication(w, r, parts[2])
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -208,7 +228,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 3 && parts[1] == "application-submissions" {
 		switch r.Method {
 		case http.MethodPut:
-			h.updateConsumerApplicationSubmission(w, r, consumerID, parts[2])
+			h.updateApplicationSubmission(w, r, parts[2])
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -259,6 +279,167 @@ func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
+// handleSchemas handles schema-related routes
+func (h *V1Handler) handleSchemas(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/schemas")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Handle collection endpoint: GET /api/v1/schemas and POST /api/v1/schemas
+	if len(parts) == 1 && parts[0] == "" {
+		switch r.Method {
+		case http.MethodGet:
+			providerID := r.URL.Query().Get("providerId")
+			h.getAllSchemas(w, r, &providerID)
+		case http.MethodPost:
+			h.createSchema(w, r)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+	if len(parts) < 1 || parts[0] == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Schema ID is required")
+		return
+	}
+	schemaID := parts[0]
+
+	// Handle specific schema endpoint: GET /api/v1/schemas/:schemaId and PUT /api/v1/schemas/:schemaId
+	if len(parts) == 1 {
+		switch r.Method {
+		case http.MethodGet:
+			h.getSchema(w, r, schemaID)
+		case http.MethodPut:
+			h.updateSchema(w, r, schemaID)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+}
+
+// handleSchemaSubmissions handles schema submission-related routes
+func (h *V1Handler) handleSchemaSubmissions(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/schema-submissions")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Handle collection endpoint: GET /api/v1/schema-submissions and POST /api/v1/schema-submissions
+	if len(parts) == 1 && parts[0] == "" {
+		switch r.Method {
+		case http.MethodGet:
+			status := r.URL.Query()["status"]
+			providerID := r.URL.Query().Get("providerId")
+			h.getAllSchemaSubmissions(w, r, &providerID, &status)
+		case http.MethodPost:
+			h.createSchemaSubmission(w, r, nil)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+	if len(parts) < 1 || parts[0] == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
+		return
+	}
+	submissionID := parts[0]
+	// Handle specific schema submission endpoint: GET /api/v1/schema-submissions/:submissionId and PUT /api/v1/schema-submissions/:submissionId
+	if len(parts) == 1 {
+		switch r.Method {
+		case http.MethodGet:
+			h.getSchemaSubmission(w, r, submissionID)
+		case http.MethodPut:
+			h.updateSchemaSubmission(w, r, submissionID)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+}
+
+// handleApplications handles application-related routes
+func (h *V1Handler) handleApplications(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/applications")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Handle collection endpoint: GET /api/v1/applications and POST /api/v1/applications
+	if len(parts) == 1 && parts[0] == "" {
+		switch r.Method {
+		case http.MethodGet:
+			consumerID := r.URL.Query().Get("consumerId")
+			h.getAllApplications(w, r, &consumerID)
+		case http.MethodPost:
+			h.createApplication(w, r)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+	if len(parts) < 1 || parts[0] == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Application ID is required")
+		return
+	}
+
+	applicationID := parts[0]
+	// Handle specific application endpoint: GET /api/v1/applications/:applicationId and PUT /api/v1/applications/:applicationId
+	if len(parts) == 1 {
+		switch r.Method {
+		case http.MethodGet:
+			h.getApplication(w, r, applicationID)
+		case http.MethodPut:
+			h.updateApplication(w, r, applicationID)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+}
+
+// handleApplicationSubmissions handles application submission-related routes
+func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/application-submissions")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Handle collection endpoint: GET /api/v1/application-submissions and POST /api/v1/application-submissions
+	if len(parts) == 1 && parts[0] == "" {
+		switch r.Method {
+		case http.MethodGet:
+			status := r.URL.Query()["status"]
+			consumerID := r.URL.Query().Get("consumerId")
+			h.getAllApplicationSubmissions(w, r, &consumerID, &status)
+		case http.MethodPost:
+			h.createApplicationSubmission(w, r, nil)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+
+	if len(parts) < 1 || parts[0] == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
+		return
+	}
+
+	submissionID := parts[0]
+	// Handle specific application submission endpoint: GET /api/v1/application-submissions/:submissionId and PUT /api/v1/application-submissions/:submissionId
+	if len(parts) == 1 {
+		switch r.Method {
+		case http.MethodGet:
+			h.getApplicationSubmission(w, r, submissionID)
+		case http.MethodPut:
+			h.updateApplicationSubmission(w, r, submissionID)
+		default:
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		}
+		return
+	}
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+}
+
 // Provider handlers
 func (h *V1Handler) createProvider(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateProviderRequest
@@ -303,100 +484,16 @@ func (h *V1Handler) getProvider(w http.ResponseWriter, r *http.Request, provider
 	utils.RespondWithSuccess(w, http.StatusOK, provider)
 }
 
-func (h *V1Handler) createProviderSchema(w http.ResponseWriter, r *http.Request, providerID string) {
-	var req models.CreateProviderSchemaRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	schema, err := h.providerService.CreateProviderSchema(providerID, &req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusCreated, schema)
-}
-
-func (h *V1Handler) updateProviderSchema(w http.ResponseWriter, r *http.Request, providerID, schemaID string) {
-	var req models.UpdateProviderSchemaRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	schema, err := h.providerService.UpdateProviderSchema(providerID, schemaID, &req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, schema)
-}
-
-func (h *V1Handler) getProviderSchemas(w http.ResponseWriter, r *http.Request, providerID string) {
-	schemas, err := h.providerService.GetProviderSchemas(providerID)
+func (h *V1Handler) getAllProviders(w http.ResponseWriter, r *http.Request) {
+	providers, err := h.providerService.GetAllProviders()
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := models.CollectionResponse{
-		Items: schemas,
-		Count: len(schemas),
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-func (h *V1Handler) createProviderSchemaSubmission(w http.ResponseWriter, r *http.Request, providerID string) {
-	var req models.CreateProviderSchemaSubmissionRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	submission, err := h.providerService.CreateProviderSchemaSubmission(providerID, req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusCreated, submission)
-}
-
-func (h *V1Handler) updateProviderSchemaSubmission(w http.ResponseWriter, r *http.Request, providerID, submissionID string) {
-	var req models.UpdateProviderSchemaSubmissionRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	submission, err := h.providerService.UpdateProviderSchemaSubmission(providerID, submissionID, &req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, submission)
-}
-
-func (h *V1Handler) getProviderSchemaSubmissions(w http.ResponseWriter, r *http.Request, providerID string) {
-	status := r.URL.Query().Get("status")
-
-	submissions, err := h.providerService.GetProviderSchemaSubmissions(providerID, status)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := models.CollectionResponse{
-		Items: submissions,
-		Count: len(submissions),
+		Items: providers,
+		Count: len(providers),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
@@ -445,100 +542,16 @@ func (h *V1Handler) getConsumer(w http.ResponseWriter, r *http.Request, consumer
 	utils.RespondWithSuccess(w, http.StatusOK, consumer)
 }
 
-func (h *V1Handler) createConsumerApplication(w http.ResponseWriter, r *http.Request, consumerID string) {
-	var req models.CreateConsumerApplicationRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	application, err := h.consumerService.CreateConsumerApplication(consumerID, req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusCreated, application)
-}
-
-func (h *V1Handler) updateConsumerApplication(w http.ResponseWriter, r *http.Request, consumerID, applicationID string) {
-	var req models.UpdateConsumerApplicationRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	application, err := h.consumerService.UpdateConsumerApplication(consumerID, applicationID, req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, application)
-}
-
-func (h *V1Handler) getConsumerApplications(w http.ResponseWriter, r *http.Request, consumerID string) {
-	applications, err := h.consumerService.GetConsumerApplications(consumerID)
+func (h *V1Handler) getAllConsumers(w http.ResponseWriter, r *http.Request) {
+	consumers, err := h.consumerService.GetAllConsumers()
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := models.CollectionResponse{
-		Items: applications,
-		Count: len(applications),
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-func (h *V1Handler) createConsumerApplicationSubmission(w http.ResponseWriter, r *http.Request, consumerID string) {
-	var req models.CreateConsumerApplicationSubmissionRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	submission, err := h.consumerService.CreateConsumerApplicationSubmission(consumerID, req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusCreated, submission)
-}
-
-func (h *V1Handler) updateConsumerApplicationSubmission(w http.ResponseWriter, r *http.Request, consumerID, submissionID string) {
-	var req models.UpdateConsumerApplicationSubmissionRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	submission, err := h.consumerService.UpdateConsumerApplicationSubmission(consumerID, submissionID, req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, submission)
-}
-
-func (h *V1Handler) getConsumerApplicationSubmissions(w http.ResponseWriter, r *http.Request, consumerID string) {
-	status := r.URL.Query().Get("status")
-
-	submissions, err := h.consumerService.GetConsumerApplicationSubmissions(consumerID, status)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := models.CollectionResponse{
-		Items: submissions,
-		Count: len(submissions),
+		Items: consumers,
+		Count: len(consumers),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
@@ -587,7 +600,6 @@ func (h *V1Handler) getEntity(w http.ResponseWriter, r *http.Request, entityID s
 	utils.RespondWithSuccess(w, http.StatusOK, entity)
 }
 
-// Collection handlers
 func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
 	entities, err := h.entityService.GetAllEntities()
 	if err != nil {
@@ -602,30 +614,240 @@ func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-func (h *V1Handler) getAllProviders(w http.ResponseWriter, r *http.Request) {
-	providers, err := h.providerService.GetAllProviders()
+// Schema handlers
+func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Request, providerID *string, statusFilter *[]string) {
+	submissions, err := h.schemaService.GetSchemaSubmissions(providerID, statusFilter)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := models.CollectionResponse{
-		Items: providers,
-		Count: len(providers),
+		Items: submissions,
+		Count: len(submissions),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-func (h *V1Handler) getAllConsumers(w http.ResponseWriter, r *http.Request) {
-	consumers, err := h.consumerService.GetAllConsumers()
+func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
+	submission, err := h.schemaService.GetSchemaSubmission(submissionID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
+}
+
+func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Request, providerID *string) {
+	var req models.CreateSchemaSubmissionRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if providerID != nil {
+		req.ProviderID = *providerID
+	}
+
+	submission, err := h.schemaService.CreateSchemaSubmission(&req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, submission)
+}
+
+func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
+	var req models.UpdateSchemaSubmissionRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	submission, err := h.schemaService.UpdateSchemaSubmission(submissionID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
+}
+
+func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, providerID *string) {
+	schemas, err := h.schemaService.GetSchemas(providerID)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := models.CollectionResponse{
-		Items: consumers,
-		Count: len(consumers),
+		Items: schemas,
+		Count: len(schemas),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+func (h *V1Handler) getSchema(w http.ResponseWriter, r *http.Request, submissionID string) {
+	schema, err := h.schemaService.GetSchema(submissionID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, schema)
+}
+
+func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateSchemaRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	schema, err := h.schemaService.CreateSchema(&req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, schema)
+}
+
+func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaID string) {
+	var req models.UpdateSchemaRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	schema, err := h.schemaService.UpdateSchema(schemaID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, schema)
+}
+
+// Application handlers
+func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.Request, consumerID *string, statusFilter *[]string) {
+	submissions, err := h.applicationService.GetApplicationSubmissions(consumerID, statusFilter)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := models.CollectionResponse{
+		Items: submissions,
+		Count: len(submissions),
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
+	submission, err := h.applicationService.GetApplicationSubmission(submissionID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
+}
+
+func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.Request, consumerID *string) {
+	var req models.CreateApplicationSubmissionRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if consumerID != nil {
+		req.ConsumerID = *consumerID
+	}
+
+	submission, err := h.applicationService.CreateApplicationSubmission(&req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, submission)
+}
+
+func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
+	var req models.UpdateApplicationSubmissionRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	submission, err := h.applicationService.UpdateApplicationSubmission(submissionID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
+}
+
+func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, consumerID *string) {
+	applications, err := h.applicationService.GetApplications(consumerID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	response := models.CollectionResponse{
+		Items: applications,
+		Count: len(applications),
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+func (h *V1Handler) getApplication(w http.ResponseWriter, r *http.Request, submissionID string) {
+	application, err := h.applicationService.GetApplication(submissionID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, application)
+}
+
+func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateApplicationRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	application, err := h.applicationService.CreateApplication(&req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusCreated, application)
+}
+
+func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationID string) {
+	var req models.UpdateApplicationRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	application, err := h.applicationService.UpdateApplication(applicationID, &req)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	utils.RespondWithSuccess(w, http.StatusOK, application)
 }
