@@ -1,5 +1,5 @@
 // components/Navbar.tsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from "@asgardeo/auth-react";
 
@@ -10,16 +10,16 @@ interface NavItem {
 }
 
 const ProviderNavItems: NavItem[] = [
-  {
-    label: 'Dashboard',
-    path: '/',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v0M8 5a2 2 0 012-2h4a2 2 0 012 2v0" />
-      </svg>
-    ),
-  },
+  // {
+  //   label: 'Dashboard',
+  //   path: '/',
+  //   icon: (
+  //     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+  //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v0M8 5a2 2 0 012-2h4a2 2 0 012 2v0" />
+  //     </svg>
+  //   ),
+  // },
   {
     label: 'Schemas',
     path: '/provider/schemas',
@@ -41,16 +41,16 @@ const ProviderNavItems: NavItem[] = [
 ];
 
 const ConsumerNavItems: NavItem[] = [
-  {
-    label: 'Dashboard',
-    path: '/',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v0M8 5a2 2 0 012-2h4a2 2 0 012 2v0" />
-      </svg>
-    ),
-  },
+  // {
+  //   label: 'Dashboard',
+  //   path: '/',
+  //   icon: (
+  //     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+  //       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v0M8 5a2 2 0 012-2h4a2 2 0 012 2v0" />
+  //     </svg>
+  //   ),
+  // },
   {
     label: 'Applications',
     path: '/consumer/applications',
@@ -59,7 +59,16 @@ const ConsumerNavItems: NavItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
       </svg>
     ),
-  }
+  },
+  {
+    label: 'Logs',
+    path: '/consumer/logs',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 8V7a3 3 0 013-3h10a3 3 0 013 3v1m-16 0a3 3 0 003 3h10a3 3 0 003-3m-16 8a3 3 0 003 3h10a3 3 0 003-3m-16-8a3 3 0 003-3h10a3 3 0 003 3" />
+      </svg>
+    ),
+  },
 ];
 
 interface NavbarProps {
@@ -121,6 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center">
             <div className="relative">
               <button
+                disabled={!canSwitchView()}
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className="flex-shrink-0 flex items-center space-x-3 text-xl font-bold text-gray-900 hover:text-blue-700 transition-colors px-3 py-2 rounded-lg hover:bg-gray-50"
               >
@@ -130,11 +140,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {currentView === 'provider' ? 'P' : 'C'}
                     </span>
                   </div>
-                  <span>{currentView === 'provider' ? 'Provider Portal' : 'Consumer Portal'}</span>
+                  <span>{currentView === 'provider' ? 'Provider View' : 'Consumer View'}</span>
                 </div>
+                {canSwitchView() && (
                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                </svg>)}
               </button>
               
               {dropdownOpen && (
@@ -209,7 +220,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <p className="text-sm font-medium text-gray-900">{userName || 'User'}</p>
                     </div>
                     <button
-                      onClick={() => setUserDropdownOpen(false)}
+                      onClick={() => {setUserDropdownOpen(false); navigate('/')}}
                       className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center space-x-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,7 +228,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </svg>
                       <span>Profile</span>
                     </button>
-                    <button
+                    {/* <button
                       onClick={() => setUserDropdownOpen(false)}
                       className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center space-x-2"
                     >
@@ -226,7 +237,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <span>Settings</span>
-                    </button>
+                    </button> */}
                     <div className="border-t border-gray-100">
                       <button
                         onClick={handleSignOut}
