@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthContext } from "@asgardeo/auth-react";
 import { Navbar } from "./components/Navbar";
-import { Dashboard } from './pages/Dashboard';
 import { SchemasPage } from './pages/Schemas';
 import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
 import { Logs } from "./pages/Logs";
@@ -9,19 +8,26 @@ import { ApplicationsPage as Applications } from "./pages/Applications";
 import { useEffect, useState } from "react";
 import { ApplicationRegistration } from './pages/ApplicationRegistration';
 import { Shield } from 'lucide-react';
+import MemberInfo  from './pages/MemberInfo';
 
 interface EntityProps {
-  id: string;
+  entityId: string;
   name: string;
-  userName: string;
+  email: string;
+  entityType: 'gov' | 'business' | '';
+  phoneNumber: string;
   providerId?: string;
   consumerId?: string;
+  createdAt: string;
+  updatedAt: string;
+  roles: Array<'provider' | 'consumer'>;
 }
 
 function App() {
   const [view, setView] = useState<'provider' | 'consumer' | null>(null);
   const [entityData, setEntityData] = useState<EntityProps | null>(null);
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
+  const [loading, setLoading] = useState(false);
 
   // Save entity state to localStorage to persist through auth redirects
   const saveEntityStateToStorage = (entityInfo: EntityProps, viewType: 'provider' | 'consumer' | null) => {
@@ -53,22 +59,72 @@ function App() {
     localStorage.removeItem('entity_view');
   };
 
+  const fetchEntityInfoFromDB = async (entityId: string) => {
+    try {
+      // fetch entity info from API
+      const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch entity info');
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching entity info:', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const fetchEntityInfo = async () => {
+      if (!state.isAuthenticated) {
+        return;
+      }
+
+      setLoading(true);
+      
       try {
+        // First check localStorage for existing data
+        const storedState = getEntityStateFromStorage();
+        if (storedState.entityData) {
+          console.log('Loading entity data from storage');
+          setEntityData(storedState.entityData);
+          setView(storedState.view);
+          return;
+        }
+
+        // Fetch fresh data from API
         const userBasicInfo = await getBasicUserInfo();
         console.log('Fetching entity info from user attributes:', userBasicInfo);
-        
-        if (userBasicInfo) {
+
+        const entityId = userBasicInfo.memberId;
+        if (!entityId) {
+          throw new Error('User does not have a memberId attribute');
+        }
+
+        const fetchedEntityInfoFromDB = await fetchEntityInfoFromDB(entityId);
+        if (fetchedEntityInfoFromDB) {
+          const roles: Array<'provider' | 'consumer'> = [];
+          if (fetchedEntityInfoFromDB.consumerId && fetchedEntityInfoFromDB.consumerId !== '') {
+            roles.push('consumer');
+          }
+          if (fetchedEntityInfoFromDB.providerId && fetchedEntityInfoFromDB.providerId !== '') {
+            roles.push('provider');
+          }
+
           const entityInfo: EntityProps = {
-            id: userBasicInfo.userid || '', // User ID -> id
-            name: userBasicInfo.displayName || userBasicInfo.name || '', // Last Name -> name
-            userName: userBasicInfo.username || '', // Email -> userEmail
-            providerId: userBasicInfo.providerId || '', // Provider ID -> providerId
-            consumerId: userBasicInfo.consumerId || '', // ConsumerID -> consumerId
+            entityId: fetchedEntityInfoFromDB.entityId || '',
+            name: fetchedEntityInfoFromDB.name || '',
+            email: fetchedEntityInfoFromDB.email || '',
+            entityType: fetchedEntityInfoFromDB.entityType || '',
+            phoneNumber: fetchedEntityInfoFromDB.phoneNumber || '',
+            providerId: fetchedEntityInfoFromDB.providerId || '',
+            consumerId: fetchedEntityInfoFromDB.consumerId || '',
+            createdAt: fetchedEntityInfoFromDB.createdAt || '',
+            updatedAt: fetchedEntityInfoFromDB.updatedAt || '',
+            roles: roles
           };
           
-          console.log('Parsed entity info:', entityInfo);
+          console.log('Parsed entity info from DB:', entityInfo);
           setEntityData(entityInfo);
           
           // Determine initial view based on available IDs
@@ -82,30 +138,44 @@ function App() {
           
           // Save to localStorage for auth redirect recovery
           saveEntityStateToStorage(entityInfo, initialView);
+        } else {
+          // Fallback to empty entity data if fetch fails
+          const emptyEntityData: EntityProps = {
+            entityId: '',
+            name: '',
+            email: '',
+            phoneNumber: '',
+            entityType: '',
+            createdAt: '',
+            updatedAt: '',
+            roles: [],
+            providerId: undefined,
+            consumerId: undefined,
+          };
+          setEntityData(emptyEntityData);
         }
       } catch (error) {
         console.error('Failed to fetch entity info:', error);
         // Fallback to empty entity data if fetch fails
-        setEntityData({
-          id: '',
+        const emptyEntityData: EntityProps = {
+          entityId: '',
           name: '',
-          userName: '',
+          email: '',
+          phoneNumber: '',
+          entityType: '',
+          createdAt: '',
+          updatedAt: '',
+          roles: [],
           providerId: undefined,
           consumerId: undefined,
-        });
+        };
+        setEntityData(emptyEntityData);
+      } finally {
+        setLoading(false);
       }
     };
 
-    // Check if we have stored entity data (after auth redirect)
-    if (state.isAuthenticated && !entityData) {
-      const storedState = getEntityStateFromStorage();
-      if (storedState.entityData) {
-        setEntityData(storedState.entityData);
-        setView(storedState.view);
-      } else {
-        fetchEntityInfo();
-      }
-    }
+    fetchEntityInfo();
   }, [state.isAuthenticated]);
 
   const canSwitchView = () => {
@@ -125,18 +195,14 @@ function App() {
     }
   };
 
-  // Handle sign in with state preservation (like consent-portal)
   const handleSignIn = () => {
-    // Ensure entity state is saved before redirect
-    if (entityData) {
-      saveEntityStateToStorage(entityData, view);
-    }
     signIn();
   };
 
-  // Handle sign out with state cleanup (like consent-portal)
   const handleSignOut = () => {
     clearEntityStateFromStorage();
+    setEntityData(null);
+    setView(null);
     signOut();
   };
 
@@ -162,7 +228,7 @@ function App() {
   }
 
   // Show loading while fetching entity data
-  if (!entityData) {
+  if (loading || !entityData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center relative">
         <div className="text-center">
@@ -187,24 +253,39 @@ function App() {
         <Routes>
           {view === 'provider' ? (
             <>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/provider/schemas" element={<SchemasPage />} />
+              <Route path="/" element={<MemberInfo 
+                name={entityData.name}
+                email={entityData.email}
+                phoneNumber={entityData.phoneNumber}
+                entityType={entityData.entityType}
+                roles={entityData.roles}
+                createdAt={entityData.createdAt}
+                updatedAt={entityData.updatedAt}
+              />} />
+              <Route path="/provider/schemas" element={<SchemasPage providerId={entityData?.providerId || ''} />} />
               <Route 
                 path="/provider/schemas/new" 
                 element={
                   <SchemaRegistrationPage 
                     providerId={entityData?.providerId || ''}
-                    providerName={entityData?.name || ''}
                   />
                 } 
               />
-              <Route path="/provider/logs" element={<Logs />} />
+              <Route path="/provider/logs" element={<Logs role="provider" providerId={entityData?.providerId || ''} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           ) : (
             <>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/consumer/applications" element={<Applications />} />
+              <Route path="/" element={<MemberInfo
+                name={entityData.name}
+                email={entityData.email}
+                phoneNumber={entityData.phoneNumber}
+                entityType={entityData.entityType}
+                roles={entityData.roles}
+                createdAt={entityData.createdAt}
+                updatedAt={entityData.updatedAt}
+              />} />
+              <Route path="/consumer/applications" element={<Applications consumerId={entityData?.consumerId || ''} />} />
               <Route 
                 path="/consumer/applications/new" 
                 element={
@@ -213,6 +294,7 @@ function App() {
                   />
                 } 
               />
+              <Route path="/consumer/logs" element={<Logs role="consumer" consumerId={entityData?.consumerId || ''} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}
