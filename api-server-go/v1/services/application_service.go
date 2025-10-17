@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
@@ -40,8 +41,8 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		SelectedFields:         []string(application.SelectedFields),
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format("time.RFC3339"),
-		UpdatedAt:              application.UpdatedAt.Format("time.RFC3339"),
+		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -80,8 +81,8 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 		SelectedFields:         []string(application.SelectedFields),
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format("time.RFC3339"),
-		UpdatedAt:              application.UpdatedAt.Format("time.RFC3339"),
+		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -102,8 +103,8 @@ func (s *ApplicationService) GetApplication(applicationID string) (*models.Appli
 		SelectedFields:         []string(application.SelectedFields),
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format("time.RFC3339"),
-		UpdatedAt:              application.UpdatedAt.Format("time.RFC3339"),
+		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -134,8 +135,8 @@ func (s *ApplicationService) GetApplications(consumerID *string) ([]models.Appli
 			SelectedFields:         []string(application.SelectedFields),
 			ConsumerID:             application.ConsumerID,
 			Version:                application.Version,
-			CreatedAt:              application.CreatedAt.Format("time.RFC3339"),
-			UpdatedAt:              application.UpdatedAt.Format("time.RFC3339"),
+			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 
@@ -182,8 +183,8 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		SelectedFields:         []string(submission.SelectedFields),
 		Status:                 submission.Status,
 		ConsumerID:             submission.ConsumerID,
-		CreatedAt:              submission.CreatedAt.Format("time.RFC3339"),
-		UpdatedAt:              submission.UpdatedAt.Format("time.RFC3339"),
+		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -196,7 +197,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 	// Start a transaction
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(&submission, "submission_id = ?", submissionID).Error; err != nil {
-			return fmt.Errorf("schema submission not found: %w", err)
+			return fmt.Errorf("application submission not found: %w", err)
 		}
 
 		// Update fields if provided
@@ -251,8 +252,8 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		SelectedFields:         []string(submission.SelectedFields),
 		Status:                 submission.Status,
 		ConsumerID:             submission.ConsumerID,
-		CreatedAt:              submission.CreatedAt.Format("time.RFC3339"),
-		UpdatedAt:              submission.UpdatedAt.Format("time.RFC3339"),
+		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -274,8 +275,8 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 		SelectedFields:         []string(submission.SelectedFields),
 		Status:                 submission.Status,
 		ConsumerID:             submission.ConsumerID,
-		CreatedAt:              submission.CreatedAt.Format("time.RFC3339"),
-		UpdatedAt:              submission.UpdatedAt.Format("time.RFC3339"),
+		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -310,8 +311,8 @@ func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statu
 			SelectedFields:         []string(submission.SelectedFields),
 			Status:                 submission.Status,
 			ConsumerID:             submission.ConsumerID,
-			CreatedAt:              submission.CreatedAt.Format("time.RFC3339"),
-			UpdatedAt:              submission.UpdatedAt.Format("time.RFC3339"),
+			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 

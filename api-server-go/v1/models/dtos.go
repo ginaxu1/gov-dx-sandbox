@@ -9,7 +9,7 @@ type CreateSchemaSubmissionRequest struct {
 	SDL               string  `json:"sdl" validate:"required"`
 	SchemaEndpoint    string  `json:"schemaEndpoint" validate:"required"`
 	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
-	ProviderID        string  `json:"providerID" validate:"required"`
+	ProviderID        string  `json:"providerId" validate:"required"`
 }
 
 // UpdateSchemaSubmissionRequest updates the status of a provider schema submission
@@ -28,7 +28,7 @@ type CreateSchemaRequest struct {
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
 	SDL               string  `json:"sdl" validate:"required"`
 	Endpoint          string  `json:"endpoint" validate:"required"`
-	ProviderID        string  `json:"providerID" validate:"required"`
+	ProviderID        string  `json:"providerId" validate:"required"`
 }
 
 // UpdateSchemaRequest updates an existing provider schema
@@ -46,7 +46,7 @@ type CreateApplicationSubmissionRequest struct {
 	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
 	SelectedFields         []string `json:"selectedFields" validate:"required,min=1"`
 	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
-	ConsumerID             string   `json:"consumerID" validate:"required"`
+	ConsumerID             string   `json:"consumerId" validate:"required"`
 }
 
 // UpdateApplicationSubmissionRequest updates the status of a consumer application submission
@@ -63,7 +63,7 @@ type CreateApplicationRequest struct {
 	ApplicationName        string   `json:"applicationName" validate:"required"`
 	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
 	SelectedFields         []string `json:"selectedFields" validate:"required,min=1"`
-	ConsumerID             string   `json:"consumerID" validate:"required"`
+	ConsumerID             string   `json:"consumerId" validate:"required"`
 }
 
 // UpdateApplicationRequest updates an existing consumer application

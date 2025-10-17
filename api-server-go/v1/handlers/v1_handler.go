@@ -204,7 +204,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			status := r.URL.Query()["status"]
-			h.getAllSchemaSubmissions(w, r, &consumerID, &status)
+			h.getAllApplicationSubmissions(w, r, &consumerID, &status)
 		case http.MethodPost:
 			h.createApplicationSubmission(w, r, &consumerID)
 		default:
@@ -656,7 +656,7 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusOK, submission)
+	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
 func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
@@ -713,7 +713,7 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusOK, schema)
+	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
 
 func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaID string) {
@@ -780,7 +780,7 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusOK, submission)
+	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
 func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
@@ -837,7 +837,7 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusOK, application)
+	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
 
 func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationID string) {
