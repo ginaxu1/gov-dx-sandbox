@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -225,7 +226,7 @@ func TestGETLogsEndpoint(t *testing.T) {
 
 	// Insert test data
 	for _, logReq := range testLogs {
-		_, err := server.AuditService.CreateLog(&logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), &logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}

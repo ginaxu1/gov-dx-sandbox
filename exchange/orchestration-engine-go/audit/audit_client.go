@@ -60,25 +60,19 @@ func (c *AuditClient) BaseURL() string {
 
 // LogQuery logs a GraphQL query execution to the audit service
 func (c *AuditClient) LogQuery(query string, status string, consumerID string, providerID string) error {
-	// Extract application ID and schema ID from consumer and provider IDs
-	// For now, we'll use the consumer and provider IDs as application and schema IDs
-	// In a real implementation, you might want to map these differently
-	applicationID := consumerID
-	schemaID := providerID
-
 	// If consumerID or providerID are empty, use default values
-	if applicationID == "" {
-		applicationID = "unknown-consumer"
+	if consumerID == "" {
+		consumerID = "consumer-123"
 	}
-	if schemaID == "" {
-		schemaID = "unknown-provider"
+	if providerID == "" {
+		providerID = "provider-456"
 	}
 
 	auditRequest := AuditLogRequest{
 		Status:        status,
 		RequestedData: query,
-		ApplicationID: applicationID,
-		SchemaID:      schemaID,
+		ApplicationID: consumerID,
+		SchemaID:      providerID,
 	}
 
 	jsonData, err := json.Marshal(auditRequest)
@@ -120,7 +114,7 @@ func (c *AuditClient) LogQuery(query string, status string, consumerID string, p
 		return err
 	}
 
-	logger.Log.Info("Successfully logged query to audit service", 
+	logger.Log.Info("Successfully logged query to audit service",
 		"audit_id", auditResponse.ID,
 		"status", status,
 		"consumer_id", consumerID,

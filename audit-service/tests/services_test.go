@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gov-dx-sandbox/audit-service/models"
@@ -19,7 +20,7 @@ func TestAuditService(t *testing.T) {
 			ProviderID:    "test-provider",
 		}
 
-		log, err := server.AuditService.CreateLog(logReq)
+		log, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create log: %v", err)
 		}
@@ -63,7 +64,7 @@ func TestAuditService(t *testing.T) {
 		}
 
 		for _, logReq := range testLogs {
-			_, err := server.AuditService.CreateLog(logReq)
+			_, err := server.AuditService.CreateLog(context.Background(), logReq)
 			if err != nil {
 				t.Fatalf("Failed to create test log: %v", err)
 			}
@@ -71,7 +72,7 @@ func TestAuditService(t *testing.T) {
 
 		// Get all logs
 		filter := &models.LogFilter{}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -94,7 +95,7 @@ func TestAuditService(t *testing.T) {
 			ProviderID:    "test-provider",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
@@ -103,7 +104,7 @@ func TestAuditService(t *testing.T) {
 		filter := &models.LogFilter{
 			ConsumerID: "test-consumer-filter",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -133,7 +134,7 @@ func TestAuditService(t *testing.T) {
 			ProviderID:    "test-provider-filter",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
@@ -142,7 +143,7 @@ func TestAuditService(t *testing.T) {
 		filter := &models.LogFilter{
 			ProviderID: "test-provider-filter",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -172,7 +173,7 @@ func TestAuditService(t *testing.T) {
 			ProviderID:    "test-provider",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
@@ -181,7 +182,7 @@ func TestAuditService(t *testing.T) {
 		filter := &models.LogFilter{
 			Status: "failure",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -212,7 +213,7 @@ func TestAuditService(t *testing.T) {
 				ProviderID:    "test-provider",
 			}
 
-			_, err := server.AuditService.CreateLog(logReq)
+			_, err := server.AuditService.CreateLog(context.Background(), logReq)
 			if err != nil {
 				t.Fatalf("Failed to create test log: %v", err)
 			}
@@ -223,7 +224,7 @@ func TestAuditService(t *testing.T) {
 			Limit:  2,
 			Offset: 1,
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -249,7 +250,7 @@ func TestAuditService(t *testing.T) {
 			ProviderID:    "test-provider-combined",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
@@ -260,7 +261,7 @@ func TestAuditService(t *testing.T) {
 			ProviderID: "test-provider-combined",
 			Status:     "success",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -292,7 +293,7 @@ func TestAuditService(t *testing.T) {
 		filter := &models.LogFilter{
 			ConsumerID: "nonexistent-consumer",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
