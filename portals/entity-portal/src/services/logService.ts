@@ -8,8 +8,10 @@ interface LogEntry {
 }
 
 interface LogResponse {
-    logs: LogEntry[];
-    count: number;
+    logs: LogEntry[] | null;
+    total: number;
+    limit: number;
+    offset: number;
 }
 
 interface LogQueryParams {
@@ -24,7 +26,7 @@ interface LogQueryParams {
 
 export class LogService {
 
-    static async fetchLogsWithParams(params?: LogQueryParams): Promise<LogEntry[]> {
+    static async fetchLogsWithParams(params?: LogQueryParams): Promise<LogResponse> {
         try {
             const url = new URL(`${window.configs.logsUrl}/logs`);
             
@@ -42,10 +44,10 @@ export class LogService {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const data:LogResponse = await response.json();
-            
-            return data.logs;
-            
+            const data: LogResponse = await response.json();
+
+            return data;
+
         } catch (error) {
             console.error('Error fetching logs with params:', error);
             throw error;
@@ -97,7 +99,8 @@ export class LogService {
         successRate: number;
     }> {
         try {
-            const logs = await this.fetchLogsWithParams(params);
+            const logResponse = await this.fetchLogsWithParams(params);
+            const logs = logResponse.logs || [];
             const total = logs.length;
             const success = logs.filter(log => log.status === 'success').length;
             const failure = logs.filter(log => log.status === 'failure').length;
