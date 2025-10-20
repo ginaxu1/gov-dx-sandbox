@@ -151,7 +151,7 @@ func main() {
 			"port", dbConfig.Port,
 			"database", dbConfig.Database,
 			"choreoHost", os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"),
-			"fallbackHost", os.Getenv("DB_HOST"))
+		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server failed to start", "error", err)
