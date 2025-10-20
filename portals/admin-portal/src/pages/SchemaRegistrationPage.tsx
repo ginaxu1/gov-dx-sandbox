@@ -33,7 +33,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
     // Fetch registered schemas from the API
     const fetchRegisteredSchemas = async () => {
       try {
-        const response: ApprovedSchema[] = await SchemaService.getApprovedSchemas(providerId);
+        const response: ApprovedSchema[] = await SchemaService.getApprovedSchemas();
         if (response) {
           setRegisteredSchemas(response);
         }
