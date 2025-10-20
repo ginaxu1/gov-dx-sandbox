@@ -100,11 +100,12 @@ func main() {
 
 	// API endpoints for log access
 	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
+		switch r.Method {
+		case http.MethodGet:
 			auditHandler.GetLogs(w, r)
-		} else if r.Method == http.MethodPost {
+		case http.MethodPost:
 			auditHandler.CreateLog(w, r)
-		} else {
+		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
@@ -176,11 +177,8 @@ func main() {
 	}
 
 	// Gracefully close database connection
-	slog.Info("Starting database graceful shutdown")
-	if err := db.Close(); err != nil {
+	if err := GracefulShutdown(db); err != nil {
 		slog.Error("Error during database graceful shutdown", "error", err)
-	} else {
-		slog.Info("Database connection closed successfully")
 	}
 
 	slog.Info("Audit Service exited")

@@ -63,8 +63,17 @@ func CORSMiddleware(config CORSConfig) func(http.Handler) http.Handler {
 
 			// If origin is allowed or we allow all origins
 			if allowedOrigin != "" {
+				// Always add Vary: Origin to prevent cache poisoning
+				w.Header().Add("Vary", "Origin")
+
 				// Set CORS headers
-				if allowedOrigin == "*" {
+				if allowedOrigin == "*" && config.AllowCredentials {
+					// Security fix: Cannot use wildcard with credentials
+					// If credentials are required, we must reflect the actual origin
+					if origin != "" {
+						w.Header().Set("Access-Control-Allow-Origin", origin)
+					}
+				} else if allowedOrigin == "*" {
 					w.Header().Set("Access-Control-Allow-Origin", "*")
 				} else {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -88,6 +97,9 @@ func CORSMiddleware(config CORSConfig) func(http.Handler) http.Handler {
 
 			// Handle preflight requests
 			if r.Method == "OPTIONS" {
+				// Add Vary headers for preflight requests to prevent cache poisoning
+				w.Header().Add("Vary", "Access-Control-Request-Method")
+				w.Header().Add("Vary", "Access-Control-Request-Headers")
 				w.WriteHeader(http.StatusOK)
 				return
 			}
