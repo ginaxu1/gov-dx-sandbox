@@ -94,10 +94,10 @@ func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
 			&models.Entity{},
 			&models.Provider{},
 			&models.Consumer{},
-			&models.ProviderSchema{},
-			&models.ProviderSchemaSubmission{},
-			&models.ConsumerApplication{},
-			&models.ConsumerApplicationSubmission{},
+			&models.Schema{},
+			&models.SchemaSubmission{},
+			&models.Application{},
+			&models.ApplicationSubmission{},
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run auto-migration: %w", err)

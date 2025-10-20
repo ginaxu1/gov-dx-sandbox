@@ -5,26 +5,25 @@ info:
     Audit Service API for tracking and retrieving data access audit logs.
     
     This service provides endpoints for:
-    - Creating audit log entries (used by api-server-go and manual testing)
-    - Retrieving audit events for different portals (Admin, Provider, Consumer)
-    - Health monitoring
+    - Creating audit log entries (POST /api/logs)
+    - Retrieving audit logs for different portals (GET /api/logs)
     
     The service maintains a comprehensive audit trail of all data access requests
-    with PII redaction for privacy protection. Provider and Consumer endpoints
-    support filtering by ID without requiring authentication.
+    with simplified log structure for easy consumption by admin and entity portals.
   version: 1.0.0
   contact:
-    name: Gov DX Sandbox Team
-    email: support@gov-dx-sandbox.com
+    name: OpenDIF Team
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
 
 servers:
+  - url: https://audit-service-dev.choreo.dev
+    description: Choreo Development Environment
+  - url: https://audit-service.choreo.dev
+    description: Choreo Production Environment
   - url: http://localhost:3001
-    description: Local development server
-  - url: https://audit-service.gov-dx-sandbox.com
-    description: Production server
+    description: Local Development Environment
 
 paths:
   /health:
@@ -38,44 +37,139 @@ paths:
         '200':
           description: Service is healthy
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: "Audit Service is healthy"
-
-  /audit/logs:
-    post:
-      summary: Create Audit Log Entry (Internal)
-      description: |
-        Create a new audit log entry for tracking data access.
-        This endpoint is primarily used by the api-server-go to send audit logs.
-        For manual testing, use the /audit/create endpoint instead.
-      operationId: createAuditLog
-      tags:
-        - Audit
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AuditLogRequest'
-      responses:
-        '201':
-          description: Audit log created successfully
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+        '500':
+          description: Service is unhealthy
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  event_id:
-                    type: string
-                    format: uuid
-                    description: Unique identifier for the audit log entry
                   status:
                     type: string
-                    example: "created"
+                    example: unhealthy
+                  error:
+                    type: string
+                    example: "Service unavailable"
+
+  /api/logs:
+    get:
+      summary: Get Logs
+      description: |
+        Retrieve audit logs with optional filtering. Supports filtering by consumerId, providerId, status, and date range.
+        
+        **For Admin Portal**: Call without parameters to get all logs
+        **For Entity Portal (Consumer)**: Call with `?consumerId={consumerId}` to get logs for a specific consumer
+        **For Entity Portal (Provider)**: Call with `?providerId={providerId}` to get logs for a specific provider
+      operationId: getLogs
+      tags:
+        - Logs
+      parameters:
+        - name: consumerId
+          in: query
+          description: Filter logs by consumer ID
+          required: false
+          schema:
+            type: string
+            example: "consumer-123"
+        - name: providerId
+          in: query
+          description: Filter logs by provider ID
+          required: false
+          schema:
+            type: string
+            example: "provider-456"
+        - name: status
+          in: query
+          description: Filter logs by status
+          required: false
+          schema:
+            type: string
+            enum: [success, failure]
+            example: "success"
+        - name: startDate
+          in: query
+          description: Filter logs from this date (YYYY-MM-DD format)
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2024-01-01"
+        - name: endDate
+          in: query
+          description: Filter logs until this date (YYYY-MM-DD format)
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2024-12-31"
+        - name: limit
+          in: query
+          description: Maximum number of logs to return (default 50, max 1000)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 50
+          example: 100
+        - name: offset
+          in: query
+          description: Number of logs to skip for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          example: 0
+      responses:
+        '200':
+          description: Successfully retrieved logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogResponse'
+              examples:
+                admin_portal:
+                  summary: Admin Portal Response
+                  value:
+                    logs:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        timestamp: "2024-01-15T10:30:00Z"
+                        status: "success"
+                        requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
+                        consumerId: "consumer-123"
+                        providerId: "provider-456"
+                      - id: "550e8400-e29b-41d4-a716-446655440001"
+                        timestamp: "2024-01-15T10:25:00Z"
+                        status: "failure"
+                        requestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }"
+                        consumerId: "consumer-789"
+                        providerId: "provider-456"
+                    total: 2
+                    limit: 50
+                    offset: 0
+                consumer_portal:
+                  summary: Consumer Portal Response
+                  value:
+                    logs:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        timestamp: "2024-01-15T10:30:00Z"
+                        status: "success"
+                        requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
+                        consumerId: "consumer-123"
+                        providerId: "provider-456"
+                    total: 1
+                    limit: 50
+                    offset: 0
         '400':
-          description: Bad request - invalid input data
+          description: Bad request - invalid query parameters
           content:
             application/json:
               schema:
@@ -87,263 +181,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /audit/create:
     post:
-      summary: Create Audit Log Entry (Manual Testing)
-      description: |
-        Create a new audit log entry manually for testing purposes.
-        This endpoint provides enhanced validation and detailed responses
-        suitable for manual testing and development.
-      operationId: createAuditLogManual
+      summary: Create Log Entry
+      description: Create a new audit log entry
+      operationId: createLog
       tags:
-        - Audit
+        - Logs
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AuditLogRequest'
-            example:
-              consumer_id: "test-consumer-001"
-              provider_id: "test-provider-001"
-              requested_data:
-                query: "query { citizen { name age } }"
-                variables: {}
-              response_data:
-                data:
-                  citizen:
-                    name: "John Doe"
-                    age: 30
-                    entity_id: "12345"
-              transaction_status: "SUCCESS"
+              $ref: '#/components/schemas/LogRequest'
+            examples:
+              success_log:
+                summary: Successful Request Log
+                value:
+                  status: "success"
+                  requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
+                  consumerId: "consumer-123"
+                  providerId: "provider-456"
+              failure_log:
+                summary: Failed Request Log
+                value:
+                  status: "failure"
+                  requestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }"
+                  consumerId: "consumer-789"
+                  providerId: "provider-456"
       responses:
         '201':
-          description: Audit log created successfully
+          description: Log created successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  event_id:
-                    type: string
-                    format: uuid
-                    description: Unique identifier for the audit log entry
-                  timestamp:
-                    type: string
-                    format: date-time
-                    description: When the audit log was created
-                  consumer_id:
-                    type: string
-                    description: ID of the consuming department/application
-                  provider_id:
-                    type: string
-                    description: ID of the data provider
-                  transaction_status:
-                    type: string
-                    enum: [SUCCESS, FAILURE]
-                    description: Status of the transaction
-                  citizen_hash:
-                    type: string
-                    description: SHA-256 hash of citizen identifier for privacy
-                  status:
-                    type: string
-                    example: "created"
-                  message:
-                    type: string
-                    example: "Audit log created successfully for testing"
+                $ref: '#/components/schemas/Log'
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                timestamp: "2024-01-15T10:30:00Z"
+                status: "success"
+                requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
+                consumerId: "consumer-123"
+                providerId: "provider-456"
         '400':
-          description: Bad request - invalid input data
+          description: Bad request - invalid log data
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /audit/events:
-    get:
-      summary: Get Admin Audit Events
-      description: |
-        Retrieve audit events for the Admin Portal with comprehensive filtering options.
-        This endpoint provides full audit trail access for administrative purposes.
-      operationId: getAdminAuditEvents
-      tags:
-        - Audit
-      parameters:
-        - name: consumer_id
-          in: query
-          schema:
-            type: string
-          description: Filter by consumer ID
-        - name: provider_id
-          in: query
-          schema:
-            type: string
-          description: Filter by provider ID
-        - name: transaction_status
-          in: query
-          schema:
-            type: string
-            enum: [SUCCESS, FAILURE]
-          description: Filter by transaction status
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date
-          description: Start date for filtering (YYYY-MM-DD)
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date
-          description: End date for filtering (YYYY-MM-DD)
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-            maximum: 1000
-          description: Maximum number of records to return
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
-          description: Number of records to skip
-      responses:
-        '200':
-          description: Admin audit events retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuditResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /audit/providers:
-    get:
-      summary: Get Provider Audit Events
-      description: |
-        Retrieve audit events for providers (Provider Portal).
-        Filter by provider_id query parameter to get events for a specific provider.
-        Example: /audit/providers?provider_id=dept-immigration
-      operationId: getProviderAuditEvents
-      tags:
-        - Audit
-      parameters:
-        - name: provider_id
-          in: query
-          schema:
-            type: string
-          description: Filter by specific provider ID (e.g., dept-immigration)
-        - name: transaction_status
-          in: query
-          schema:
-            type: string
-            enum: [SUCCESS, FAILURE]
-          description: Filter by transaction status
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date
-          description: Start date for filtering (YYYY-MM-DD)
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date
-          description: End date for filtering (YYYY-MM-DD)
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-            maximum: 1000
-          description: Maximum number of records to return
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
-          description: Number of records to skip
-      responses:
-        '200':
-          description: Provider audit events retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuditResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /audit/consumers:
-    get:
-      summary: Get Consumer Audit Events
-      description: |
-        Retrieve audit events for consumers (Consumer Portal).
-        Filter by consumer_id query parameter to get events for a specific consumer.
-        Example: /audit/consumers?consumer_id=dept-health
-      operationId: getConsumerAuditEvents
-      tags:
-        - Audit
-      parameters:
-        - name: consumer_id
-          in: query
-          schema:
-            type: string
-          description: Filter by specific consumer ID (e.g., dept-health)
-        - name: transaction_status
-          in: query
-          schema:
-            type: string
-            enum: [SUCCESS, FAILURE]
-          description: Filter by transaction status
-        - name: start_date
-          in: query
-          schema:
-            type: string
-            format: date
-          description: Start date for filtering (YYYY-MM-DD)
-        - name: end_date
-          in: query
-          schema:
-            type: string
-            format: date
-          description: End date for filtering (YYYY-MM-DD)
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 50
-            maximum: 1000
-          description: Maximum number of records to return
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
-          description: Number of records to skip
-      responses:
-        '200':
-          description: Consumer audit events retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuditResponse'
         '500':
           description: Internal server error
           content:
@@ -352,94 +236,83 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
 components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: |
-        JWT token containing user claims. Currently not required for any endpoints,
-        but available for future authentication needs.
-
   schemas:
-    AuditLogRequest:
-      type: object
-      required:
-        - consumer_id
-        - provider_id
-        - requested_data
-        - transaction_status
-      properties:
-        event_id:
-          type: string
-          format: uuid
-          description: Unique identifier for the audit log entry (auto-generated if not provided)
-        consumer_id:
-          type: string
-          description: ID of the consuming department/application
-        provider_id:
-          type: string
-          description: ID of the data provider
-        requested_data:
-          type: object
-          description: GraphQL query and variables (PII redacted)
-        response_data:
-          type: object
-          description: Response data returned (PII redacted)
-        transaction_status:
-          type: string
-          enum: [SUCCESS, FAILURE]
-          description: Status of the transaction
-        citizen_hash:
-          type: string
-          description: SHA-256 hash of citizen identifier for privacy (auto-generated from request/response data)
-
-    AuditEvent:
+    Log:
       type: object
       properties:
-        event_id:
+        id:
           type: string
           format: uuid
-          description: Unique identifier for the audit log entry
+          example: "550e8400-e29b-41d4-a716-446655440000"
         timestamp:
           type: string
           format: date-time
-          description: When the event occurred
-        consumer_id:
+          example: "2024-01-15T10:30:00Z"
+        status:
           type: string
-          description: ID of the consuming department/application
-        provider_id:
+          enum: [success, failure]
+          example: "success"
+        requestedData:
           type: string
-          description: ID of the data provider
-        transaction_status:
+          description: The GraphQL query that was requested
+          example: "query { personInfo(nic: \"199512345678\") { fullName } }"
+        consumerId:
           type: string
-          enum: [SUCCESS, FAILURE]
-          description: Status of the transaction
-        citizen_hash:
+          example: "consumer-123"
+        providerId:
           type: string
-          description: SHA-256 hash of citizen identifier for privacy
-      description: |
-        Simplified audit event for API responses. RequestedData and ResponseData
-        are intentionally omitted for security as they contain sensitive information
-        that should not be exposed via API.
+          example: "provider-456"
+      required:
+        - id
+        - timestamp
+        - status
+        - requestedData
 
-    AuditResponse:
+    LogRequest:
       type: object
       properties:
-        events:
+        status:
+          type: string
+          enum: [success, failure]
+          example: "success"
+        requestedData:
+          type: string
+          description: The GraphQL query that was requested
+          example: "query { personInfo(nic: \"199512345678\") { fullName } }"
+        consumerId:
+          type: string
+          example: "consumer-123"
+        providerId:
+          type: string
+          example: "provider-456"
+      required:
+        - status
+        - requestedData
+
+    LogResponse:
+      type: object
+      properties:
+        logs:
           type: array
           items:
-            $ref: '#/components/schemas/AuditEvent'
-          description: Array of audit events
+            $ref: '#/components/schemas/Log'
         total:
           type: integer
-          description: Total number of events matching the filter criteria
+          description: Total number of logs matching the filter
+          example: 150
         limit:
           type: integer
-          description: Maximum number of events returned per page
+          description: Maximum number of logs returned
+          example: 50
         offset:
           type: integer
-          description: Number of events skipped for pagination
+          description: Number of logs skipped for pagination
+          example: 0
+      required:
+        - logs
+        - total
+        - limit
+        - offset
 
     ErrorResponse:
       type: object
@@ -447,37 +320,20 @@ components:
         error:
           type: string
           description: Error message
+          example: "Invalid request parameters"
         code:
           type: string
           description: Error code
+          example: "INVALID_PARAMETERS"
         details:
           type: object
           description: Additional error details
-
-    JWTClaims:
-      type: object
-      properties:
-        consumer_id:
-          type: string
-          description: Consumer ID claim
-        provider_id:
-          type: string
-          description: Provider ID claim
-        user_id:
-          type: string
-          description: User ID claim
-        email:
-          type: string
-          description: User email claim
-        exp:
-          type: integer
-          description: Token expiration timestamp
-        iat:
-          type: integer
-          description: Token issued at timestamp
+          additionalProperties: true
+      required:
+        - error
 
 tags:
   - name: Health
     description: Health check endpoints
-  - name: Audit
-    description: Audit logging and data access tracking
+  - name: Logs
+    description: Simplified log access for admin and entity portals

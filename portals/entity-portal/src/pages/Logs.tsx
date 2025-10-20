@@ -7,10 +7,12 @@ import {
     CheckCircle, 
     XCircle, 
     Info,
-    Clock
+    Clock,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
-import { logService } from '../services/logService';
-import type { LogEntry } from '../services/logService';
+import { LogService } from '../services/logService';
+import type { LogEntry, LogResponse } from '../services/logService';
 
 interface FilterOptions {
     status?: 'all' | 'failure' | 'success';
@@ -30,6 +32,9 @@ interface LogsProps {
 export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
+    const [logResponse, setLogResponse] = useState<LogResponse | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const [filters, setFilters] = useState<FilterOptions>({
         status: 'all',
         searchTerm: '',
@@ -43,36 +48,55 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
 
     // Helper function to update filters
     const updateFilter = <K extends keyof FilterOptions>(key: K, value: FilterOptions[K]) => {
-        setFilters(prev => ({ ...prev, [key]: value }));
+        const newFilters = { ...filters, [key]: value };
+        setFilters(newFilters);
+        
+        // If this is a server-side filter, reset to page 1 and fetch new data
+        if (key === 'status' || key === 'startDate' || key === 'endDate') {
+            setCurrentPage(1);
+            // Fetch with the new filters immediately
+            fetchLogsWithFilters(1, newFilters);
+        }
     };
 
     // Helper function to clear all filters
     const clearAllFilters = () => {
-        setFilters({
-            status: 'all',
+        const clearedFilters = {
+            status: 'all' as const,
             searchTerm: '',
             startDate: '',
             endDate: '',
             byConsumerId: role === 'provider' ? '' : undefined,
             byProviderId: role === 'consumer' ? '' : undefined
-        });
+        };
+        setFilters(clearedFilters);
+        setCurrentPage(1);
+        fetchLogsWithFilters(1, clearedFilters);
     };
 
-
-    const fetchLogs = async () => {
+    // Helper function to fetch logs with specific filters
+    const fetchLogsWithFilters = async (page: number, filterOverrides?: FilterOptions) => {
+        const activeFilters = filterOverrides || filters;
         setLoading(true);
         try {
-            const entityId = role === 'consumer' ? consumerId : providerId;
-            if (!entityId) {
-                throw new Error(`Missing ${role} ID`);
-            }
+            const offset = (page - 1) * pageSize;
+            const response = await LogService.fetchLogsWithParams({
+                [role === 'consumer' ? 'consumerId' : 'providerId']: role === 'consumer' ? consumerId : providerId,
+                limit: pageSize,
+                offset: offset,
+                // Server-side filters
+                status: activeFilters.status !== 'all' ? activeFilters.status : undefined,
+                startDate: activeFilters.startDate || undefined,
+                endDate: activeFilters.endDate || undefined
+            });
             
-            const logs = await logService.fetchLogsByRole(role, entityId);
-            setLogs(logs);
-            setFilteredLogs(logs);
+            setLogResponse(response);
+            setLogs(response.logs || []);
+            setFilteredLogs(response.logs || []);
         } catch (error) {
             console.error('Error fetching logs:', error);
             // Optionally show user-friendly error message
+            setLogResponse(null);
             setLogs([]);
             setFilteredLogs([]);
         } finally {
@@ -81,24 +105,27 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     };
 
     useEffect(() => {
-        fetchLogs();
+        setCurrentPage(1); // Reset to first page when role/IDs change
+        fetchLogsWithFilters(1);
     }, [role, consumerId, providerId]);
 
     // Auto-refresh functionality
     useEffect(() => {
         if (autoRefresh) {
             const interval = setInterval(() => {
-                fetchLogs();
+                fetchLogsWithFilters(currentPage);
             }, 30000); // Refresh every 30 seconds
 
             return () => clearInterval(interval);
         }
-    }, [autoRefresh]);
+    }, [autoRefresh, currentPage]);
 
+    // Client-side filtering for additional filters not supported by server
+    // Note: For better performance, these filters should be moved to server-side
     useEffect(() => {
         let filtered = logs;
         
-        // Filter by search term
+        // Filter by search term (client-side for now)
         if (filters.searchTerm) {
             filtered = filtered.filter(log =>
                 log.requestedData.toLowerCase().includes(filters.searchTerm!.toLowerCase()) ||
@@ -108,11 +135,9 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
             );
         }
 
-        // Filter by status
-        if (filters.status && filters.status !== 'all') {
-            filtered = filtered.filter(log => log.status === filters.status);
-        }
-
+        // Additional client-side filters for byConsumerId and byProviderId
+        // (These should ideally be handled server-side as part of the main query)
+        
         // Filter by consumer ID (only for providers)
         if (role === 'provider' && filters.byConsumerId) {
             filtered = filtered.filter(log => 
@@ -124,19 +149,6 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
         if (role === 'consumer' && filters.byProviderId) {
             filtered = filtered.filter(log => 
                 log.providerId.toLowerCase().includes(filters.byProviderId!.toLowerCase())
-            );
-        }
-
-        // Filter by date range
-        if (filters.startDate) {
-            filtered = filtered.filter(log => 
-                new Date(log.timestamp) >= new Date(filters.startDate!)
-            );
-        }
-
-        if (filters.endDate) {
-            filtered = filtered.filter(log => 
-                new Date(log.timestamp) <= new Date(filters.endDate!)
             );
         }
 
@@ -172,7 +184,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     const statuses = ['success', 'failure'];
 
     const handleRefresh = () => {
-        fetchLogs();
+        fetchLogsWithFilters(currentPage);
     };
 
     const handleExport = async () => {
@@ -182,7 +194,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                 throw new Error(`Missing ${role} ID`);
             }
 
-            // Convert current filters to query params for export
+            // Convert current filters to query params for export (export all, not just current page)
             const queryParams = {
                 [role === 'consumer' ? 'consumerId' : 'providerId']: entityId,
                 status: filters.status !== 'all' ? filters.status : undefined,
@@ -191,9 +203,10 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                 startDate: filters.startDate || undefined,
                 endDate: filters.endDate || undefined,
                 search: filters.searchTerm || undefined
+                // Note: No limit/offset for export - we want all matching records
             };
 
-            const blob = await logService.exportLogs(queryParams, 'csv');
+            const blob = await LogService.exportLogs(queryParams, 'csv');
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -364,12 +377,26 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-gray-600">Filtered Logs</p>
-                                <p className="text-2xl font-bold text-gray-900">{filteredLogs.length}</p>
-                                <p className="text-xs text-gray-500">of {logs.length} total</p>
+                                <p className="text-sm font-medium text-gray-600">Total Logs</p>
+                                <p className="text-2xl font-bold text-gray-900">{logResponse?.total || 0}</p>
+                                <p className="text-xs text-gray-500">server-side count</p>
                             </div>
                             <div className="p-3 rounded-full bg-gray-100">
                                 <Activity className="w-5 h-5 text-blue-500" />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Current Page Stats */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Current Page</p>
+                                <p className="text-2xl font-bold text-gray-900">{filteredLogs.length}</p>
+                                <p className="text-xs text-gray-500">of {pageSize} per page</p>
+                            </div>
+                            <div className="p-3 rounded-full bg-gray-100">
+                                <Activity className="w-5 h-5 text-green-500" />
                             </div>
                         </div>
                     </div>
@@ -382,9 +409,9 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                             <div key={status} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-600 capitalize">{status} Logs</p>
+                                        <p className="text-sm font-medium text-gray-600 capitalize">{status} (Page)</p>
                                         <p className="text-2xl font-bold text-gray-900">{count}</p>
-                                        <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of filtered</p>
+                                        <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of current page</p>
                                     </div>
                                     <div className="p-3 rounded-full bg-gray-100">
                                         {getLogIcon(status)}
@@ -392,8 +419,74 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                                 </div>
                             </div>
                         );
-                    })}
+                    }).slice(0, 1)} {/* Only show first status to keep 3 cards total */}
                 </div>
+
+                {/* Pagination Controls */}
+                {logResponse && logResponse.total > 0 && (
+                    <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <label className="text-sm font-medium text-gray-700">
+                                    Page size:
+                                </label>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        const newPageSize = parseInt(e.target.value);
+                                        setPageSize(newPageSize);
+                                        setCurrentPage(1);
+                                        fetchLogsWithFilters(1);
+                                    }}
+                                    className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-700">
+                                    Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, logResponse.total)} of {logResponse.total} entries
+                                </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        const newPage = currentPage - 1;
+                                        setCurrentPage(newPage);
+                                        fetchLogsWithFilters(newPage);
+                                    }}
+                                    disabled={currentPage === 1}
+                                    className="flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                    Previous
+                                </button>
+                                
+                                <span className="px-3 py-1 text-sm">
+                                    Page {currentPage} of {Math.ceil(logResponse.total / pageSize)}
+                                </span>
+                                
+                                <button
+                                    onClick={() => {
+                                        const newPage = currentPage + 1;
+                                        setCurrentPage(newPage);
+                                        fetchLogsWithFilters(newPage);
+                                    }}
+                                    disabled={currentPage >= Math.ceil(logResponse.total / pageSize)}
+                                    className="flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Logs List */}
                 <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -402,7 +495,12 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
                             <div className="flex items-center">
                                 <Activity className="w-6 h-6 text-white mr-3" />
                                 <h2 className="text-xl font-semibold text-white">
-                                    Log Entries ({filteredLogs.length})
+                                    Log Entries 
+                                    {logResponse && (
+                                        <span className="text-sm font-normal text-gray-200 ml-2">
+                                            (Page {currentPage}: {filteredLogs.length} of {logResponse.total} total)
+                                        </span>
+                                    )}
                                 </h2>
                             </div>
                             <div className="text-sm text-gray-200">
