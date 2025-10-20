@@ -1,72 +1,14 @@
-import ballerina/graphql.subgraph;
 
-public type VehicleClass record {|
-    readonly string id;
-    string className;
-|};
-
-@subgraph:Entity {
-    key: "nic",
-    resolveReference: resolvePersonData
+public enum BloodGroup {
+    A_POSITIVE,
+    A_NEGATIVE,
+    B_POSITIVE,
+    B_NEGATIVE,
+    AB_POSITIVE,
+    AB_NEGATIVE,
+    O_POSITIVE,
+    O_NEGATIVE
 }
-public type PersonData record {|
-    readonly string nic;
-    VehicleInfo[] vehicles;
-    DriverLicense? license;
-|};
-
-isolated function resolvePersonData(subgraph:Representation representation) returns PersonData|error? {
-    string ownerNic = check representation["nic"].ensureType();
-
-    PersonData filteredVehicles = {nic: check representation["nic"].ensureType(), vehicles: [], license: null};
-
-
-    VehicleInfoResponse|error ownedVehiclesResponse = sharedDMTClient.getVehicles(ownerNic, 0, 100);
-
-    if ownedVehiclesResponse is error {
-        return filteredVehicles;
-    }
-
-    filteredVehicles.vehicles = ownedVehiclesResponse.data.clone();
-
-    DriverLicense? foundLicense = null;
-    lock {
-        foreach var license in licenseData {
-            if license.ownerNic == ownerNic {
-                foundLicense = license.clone();
-            }
-        }
-    }
-    filteredVehicles.license = foundLicense;
-    return filteredVehicles.clone();
-}
-
-@subgraph:Entity {
-    key: "id ownerNic"
-}
-public type VehicleInfo record {|
-    readonly string id;
-    string make;
-    string model;
-    int yearOfManufacture;
-    string ownerNic;
-    string engineNumber;
-    string conditionAndNotes;
-    string registrationNumber;
-    VehicleClass vehicleClass;
-    string vehicleclassId?;
-|};
-@subgraph:Entity {
-    'key: "id ownerNic"
-}
-public type DriverLicense record {|
-    readonly string id;
-    string licenseNumber;
-    string issueDate;
-    string expiryDate;
-    string? photoUrl;
-    string ownerNic;
-|};
 
 
 public type VehicleClassResponse record {|
@@ -82,4 +24,72 @@ public type PaginationInfo record {|
 public type VehicleInfoResponse record {|
     VehicleInfo[] data;
     PaginationInfo pagination;
+|};
+
+
+public enum VehicleType {
+    A1,
+    A,
+    B,
+    C1,
+    C,
+    CE,
+    D1,
+    D,
+    DE,
+    G1,
+    G,
+    J
+}
+
+public type VehicleClass record {|
+    readonly string id;
+    string className;
+|};
+
+public type VehiclePermission record {|
+    readonly string id;
+    VehicleType vehicleType;
+    string issueDate;
+    string expiryDate;
+|};
+
+public type VehicleInfo record {|
+    readonly string id;
+    string make;
+    string model;
+    int yearOfManufacture;
+    string ownerNic;
+    string engineNumber;
+    string conditionAndNotes;
+    string registrationNumber;
+    VehicleClass vehicleClass;
+|};
+
+public type OwnerInfo record {|
+    readonly string ownerNic;
+    string name;
+    string address;
+    string birthDate;
+    string signatureUrl;
+    BloodGroup bloodGroup;
+|};
+
+public type IssuerInfo record {|
+    readonly string id;
+    string name;
+    string issuingAuthority;
+    string signatureUrl;
+|};
+
+public type DrivingLicense record {|
+    readonly string id;
+    string licenseNumber;
+    string issueDate;
+    string expiryDate;
+    string frontImageUrl;
+    string backImageUrl;
+    VehiclePermission[] permissions;
+    OwnerInfo ownerInfo;
+    IssuerInfo issuerInfo;
 |};
