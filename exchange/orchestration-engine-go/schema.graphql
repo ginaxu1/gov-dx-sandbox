@@ -30,14 +30,14 @@ type PersonInfo {
     dateOfBirth: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthDate")
     sex: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.sex")
     birthInfo: BirthInfo
-    ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data")
+    ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicles")
 }
 
 type VehicleInfo {
-    regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.registrationNumber")
-    make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.make")
-    model: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.model")
-    year: Int @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.yearOfManufacture")
+    regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicles.registrationNumber")
+    make: String @sourceInfo(providerKey: "dmt", providerField: "vehicles.make")
+    model: String @sourceInfo(providerKey: "dmt", providerField: "vehicles.model")
+    year: Int @sourceInfo(providerKey: "dmt", providerField: "vehicles.yearOfManufacture")
 }
 
 type BirthInfo {
