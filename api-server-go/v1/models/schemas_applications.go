@@ -1,7 +1,7 @@
 package models
 
-// ProviderSchema represents the provider_schemas table
-type ProviderSchema struct {
+// Schema represents the provider_schemas table
+type Schema struct {
 	SchemaID          string  `gorm:"primarykey;column:schema_id" json:"schemaId"`
 	ProviderID        string  `gorm:"column:provider_id;not null" json:"providerId"`
 	SchemaName        string  `gorm:"column:schema_name;not null" json:"schemaName"`
@@ -16,12 +16,12 @@ type ProviderSchema struct {
 }
 
 // TableName sets the table name for GORM
-func (ProviderSchema) TableName() string {
+func (Schema) TableName() string {
 	return "provider_schemas"
 }
 
-// ProviderSchemaSubmission represents the provider_schema_submissions table
-type ProviderSchemaSubmission struct {
+// SchemaSubmission represents the provider_schema_submissions table
+type SchemaSubmission struct {
 	SubmissionID      string  `gorm:"primarykey;column:submission_id" json:"submissionId"`
 	PreviousSchemaID  *string `gorm:"column:previous_schema_id" json:"previousSchemaId,omitempty"`
 	SchemaName        string  `gorm:"column:schema_name;not null" json:"schemaName"`
@@ -33,17 +33,17 @@ type ProviderSchemaSubmission struct {
 	BaseModel
 
 	// Relationships
-	Provider       Provider        `gorm:"foreignKey:ProviderID;references:ProviderID" json:"provider"`
-	PreviousSchema *ProviderSchema `gorm:"foreignKey:PreviousSchemaID;references:SchemaID" json:"previousSchema,omitempty"`
+	Provider       Provider `gorm:"foreignKey:ProviderID;references:ProviderID" json:"provider"`
+	PreviousSchema *Schema  `gorm:"foreignKey:PreviousSchemaID;references:SchemaID" json:"previousSchema,omitempty"`
 }
 
 // TableName sets the table name for GORM
-func (ProviderSchemaSubmission) TableName() string {
+func (SchemaSubmission) TableName() string {
 	return "provider_schema_submissions"
 }
 
-// ConsumerApplication represents the consumer_applications table
-type ConsumerApplication struct {
+// Application represents the consumer_applications table
+type Application struct {
 	ApplicationID          string      `gorm:"primarykey;column:application_id" json:"applicationId"`
 	ApplicationName        string      `gorm:"column:application_name;not null" json:"applicationName"`
 	ApplicationDescription *string     `gorm:"column:application_description" json:"applicationDescription,omitempty"`
@@ -57,12 +57,12 @@ type ConsumerApplication struct {
 }
 
 // TableName sets the table name for GORM
-func (ConsumerApplication) TableName() string {
+func (Application) TableName() string {
 	return "consumer_applications"
 }
 
-// ConsumerApplicationSubmission represents the consumer_application_submissions table
-type ConsumerApplicationSubmission struct {
+// ApplicationSubmission represents the consumer_application_submissions table
+type ApplicationSubmission struct {
 	SubmissionID           string      `gorm:"primarykey;column:submission_id" json:"submissionId"`
 	PreviousApplicationID  *string     `gorm:"column:previous_application_id" json:"previousApplicationId,omitempty"`
 	ApplicationName        string      `gorm:"column:application_name;not null" json:"applicationName"`
@@ -73,11 +73,11 @@ type ConsumerApplicationSubmission struct {
 	BaseModel
 
 	// Relationships
-	Consumer            Consumer             `gorm:"foreignKey:ConsumerID;references:ConsumerID" json:"consumer"`
-	PreviousApplication *ConsumerApplication `gorm:"foreignKey:PreviousApplicationID;references:ApplicationID" json:"previousApplication,omitempty"`
+	Consumer            Consumer     `gorm:"foreignKey:ConsumerID;references:ConsumerID" json:"consumer"`
+	PreviousApplication *Application `gorm:"foreignKey:PreviousApplicationID;references:ApplicationID" json:"previousApplication,omitempty"`
 }
 
 // TableName sets the table name for GORM
-func (ConsumerApplicationSubmission) TableName() string {
+func (ApplicationSubmission) TableName() string {
 	return "consumer_application_submissions"
 }

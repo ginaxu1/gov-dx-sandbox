@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: API Server
   description: |
@@ -1319,6 +1319,378 @@ paths:
         '400':
           description: Bad request
 
+  /api/v1/application-submissions:
+    get:
+      summary: Get All Application Submissions (V1)
+      description: Retrieve all application submissions with optional filtering (admin view)
+      operationId: getAllApplicationSubmissionsV1
+      tags:
+        - V1 API
+      parameters:
+        - name: consumerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by consumer ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [pending, approved, rejected]
+          description: Filter by submission status
+      responses:
+        '200':
+          description: List of application submissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+        '500':
+          description: Internal server error
+
+  /api/v1/application-submissions/{submissionId}:
+    get:
+      summary: Get Application Submission (V1)
+      description: Retrieve a specific application submission by ID
+      operationId: getApplicationSubmissionV1
+      tags:
+        - V1 API
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Application submission ID
+      responses:
+        '200':
+          description: Application submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApplicationSubmissionResponseV1'
+        '404':
+          description: Application submission not found
+    put:
+      summary: Update Application Submission (V1)
+      description: Update application submission status (admin approval/rejection)
+      operationId: updateApplicationSubmissionV1
+      tags:
+        - V1 API
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Application submission ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsumerApplicationSubmissionRequestV1'
+      responses:
+        '200':
+          description: Application submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerApplicationSubmissionResponseV1'
+        '400':
+          description: Bad request
+        '404':
+          description: Application submission not found
+
+  /api/v1/applications:
+    get:
+      summary: Get All Applications (V1)
+      description: Retrieve all approved applications with optional filtering (admin view)
+      operationId: getAllApplicationsV1
+      tags:
+        - V1 API
+      parameters:
+        - name: consumerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by consumer ID
+      responses:
+        '200':
+          description: List of approved applications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+        '500':
+          description: Internal server error
+    post:
+      summary: Create Application (V1)
+      description: Create a new approved application
+      operationId: createApplicationV1
+      tags:
+        - V1 API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationRequestV1'
+      responses:
+        '200':
+          description: Application created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponseV1'
+        '400':
+          description: Bad request
+
+  /api/v1/applications/{applicationId}:
+    get:
+      summary: Get Application (V1)
+      description: Retrieve a specific approved application by ID
+      operationId: getApplicationV1
+      tags:
+        - V1 API
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Application ID
+      responses:
+        '200':
+          description: Application details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponseV1'
+        '404':
+          description: Application not found
+    put:
+      summary: Update Application (V1)
+      description: Update an existing approved application
+      operationId: updateApplicationV1
+      tags:
+        - V1 API
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Application ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequestV1'
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponseV1'
+        '400':
+          description: Bad request
+        '404':
+          description: Application not found
+
+  /api/v1/schema-submissions:
+    get:
+      summary: Get All Schema Submissions (V1)
+      description: Retrieve all schema submissions with optional filtering (admin view)
+      operationId: getAllSchemaSubmissionsV1
+      tags:
+        - V1 API
+      parameters:
+        - name: providerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by provider ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [pending, approved, rejected]
+          description: Filter by submission status
+      responses:
+        '200':
+          description: List of schema submissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+        '500':
+          description: Internal server error
+
+  /api/v1/schema-submissions/{submissionId}:
+    get:
+      summary: Get Schema Submission (V1)
+      description: Retrieve a specific schema submission by ID
+      operationId: getSchemaSubmissionV1
+      tags:
+        - V1 API
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Schema submission ID
+      responses:
+        '200':
+          description: Schema submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSchemaSubmissionResponseV1'
+        '404':
+          description: Schema submission not found
+    put:
+      summary: Update Schema Submission (V1)
+      description: Update schema submission status (admin approval/rejection)
+      operationId: updateSchemaSubmissionV1
+      tags:
+        - V1 API
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Schema submission ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderSchemaSubmissionRequestV1'
+      responses:
+        '200':
+          description: Schema submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSchemaSubmissionResponseV1'
+        '400':
+          description: Bad request
+        '404':
+          description: Schema submission not found
+
+  /api/v1/schemas:
+    get:
+      summary: Get All Schemas (V1)
+      description: Retrieve all approved schemas with optional filtering (admin view)
+      operationId: getAllSchemasV1
+      tags:
+        - V1 API
+      parameters:
+        - name: providerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by provider ID
+      responses:
+        '200':
+          description: List of approved schemas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionResponseV1'
+        '500':
+          description: Internal server error
+    post:
+      summary: Create Schema (V1)
+      description: Create a new approved schema
+      operationId: createSchemaV1
+      tags:
+        - V1 API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSchemaRequestV1'
+      responses:
+        '200':
+          description: Schema created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaResponseV1'
+        '400':
+          description: Bad request
+
+  /api/v1/schemas/{schemaId}:
+    get:
+      summary: Get Schema (V1)
+      description: Retrieve a specific approved schema by ID
+      operationId: getSchemaV1
+      tags:
+        - V1 API
+      parameters:
+        - name: schemaId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Schema ID
+      responses:
+        '200':
+          description: Schema details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaResponseV1'
+        '404':
+          description: Schema not found
+    put:
+      summary: Update Schema (V1)
+      description: Update an existing approved schema
+      operationId: updateSchemaV1
+      tags:
+        - V1 API
+      parameters:
+        - name: schemaId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Schema ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSchemaRequestV1'
+      responses:
+        '200':
+          description: Schema updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaResponseV1'
+        '400':
+          description: Bad request
+        '404':
+          description: Schema not found
+
   /api/v1/entities/{entityId}:
     get:
       summary: Get Entity (V1)
@@ -2244,6 +2616,204 @@ components:
           type: string
           format: date-time
           description: Last update timestamp
+
+    CreateApplicationRequestV1:
+      type: object
+      required:
+        - applicationName
+        - selectedFields
+        - consumerID
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          description: Description of the application
+        selectedFields:
+          type: array
+          items:
+            type: string
+          description: List of selected data fields
+          minItems: 1
+        consumerID:
+          type: string
+          description: Consumer ID
+
+    UpdateApplicationRequestV1:
+      type: object
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          description: Description of the application
+        selectedFields:
+          type: array
+          items:
+            type: string
+          description: List of selected data fields
+          minItems: 1
+        version:
+          type: string
+          description: Application version
+
+    ApplicationResponseV1:
+      type: object
+      properties:
+        applicationId:
+          type: string
+          description: Application ID
+        applicationName:
+          type: string
+          description: Application name
+        applicationDescription:
+          type: string
+          nullable: true
+          description: Application description
+        selectedFields:
+          type: array
+          items:
+            type: string
+          description: Selected fields
+        consumerId:
+          type: string
+          description: Consumer ID
+        version:
+          type: string
+          description: Application version
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    UpdateConsumerApplicationSubmissionRequestV1:
+      type: object
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          description: Description of the application
+        selectedFields:
+          type: array
+          items:
+            type: string
+          description: List of selected data fields
+          minItems: 1
+        status:
+          type: string
+          description: Submission status
+          enum: [pending, approved, rejected]
+        previousApplicationId:
+          type: string
+          description: Previous application ID for updates
+
+    CreateSchemaRequestV1:
+      type: object
+      required:
+        - schemaName
+        - sdl
+        - endpoint
+        - providerID
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          description: Description of the schema
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        endpoint:
+          type: string
+          description: Schema endpoint URL
+        providerID:
+          type: string
+          description: Provider ID
+
+    UpdateSchemaRequestV1:
+      type: object
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          description: Description of the schema
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        endpoint:
+          type: string
+          description: Schema endpoint URL
+        version:
+          type: string
+          description: Schema version
+
+    SchemaResponseV1:
+      type: object
+      properties:
+        schemaId:
+          type: string
+          description: Schema ID
+        providerID:
+          type: string
+          description: Provider ID
+        schemaName:
+          type: string
+          description: Schema name
+        schemaDescription:
+          type: string
+          nullable: true
+          description: Schema description
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        endpoint:
+          type: string
+          description: Schema endpoint URL
+        version:
+          type: string
+          description: Schema version
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    UpdateProviderSchemaSubmissionRequestV1:
+      type: object
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          description: Description of the schema
+        sdl:
+          type: string
+          description: GraphQL SDL definition
+        schemaEndpoint:
+          type: string
+          description: Schema endpoint URL
+        status:
+          type: string
+          description: Submission status
+          enum: [pending, approved, rejected]
+        previousSchemaId:
+          type: string
+          description: Previous schema ID for updates
 
     CollectionResponseV1:
       type: object
