@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gov-dx-sandbox/audit-service/models"
@@ -15,11 +16,11 @@ func TestAuditService(t *testing.T) {
 		logReq := &models.LogRequest{
 			Status:        "success",
 			RequestedData: "query { test }",
-			ConsumerID:    "test-consumer",
-			ProviderID:    "test-provider",
+			ApplicationID: "test-app",
+			SchemaID:      "test-schema",
 		}
 
-		log, err := server.AuditService.CreateLog(logReq)
+		log, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create log: %v", err)
 		}
@@ -31,11 +32,11 @@ func TestAuditService(t *testing.T) {
 		if log.RequestedData != logReq.RequestedData {
 			t.Errorf("Expected requestedData '%s', got '%s'", logReq.RequestedData, log.RequestedData)
 		}
-		if log.ConsumerID != logReq.ConsumerID {
-			t.Errorf("Expected consumerId '%s', got '%s'", logReq.ConsumerID, log.ConsumerID)
+		if log.ApplicationID != logReq.ApplicationID {
+			t.Errorf("Expected applicationId '%s', got '%s'", logReq.ApplicationID, log.ApplicationID)
 		}
-		if log.ProviderID != logReq.ProviderID {
-			t.Errorf("Expected providerId '%s', got '%s'", logReq.ProviderID, log.ProviderID)
+		if log.SchemaID != logReq.SchemaID {
+			t.Errorf("Expected schemaId '%s', got '%s'", logReq.SchemaID, log.SchemaID)
 		}
 		if log.ID == "" {
 			t.Error("Expected ID to be generated")
@@ -51,19 +52,19 @@ func TestAuditService(t *testing.T) {
 			{
 				Status:        "success",
 				RequestedData: "query { test1 }",
-				ConsumerID:    "consumer-1",
-				ProviderID:    "provider-1",
+				ApplicationID: "app-1",
+				SchemaID:      "schema-1",
 			},
 			{
 				Status:        "failure",
 				RequestedData: "query { test2 }",
-				ConsumerID:    "consumer-2",
-				ProviderID:    "provider-2",
+				ApplicationID: "app-2",
+				SchemaID:      "schema-2",
 			},
 		}
 
 		for _, logReq := range testLogs {
-			_, err := server.AuditService.CreateLog(logReq)
+			_, err := server.AuditService.CreateLog(context.Background(), logReq)
 			if err != nil {
 				t.Fatalf("Failed to create test log: %v", err)
 			}
@@ -71,7 +72,7 @@ func TestAuditService(t *testing.T) {
 
 		// Get all logs
 		filter := &models.LogFilter{}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -90,20 +91,20 @@ func TestAuditService(t *testing.T) {
 		logReq := &models.LogRequest{
 			Status:        "success",
 			RequestedData: "query { consumerTest }",
-			ConsumerID:    "test-consumer-filter",
-			ProviderID:    "test-provider",
+			ApplicationID: "test-app-filter",
+			SchemaID:      "test-schema",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
 
-		// Get logs by consumer ID
+		// Get logs by consumer ID (using the test consumer from the view)
 		filter := &models.LogFilter{
-			ConsumerID: "test-consumer-filter",
+			ConsumerID: "test-consumer",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -118,8 +119,8 @@ func TestAuditService(t *testing.T) {
 
 		// Verify all logs belong to the specified consumer
 		for _, log := range response.Logs {
-			if log.ConsumerID != "test-consumer-filter" {
-				t.Errorf("Expected consumerId 'test-consumer-filter', got '%s'", log.ConsumerID)
+			if log.ConsumerID != "test-consumer" {
+				t.Errorf("Expected consumerId 'test-consumer', got '%s'", log.ConsumerID)
 			}
 		}
 	})
@@ -129,20 +130,20 @@ func TestAuditService(t *testing.T) {
 		logReq := &models.LogRequest{
 			Status:        "success",
 			RequestedData: "query { providerTest }",
-			ConsumerID:    "test-consumer",
-			ProviderID:    "test-provider-filter",
+			ApplicationID: "test-app",
+			SchemaID:      "test-schema-filter",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
 
-		// Get logs by provider ID
+		// Get logs by provider ID (using the test provider from the view)
 		filter := &models.LogFilter{
-			ProviderID: "test-provider-filter",
+			ProviderID: "test-provider",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -157,8 +158,8 @@ func TestAuditService(t *testing.T) {
 
 		// Verify all logs belong to the specified provider
 		for _, log := range response.Logs {
-			if log.ProviderID != "test-provider-filter" {
-				t.Errorf("Expected providerId 'test-provider-filter', got '%s'", log.ProviderID)
+			if log.ProviderID != "test-provider" {
+				t.Errorf("Expected providerId 'test-provider', got '%s'", log.ProviderID)
 			}
 		}
 	})
@@ -168,11 +169,11 @@ func TestAuditService(t *testing.T) {
 		logReq := &models.LogRequest{
 			Status:        "failure",
 			RequestedData: "query { statusTest }",
-			ConsumerID:    "test-consumer",
-			ProviderID:    "test-provider",
+			ApplicationID: "test-app",
+			SchemaID:      "test-schema",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
@@ -181,7 +182,7 @@ func TestAuditService(t *testing.T) {
 		filter := &models.LogFilter{
 			Status: "failure",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -208,11 +209,11 @@ func TestAuditService(t *testing.T) {
 			logReq := &models.LogRequest{
 				Status:        "success",
 				RequestedData: "query { paginationTest }",
-				ConsumerID:    "test-consumer",
-				ProviderID:    "test-provider",
+				ApplicationID: "test-app",
+				SchemaID:      "test-schema",
 			}
 
-			_, err := server.AuditService.CreateLog(logReq)
+			_, err := server.AuditService.CreateLog(context.Background(), logReq)
 			if err != nil {
 				t.Fatalf("Failed to create test log: %v", err)
 			}
@@ -223,7 +224,7 @@ func TestAuditService(t *testing.T) {
 			Limit:  2,
 			Offset: 1,
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -245,22 +246,22 @@ func TestAuditService(t *testing.T) {
 		logReq := &models.LogRequest{
 			Status:        "success",
 			RequestedData: "query { combinedTest }",
-			ConsumerID:    "test-consumer-combined",
-			ProviderID:    "test-provider-combined",
+			ApplicationID: "test-app-combined",
+			SchemaID:      "test-schema-combined",
 		}
 
-		_, err := server.AuditService.CreateLog(logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
 
-		// Get logs with combined filters
+		// Get logs with combined filters (using test values from the view)
 		filter := &models.LogFilter{
-			ConsumerID: "test-consumer-combined",
-			ProviderID: "test-provider-combined",
+			ConsumerID: "test-consumer",
+			ProviderID: "test-provider",
 			Status:     "success",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
@@ -275,11 +276,11 @@ func TestAuditService(t *testing.T) {
 
 		// Verify all logs match the combined filters
 		for _, log := range response.Logs {
-			if log.ConsumerID != "test-consumer-combined" {
-				t.Errorf("Expected consumerId 'test-consumer-combined', got '%s'", log.ConsumerID)
+			if log.ConsumerID != "test-consumer" {
+				t.Errorf("Expected consumerId 'test-consumer', got '%s'", log.ConsumerID)
 			}
-			if log.ProviderID != "test-provider-combined" {
-				t.Errorf("Expected providerId 'test-provider-combined', got '%s'", log.ProviderID)
+			if log.ProviderID != "test-provider" {
+				t.Errorf("Expected providerId 'test-provider', got '%s'", log.ProviderID)
 			}
 			if log.Status != "success" {
 				t.Errorf("Expected status 'success', got '%s'", log.Status)
@@ -292,7 +293,7 @@ func TestAuditService(t *testing.T) {
 		filter := &models.LogFilter{
 			ConsumerID: "nonexistent-consumer",
 		}
-		response, err := server.AuditService.GetLogs(filter)
+		response, err := server.AuditService.GetLogs(context.Background(), filter)
 		if err != nil {
 			t.Fatalf("Failed to get logs: %v", err)
 		}
