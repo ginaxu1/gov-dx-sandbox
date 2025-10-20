@@ -82,20 +82,38 @@ func setupPostgresTestServer(t *testing.T) *TestServer {
 
 // initTestDatabase initializes the test database with required tables
 func initTestDatabase(db *sql.DB) error {
-	// Create audit_logs table for testing
-	query := `
+	// Create audit_logs table for testing (matching the new schema)
+	createTableQuery := `
 		CREATE TABLE IF NOT EXISTS audit_logs (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			status VARCHAR(10) NOT NULL CHECK (status IN ('success', 'failure')),
 			requested_data TEXT NOT NULL,
-			consumer_id VARCHAR(255),
-			provider_id VARCHAR(255),
+			application_id VARCHAR(255) NOT NULL,
+			schema_id VARCHAR(255) NOT NULL,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 		);
 	`
 
-	_, err := db.Exec(query)
+	if _, err := db.Exec(createTableQuery); err != nil {
+		return err
+	}
+
+	// Create a simple view for testing (without joins since related tables may not exist)
+	createViewQuery := `
+		CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
+		SELECT id,
+			   timestamp,
+			   status,
+			   requested_data,
+			   application_id,
+			   schema_id,
+			   'test-consumer' as consumer_id,
+			   'test-provider' as provider_id
+		FROM audit_logs;
+	`
+
+	_, err := db.Exec(createViewQuery)
 	return err
 }
 
