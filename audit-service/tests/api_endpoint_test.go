@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -48,8 +49,8 @@ func TestPOSTLogsEndpoint(t *testing.T) {
 		reqBody := models.LogRequest{
 			Status:        "success",
 			RequestedData: "query { personInfo(nic: \"199512345678\") { fullName } }",
-			ConsumerID:    "consumer-123",
-			ProviderID:    "provider-456",
+			ApplicationID: "app-123",
+			SchemaID:      "schema-456",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -76,11 +77,11 @@ func TestPOSTLogsEndpoint(t *testing.T) {
 		if response.RequestedData != reqBody.RequestedData {
 			t.Errorf("Expected requestedData '%s', got '%s'", reqBody.RequestedData, response.RequestedData)
 		}
-		if response.ConsumerID != reqBody.ConsumerID {
-			t.Errorf("Expected consumerId '%s', got '%s'", reqBody.ConsumerID, response.ConsumerID)
+		if response.ApplicationID != reqBody.ApplicationID {
+			t.Errorf("Expected applicationId '%s', got '%s'", reqBody.ApplicationID, response.ApplicationID)
 		}
-		if response.ProviderID != reqBody.ProviderID {
-			t.Errorf("Expected providerId '%s', got '%s'", reqBody.ProviderID, response.ProviderID)
+		if response.SchemaID != reqBody.SchemaID {
+			t.Errorf("Expected schemaId '%s', got '%s'", reqBody.SchemaID, response.SchemaID)
 		}
 		if response.ID == "" {
 			t.Error("Expected ID to be generated")
@@ -94,8 +95,8 @@ func TestPOSTLogsEndpoint(t *testing.T) {
 		reqBody := models.LogRequest{
 			Status:        "failure",
 			RequestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }",
-			ConsumerID:    "consumer-789",
-			ProviderID:    "provider-456",
+			ApplicationID: "app-789",
+			SchemaID:      "schema-456",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -125,8 +126,8 @@ func TestPOSTLogsEndpoint(t *testing.T) {
 		reqBody := models.LogRequest{
 			Status:        "invalid",
 			RequestedData: "query { test }",
-			ConsumerID:    "consumer-123",
-			ProviderID:    "provider-456",
+			ApplicationID: "app-123",
+			SchemaID:      "schema-456",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -145,8 +146,8 @@ func TestPOSTLogsEndpoint(t *testing.T) {
 	t.Run("CreateLog_MissingStatus", func(t *testing.T) {
 		reqBody := models.LogRequest{
 			RequestedData: "query { test }",
-			ConsumerID:    "consumer-123",
-			ProviderID:    "provider-456",
+			ApplicationID: "app-123",
+			SchemaID:      "schema-456",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -164,9 +165,9 @@ func TestPOSTLogsEndpoint(t *testing.T) {
 
 	t.Run("CreateLog_MissingRequestedData", func(t *testing.T) {
 		reqBody := models.LogRequest{
-			Status:     "success",
-			ConsumerID: "consumer-123",
-			ProviderID: "provider-456",
+			Status:        "success",
+			ApplicationID: "app-123",
+			SchemaID:      "schema-456",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -206,26 +207,26 @@ func TestGETLogsEndpoint(t *testing.T) {
 		{
 			Status:        "success",
 			RequestedData: "query { personInfo(nic: \"199512345678\") { fullName } }",
-			ConsumerID:    "consumer-123",
-			ProviderID:    "provider-456",
+			ApplicationID: "app-123",
+			SchemaID:      "schema-456",
 		},
 		{
 			Status:        "failure",
 			RequestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }",
-			ConsumerID:    "consumer-789",
-			ProviderID:    "provider-456",
+			ApplicationID: "app-789",
+			SchemaID:      "schema-456",
 		},
 		{
 			Status:        "success",
 			RequestedData: "query { citizenInfo(nic: \"199012345678\") { address } }",
-			ConsumerID:    "consumer-123",
-			ProviderID:    "provider-789",
+			ApplicationID: "app-123",
+			SchemaID:      "schema-789",
 		},
 	}
 
 	// Insert test data
 	for _, logReq := range testLogs {
-		_, err := server.AuditService.CreateLog(&logReq)
+		_, err := server.AuditService.CreateLog(context.Background(), &logReq)
 		if err != nil {
 			t.Fatalf("Failed to create test log: %v", err)
 		}
@@ -270,7 +271,7 @@ func TestGETLogsEndpoint(t *testing.T) {
 	})
 
 	t.Run("GetLogs_ByConsumerId_ConsumerPortal", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/logs?consumerId=consumer-123", nil)
+		req := httptest.NewRequest("GET", "/api/logs?consumerId=test-consumer", nil)
 		w := httptest.NewRecorder()
 
 		server.Handler.GetLogs(w, req)
@@ -285,24 +286,24 @@ func TestGETLogsEndpoint(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		// Validate response
-		if len(response.Logs) != 2 {
-			t.Errorf("Expected 2 logs for consumer-123, got %d", len(response.Logs))
+		// Validate response - all test logs have test-consumer
+		if len(response.Logs) != 3 {
+			t.Errorf("Expected 3 logs for test-consumer, got %d", len(response.Logs))
 		}
-		if response.Total != 2 {
-			t.Errorf("Expected total 2, got %d", response.Total)
+		if response.Total != 3 {
+			t.Errorf("Expected total 3, got %d", response.Total)
 		}
 
-		// Verify all logs belong to consumer-123
+		// Verify all logs belong to test-consumer
 		for _, log := range response.Logs {
-			if log.ConsumerID != "consumer-123" {
-				t.Errorf("Expected consumerId 'consumer-123', got '%s'", log.ConsumerID)
+			if log.ConsumerID != "test-consumer" {
+				t.Errorf("Expected consumerId 'test-consumer', got '%s'", log.ConsumerID)
 			}
 		}
 	})
 
 	t.Run("GetLogs_ByProviderId_ProviderPortal", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/logs?providerId=provider-456", nil)
+		req := httptest.NewRequest("GET", "/api/logs?providerId=test-provider", nil)
 		w := httptest.NewRecorder()
 
 		server.Handler.GetLogs(w, req)
@@ -317,18 +318,18 @@ func TestGETLogsEndpoint(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		// Validate response
-		if len(response.Logs) != 2 {
-			t.Errorf("Expected 2 logs for provider-456, got %d", len(response.Logs))
+		// Validate response - all test logs have test-provider
+		if len(response.Logs) != 3 {
+			t.Errorf("Expected 3 logs for test-provider, got %d", len(response.Logs))
 		}
-		if response.Total != 2 {
-			t.Errorf("Expected total 2, got %d", response.Total)
+		if response.Total != 3 {
+			t.Errorf("Expected total 3, got %d", response.Total)
 		}
 
-		// Verify all logs belong to provider-456
+		// Verify all logs belong to test-provider
 		for _, log := range response.Logs {
-			if log.ProviderID != "provider-456" {
-				t.Errorf("Expected providerId 'provider-456', got '%s'", log.ProviderID)
+			if log.ProviderID != "test-provider" {
+				t.Errorf("Expected providerId 'test-provider', got '%s'", log.ProviderID)
 			}
 		}
 	})
@@ -467,8 +468,8 @@ func TestLogsEndpointIntegration(t *testing.T) {
 		createReq := models.LogRequest{
 			Status:        "success",
 			RequestedData: "query { integrationTest }",
-			ConsumerID:    "integration-consumer",
-			ProviderID:    "integration-provider",
+			ApplicationID: "integration-app",
+			SchemaID:      "integration-schema",
 		}
 
 		jsonBody, _ := json.Marshal(createReq)
