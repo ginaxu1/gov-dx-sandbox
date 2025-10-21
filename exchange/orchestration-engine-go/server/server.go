@@ -13,6 +13,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
@@ -50,6 +51,11 @@ func RunServer(f *federator.Federator) {
 
 	// Set the schema service in the federator
 	f.SchemaService = schemaService
+
+	// Initialize audit middleware
+	auditServiceURL := getEnv("AUDIT_SERVICE_URL", "http://localhost:8080")
+	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL, schemaService)
+
 	// /health route
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -88,7 +94,7 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", auditMiddleware.AuditHandler(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -140,7 +146,7 @@ func RunServer(f *federator.Federator) {
 			logger.Log.Error("Failed to write response", "error", err)
 			return
 		}
-	})
+	}))
 
 	// Start server
 	port := os.Getenv("PORT")
