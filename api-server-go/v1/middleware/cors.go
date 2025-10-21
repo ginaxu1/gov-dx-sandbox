@@ -20,7 +20,7 @@ type CORSConfig struct {
 // DefaultCORSConfig returns the default CORS configuration
 func DefaultCORSConfig() CORSConfig {
 	// Get allowed origins from environment variable, default to localhost:5173
-	allowedOrigins := []string{"http://localhost:5173"}
+	allowedOrigins := []string{"http://localhost:5173", "https://f1ad5ae7-cb82-4ea4-bfe2-5fc95a3403e4.e1-us-east-azure.choreoapps.dev", "https://6a803756-fe33-430f-9d27-2e147778b952.e1-us-east-azure.choreoapps.dev"}
 	if envOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); envOrigins != "" {
 		allowedOrigins = strings.Split(envOrigins, ",")
 		// Trim whitespace from each origin
