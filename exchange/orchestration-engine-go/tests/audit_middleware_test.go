@@ -7,10 +7,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 )
 
 func TestAuditMiddleware(t *testing.T) {
+	// Initialize config for testing
+	configs.AppConfig = &configs.Config{
+		Environment: "local",
+	}
+
 	// Create a test server to mock the audit service
 	auditServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" || r.URL.Path != "/api/logs" {
@@ -44,7 +50,7 @@ func TestAuditMiddleware(t *testing.T) {
 	defer auditServer.Close()
 
 	// Create audit middleware
-	auditMiddleware := middleware.NewAuditMiddleware(auditServer.URL)
+	auditMiddleware := middleware.NewAuditMiddleware(auditServer.URL, nil)
 
 	// Test successful request
 	t.Run("SuccessfulRequest", func(t *testing.T) {
