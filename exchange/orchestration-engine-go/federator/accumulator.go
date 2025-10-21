@@ -74,7 +74,6 @@ func AccumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *Fed
 						if response != nil {
 							var value, err = GetValueAtPath(response.Response.Data, providerInfo.ProviderField)
 							if err == nil {
-								fmt.Printf("DEBUG: Processing field '%s' with value type %T, hasSelectionSet: %v\n", fieldName, value, node.SelectionSet != nil && len(node.SelectionSet.Selections) > 0)
 								// Check if this is an array field by looking at the data type and schema
 								if isArrayFieldValue(fieldName, value) {
 									fmt.Printf("DEBUG: Processing as array field\n")
@@ -683,20 +682,34 @@ func isArrayFieldValue(fieldName string, value interface{}) bool {
 		return true
 	}
 
-	// Also check for known array fields in the schema
-	// This is a temporary solution - ideally we should parse the schema to determine field types
-	arrayFields := map[string]bool{
-		"ownedVehicles": true,
-		"class":         true,
-		// Add other known array fields here
-	}
-
-	if arrayFields[fieldName] {
-		fmt.Printf("DEBUG: isArrayFieldValue: fieldName=%s is known array field\n", fieldName)
-		return true
-	}
-
 	fmt.Printf("DEBUG: isArrayFieldValue: fieldName=%s, value is not array: %T\n", fieldName, value)
+	return false
+}
+
+// isArrayFieldInSchema checks if a field is an array field based on the schema definition
+func isArrayFieldInSchema(schema *ast.Document, parentTypeName, fieldName string) bool {
+	if schema == nil {
+		return false
+	}
+
+	// Find the parent type definition in the schema
+	for _, def := range schema.Definitions {
+		if objType, ok := def.(*ast.ObjectDefinition); ok {
+			// Convert to PascalCase for type matching (vehicleInfo -> VehicleInfo)
+			pascalTypeName := strings.ToUpper(parentTypeName[:1]) + parentTypeName[1:]
+			if objType.Name.Value == pascalTypeName {
+				// Find the field in the parent type
+				for _, field := range objType.Fields {
+					if field.Name.Value == fieldName {
+						// Check if this is an array type (List type)
+						if _, ok := field.Type.(*ast.List); ok {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
 	return false
 }
 

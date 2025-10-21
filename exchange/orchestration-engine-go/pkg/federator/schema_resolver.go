@@ -87,13 +87,3 @@ func findAndExtractSourceInfo(schema *ast.Document, typeName, fieldName string) 
 	}
 	return ExtractSourceInfoFromSchemaField(fieldDef)
 }
-
-// getArrayElementTypeName maps array field names to their element type names
-func getArrayElementTypeName(arrayFieldName string) string {
-	// Simple fallback: capitalize first letter
-	// This should be replaced with schema-based approach
-	if len(arrayFieldName) > 0 {
-		return strings.ToUpper(arrayFieldName[:1]) + arrayFieldName[1:]
-	}
-	return ""
-}

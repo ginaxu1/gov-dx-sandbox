@@ -172,7 +172,8 @@ func (am *AuditMiddleware) getActiveSchemaID() string {
 			// Only call IsNil() on pointer types
 			if schemaServiceValue.Kind() == reflect.Ptr && schemaServiceValue.IsNil() {
 				// It's a nil pointer, skip
-				return "schema-456"
+				logger.Log.Warn("Schema service is nil, using fallback")
+				return "unknown-schema"
 			}
 			getActiveSchemaMethod := schemaServiceValue.MethodByName("GetActiveSchema")
 			if getActiveSchemaMethod.IsValid() {
@@ -198,8 +199,9 @@ func (am *AuditMiddleware) getActiveSchemaID() string {
 		}
 	}
 
-	// Default to known valid schema ID if service is not available or fails
-	return "schema-456"
+	// Default fallback when schema service is not available or fails
+	logger.Log.Warn("No active schema found, using fallback")
+	return "unknown-schema"
 }
 
 // getApplicationIDFromConsumer extracts application_id from consumer_applications table
