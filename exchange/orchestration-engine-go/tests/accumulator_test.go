@@ -50,10 +50,10 @@ func TestAccumulateResponse_SingleObject(t *testing.T) {
 	}
 
 	// Mock schema with source info directives
-	_ = CreateTestSchema(t)
+	schema := CreateTestSchema(t)
 
-	// Accumulate response
-	response := federator.AccumulateResponse(queryDoc, federatedResponse)
+	// Accumulate response with schema
+	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 	// Verify response structure
 	assert.NotNil(t, response.Data)
@@ -122,10 +122,10 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 	}
 
 	// Mock schema with source info directives
-	_ = CreateTestSchema(t)
+	schema := CreateTestSchema(t)
 
-	// Accumulate response
-	response := federator.AccumulateResponse(queryDoc, federatedResponse)
+	// Accumulate response with schema
+	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 	// Verify response structure
 	assert.NotNil(t, response.Data)
@@ -205,10 +205,10 @@ func TestAccumulateResponse_BulkQuery(t *testing.T) {
 	}
 
 	// Mock schema with source info directives
-	_ = CreateTestSchema(t)
+	schema := CreateTestSchema(t)
 
-	// Accumulate response
-	response := federator.AccumulateResponse(queryDoc, federatedResponse)
+	// Accumulate response with schema
+	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 	// Verify response structure
 	assert.NotNil(t, response.Data)
@@ -469,10 +469,10 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 	}
 
 	// Mock schema with source info directives
-	_ = CreateTestSchema(t)
+	schema := CreateTestSchema(t)
 
-	// Accumulate response
-	response := federator.AccumulateResponse(queryDoc, federatedResponse)
+	// Accumulate response with schema
+	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 	// Verify response structure
 	assert.NotNil(t, response.Data)

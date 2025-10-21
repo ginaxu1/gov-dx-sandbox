@@ -24,7 +24,7 @@ func TestArrayResponseHandling(t *testing.T) {
 		`
 
 		queryDoc := ParseTestQuery(t, query)
-		_ = CreateTestSchema(t)
+		schema := CreateTestSchema(t)
 
 		// Note: Using test-specific configuration instead of modifying global config
 
@@ -57,8 +57,8 @@ func TestArrayResponseHandling(t *testing.T) {
 			},
 		}
 
-		// Accumulate response using the original query document
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
+		// Accumulate response using the schema-aware function
+		response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 		// Verify single object response structure
 		assert.NotNil(t, response.Data)
@@ -86,7 +86,7 @@ func TestArrayResponseHandling(t *testing.T) {
 		`
 
 		queryDoc := ParseTestQuery(t, query)
-		_ = CreateTestSchema(t)
+		schema := CreateTestSchema(t)
 
 		// Note: Using test-specific configuration instead of modifying global config
 
@@ -131,8 +131,8 @@ func TestArrayResponseHandling(t *testing.T) {
 			},
 		}
 
-		// Accumulate response using the original query document
-		response := federator.AccumulateResponse(queryDoc, federatedResponse)
+		// Accumulate response using the schema-aware function
+		response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 		// Verify array field response structure
 		assert.NotNil(t, response.Data)
@@ -147,7 +147,7 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// The accumulator returns an array of maps with structured objects
 		vehiclesArray, ok := ownedVehicles.([]map[string]interface{})
-		assert.True(t, ok, "ownedVehicles should be an array")
+		assert.True(t, ok, "ownedVehicles should be an array of maps")
 		assert.Len(t, vehiclesArray, 2, "Should have 2 vehicles")
 
 		// Each vehicle is a map with individual values
