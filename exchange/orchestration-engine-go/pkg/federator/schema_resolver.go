@@ -16,7 +16,12 @@ func FindFieldDefinitionInSchema(schema *ast.Document, typeName, fieldName strin
 	for _, def := range schema.Definitions {
 		if objType, ok := def.(*ast.ObjectDefinition); ok {
 			// Convert to PascalCase for type matching (vehicleInfo -> VehicleInfo)
-			pascalTypeName := strings.ToUpper(typeName[:1]) + typeName[1:]
+			var pascalTypeName string
+			if len(typeName) > 0 {
+				pascalTypeName = strings.ToUpper(typeName[:1]) + typeName[1:]
+			} else {
+				pascalTypeName = typeName
+			}
 			if objType.Name.Value == pascalTypeName {
 				for _, field := range objType.Fields {
 					if field.Name.Value == fieldName {
