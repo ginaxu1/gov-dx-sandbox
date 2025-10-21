@@ -17,7 +17,7 @@ endpoints:
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Organization # Can also be 'Project' for more restricted internal visibility
+      - Public # Can also be 'Project' for more restricted internal visibility
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
