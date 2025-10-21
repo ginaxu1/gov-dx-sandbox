@@ -1,12 +1,25 @@
 package tests
 
 import (
+	"os"
 	"testing"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMain(m *testing.M) {
+	// Initialize logger for tests
+	logger.Init()
+
+	// Run tests
+	code := m.Run()
+
+	// Exit with the same code as the tests
+	os.Exit(code)
+}
 
 func TestAccumulateResponse_SingleObject(t *testing.T) {
 	// Test query with @sourceInfo directives

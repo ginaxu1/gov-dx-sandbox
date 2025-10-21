@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
@@ -76,7 +77,7 @@ func AccumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *Fed
 							if err == nil {
 								// Check if this is an array field by looking at the data type and schema
 								if isArrayFieldValue(fieldName, value) {
-									fmt.Printf("DEBUG: Processing as array field\n")
+									logger.Log.Debug("Processing as array field", "fieldName", fieldName)
 									// This is an array field with nested selections
 									if node.SelectionSet != nil && len(node.SelectionSet.Selections) > 0 {
 										processArrayFieldSimple(responseData, currentPath, fieldName, value, node.SelectionSet, federatedResponse, schema)
@@ -85,28 +86,28 @@ func AccumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *Fed
 										fullPath := strings.Join(currentPath, ".")
 										_, err = PushValue(responseData, fullPath, value)
 										if err != nil {
-											fmt.Printf("Error pushing array value at path %s: %v\n", fullPath, err)
+											logger.Log.Error("Error pushing array value", "path", fullPath, "error", err)
 										}
 									}
 									// Update path for array fields
 									path = append(path, fieldName)
 								} else {
-									fmt.Printf("DEBUG: Processing as simple/object field\n")
+									logger.Log.Debug("Processing as simple/object field", "fieldName", fieldName)
 									// Simple field or object field
 									fullPath := strings.Join(currentPath, ".")
 									_, err = PushValue(responseData, fullPath, value)
 									if err != nil {
-										fmt.Printf("Error pushing value at path %s: %v\n", fullPath, err)
+										logger.Log.Error("Error pushing value", "path", fullPath, "error", err)
 									}
 									// Update path for simple fields
 									path = append(path, fieldName)
 								}
 							} else {
-								fmt.Printf("Error getting value at path %s: %v\n", providerInfo.ProviderField, err)
+								logger.Log.Error("Error getting value", "path", providerInfo.ProviderField, "error", err)
 							}
 						}
 					} else {
-						fmt.Printf("Warning: No @sourceInfo directive found for field '%s' at path '%s'. Skipping field.\n", fieldName, strings.Join(currentPath, "."))
+						logger.Log.Warn("No @sourceInfo directive found for field", "fieldName", fieldName, "path", strings.Join(currentPath, "."))
 					}
 				}
 			}
@@ -163,27 +164,27 @@ func accumulateResponseSimple(queryAST *ast.Document, federatedResponse *Federat
 						if response != nil {
 							var value, err = GetValueAtPath(response.Response.Data, providerInfo.ProviderField)
 							if err == nil {
-								fmt.Printf("DEBUG [accumulateResponseSimple]: Processing field '%s' at path %v, value type %T, hasSelectionSet: %v\n", fieldName, path, value, node.SelectionSet != nil && len(node.SelectionSet.Selections) > 0)
+								logger.Log.Debug("Processing field", "fieldName", fieldName, "path", path, "valueType", fmt.Sprintf("%T", value), "hasSelectionSet", node.SelectionSet != nil && len(node.SelectionSet.Selections) > 0)
 								// Check if this is an array field by looking at the selection set and data type
 								if node.SelectionSet != nil && len(node.SelectionSet.Selections) > 0 && isArrayFieldValue(fieldName, value) {
-									fmt.Printf("DEBUG [accumulateResponseSimple]: Processing as array field\n")
+									logger.Log.Debug("Processing as array field", "fieldName", fieldName)
 									// This is an array field with nested selections
 									processArrayFieldSimple(responseData, append(path, fieldName), fieldName, value, node.SelectionSet, federatedResponse, nil)
 								} else {
-									fmt.Printf("DEBUG [accumulateResponseSimple]: Processing as simple/object field\n")
+									logger.Log.Debug("Processing as simple/object field", "fieldName", fieldName)
 									// Simple field or object field
 									fullPath := strings.Join(append(path, fieldName), ".")
 									_, err = PushValue(responseData, fullPath, value)
 									if err != nil {
-										fmt.Printf("Error pushing value at path %s: %v\n", fullPath, err)
+										logger.Log.Error("Error pushing value", "path", fullPath, "error", err)
 									}
 								}
 							} else {
-								fmt.Printf("Error getting value at path %s: %v\n", providerInfo.ProviderField, err)
+								logger.Log.Error("Error getting value", "path", providerInfo.ProviderField, "error", err)
 							}
 						}
 					} else {
-						fmt.Printf("Warning: No @sourceInfo directive found for field '%s' at path '%s'. Skipping field.\n", fieldName, strings.Join(append(path, fieldName), "."))
+						logger.Log.Warn("No @sourceInfo directive found for field", "fieldName", fieldName, "path", strings.Join(append(path, fieldName), "."))
 					}
 				}
 				path = append(path, fieldName)
@@ -240,7 +241,7 @@ func accumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *Fed
 							processSimpleField(responseData, path, fieldName, schemaInfo, federatedResponse)
 						}
 					} else {
-						fmt.Printf("Warning: No schema info found for field '%s' at path '%s'. Skipping field.\n", fieldName, fullPath)
+						logger.Log.Warn("No schema info found for field", "fieldName", fieldName, "path", fullPath)
 					}
 				}
 				path = append(path, fieldName)
@@ -339,7 +340,7 @@ func processArrayFieldSimple(responseData map[string]interface{}, path []string,
 	if arr, ok := sourceArray.([]interface{}); ok {
 		arrayData = arr
 	} else {
-		fmt.Printf("Expected array at field %s, got %T\n", fieldName, sourceArray)
+		logger.Log.Warn("Expected array at field", "fieldName", fieldName, "gotType", fmt.Sprintf("%T", sourceArray))
 		return
 	}
 
@@ -407,10 +408,10 @@ func processArrayFieldSimple(responseData map[string]interface{}, path []string,
 						if err == nil {
 							destinationObject[nestedFieldName] = value
 						} else {
-							fmt.Printf("Error getting sub-field %s from source item: %v\n", relativeFieldPath, err)
+							logger.Log.Error("Error getting sub-field", "path", relativeFieldPath, "error", err)
 						}
 					} else {
-						fmt.Printf("Warning: No @sourceInfo directive found for nested field '%s'\n", nestedFieldName)
+						logger.Log.Warn("No @sourceInfo directive found for nested field", "fieldName", nestedFieldName)
 					}
 				}
 			}
@@ -421,10 +422,9 @@ func processArrayFieldSimple(responseData map[string]interface{}, path []string,
 
 	// Add the completed array to the response
 	fullPath := strings.Join(path, ".")
-	fmt.Printf("DEBUG: Storing array at path '%s' with %d items\n", fullPath, len(destinationArray))
 	_, err := PushValue(responseData, fullPath, destinationArray)
 	if err != nil {
-		fmt.Printf("Error pushing array at path %s: %v\n", fullPath, err)
+		logger.Log.Error("Error pushing array", "path", fullPath, "error", err)
 	}
 }
 
@@ -448,10 +448,10 @@ func processSimpleField(responseData map[string]interface{}, path []string, fiel
 			fullPath := strings.Join(append(path, fieldName), ".")
 			_, err = PushValue(responseData, fullPath, value)
 			if err != nil {
-				fmt.Printf("Error pushing value at path %s: %v\n", fullPath, err)
+				logger.Log.Error("Error pushing value", "path", fullPath, "error", err)
 			}
 		} else {
-			fmt.Printf("Error getting value at path %s: %v\n", schemaInfo.ProviderField, err)
+			logger.Log.Error("Error getting value", "path", schemaInfo.ProviderField, "error", err)
 		}
 	}
 }
@@ -460,14 +460,14 @@ func processSimpleField(responseData map[string]interface{}, path []string, fiel
 func processArrayFieldWithSchema(responseData map[string]interface{}, path []string, fieldName string, schemaInfo *SourceSchemaInfo, federatedResponse *FederationResponse) {
 	response := federatedResponse.GetProviderResponse(schemaInfo.ProviderKey)
 	if response == nil {
-		fmt.Printf("No response found for provider %s\n", schemaInfo.ProviderKey)
+		logger.Log.Warn("No response found for provider", "providerKey", schemaInfo.ProviderKey)
 		return
 	}
 
 	// Get the source array from the provider response
 	sourceArray, err := GetValueAtPath(response.Response.Data, schemaInfo.ProviderArrayFieldPath)
 	if err != nil {
-		fmt.Printf("Error getting array at path %s: %v\n", schemaInfo.ProviderArrayFieldPath, err)
+		logger.Log.Error("Error getting array", "path", schemaInfo.ProviderArrayFieldPath, "error", err)
 		return
 	}
 
@@ -476,7 +476,7 @@ func processArrayFieldWithSchema(responseData map[string]interface{}, path []str
 	if arr, ok := sourceArray.([]interface{}); ok {
 		arrayData = arr
 	} else {
-		fmt.Printf("Expected array at path %s, got %T\n", schemaInfo.ProviderArrayFieldPath, sourceArray)
+		logger.Log.Warn("Expected array at path", "path", schemaInfo.ProviderArrayFieldPath, "gotType", fmt.Sprintf("%T", sourceArray))
 		return
 	}
 
@@ -495,8 +495,6 @@ func processArrayFieldWithSchema(responseData map[string]interface{}, path []str
 				value, err := GetValueAtPath(sourceItemMap, subFieldSchemaInfo.ProviderField)
 				if err == nil {
 					destinationObject[subFieldName] = value
-				} else {
-					fmt.Printf("Error getting sub-field %s from source item: %v\n", subFieldSchemaInfo.ProviderField, err)
 				}
 			}
 
@@ -508,7 +506,7 @@ func processArrayFieldWithSchema(responseData map[string]interface{}, path []str
 	fullPath := strings.Join(append(path, fieldName), ".")
 	_, err = PushValue(responseData, fullPath, destinationArray)
 	if err != nil {
-		fmt.Printf("Error pushing array at path %s: %v\n", fullPath, err)
+		logger.Log.Error("Error pushing array", "path", fullPath, "error", err)
 	}
 }
 
@@ -522,7 +520,7 @@ func AccumulateResponseWithSchemaInfo(queryAST *ast.Document, federatedResponse 
 			// Handle array fields with object-by-object processing
 			err := accumulateArrayResponse(responseData, fieldPath, schemaInfo, federatedResponse)
 			if err != nil {
-				fmt.Printf("Error processing array field %s: %v\n", fieldPath, err)
+				logger.Log.Error("Error processing array field", "path", fieldPath, "error", err)
 			}
 		} else {
 			// Handle regular fields
@@ -531,11 +529,8 @@ func AccumulateResponseWithSchemaInfo(queryAST *ast.Document, federatedResponse 
 				value, err := GetValueAtPath(response.Response.Data, schemaInfo.ProviderField)
 				if err == nil {
 					_, err = PushValue(responseData, fieldPath, value)
-					if err != nil {
-						fmt.Printf("Error pushing value at path %s: %v\n", fieldPath, err)
-					}
 				} else {
-					fmt.Printf("Error getting value at path %s: %v\n", schemaInfo.ProviderField, err)
+					logger.Log.Error("Error getting value", "path", schemaInfo.ProviderField, "error", err)
 				}
 			}
 		}
@@ -578,12 +573,7 @@ func accumulateArrayResponse(
 
 	// 4. Iterate over each item in the source array
 	for _, sourceItemInterface := range sourceArray {
-		sourceItem, ok := sourceItemInterface.(map[string]interface{})
-		if !ok {
-			// Log a warning if an item in the array is not an object
-			fmt.Printf("Warning: Expected object in array at %s, got %T\n", fieldSchemaInfo.ProviderArrayFieldPath, sourceItemInterface)
-			continue
-		}
+		sourceItem, _ := sourceItemInterface.(map[string]interface{})
 
 		// 5. Create a new destination object for each source item
 		destinationObject := make(map[string]interface{})
@@ -678,11 +668,11 @@ func GetValueAtPath(data interface{}, path string) (interface{}, error) {
 func isArrayFieldValue(fieldName string, value interface{}) bool {
 	// Check if the value is an array
 	if _, ok := value.([]interface{}); ok {
-		fmt.Printf("DEBUG: isArrayFieldValue: fieldName=%s, value is array: %T\n", fieldName, value)
+		logger.Log.Debug("isArrayFieldValue: value is array", "fieldName", fieldName, "valueType", fmt.Sprintf("%T", value))
 		return true
 	}
 
-	fmt.Printf("DEBUG: isArrayFieldValue: fieldName=%s, value is not array: %T\n", fieldName, value)
+	logger.Log.Debug("isArrayFieldValue: value is not array", "fieldName", fieldName, "valueType", fmt.Sprintf("%T", value))
 	return false
 }
 
@@ -737,59 +727,6 @@ func getArrayElementTypeNameFromSchema(schema *ast.Document, parentTypeName, arr
 		}
 	}
 	return ""
-}
-
-// getArrayElementTypeName provides backward compatibility for cases without schema
-// This should be deprecated in favor of schema-based approach
-func getArrayElementTypeName(arrayFieldName string) string {
-	// Simple fallback: capitalize first letter
-	if len(arrayFieldName) > 0 {
-		return strings.ToUpper(arrayFieldName[:1]) + arrayFieldName[1:]
-	}
-	return ""
-}
-
-// processArrayField handles array fields by creating individual objects for each array element
-func processArrayField(responseData map[string]interface{}, path []string, fieldName string, arrayValue interface{}, federatedResponse *FederationResponse, queryAST *ast.Document) {
-	// Get the array data
-	arrayData, ok := arrayValue.([]interface{})
-	if !ok {
-		fmt.Printf("Warning: Expected array for field %s, got %T\n", fieldName, arrayValue)
-		return
-	}
-
-	// Create the destination array
-	destinationArray := make([]map[string]interface{}, 0, len(arrayData))
-
-	// Process each element in the array
-	for _, element := range arrayData {
-		elementMap, ok := element.(map[string]interface{})
-		if !ok {
-			fmt.Printf("Warning: Expected map for array element, got %T\n", element)
-			continue
-		}
-
-		// Create a map for this array element
-		destinationObject := make(map[string]interface{})
-
-		// Extract individual fields from the element
-		// Note: This hardcoded mapping should be replaced with schema-driven field mapping
-		// For now, we'll copy all fields from the source element to maintain compatibility
-		for providerField, value := range elementMap {
-			// Use the provider field name as the response field name
-			// In a real implementation, this should use schema-driven mapping
-			destinationObject[providerField] = value
-		}
-
-		destinationArray = append(destinationArray, destinationObject)
-	}
-
-	// Push the completed array to the response
-	fullPath := strings.Join(append(path, fieldName), ".")
-	_, err := PushValue(responseData, fullPath, destinationArray)
-	if err != nil {
-		fmt.Printf("Error pushing array at path %s: %v\n", fullPath, err)
-	}
 }
 
 // PushArrayValue is similar to PushValue but with enhanced array handling

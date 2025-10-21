@@ -245,13 +245,6 @@ func pushArrayFieldToAst(field []string, parentField *ast.SelectionSet) {
 	}
 }
 
-// isArrayFieldPath checks if a field path represents an array field based on simple heuristics
-func isArrayFieldPath(fieldPath string, schema *ast.Document) bool {
-	// This function uses simple heuristics to detect array fields
-	// For proper schema-based detection, use the isArrayFieldInSchema function in accumulator.go
-	return strings.Contains(fieldPath, "[]") || strings.Contains(fieldPath, "array")
-}
-
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
