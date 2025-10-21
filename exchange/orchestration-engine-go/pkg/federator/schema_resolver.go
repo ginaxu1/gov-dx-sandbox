@@ -8,6 +8,11 @@ import (
 
 // FindFieldDefinitionInSchema finds a field definition in the schema by type name and field name
 func FindFieldDefinitionInSchema(schema *ast.Document, typeName, fieldName string) *ast.FieldDefinition {
+	// Check if typeName is empty to avoid panic
+	if len(typeName) == 0 {
+		return nil
+	}
+
 	for _, def := range schema.Definitions {
 		if objType, ok := def.(*ast.ObjectDefinition); ok {
 			// Convert to PascalCase for type matching (vehicleInfo -> VehicleInfo)
@@ -51,9 +56,16 @@ func ExtractSourceInfoFromSchema(schema *ast.Document, fieldPath string) *Source
 			return nil
 		}
 
-		// Determine the array element type name
-		// For now, we'll use a mapping approach for known array types
-		arrayElementTypeName := getArrayElementTypeName(arrayField)
+		// Determine the array element type name from the schema
+		arrayElementTypeName := ""
+
+		// Check if the array field is a List type and get its element type
+		if listType, ok := arrayFieldDef.Type.(*ast.List); ok {
+			if namedType, ok := listType.Type.(*ast.Named); ok {
+				arrayElementTypeName = namedType.Name.Value
+			}
+		}
+
 		if arrayElementTypeName == "" {
 			return nil
 		}
@@ -78,18 +90,10 @@ func findAndExtractSourceInfo(schema *ast.Document, typeName, fieldName string) 
 
 // getArrayElementTypeName maps array field names to their element type names
 func getArrayElementTypeName(arrayFieldName string) string {
-	// Mapping of array field names to their element type names
-	arrayTypeMapping := map[string]string{
-		"class":         "VehicleClass",
-		"ownedVehicles": "VehicleInfo",
-		// Add more mappings as needed
+	// Simple fallback: capitalize first letter
+	// This should be replaced with schema-based approach
+	if len(arrayFieldName) > 0 {
+		return strings.ToUpper(arrayFieldName[:1]) + arrayFieldName[1:]
 	}
-
-	if elementType, exists := arrayTypeMapping[arrayFieldName]; exists {
-		return elementType
-	}
-
-	// Fallback: try to derive the type name from the field name
-	// This is a simple heuristic and may not work for all cases
-	return strings.ToUpper(arrayFieldName[:1]) + arrayFieldName[1:]
+	return ""
 }

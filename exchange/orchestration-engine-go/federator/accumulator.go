@@ -363,8 +363,31 @@ func processArrayFieldSimple(responseData map[string]interface{}, path []string,
 					var nestedProviderInfo *federator.SourceInfo
 					if schema != nil {
 						// Try to find the field in the correct type context for nested array fields
-						// First, try to determine the array element type from the field name
-						arrayElementTypeName := getArrayElementTypeName(fieldName)
+						// First, try to determine the array element type from the schema
+						// We need to find the parent type that contains this array field
+						arrayElementTypeName := ""
+
+						// Try to find the array field in the schema to get its element type
+						for _, def := range schema.Definitions {
+							if objType, ok := def.(*ast.ObjectDefinition); ok {
+								for _, field := range objType.Fields {
+									if field.Name.Value == fieldName {
+										// Check if this is an array type (List type)
+										if listType, ok := field.Type.(*ast.List); ok {
+											// Get the element type from the list
+											if namedType, ok := listType.Type.(*ast.Named); ok {
+												arrayElementTypeName = namedType.Name.Value
+												break
+											}
+										}
+									}
+								}
+								if arrayElementTypeName != "" {
+									break
+								}
+							}
+						}
+
 						if arrayElementTypeName != "" {
 							nestedFieldPath := arrayElementTypeName + "." + nestedFieldName
 							nestedProviderInfo = federator.ExtractSourceInfoFromSchema(schema, nestedFieldPath)
@@ -677,22 +700,40 @@ func isArrayFieldValue(fieldName string, value interface{}) bool {
 	return false
 }
 
-// getArrayElementTypeName maps array field names to their element type names
+// getArrayElementTypeNameFromSchema dynamically derives array element type names from the schema
+func getArrayElementTypeNameFromSchema(schema *ast.Document, parentTypeName, arrayFieldName string) string {
+	// Find the parent type definition in the schema
+	for _, def := range schema.Definitions {
+		if objType, ok := def.(*ast.ObjectDefinition); ok {
+			// Convert to PascalCase for type matching (vehicleInfo -> VehicleInfo)
+			pascalTypeName := strings.ToUpper(parentTypeName[:1]) + parentTypeName[1:]
+			if objType.Name.Value == pascalTypeName {
+				// Find the array field in the parent type
+				for _, field := range objType.Fields {
+					if field.Name.Value == arrayFieldName {
+						// Check if this is an array type (List type)
+						if listType, ok := field.Type.(*ast.List); ok {
+							// Get the element type from the list
+							if namedType, ok := listType.Type.(*ast.Named); ok {
+								return namedType.Name.Value
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// getArrayElementTypeName provides backward compatibility for cases without schema
+// This should be deprecated in favor of schema-based approach
 func getArrayElementTypeName(arrayFieldName string) string {
-	// Mapping of array field names to their element type names
-	arrayTypeMapping := map[string]string{
-		"class":         "VehicleClass",
-		"ownedVehicles": "VehicleInfo",
-		// Add more mappings as needed
+	// Simple fallback: capitalize first letter
+	if len(arrayFieldName) > 0 {
+		return strings.ToUpper(arrayFieldName[:1]) + arrayFieldName[1:]
 	}
-
-	if elementType, exists := arrayTypeMapping[arrayFieldName]; exists {
-		return elementType
-	}
-
-	// Fallback: try to derive the type name from the field name
-	// This is a simple heuristic and may not work for all cases
-	return strings.ToUpper(arrayFieldName[:1]) + arrayFieldName[1:]
+	return ""
 }
 
 // processArrayField handles array fields by creating individual objects for each array element
