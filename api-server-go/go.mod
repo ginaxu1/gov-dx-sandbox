@@ -3,14 +3,18 @@ module github.com/gov-dx-sandbox/api-server-go
 go 1.24.6
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
 	github.com/gov-dx-sandbox/api-server-go/pkg/errors v0.0.0
 	github.com/gov-dx-sandbox/api-server-go/shared/utils v0.0.0
 	github.com/lib/pq v1.10.9
+	golang.org/x/oauth2 v0.32.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.0
 )
+
+require github.com/mattn/go-sqlite3 v1.14.32
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect

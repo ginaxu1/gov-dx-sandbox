@@ -12,6 +12,7 @@ import (
 
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
 	"github.com/gov-dx-sandbox/api-server-go/middleware"
+	"github.com/gov-dx-sandbox/api-server-go/services"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
@@ -63,10 +64,16 @@ func main() {
 	// Initialize V1 handlers
 	v1Handler := v1handlers.NewV1Handler(gormDB)
 
+	// Initialize OAuth 2.0 service and handler
+	baseURL := getEnvOrDefault("BASE_URL", "http://localhost:3000")
+	oauthService := services.NewOAuth2Service(db, baseURL)
+	oauthHandler := handlers.NewOAuth2Handler(oauthService)
+
 	// Setup routes
 	mux := http.NewServeMux()
-	apiServer.SetupRoutes(mux)   // Legacy routes
-	v1Handler.SetupV1Routes(mux) // V1 routes
+	apiServer.SetupRoutes(mux)          // Legacy routes
+	v1Handler.SetupV1Routes(mux)        // V1 routes
+	oauthHandler.SetupOAuth2Routes(mux) // OAuth 2.0 routes
 
 	// Health check endpoint (matching consent-engine approach)
 	// --- Structured types for health status ---
