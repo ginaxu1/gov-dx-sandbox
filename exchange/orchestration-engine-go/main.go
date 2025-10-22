@@ -26,8 +26,6 @@ func main() {
 
 	var providerHandler = provider.NewProviderHandler(configs.AppConfig.GetProviders())
 
-	providerHandler.StartTokenRefreshProcess()
-
 	var federationObject = federator.Initialize(providerHandler, nil)
 
 	server.RunServer(federationObject)
