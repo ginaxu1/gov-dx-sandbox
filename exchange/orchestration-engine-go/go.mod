@@ -7,13 +7,9 @@ require (
 	github.com/stretchr/testify v1.11.1
 )
 
-require github.com/lib/pq v1.10.9
-
-require golang.org/x/text v0.30.0 // indirect
-
 require (
-	cloud.google.com/go/compute/metadata v0.3.0 // indirect
-	golang.org/x/oauth2 v0.32.0 // indirect
+	github.com/lib/pq v1.10.9
+	golang.org/x/oauth2 v0.32.0
 )
 
 require (
