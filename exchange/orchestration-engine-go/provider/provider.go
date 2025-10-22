@@ -3,9 +3,11 @@ package provider
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -24,17 +26,23 @@ type Provider struct {
 // PerformRequest performs the HTTP request to the provider with necessary authentication.
 func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Response, error) {
 	// 1. Create Request
-	req, err := http.NewRequest("POST", p.ServiceUrl, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", p.ServiceUrl, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	if p.Auth != nil {
 		switch p.Auth.Type {
 		case auth.AuthTypeOAuth2:
+			if p.OAuth2Config == nil {
+				logger.Log.Error("OAuth2Config is nil", "providerKey", p.ServiceKey)
+				return nil, fmt.Errorf("OAuth2Config is nil")
+			}
+
 			client := p.OAuth2Config.Client(ctx)
-			return client.Do(req.WithContext(ctx)) // Use context with request
+			return client.Do(req) // Use context with request
 		case auth.AuthTypeAPIKey:
 			req.Header.Set(p.Auth.APIKeyName, p.Auth.APIKeyValue)
 		}
