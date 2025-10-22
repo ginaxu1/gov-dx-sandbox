@@ -144,6 +144,31 @@ export class SchemaService {
     }
   }
 
+  static async addReviewToSchemaSubmission(submissionId: string, review: string, status: string): Promise<SchemaSubmission> {
+    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
+    try {
+      const response = await fetch(`${baseUrl}/schema-submissions/${submissionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          review,
+          status
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add review to schema submission! status: ${response.status}`);
+      }
+
+      const result: SchemaSubmission = await response.json();
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to add review to schema submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   static async getApprovedSchemas(): Promise<ApprovedSchema[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
@@ -176,11 +201,14 @@ export class SchemaService {
   static async getSchemaSubmissions(): Promise<SchemaSubmission[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const response = await fetch(`${baseUrl}/schema-submissions`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      const url: URL = new URL(`${baseUrl}/schema-submissions`);
+      url.searchParams.append('status', 'pending');
+      url.searchParams.append('status', 'rejected');
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
        
       });
 

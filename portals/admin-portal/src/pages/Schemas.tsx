@@ -11,7 +11,11 @@ import {
     Calendar,
     FileCode,
     Layers,
-    XCircle
+    XCircle,
+    X,
+    ThumbsUp,
+    ThumbsDown,
+    MessageSquare
 } from 'lucide-react';
 
 import type { ApprovedSchema, SchemaSubmission  } from '../types/graphql';
@@ -78,6 +82,16 @@ export const Schemas: React.FC<SchemasProps> = () => {
     
     const [loading, setLoading] = useState(true);
     const [autoRefresh, setAutoRefresh] = useState(false);
+    const [reviewModal, setReviewModal] = useState<{
+        isOpen: boolean;
+        schema: SchemaSubmission | null;
+    }>({
+        isOpen: false,
+        schema: null
+    });
+    const [reviewComment, setReviewComment] = useState('');
+    const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);
+    const [submittingReview, setSubmittingReview] = useState(false);
 
     // Helper function to update submission filters
     const updateSubmissionFilter = <K extends keyof FilterOptionsSubmissions>(key: K, value: FilterOptionsSubmissions[K]) => {
@@ -315,21 +329,40 @@ export const Schemas: React.FC<SchemasProps> = () => {
     };
 
     const handleReview = (schema: SchemaSubmission) => {
-        // TODO: Navigate to schema review page or open modal
-        // For now, log the schema details
-        console.log('Opening schema for review:', {
-            submissionId: schema.submissionId,
-            schemaName: schema.schemaName,
-            providerId: schema.providerId,
-            status: schema.status,
-            endpoint: schema.schemaEndpoint
+        setReviewModal({
+            isOpen: true,
+            schema: schema
         });
-        
-        // In a real implementation, this would:
-        // 1. Navigate to a dedicated review page: navigate(`/schemas/review/${schema.submissionId}`)
-        // 2. Or open a modal with schema details and approval/rejection controls
-        // 3. Allow viewing and editing the SDL content
-        // 4. Provide approval/rejection functionality with comments
+        setReviewComment('');
+        setReviewAction(null);
+    };
+
+    const handleCloseReview = () => {
+        setReviewModal({
+            isOpen: false,
+            schema: null
+        });
+        setReviewComment('');
+        setReviewAction(null);
+    };
+
+    const handleSubmitReview = async () => {
+        if (!reviewModal.schema || !reviewAction) return;
+
+        setSubmittingReview(true);
+        try {
+            await SchemaService.addReviewToSchemaSubmission(reviewModal.schema.submissionId, reviewComment, reviewAction);
+
+            // Refresh the data after review
+            await fetchSchemas();
+            
+            // Close the modal
+            handleCloseReview();
+        } catch (error) {
+            console.error('Error submitting review:', error);
+        } finally {
+            setSubmittingReview(false);
+        }
     };
 
 
@@ -357,6 +390,127 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100">
+            {/* Review Modal */}
+            {reviewModal.isOpen && reviewModal.schema && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4 rounded-t-xl">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-semibold text-white">
+                                    Review Schema Submission
+                                </h2>
+                                <button
+                                    onClick={handleCloseReview}
+                                    className="text-white hover:text-gray-200 transition-colors"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            {/* Schema Details */}
+                            <div className="mb-6">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Schema Details</h3>
+                                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                                    <div>
+                                        <span className="font-medium text-gray-700">Name:</span>
+                                        <span className="ml-2 text-gray-900">{reviewModal.schema.schemaName}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-700">Description:</span>
+                                        <span className="ml-2 text-gray-900">{reviewModal.schema.schemaDescription || 'No description provided'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-700">Provider ID:</span>
+                                        <span className="ml-2 text-gray-900">{reviewModal.schema.providerId}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-700">Endpoint:</span>
+                                        <span className="ml-2 text-gray-900 text-sm break-all">{reviewModal.schema.schemaEndpoint}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-700">Submission ID:</span>
+                                        <span className="ml-2 text-gray-900 text-sm">{reviewModal.schema.submissionId}</span>
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-700">Submitted:</span>
+                                        <span className="ml-2 text-gray-900">{formatTimestamp(reviewModal.schema.createdAt)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Review Action */}
+                            <div className="mb-6">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Review Action</h3>
+                                <div className="flex gap-4 mb-4">
+                                    <button
+                                        onClick={() => setReviewAction('approve')}
+                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
+                                            reviewAction === 'approve'
+                                                ? 'bg-green-600 text-white'
+                                                : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        }`}
+                                    >
+                                        <ThumbsUp className="w-5 h-5" />
+                                        <span>Approve</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setReviewAction('reject')}
+                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
+                                            reviewAction === 'reject'
+                                                ? 'bg-red-600 text-white'
+                                                : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                        }`}
+                                    >
+                                        <ThumbsDown className="w-5 h-5" />
+                                        <span>Reject</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Comment Section */}
+                            <div className="mb-6">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Comments</h3>
+                                <div className="relative">
+                                    <MessageSquare className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
+                                    <textarea
+                                        value={reviewComment}
+                                        onChange={(e) => setReviewComment(e.target.value)}
+                                        placeholder="Add your review comments here..."
+                                        rows={4}
+                                        className="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex justify-end gap-4">
+                                <button
+                                    onClick={handleCloseReview}
+                                    className="px-6 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSubmitReview}
+                                    disabled={!reviewAction || submittingReview}
+                                    className={`px-6 py-2 rounded-lg transition-colors ${
+                                        !reviewAction || submittingReview
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : reviewAction === 'approve'
+                                            ? 'bg-green-600 text-white hover:bg-green-700'
+                                            : 'bg-red-600 text-white hover:bg-red-700'
+                                    }`}
+                                >
+                                    {submittingReview ? 'Submitting...' : reviewAction === 'approve' ? 'Approve Schema' : 'Reject Schema'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header */}
                 <div className="mb-8">

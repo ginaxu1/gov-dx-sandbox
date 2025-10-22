@@ -52,21 +52,28 @@ export class ApplicationService {
     }
   }
 
-  static async approveApplication(submissionId: string): Promise<void> {
+  static async addReviewToApplicationSubmission(submissionId: string, review: string, status: string): Promise<ApplicationSubmission> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const response = await fetch(`${baseUrl}/application-submissions/${submissionId}/approve`, {
-        method: 'POST',
+      const response = await fetch(`${baseUrl}/application-submissions/${submissionId}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          review,
+          status
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to approve application submission! status: ${response.status}`);
+        throw new Error(`Failed to add review to application submission! status: ${response.status}`);
       }
+
+      const result: ApplicationSubmission = await response.json();
+      return result;
     } catch (error) {
-      throw new Error(`Failed to approve application submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to add review to application submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -101,7 +108,10 @@ export class ApplicationService {
   static async getApplicationSubmissions(): Promise<ApplicationSubmission[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const response = await fetch(`${baseUrl}/application-submissions`, {
+      const url: URL = new URL(`${baseUrl}/application-submissions`);
+      url.searchParams.append('status', 'pending');
+      url.searchParams.append('status', 'rejected');
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

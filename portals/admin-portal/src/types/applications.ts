@@ -10,6 +10,9 @@ export interface ApplicationSubmission extends ApplicationRegistration {
   submissionId: string;
   consumerId: string;
   status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
+  review?: string;
 }
 
 export interface ApprovedApplication {

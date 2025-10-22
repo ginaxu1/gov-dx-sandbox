@@ -70,8 +70,9 @@ export interface SchemaSubmission extends SchemaRegistration {
   submissionId: string;
   status: 'pending' | 'approved' | 'rejected';
   providerId: string;
-  createdAt: string; // Note: API uses createdAt, not created_at
+  createdAt: string;
   updatedAt: string;
+  review?: string;
 }
 
 export interface ApprovedSchema {

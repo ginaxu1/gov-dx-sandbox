@@ -6,7 +6,7 @@ import { Logs } from "./pages/Logs";
 import { Applications } from "./pages/Applications";
 import { useEffect, useState } from "react";
 import { Shield } from 'lucide-react';
-import { Dashboard } from './pages/Dashboard';
+import { Home } from './pages/Home';
 import { Members } from './pages/Members';
 
 function App() {
@@ -125,7 +125,7 @@ function App() {
         />
         <main className="flex-1 overflow-auto pt-16">
           <Routes>
-            <Route path="/" element={<Dashboard/>} />
+            <Route path="/" element={<Home/>} />
             <Route path="/members" element={<Members />} />
             <Route path="/schemas" element={<Schemas />} />
             <Route path="/logs" element={<Logs />} />
