@@ -245,13 +245,6 @@ func pushArrayFieldToAst(field []string, parentField *ast.SelectionSet) {
 	}
 }
 
-// isArrayField checks if a field path represents an array field based on the schema
-func isArrayFieldInSchema(fieldPath string, schema *ast.Document) bool {
-	// This function would need to be implemented to check the schema
-	// for array type definitions. For now, we'll use a simple heuristic.
-	return strings.Contains(fieldPath, "[]") || strings.Contains(fieldPath, "array")
-}
-
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
