@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/api-server-go/pkg/errors"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
+	"github.com/gov-dx-sandbox/api-server-go/v1/shared"
 	"golang.org/x/oauth2"
 )
 
@@ -398,52 +399,33 @@ func (s *OAuth2Service) GetUserData(userID string, fields []string) (*models.Dat
 // Helper methods
 
 func (s *OAuth2Service) generateClientSecret() string {
-	bytes := make([]byte, 32)
-	rand.Read(bytes)
-	return base64.URLEncoding.EncodeToString(bytes)
+	token, _ := shared.GenerateToken()
+	return token
 }
 
 func (s *OAuth2Service) generateAuthorizationCode() string {
-	bytes := make([]byte, 32)
-	rand.Read(bytes)
-	return base64.URLEncoding.EncodeToString(bytes)
+	token, _ := shared.GenerateToken()
+	return token
 }
 
 func (s *OAuth2Service) generateAccessToken() string {
 	// In a real implementation, this would be a JWT token
 	// For now, we'll generate a random string
-	bytes := make([]byte, 32)
-	rand.Read(bytes)
-	return base64.URLEncoding.EncodeToString(bytes)
+	token, _ := shared.GenerateToken()
+	return token
 }
 
 func (s *OAuth2Service) generateRefreshToken() string {
-	bytes := make([]byte, 32)
-	rand.Read(bytes)
-	return base64.URLEncoding.EncodeToString(bytes)
+	token, _ := shared.GenerateToken()
+	return token
 }
 
 func (s *OAuth2Service) scopesToJSON(scopes []string) string {
-	if len(scopes) == 0 {
-		return "[]"
-	}
-	return fmt.Sprintf(`["%s"]`, strings.Join(scopes, `","`))
+	return shared.ScopesToJSON(scopes)
 }
 
 func (s *OAuth2Service) jsonToScopes(scopesJSON string) []string {
-	if scopesJSON == "[]" || scopesJSON == "" {
-		return []string{}
-	}
-	// Simple JSON parsing for scopes array
-	scopesJSON = strings.Trim(scopesJSON, "[]")
-	if scopesJSON == "" {
-		return []string{}
-	}
-	scopes := strings.Split(scopesJSON, ",")
-	for i, scope := range scopes {
-		scopes[i] = strings.Trim(scope, `"`)
-	}
-	return scopes
+	return shared.JSONToScopes(scopesJSON)
 }
 
 func (s *OAuth2Service) getUserInfo(userID string) (*models.UserInfo, error) {
@@ -765,9 +747,7 @@ func (s *OAuth2Service) validateAccessToken(accessToken string) (*models.UserInf
 
 // isJWTToken checks if a token is a JWT
 func (s *OAuth2Service) isJWTToken(token string) bool {
-	// Simple check - JWT tokens have 3 parts separated by dots
-	parts := strings.Split(token, ".")
-	return len(parts) == 3
+	return shared.IsJWTToken(token)
 }
 
 // validateJWTToken validates a JWT token

@@ -68,17 +68,6 @@ type OAuth2Token struct {
 	ParentToken  *string   `json:"parent_token,omitempty" db:"parent_token"`   // For refresh tokens, links to access token
 }
 
-// OAuth2User represents a user in the OAuth 2.0 system
-type OAuth2User struct {
-	UserID    string    `json:"user_id" db:"user_id"`
-	Email     string    `json:"email" db:"email"`
-	FirstName string    `json:"first_name" db:"first_name"`
-	LastName  string    `json:"last_name" db:"last_name"`
-	IsActive  bool      `json:"is_active" db:"is_active"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
-}
-
 // Request/Response DTOs
 
 // CreateOAuth2ClientRequest represents the request to create a new OAuth 2.0 client
@@ -126,15 +115,6 @@ type TokenRequest struct {
 	ClientSecret string `json:"client_secret" validate:"required"`
 	CodeVerifier string `json:"code_verifier"`
 	RefreshToken string `json:"refresh_token,omitempty"`
-}
-
-// TokenResponse represents the OAuth 2.0 token response
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	Scope        string `json:"scope,omitempty"`
 }
 
 // RefreshTokenRequest represents the OAuth 2.0 refresh token request

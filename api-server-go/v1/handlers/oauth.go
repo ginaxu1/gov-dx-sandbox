@@ -13,6 +13,7 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
+	v1shared "github.com/gov-dx-sandbox/api-server-go/v1/shared"
 	"golang.org/x/oauth2"
 )
 
@@ -161,10 +162,27 @@ func (h *OAuth2Handler) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate client credentials
-	client, clientErr := h.oauthService.ValidateClient(req.ClientID, req.ClientSecret, req.RedirectURI)
-	if clientErr != nil {
-		h.respondWithOAuth2Error(w, "invalid_client", "Invalid client credentials", "")
-		return
+	var client *models.OAuth2Client
+	var clientErr error
+
+	if req.GrantType == "client_credentials" {
+		// For client credentials flow, only validate client ID and secret
+		client, clientErr = h.oauthService.GetClient(req.ClientID)
+		if clientErr != nil {
+			h.respondWithOAuth2Error(w, "invalid_client", "Invalid client credentials", "")
+			return
+		}
+		if client.ClientSecret != req.ClientSecret {
+			h.respondWithOAuth2Error(w, "invalid_client", "Invalid client credentials", "")
+			return
+		}
+	} else {
+		// For authorization code flow, validate client ID, secret, and redirect URI
+		client, clientErr = h.oauthService.ValidateClient(req.ClientID, req.ClientSecret, req.RedirectURI)
+		if clientErr != nil {
+			h.respondWithOAuth2Error(w, "invalid_client", "Invalid client credentials", "")
+			return
+		}
 	}
 
 	var token *oauth2.Token
@@ -201,13 +219,7 @@ func (h *OAuth2Handler) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare response
-	response := models.TokenResponse{
-		AccessToken:  token.AccessToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    expiresIn,
-		RefreshToken: token.RefreshToken,
-		Scope:        "read:data", // Default scope
-	}
+	response := v1shared.CreateTokenResponse(token.AccessToken, token.RefreshToken, "read:data", expiresIn)
 
 	slog.Info("Token issued", "client_id", req.ClientID, "token_type", token.TokenType)
 	utils.RespondWithSuccess(w, http.StatusOK, response)
@@ -281,13 +293,7 @@ func (h *OAuth2Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare response
-	response := models.TokenResponse{
-		AccessToken:  token.AccessToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    expiresIn,
-		RefreshToken: token.RefreshToken,
-		Scope:        "read:data", // Default scope
-	}
+	response := v1shared.CreateTokenResponse(token.AccessToken, token.RefreshToken, "read:data", expiresIn)
 
 	slog.Info("Token refreshed", "client_id", req.ClientID, "token_type", token.TokenType)
 	utils.RespondWithSuccess(w, http.StatusOK, response)
@@ -409,29 +415,4 @@ func (h *OAuth2Handler) respondWithOAuth2Error(w http.ResponseWriter, error, des
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 	json.NewEncoder(w).Encode(response)
-}
-
-// Exported wrapper methods for testing
-func (h *OAuth2Handler) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
-	h.handleAuthorize(w, r)
-}
-
-func (h *OAuth2Handler) HandleToken(w http.ResponseWriter, r *http.Request) {
-	h.handleToken(w, r)
-}
-
-func (h *OAuth2Handler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
-	h.handleRefresh(w, r)
-}
-
-func (h *OAuth2Handler) HandleDataAccess(w http.ResponseWriter, r *http.Request) {
-	h.handleDataAccess(w, r)
-}
-
-func (h *OAuth2Handler) HandleClients(w http.ResponseWriter, r *http.Request) {
-	h.handleClients(w, r)
-}
-
-func (h *OAuth2Handler) HandleClientByID(w http.ResponseWriter, r *http.Request) {
-	h.handleClientByID(w, r)
 }
