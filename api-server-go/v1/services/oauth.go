@@ -13,8 +13,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/gov-dx-sandbox/api-server-go/models"
 	"github.com/gov-dx-sandbox/api-server-go/pkg/errors"
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"golang.org/x/oauth2"
 )
 
@@ -895,4 +895,31 @@ func (s *OAuth2Service) RevokeAllClientTokens(clientID string) error {
 	query := `UPDATE oauth2_tokens SET is_active = false WHERE client_id = ?`
 	_, err := s.db.Exec(query, clientID)
 	return err
+}
+
+// GenerateClientCredentialsToken generates an access token for client credentials flow
+func (s *OAuth2Service) GenerateClientCredentialsToken(ctx context.Context, clientID string, scopes []string) (*oauth2.Token, error) {
+	// Generate access token
+	accessToken := s.generateAccessToken()
+	expiresAt := time.Now().Add(1 * time.Hour) // Access tokens expire in 1 hour
+
+	// For client credentials flow, we don't have a user ID, so we use a system user ID
+	systemUserID := "system_" + clientID
+
+	// Store access token in database
+	err := s.storeOAuth2TokensDirect(clientID, systemUserID, accessToken, "", scopes, expiresAt)
+	if err != nil {
+		slog.Error("Failed to store client credentials token", "error", err, "client_id", clientID)
+		return nil, fmt.Errorf("failed to store client credentials token: %w", err)
+	}
+
+	// Create oauth2.Token response (no refresh token for client credentials)
+	token := &oauth2.Token{
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		Expiry:      expiresAt,
+	}
+
+	slog.Info("Generated client credentials token", "client_id", clientID, "scopes", scopes)
+	return token, nil
 }

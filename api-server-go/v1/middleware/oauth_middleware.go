@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gov-dx-sandbox/api-server-go/models"
-	"github.com/gov-dx-sandbox/api-server-go/services"
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
+	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"github.com/gov-dx-sandbox/api-server-go/shared"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 )

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/models"
-	"github.com/gov-dx-sandbox/api-server-go/services"
 	"github.com/gov-dx-sandbox/api-server-go/shared"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
+	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"golang.org/x/oauth2"
 )
 
@@ -118,8 +118,7 @@ func (h *OAuth2Handler) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse form data
-	err := r.ParseForm()
-	if err != nil {
+	if err := r.ParseForm(); err != nil {
 		h.respondWithOAuth2Error(w, "invalid_request", "Invalid request format", "")
 		return
 	}
@@ -169,12 +168,12 @@ func (h *OAuth2Handler) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var token *oauth2.Token
-	var err error
 	ctx := context.Background()
 
 	// Handle different grant types
 	if req.GrantType == "authorization_code" {
 		// Exchange code for token using the oauth2 package with PKCE
+		var err error
 		token, err = h.oauthService.ExchangeCodeForToken(ctx, req.ClientID, req.Code, req.RedirectURI, req.CodeVerifier)
 		if err != nil {
 			slog.Error("Failed to exchange code for token", "error", err, "client_id", req.ClientID)
@@ -183,6 +182,7 @@ func (h *OAuth2Handler) handleToken(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if req.GrantType == "client_credentials" {
 		// Generate token directly for client credentials flow
+		var err error
 		token, err = h.oauthService.GenerateClientCredentialsToken(ctx, req.ClientID, client.Scopes)
 		if err != nil {
 			slog.Error("Failed to generate client credentials token", "error", err, "client_id", req.ClientID)

@@ -5,7 +5,6 @@ go 1.24.6
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
 	github.com/gov-dx-sandbox/api-server-go/pkg/errors v0.0.0
 	github.com/gov-dx-sandbox/api-server-go/shared/utils v0.0.0
 	github.com/lib/pq v1.10.9
@@ -28,8 +27,6 @@ require (
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )
-
-replace github.com/gov-dx-sandbox/api-server-go/models => ./models
 
 replace github.com/gov-dx-sandbox/api-server-go/pkg/errors => ./pkg/errors
 

@@ -119,9 +119,9 @@ type AuthorizationResponse struct {
 
 // TokenRequest represents the OAuth 2.0 token request
 type TokenRequest struct {
-	GrantType    string `json:"grant_type" validate:"required,eq=authorization_code"`
-	Code         string `json:"code" validate:"required"`
-	RedirectURI  string `json:"redirect_uri" validate:"required,url"`
+	GrantType    string `json:"grant_type" validate:"required,oneof=authorization_code client_credentials"`
+	Code         string `json:"code"`         // Required for authorization_code, not for client_credentials
+	RedirectURI  string `json:"redirect_uri"` // Required for authorization_code, not for client_credentials
 	ClientID     string `json:"client_id" validate:"required"`
 	ClientSecret string `json:"client_secret" validate:"required"`
 	CodeVerifier string `json:"code_verifier"`

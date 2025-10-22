@@ -12,11 +12,11 @@ import (
 
 	"github.com/gov-dx-sandbox/api-server-go/handlers"
 	"github.com/gov-dx-sandbox/api-server-go/middleware"
-	"github.com/gov-dx-sandbox/api-server-go/services"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
 	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
+	v1services "github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"github.com/joho/godotenv"
 )
 
@@ -64,10 +64,16 @@ func main() {
 	// Initialize V1 handlers
 	v1Handler := v1handlers.NewV1Handler(gormDB)
 
-	// Initialize OAuth 2.0 service and handler
+	// Initialize OAuth 2.0 service and handler (using V1)
 	baseURL := getEnvOrDefault("BASE_URL", "http://localhost:3000")
-	oauthService := services.NewOAuth2Service(db, baseURL)
-	oauthHandler := handlers.NewOAuth2Handler(oauthService)
+	// Get underlying sql.DB from gorm.DB for OAuth service
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		slog.Error("Failed to get sql.DB from gorm.DB", "error", err)
+		os.Exit(1)
+	}
+	oauthService := v1services.NewOAuth2Service(sqlDB, baseURL)
+	oauthHandler := v1handlers.NewOAuth2Handler(oauthService)
 
 	// Setup routes
 	mux := http.NewServeMux()
