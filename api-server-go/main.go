@@ -10,8 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/handlers"
-	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
@@ -58,8 +56,7 @@ func main() {
 
 	// GORM database connection handles migration based on RUN_MIGRATION env var
 
-	// Initialize API server with database (legacy)
-	apiServer := handlers.NewAPIServerWithDB(db)
+	// Legacy API server removed - using V1 handlers only
 
 	// Initialize V1 handlers
 	v1Handler := v1handlers.NewV1Handler(gormDB)
@@ -77,7 +74,6 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	apiServer.SetupRoutes(mux)          // Legacy routes
 	v1Handler.SetupV1Routes(mux)        // V1 routes
 	oauthHandler.SetupOAuth2Routes(mux) // OAuth 2.0 routes
 
@@ -254,12 +250,10 @@ func main() {
 	// Setup CORS middleware
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
-	// Setup audit middleware
-	auditServiceURL := getEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
-	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
+	// Audit middleware removed - using V1 middleware only
 
-	// Apply middleware chain: CORS -> Audit
-	handler := corsMiddleware(auditMiddleware.AuditLoggingMiddleware(mux))
+	// Apply middleware chain: CORS only
+	handler := corsMiddleware(mux)
 
 	// Start server
 	port := os.Getenv("PORT")
