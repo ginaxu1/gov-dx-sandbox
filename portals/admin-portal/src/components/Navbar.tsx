@@ -1,5 +1,5 @@
 // components/Navbar.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from "@asgardeo/auth-react";
 
@@ -11,11 +11,11 @@ interface NavItem {
 
 const AdminNavItems: NavItem[] = [
   {
-    label: "Dashboard",
+    label: "Home",
     path: '/',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v18H3V3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
     ),
   },
@@ -24,7 +24,7 @@ const AdminNavItems: NavItem[] = [
     path: '/members',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h18v18H3V3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
   },
@@ -67,7 +67,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const { state } = useAuthContext();
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const { state, getBasicUserInfo } = useAuthContext();
+  const [ userName, setUserName ] = useState<string | null>(null);
 
   const isActive = (path: string) => {
     if (path === '/') {
@@ -81,32 +83,67 @@ export const Navbar: React.FC<NavbarProps> = ({
     onSignOut();
   };
 
+  const handleNavItemClick = (path: string) => {
+    navigate(path);
+  };
+
+  useEffect(() => {
+    const fetchUserName = async () => {
+      const userInfo = await getBasicUserInfo();
+      if (userInfo.displayName) {
+        setUserName(userInfo.displayName);
+      }
+    };
+
+    fetchUserName();
+  }, [state.isAuthenticated]);
+
   return (
-    <nav className="bg-white shadow-md border-b border-gray-300 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <>
+      {/* Left Sidebar */}
+      <div className={`bg-white shadow-xl border-r border-gray-200 h-screen transition-all duration-300 ease-in-out ${
+        sidebarExpanded ? 'w-64' : 'w-16'
+      }`}>
+        {/* Navigation Items */}
+        <nav className="pt-20 p-4 space-y-2">
+          {AdminNavItems.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => handleNavItemClick(item.path)}
+              className={`w-full flex items-center ${sidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isActive(item.path)
+                  ? 'bg-blue-100 text-blue-800 border border-blue-300 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title={!sidebarExpanded ? item.label : undefined}
+            >
+              <div className="flex-shrink-0">
+                {item.icon}
+              </div>
+              {sidebarExpanded && <span>{item.label}</span>}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Top Navigation Bar - Fixed at top, full width */}
+      <nav className="bg-white shadow-md border-b border-gray-300 fixed top-0 left-0 right-0 z-50">
         <div className="flex justify-between items-center h-16">
-          {/* Desktop Navigation */}
-          <div className="flex items-center">
-            <div className="hidden md:flex items-center space-x-2">
-              {(AdminNavItems).map((item) => (
-                <button
-                  key={item.path}
-                  onClick={() => navigate(item.path)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
-                    isActive(item.path)
-                      ? 'bg-blue-100 text-blue-800 border border-blue-300 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  {item.icon}
-                  <span className="hidden lg:inline">{item.label}</span>
-                </button>
-              ))}
-            </div>
+          {/* Left side - Menu button and App title - Fixed position */}
+          <div className="flex items-center space-x-4 pl-6">
+            <button
+              onClick={() => setSidebarExpanded(!sidebarExpanded)}
+              className="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="text-xl font-semibold text-gray-900">Admin Portal</h1>
           </div>
 
-          {/* User actions */}
-          <div className="flex items-center space-x-2">
+          {/* Right side - User actions */}
+          <div className="flex items-center space-x-2 pr-6">
             {state.isAuthenticated && (
               <div className="relative">
                 <button
@@ -119,7 +156,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </svg>
                   </div>
                   <span className="hidden sm:inline text-sm font-medium">
-                    {'Admin'}
+                    {userName ? userName : 'User'}
                   </span>
                   <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -129,17 +166,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {userDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-10 overflow-hidden">
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{'Admin`'}</p>
+                      <p className="text-sm font-medium text-gray-900">{userName ? userName : 'User'}</p>
                     </div>
-                    {/* <button
-                      onClick={() => {setUserDropdownOpen(false); navigate('/')}}
-                      className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors flex items-center space-x-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <span>Profile</span>
-                    </button> */}
                     <div className="border-t border-gray-100">
                       <button
                         onClick={handleSignOut}
@@ -155,16 +183,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
             )}
-            
-            {/* Mobile menu button */}
-            <button className="md:hidden p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
           </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </>
   );
 };

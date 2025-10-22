@@ -14,20 +14,20 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchEntityInfoFromDB = async (entityId: string) => {
-    try {
-      // fetch entity info from API
-      const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch entity info');
-      }
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching entity info:', error);
-      return null;
-    }
-  };
+  // const fetchEntityInfoFromDB = async (entityId: string) => {
+  //   try {
+  //     // fetch entity info from API
+  //     const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
+  //     if (!response.ok) {
+  //       throw new Error('Failed to fetch entity info');
+  //     }
+  //     const data = await response.json();
+  //     return data;
+  //   } catch (error) {
+  //     console.error('Error fetching entity info:', error);
+  //     return null;
+  //   }
+  // };
 
   useEffect(() => {
     const fetchEntityInfo = async () => {
@@ -42,17 +42,11 @@ function App() {
         const userBasicInfo = await getBasicUserInfo();
         console.log('Fetching entity info from user attributes:', userBasicInfo);
 
-        const entityId = userBasicInfo.memberId;
-        if (!entityId) {
-          setError('User does not have a memberId attribute');
+        if (!userBasicInfo || !userBasicInfo.roles) {
+          setError('Failed to fetch valid entity info from user attributes');
         }
-
-        const fetchedEntityInfoFromDB = await fetchEntityInfoFromDB(entityId);
-        if ( !fetchedEntityInfoFromDB || fetchedEntityInfoFromDB.entityType !== 'admin') {
+        else if (userBasicInfo.roles !== 'Admin') {
           setError('Failed to fetch valid entity info from DB or user is not an admin');
-        } else {
-          const entityInfo = fetchedEntityInfoFromDB;
-          console.log('Fetched entity info from DB:', entityInfo);
         }
       } catch (error) {
         console.error('Failed to fetch entity info:', error);
@@ -125,18 +119,20 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
+      <div className="App h-screen flex">
         <Navbar 
           onSignOut={handleSignOut}
         />
-        <Routes>
-          <Route path="/" element={<Dashboard/>} />
-          <Route path="/members" element={<Members />} />
-          <Route path="/schemas" element={<Schemas />} />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="/applications" element={<Applications />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <main className="flex-1 overflow-auto pt-16">
+          <Routes>
+            <Route path="/" element={<Dashboard/>} />
+            <Route path="/members" element={<Members />} />
+            <Route path="/schemas" element={<Schemas />} />
+            <Route path="/logs" element={<Logs />} />
+            <Route path="/applications" element={<Applications />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
       </div>
     </Router>
   );
