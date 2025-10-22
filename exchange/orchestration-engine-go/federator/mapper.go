@@ -237,10 +237,8 @@ func buildSchemaInfoMapRecursive(
 			// Process nested fields for non-array fields
 			if fieldDef != nil && fieldDef.Type != nil && fieldDef.Type.GetKind() != "List" && selection.GetSelectionSet() != nil && len(selection.GetSelectionSet().Selections) > 0 {
 				var nestedObjectDef *ast.ObjectDefinition
-				if fieldDef != nil && fieldDef.Type != nil {
-					if fieldDef.Type.GetKind() == "Named" {
-						nestedObjectDef = findTopLevelObjectDefinitionInSchema(fieldDef.Type.(*ast.Named).Name.Value, schema)
-					}
+				if fieldDef.Type.GetKind() == "Named" {
+					nestedObjectDef = findTopLevelObjectDefinitionInSchema(fieldDef.Type.(*ast.Named).Name.Value, schema)
 				}
 
 				if nestedObjectDef != nil {
