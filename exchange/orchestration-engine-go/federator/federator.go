@@ -1,6 +1,7 @@
 package federator
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,12 +16,14 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/internals/errors"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	auth2 "github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 // Federator struct that includes all the context needed for federation.
@@ -82,6 +85,15 @@ func Initialize(providerHandler *provider.Handler, schemaService interface{}) *F
 				ServiceKey: p.ProviderKey,
 				Auth:       p.Auth,
 			}
+
+			if p.Auth != nil && p.Auth.Type == auth2.AuthTypeOAuth2 {
+				providerInstance.OAuth2Config = &clientcredentials.Config{
+					ClientID:     p.Auth.ClientID,
+					ClientSecret: p.Auth.ClientSecret,
+					TokenURL:     p.Auth.TokenURL,
+				}
+			}
+
 			// print service url
 			logger.Log.Info("Adding Provider from the Config File", "Provider Key", p.ProviderKey, "Provider Url", p.ProviderURL)
 			providerHandler.AddProvider(p.ProviderKey, providerInstance)
@@ -104,7 +116,7 @@ func Initialize(providerHandler *provider.Handler, schemaService interface{}) *F
 
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
-func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
+func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
 		Body: []byte(request.Query),
@@ -399,7 +411,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	federationRequest := &federationRequest{
 		FederationServiceRequest: splitRequests,
 	}
-	responses := f.performFederation(federationRequest)
+	responses := f.performFederation(ctx, federationRequest)
 
 	// Build schema info map for array-aware processing
 	var schemaInfoMap map[string]*SourceSchemaInfo
@@ -417,7 +429,7 @@ func (f *Federator) FederateQuery(request graphql.Request, consumerInfo *auth.Co
 	return response
 }
 
-func (f *Federator) performFederation(r *federationRequest) *FederationResponse {
+func (f *Federator) performFederation(ctx context.Context, r *federationRequest) *FederationResponse {
 	FederationResponse := &FederationResponse{
 		Responses: make([]ProviderResponse, 0, len(r.FederationServiceRequest)),
 	}
@@ -442,7 +454,7 @@ func (f *Federator) performFederation(r *federationRequest) *FederationResponse 
 				return
 			}
 
-			response, err := prov.PerformRequest(reqBody)
+			response, err := prov.PerformRequest(ctx, reqBody)
 			if err != nil {
 				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
 				return
