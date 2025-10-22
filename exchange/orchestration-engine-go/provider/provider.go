@@ -49,5 +49,5 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 	}
 
 	// Default client execution (for API Key or no auth)
-	return p.Client.Do(req.WithContext(ctx))
+	return p.Client.Do(req)
 }
