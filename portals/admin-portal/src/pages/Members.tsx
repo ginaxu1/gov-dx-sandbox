@@ -1,24 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    Users, 
     Search, 
-    Download, 
     RefreshCw, 
     Building2, 
-    Shield,
     Mail,
     Phone,
     Calendar,
-    User
+    User,
+    Edit,
+    ChevronDown,
+    ChevronRight,
+    X,
+    Save,
+    Plus
 } from 'lucide-react';
 import { MemberService } from '../services/memberService';
 import type { Entity } from '../services/memberService';
 
 interface FilterOptions {
-    entityType?: 'all' | 'gov' | 'admin' | 'private';
     searchByName?: string;
-    allProviders?: 'all' | 'providers-only' | 'non-providers';
-    allConsumers?: 'all' | 'consumers-only' | 'non-consumers';
+}
+
+interface MemberFormData {
+    name: string;
+    email: string;
+    phoneNumber: string;
+    idpUserId: string;
 }
 
 interface MembersProps {
@@ -28,13 +35,18 @@ export const Members: React.FC<MembersProps> = () => {
     const [entities, setEntities] = useState<Entity[]>([]);
     const [filteredEntities, setFilteredEntities] = useState<Entity[]>([]);
     const [filters, setFilters] = useState<FilterOptions>({
-        entityType: 'all',
         searchByName: '',
-        allProviders: 'all',
-        allConsumers: 'all'
     });
     const [loading, setLoading] = useState(true);
-    const [autoRefresh, setAutoRefresh] = useState(false);
+    const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+    const [formData, setFormData] = useState<MemberFormData>({
+        name: '',
+        email: '',
+        phoneNumber: '',
+        idpUserId: ''
+    });
 
     // Helper function to update filters
     const updateFilter = <K extends keyof FilterOptions>(key: K, value: FilterOptions[K]) => {
@@ -44,10 +56,7 @@ export const Members: React.FC<MembersProps> = () => {
     // Helper function to clear all filters
     const clearAllFilters = () => {
         setFilters({
-            entityType: 'all',
             searchByName: '',
-            allProviders: 'all',
-            allConsumers: 'all'
         });
     };
 
@@ -71,17 +80,6 @@ export const Members: React.FC<MembersProps> = () => {
         fetchEntities();
     }, []);
 
-    // Auto-refresh functionality
-    useEffect(() => {
-        if (autoRefresh) {
-            const interval = setInterval(() => {
-                fetchEntities();
-            }, 30000); // Refresh every 30 seconds
-
-            return () => clearInterval(interval);
-        }
-    }, [autoRefresh]);
-
     useEffect(() => {
         let filtered = entities;
         
@@ -92,82 +90,83 @@ export const Members: React.FC<MembersProps> = () => {
             );
         }
 
-        // Filter by entity type
-        if (filters.entityType && filters.entityType !== 'all') {
-            filtered = filtered.filter(entity => entity.entityType === filters.entityType);
-        }
-
-        // Filter by provider status
-        if (filters.allProviders && filters.allProviders !== 'all') {
-            if (filters.allProviders === 'providers-only') {
-                filtered = filtered.filter(entity => entity.providerId);
-            } else if (filters.allProviders === 'non-providers') {
-                filtered = filtered.filter(entity => !entity.providerId);
-            }
-        }
-
-        // Filter by consumer status
-        if (filters.allConsumers && filters.allConsumers !== 'all') {
-            if (filters.allConsumers === 'consumers-only') {
-                filtered = filtered.filter(entity => entity.consumerId);
-            } else if (filters.allConsumers === 'non-consumers') {
-                filtered = filtered.filter(entity => !entity.consumerId);
-            }
-        }
-
         setFilteredEntities(filtered);
     }, [entities, filters]);
 
-    const getEntityTypeIcon = (entityType: string) => {
-        switch (entityType) {
-            case 'gov':
-                return <Building2 className="w-5 h-5 text-blue-500" />;
-            case 'admin':
-                return <Shield className="w-5 h-5 text-red-500" />;
-            case 'private':
-                return <User className="w-5 h-5 text-green-500" />;
-            default:
-                return <Users className="w-5 h-5 text-gray-500" />;
-        }
-    };
-
-    const getEntityTypeBorderColor = (entityType: string) => {
-        switch (entityType) {
-            case 'gov':
-                return 'border-l-blue-500 bg-blue-50';
-            case 'admin':
-                return 'border-l-red-500 bg-red-50';
-            case 'private':
-                return 'border-l-green-500 bg-green-50';
-            default:
-                return 'border-l-gray-500 bg-gray-50';
-        }
-    };
-
     const formatTimestamp = (timestamp: string) => {
-        return new Date(timestamp).toLocaleString();
+        const date = new Date(timestamp);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
     };
-
-    const entityTypes = ['gov', 'admin', 'private'];
 
     const handleRefresh = () => {
         fetchEntities();
     };
 
-    const handleExport = async () => {
+    const toggleCardExpansion = (entityId: string) => {
+        setExpandedCards(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(entityId)) {
+                newSet.delete(entityId);
+            } else {
+                newSet.add(entityId);
+            }
+            return newSet;
+        });
+    };
+
+    const resetForm = () => {
+        setFormData({
+            name: '',
+            email: '',
+            phoneNumber: '',
+            idpUserId: ''
+        });
+    };
+
+    const handleAddMember = () => {
+        resetForm();
+        setShowAddForm(true);
+        setEditingEntity(null);
+    };
+
+    const handleEditMember = (entity: Entity) => {
+        setFormData({
+            name: entity.name,
+            email: entity.email,
+            phoneNumber: entity.phoneNumber,
+            idpUserId: entity.idpUserId
+        });
+        setEditingEntity(entity);
+        setShowAddForm(true);
+    };
+
+    const handleCloseForm = () => {
+        setShowAddForm(false);
+        setEditingEntity(null);
+        resetForm();
+    };
+
+    const handleFormSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
         try {
-            const blob = await MemberService.exportEntities('csv');
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `entities-${new Date().toISOString().split('T')[0]}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            if (editingEntity) {
+                // Update existing entity
+                await MemberService.updateEntity(editingEntity.entityId, formData);
+            } else {
+                // Create new entity
+                await MemberService.createEntity(formData);
+            }
+            await fetchEntities();
+            handleCloseForm();
         } catch (error) {
-            console.error('Error exporting entities:', error);
-            // Optionally show user-friendly error message
+            console.error('Error saving entity:', error);
+            alert('Error saving member. Please try again.');
         }
     };
 
@@ -206,31 +205,20 @@ export const Members: React.FC<MembersProps> = () => {
                                 Manage and monitor registered members in the system
                             </p>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex flex-col sm:flex-row gap-3">
                             <button
                                 onClick={handleRefresh}
-                                className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                className="flex items-center justify-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                             >
                                 <RefreshCw className="w-4 h-4" />
                                 <span>Refresh</span>
                             </button>
-                            <button
-                                onClick={() => setAutoRefresh(!autoRefresh)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                                    autoRefresh 
-                                        ? 'bg-green-100 text-green-700 border border-green-300' 
-                                        : 'bg-white border border-gray-300 hover:bg-gray-50'
-                                }`}
-                            >
-                                <Users className="w-4 h-4" />
-                                <span>Auto Refresh</span>
-                            </button>
                             <button 
-                                onClick={handleExport}
-                                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                onClick={handleAddMember}
                             >
-                                <Download className="w-4 h-4" />
-                                <span>Export</span>
+                                <Plus className="w-4 h-4" />
+                                <span>Add Member</span>
                             </button>
                         </div>
                     </div>
@@ -253,191 +241,329 @@ export const Members: React.FC<MembersProps> = () => {
                                     />
                                 </div>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <select
-                                    value={filters.entityType || 'all'}
-                                    onChange={(e) => updateFilter('entityType', e.target.value as 'all' | 'gov' | 'admin' | 'private')}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                    <option value="all">All Entity Types</option>
-                                    {entityTypes.map(type => (
-                                        <option key={type} value={type}>
-                                            {type.charAt(0).toUpperCase() + type.slice(1)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        
-                        {/* Provider and Consumer Filters Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <select
-                                value={filters.allProviders || 'all'}
-                                onChange={(e) => updateFilter('allProviders', e.target.value as 'all' | 'providers-only' | 'non-providers')}
-                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="all">All Provider Status</option>
-                                <option value="providers-only">Providers Only</option>
-                                <option value="non-providers">Non-Providers Only</option>
-                            </select>
-                            <select
-                                value={filters.allConsumers || 'all'}
-                                onChange={(e) => updateFilter('allConsumers', e.target.value as 'all' | 'consumers-only' | 'non-consumers')}
-                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="all">All Consumer Status</option>
-                                <option value="consumers-only">Consumers Only</option>
-                                <option value="non-consumers">Non-Consumers Only</option>
-                            </select>
-                        </div>
-                        
+                        </div>                       
                         {/* Clear Filters Button */}
                         <div className="flex justify-end">
                             <button
                                 onClick={clearAllFilters}
                                 className="px-4 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                             >
-                                Clear All Filters
+                                Clear Filter
                             </button>
                         </div>
                     </div>
                 </div>
 
-                {/* Entity Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    {/* Total Entities */}
-                    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-gray-600">Filtered Entities</p>
-                                <p className="text-2xl font-bold text-gray-900">{filteredEntities.length}</p>
-                                <p className="text-xs text-gray-500">of {entities.length} total</p>
+                {/* Member Statistics */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-blue-100 rounded-full">
+                                <Building2 className="w-6 h-6 text-blue-600" />
                             </div>
-                            <div className="p-3 rounded-full bg-gray-100">
-                                <Users className="w-5 h-5 text-blue-500" />
+                            <div>
+                                <p className="text-2xl font-bold text-gray-900">{entities.length}</p>
+                                <p className="text-gray-600">Total Members</p>
                             </div>
                         </div>
                     </div>
-                    
-                    {entityTypes.map(type => {
-                        const count = filteredEntities.filter(entity => entity.entityType === type).length;
-                        const percentage = filteredEntities.length > 0 ? (count / filteredEntities.length * 100) : 0;
-                        
-                        return (
-                            <div key={type} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600 capitalize">{type} Entities</p>
-                                        <p className="text-2xl font-bold text-gray-900">{count}</p>
-                                        <p className="text-xs text-gray-500">{percentage.toFixed(1)}% of filtered</p>
-                                    </div>
-                                    <div className="p-3 rounded-full bg-gray-100">
-                                        {getEntityTypeIcon(type)}
-                                    </div>
-                                </div>
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-green-100 rounded-full">
+                                <Search className="w-6 h-6 text-green-600" />
                             </div>
-                        );
-                    })}
+                            <div>
+                                <p className="text-2xl font-bold text-gray-900">{filteredEntities.length}</p>
+                                <p className="text-gray-600">{filters.searchByName ? 'Search Results' : 'Showing All'}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center space-x-4">
+                            <div className="p-3 bg-purple-100 rounded-full">
+                                <ChevronDown className="w-6 h-6 text-purple-600" />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold text-gray-900">{expandedCards.size}</p>
+                                <p className="text-gray-600">Expanded</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Entities List */}
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                    <div className="bg-gradient-to-r from-gray-600 to-gray-700 px-6 py-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                                <Users className="w-6 h-6 text-white mr-3" />
-                                <h2 className="text-xl font-semibold text-white">
-                                    Entity Members ({filteredEntities.length})
-                                </h2>
-                            </div>
-                            <div className="text-sm text-gray-200">
-                                Last updated: {new Date().toLocaleTimeString()}
-                            </div>
-                        </div>
+
+                {/* Members List */}
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-16">
+                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                        <h2 className="text-xl font-semibold text-white flex items-center space-x-2">
+                            <User className="w-5 h-5" />
+                            <span>Member List</span>
+                            <span className="ml-auto bg-blue-500 text-blue-100 px-3 py-1 rounded-full text-sm">
+                                {filteredEntities.length} {filteredEntities.length === 1 ? 'member' : 'members'}
+                            </span>
+                        </h2>
                     </div>
-                    <div className="max-h-96 overflow-y-auto">
-                        {filteredEntities.length === 0 ? (
-                            <div className="text-center py-12">
-                                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-500 text-lg">
-                                    {filters.searchByName || filters.entityType !== 'all' || filters.allProviders !== 'all' || filters.allConsumers !== 'all'
-                                        ? 'No entities match your filters' 
-                                        : 'No entities available'
-                                    }
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-gray-200">
-                                {filteredEntities.map((entity) => (
-                                    <div key={entity.entityId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getEntityTypeBorderColor(entity.entityType)}`}>
-                                        <div className="flex items-start space-x-3">
-                                            <div className="flex-shrink-0 mt-1">
-                                                {getEntityTypeIcon(entity.entityType)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <h3 className="text-lg font-semibold text-gray-900">
-                                                        {entity.name}
-                                                    </h3>
-                                                    <div className="flex items-center text-xs text-gray-500">
-                                                        <Calendar className="w-3 h-3 mr-1" />
-                                                        Created: {formatTimestamp(entity.createdAt)}
-                                                    </div>
+                    
+                    <div className="divide-y divide-gray-100">
+                        {filteredEntities.map((entity) => {
+                            const isExpanded = expandedCards.has(entity.entityId);
+                            return (
+                                <div key={entity.entityId} className="group hover:bg-gray-50 transition-all duration-200">
+                                    {/* Main Card Content - Always Visible */}
+                                    <div 
+                                        className="p-6 cursor-pointer"
+                                        onClick={() => toggleCardExpansion(entity.entityId)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-4 flex-1">
+                                                <div className="flex-shrink-0 bg-blue-50 rounded-full p-2 group-hover:bg-blue-100 transition-colors">
+                                                    {isExpanded ? (
+                                                        <ChevronDown className="w-4 h-4 text-blue-600" />
+                                                    ) : (
+                                                        <ChevronRight className="w-4 h-4 text-blue-600" />
+                                                    )}
                                                 </div>
                                                 
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                                                        <span>{entity.email}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-2 sm:space-y-0">
+                                                        <div className="flex-shrink-0">
+                                                            <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
+                                                                {entity.name}
+                                                            </h3>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2 text-gray-600">
+                                                            <div className="bg-gray-100 rounded-full p-1">
+                                                                <Mail className="w-3 h-3" />
+                                                            </div>
+                                                            <span className="text-sm font-medium truncate">{entity.email}</span>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                                                        <span>{entity.phoneNumber}</span>
-                                                    </div>
                                                 </div>
-
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                        entity.entityType === 'gov' 
-                                                            ? 'bg-blue-100 text-blue-800' 
-                                                            : entity.entityType === 'admin'
-                                                            ? 'bg-red-100 text-red-800'
-                                                            : 'bg-green-100 text-green-800'
-                                                    }`}>
-                                                        {entity.entityType.charAt(0).toUpperCase() + entity.entityType.slice(1)}
-                                                    </span>
-                                                    
-                                                    {entity.providerId && (
-                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                            Provider
-                                                        </span>
-                                                    )}
-                                                    
-                                                    {entity.consumerId && (
-                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                                            Consumer
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="text-xs text-gray-500 space-y-1">
-                                                    <p><span className="font-medium">Entity ID:</span> {entity.entityId}</p>
-                                                    {entity.consumerId && (
-                                                        <p><span className="font-medium">Consumer ID:</span> {entity.consumerId}</p>
-                                                    )}
-                                                    {entity.providerId && (
-                                                        <p><span className="font-medium">Provider ID:</span> {entity.providerId}</p>
-                                                    )}
-                                                    <p><span className="font-medium">Last updated:</span> {formatTimestamp(entity.updatedAt)}</p>
-                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex items-center space-x-2 ml-4">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleEditMember(entity);
+                                                    }}
+                                                    className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                                                    title="Edit member"
+                                                >
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+
+                                    {/* Expanded Content */}
+                                    {isExpanded && (
+                                        <div className="px-6 pb-6 bg-gradient-to-br from-gray-50 to-slate-50 border-t border-gray-100">
+                                            <div className="pt-4">
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                    <div className="space-y-4">
+                                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                                            <div className="flex items-start space-x-3">
+                                                                <div className="bg-blue-100 rounded-full p-2">
+                                                                    <User className="w-4 h-4 text-blue-600" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                                                        Entity ID
+                                                                    </p>
+                                                                    <p className="text-sm font-semibold text-gray-900 break-all">
+                                                                        {entity.entityId}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                                            <div className="flex items-start space-x-3">
+                                                                <div className="bg-green-100 rounded-full p-2">
+                                                                    <User className="w-4 h-4 text-green-600" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                                                        IDP User ID
+                                                                    </p>
+                                                                    <p className="text-sm font-semibold text-gray-900 break-all">
+                                                                        {entity.idpUserId}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="space-y-4">
+                                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                                            <div className="flex items-start space-x-3">
+                                                                <div className="bg-purple-100 rounded-full p-2">
+                                                                    <Phone className="w-4 h-4 text-purple-600" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                                                        Phone Number
+                                                                    </p>
+                                                                    <p className="text-sm font-semibold text-gray-900">
+                                                                        {entity.phoneNumber}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="bg-white rounded-lg p-4 shadow-sm">
+                                                            <div className="flex items-start space-x-3">
+                                                                <div className="bg-orange-100 rounded-full p-2">
+                                                                    <Calendar className="w-4 h-4 text-orange-600" />
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                                                                        Member Since
+                                                                    </p>
+                                                                    <p className="text-sm font-semibold text-gray-900">
+                                                                        {formatTimestamp(entity.createdAt)}
+                                                                    </p>
+                                                                    <p className="text-xs text-gray-500 mt-1">
+                                                                        Updated: {formatTimestamp(entity.updatedAt)}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
+                    
+                    {filteredEntities.length === 0 && (
+                        <div className="text-center py-16 px-6">
+                            <div className="max-w-sm mx-auto">
+                                <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+                                    <Building2 className="w-10 h-10 text-gray-400" />
+                                </div>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">No members found</h3>
+                                <p className="text-gray-600 mb-4">
+                                    {filters.searchByName 
+                                        ? "No members match your search criteria. Try adjusting your search terms."
+                                        : "Get started by adding your first member to the system."
+                                    }
+                                </p>
+                                <button
+                                    onClick={handleAddMember}
+                                    className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span>Add First Member</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
+
+                {/* Add/Edit Member Form Modal */}
+                {showAddForm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl font-semibold text-gray-900">
+                                        {editingEntity ? 'Edit Member' : 'Add New Member'}
+                                    </h2>
+                                    <button
+                                        onClick={handleCloseForm}
+                                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleFormSubmit} className="space-y-4">
+                                    <div>
+                                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="name"
+                                            required
+                                            value={formData.name}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter member name"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Email *
+                                        </label>
+                                        <input
+                                            type="email"
+                                            id="email"
+                                            required
+                                            value={formData.email}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter email address"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Phone Number *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            id="phoneNumber"
+                                            required
+                                            value={formData.phoneNumber}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter phone number"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="idpUserId" className="block text-sm font-medium text-gray-700 mb-1">
+                                            IDP User ID *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="idpUserId"
+                                            required
+                                            value={formData.idpUserId}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, idpUserId: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter IDP user ID"
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-end space-x-3 pt-4">
+                                        <button
+                                            type="button"
+                                            onClick={handleCloseForm}
+                                            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                        >
+                                            <Save className="w-4 h-4" />
+                                            <span>{editingEntity ? 'Update' : 'Create'} Member</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

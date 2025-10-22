@@ -1,11 +1,9 @@
 interface Entity {
     entityId: string;
+    idpUserId: string;
     name: string;
-    entityType: 'gov' | 'admin' | 'private';
     email: string;
     phoneNumber: string;
-    consumerId?: string;
-    providerId?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -16,10 +14,50 @@ interface EntityResponse {
 }
 
 export class MemberService {
-    /**
-     * Fetch all entities from the API
-     * @returns Promise<EntityResponse>
-     */
+    static async createEntity(memberData: Partial<Entity>): Promise<Entity> {
+        try {
+            const response = await fetch(`${window.configs.apiUrl}/entities`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(memberData),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data: Entity = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error creating entity:', error);
+            throw error;
+        }
+    }
+
+    static async updateEntity(entityId: string, memberData: Partial<Entity>): Promise<Entity> {
+        try {
+            const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(memberData),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data: Entity = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error updating entity:', error);
+            throw error;
+        }
+    }
+
     static async fetchEntities(): Promise<Entity[]> {
         try {
             const response = await fetch(`${window.configs.apiUrl}/entities`);
@@ -36,77 +74,62 @@ export class MemberService {
         }
     }
 
-    /**
-     * Fetch entities with optional query parameters
-     * @param params - Query parameters for filtering
-     * @returns Promise<EntityResponse>
-     */
-    static async fetchEntitiesWithParams(params?: Record<string, string>): Promise<EntityResponse> {
-        try {
-            const url = new URL(`${window.configs.apiUrl}/entities`);
+    // static async fetchEntitiesWithParams(params?: Record<string, string>): Promise<EntityResponse> {
+    //     try {
+    //         const url = new URL(`${window.configs.apiUrl}/entities`);
             
-            if (params) {
-                Object.entries(params).forEach(([key, value]) => {
-                    if (value) {
-                        url.searchParams.append(key, value);
-                    }
-                });
-            }
+    //         if (params) {
+    //             Object.entries(params).forEach(([key, value]) => {
+    //                 if (value) {
+    //                     url.searchParams.append(key, value);
+    //                 }
+    //             });
+    //         }
             
-            const response = await fetch(url.toString());
+    //         const response = await fetch(url.toString());
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+    //         if (!response.ok) {
+    //             throw new Error(`HTTP error! status: ${response.status}`);
+    //         }
             
-            const data: EntityResponse = await response.json();
-            return data;
-        } catch (error) {
-            console.error('Error fetching entities with params:', error);
-            throw error;
-        }
-    }
+    //         const data: EntityResponse = await response.json();
+    //         return data;
+    //     } catch (error) {
+    //         console.error('Error fetching entities with params:', error);
+    //         throw error;
+    //     }
+    // }
 
-    /**
-     * Fetch a single entity by ID
-     * @param entityId - The entity ID to fetch
-     * @returns Promise<Entity>
-     */
-    static async fetchEntityById(entityId: string): Promise<Entity> {
-        try {
-            const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
+    // static async fetchEntityById(entityId: string): Promise<Entity> {
+    //     try {
+    //         const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+    //         if (!response.ok) {
+    //             throw new Error(`HTTP error! status: ${response.status}`);
+    //         }
             
-            const data: Entity = await response.json();
-            return data;
-        } catch (error) {
-            console.error(`Error fetching entity ${entityId}:`, error);
-            throw error;
-        }
-    }
+    //         const data: Entity = await response.json();
+    //         return data;
+    //     } catch (error) {
+    //         console.error(`Error fetching entity ${entityId}:`, error);
+    //         throw error;
+    //     }
+    // }
 
-    /**
-     * Export entities data (placeholder for future implementation)
-     * @param format - Export format (csv, json, etc.)
-     * @returns Promise<Blob>
-     */
-    static async exportEntities(format: 'csv' | 'json' = 'csv'): Promise<Blob> {
-        try {
-            const response = await fetch(`${window.configs.apiUrl}/entities/export?format=${format}`);
+    // static async exportEntities(format: 'csv' | 'json' = 'csv'): Promise<Blob> {
+    //     try {
+    //         const response = await fetch(`${window.configs.apiUrl}/entities/export?format=${format}`);
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+    //         if (!response.ok) {
+    //             throw new Error(`HTTP error! status: ${response.status}`);
+    //         }
             
-            return await response.blob();
-        } catch (error) {
-            console.error('Error exporting entities:', error);
-            throw error;
-        }
-    }
+    //         return await response.blob();
+    //     } catch (error) {
+    //         console.error('Error exporting entities:', error);
+    //         throw error;
+    //     }
+    // }
 }
 
 export type { Entity, EntityResponse };

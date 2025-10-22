@@ -52,6 +52,24 @@ export class ApplicationService {
     }
   }
 
+  static async approveApplication(submissionId: string): Promise<void> {
+    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
+    try {
+      const response = await fetch(`${baseUrl}/application-submissions/${submissionId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to approve application submission! status: ${response.status}`);
+      }
+    } catch (error) {
+      throw new Error(`Failed to approve application submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   static async getApprovedApplications(): Promise<ApprovedApplication[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
