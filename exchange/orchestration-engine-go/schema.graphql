@@ -34,10 +34,16 @@ type PersonInfo {
 }
 
 type VehicleInfo {
-    regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicles.registrationNumber")
-    make: String @sourceInfo(providerKey: "dmt", providerField: "vehicles.make")
-    model: String @sourceInfo(providerKey: "dmt", providerField: "vehicles.model")
-    year: Int @sourceInfo(providerKey: "dmt", providerField: "vehicles.yearOfManufacture")
+    regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.registrationNumber")
+    make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.make")
+    model: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.model")
+    year: Int @sourceInfo(providerKey: "dmt", providerField: "vehicle.yearOfManufacture")
+    class: [VehicleClass] @sourceInfo(providerKey: "dmt", providerField: "vehicle.classes")
+}
+
+type VehicleClass {
+    className: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.classes.className")
+    classCode: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.classes.classCode")
 }
 
 type BirthInfo {
