@@ -30,6 +30,7 @@ type SchemaSubmission struct {
 	SchemaEndpoint    string  `gorm:"column:schema_endpoint;not null" json:"schemaEndpoint"`
 	Status            string  `gorm:"column:status;not null" json:"status"`
 	ProviderID        string  `gorm:"column:provider_id;not null" json:"providerId"`
+	Review            *string `gorm:"column:review" json:"review,omitempty"`
 	BaseModel
 
 	// Relationships
@@ -70,6 +71,7 @@ type ApplicationSubmission struct {
 	SelectedFields         StringArray `gorm:"column:selected_fields;type:text[];not null" json:"selectedFields"`
 	ConsumerID             string      `gorm:"column:consumer_id;not null" json:"consumerId"`
 	Status                 string      `gorm:"column:status;not null" json:"status"`
+	Review                 *string     `gorm:"column:review" json:"review,omitempty"`
 	BaseModel
 
 	// Relationships

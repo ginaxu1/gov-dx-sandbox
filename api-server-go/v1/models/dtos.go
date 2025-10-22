@@ -20,6 +20,7 @@ type UpdateSchemaSubmissionRequest struct {
 	SchemaEndpoint    *string `json:"schemaEndpoint,omitempty"`
 	Status            *string `json:"status,omitempty"`
 	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
+	Review            *string `json:"review,omitempty"`
 }
 
 // CreateSchemaRequest creates a new provider schema
@@ -56,6 +57,7 @@ type UpdateApplicationSubmissionRequest struct {
 	SelectedFields         *[]string `json:"selectedFields,omitempty" validate:"required,min=1"`
 	Status                 *string   `json:"status,omitempty"`
 	PreviousApplicationID  *string   `json:"previousApplicationId,omitempty"`
+	Review                 *string   `json:"review,omitempty"`
 }
 
 // CreateApplicationRequest creates a new consumer application
@@ -184,6 +186,7 @@ type SchemaSubmissionResponse struct {
 	ProviderID        string  `json:"providerId"`
 	CreatedAt         string  `json:"createdAt"`
 	UpdatedAt         string  `json:"updatedAt"`
+	Review            *string `json:"review,omitempty"`
 }
 
 type ApplicationResponse struct {
@@ -207,6 +210,7 @@ type ApplicationSubmissionResponse struct {
 	Status                 string   `json:"status"`
 	CreatedAt              string   `json:"createdAt"`
 	UpdatedAt              string   `json:"updatedAt"`
+	Review                 *string  `json:"review,omitempty"`
 }
 
 // CollectionResponse Generic collection response
