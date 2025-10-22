@@ -76,58 +76,56 @@ type UpdateApplicationRequest struct {
 
 type CreateEntityRequest struct {
 	Name        string `json:"name" validate:"required"`
-	EntityType  string `json:"entityType" validate:"required"`
 	Email       string `json:"email" validate:"required,email"`
 	PhoneNumber string `json:"phoneNumber" validate:"required"`
+	IdpUserID   string `json:"idpUserId" validate:"required"`
 }
 
 type UpdateEntityRequest struct {
 	Name        *string `json:"name,omitempty"`
-	EntityType  *string `json:"entityType,omitempty"`
 	Email       *string `json:"email,omitempty"`
 	PhoneNumber *string `json:"phoneNumber,omitempty"`
+	IdpUserID   *string `json:"idpUserId,omitempty"`
 }
 
 type CreateConsumerRequest struct {
 	Name        string  `json:"name" validate:"required"`
-	EntityType  string  `json:"entityType" validate:"required"`
 	Email       string  `json:"email" validate:"required,email"`
 	PhoneNumber string  `json:"phoneNumber" validate:"required"`
+	IdpUserID   string  `json:"idpUserId" validate:"required"`
 	EntityID    *string `json:"entityId,omitempty"`
 }
 
 type UpdateConsumerRequest struct {
 	Name        *string `json:"name,omitempty"`
-	EntityType  *string `json:"entityType,omitempty"`
 	Email       *string `json:"email,omitempty"`
 	PhoneNumber *string `json:"phoneNumber,omitempty"`
+	IdpUserID   *string `json:"idpUserId,omitempty"`
 }
 
 type CreateProviderRequest struct {
 	Name        string  `json:"name" validate:"required"`
-	EntityType  string  `json:"entityType" validate:"required"`
 	Email       string  `json:"email" validate:"required,email"`
 	PhoneNumber string  `json:"phoneNumber" validate:"required"`
 	EntityID    *string `json:"entityId,omitempty"`
+	IdpUserID   string  `json:"idpUserId" validate:"required"`
 }
 
 type UpdateProviderRequest struct {
 	Name        *string `json:"name,omitempty"`
-	EntityType  *string `json:"entityType,omitempty"`
+	IdpUserID   *string `json:"idpUserId,omitempty"`
 	Email       *string `json:"email,omitempty"`
 	PhoneNumber *string `json:"phoneNumber,omitempty"`
 }
 
 type EntityResponse struct {
-	EntityID    string  `json:"entityId"`
-	Name        string  `json:"name"`
-	EntityType  string  `json:"entityType"`
-	Email       string  `json:"email"`
-	PhoneNumber string  `json:"phoneNumber"`
-	ProviderID  *string `json:"providerId,omitempty"`
-	ConsumerID  *string `json:"consumerId,omitempty"`
-	CreatedAt   string  `json:"createdAt"`
-	UpdatedAt   string  `json:"updatedAt"`
+	EntityID    string `json:"entityId"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	PhoneNumber string `json:"phoneNumber"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+	IdpUserID   string `json:"idpUserId"`
 }
 
 // ToEntity converts an EntityResponse to an Entity model (for internal use)
@@ -135,9 +133,9 @@ func (e *EntityResponse) ToEntity() Entity {
 	return Entity{
 		EntityID:    e.EntityID,
 		Name:        e.Name,
-		EntityType:  e.EntityType,
 		Email:       e.Email,
 		PhoneNumber: e.PhoneNumber,
+		IdpUserID:   e.IdpUserID,
 	}
 }
 
@@ -145,9 +143,9 @@ type ProviderResponse struct {
 	ProviderID  string `json:"providerId"`
 	EntityID    string `json:"entityId"`
 	Name        string `json:"name"`
-	EntityType  string `json:"entityType"`
 	Email       string `json:"email"`
 	PhoneNumber string `json:"phoneNumber"`
+	IdpUserID   string `json:"idpUserId"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 }
@@ -156,11 +154,11 @@ type ConsumerResponse struct {
 	ConsumerID  string `json:"consumerId"`
 	EntityID    string `json:"entityId"`
 	Name        string `json:"name"`
-	EntityType  string `json:"entityType"`
 	Email       string `json:"email"`
 	PhoneNumber string `json:"phoneNumber"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
+	IdpUserID   string `json:"idpUserId"`
 }
 
 type SchemaResponse struct {
