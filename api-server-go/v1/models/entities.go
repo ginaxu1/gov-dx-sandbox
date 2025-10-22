@@ -4,9 +4,9 @@ package models
 type Entity struct {
 	EntityID    string `gorm:"primarykey;column:entity_id" json:"entityId"`
 	Name        string `gorm:"column:name;not null" json:"name"`
-	EntityType  string `gorm:"column:entity_type;not null" json:"entityType"`
 	Email       string `gorm:"column:email;not null;unique" json:"email"`
 	PhoneNumber string `gorm:"column:phone_number;not null" json:"phoneNumber"`
+	IdpUserID   string `gorm:"column:idp_user_id;not null" json:"idpUserId"`
 	BaseModel
 }
 
