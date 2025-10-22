@@ -126,7 +126,7 @@ func RunServer(f *federator.Federator) {
 					}
 				}
 			}()
-			response = f.FederateQuery(req, consumerAssertion)
+			response = f.FederateQuery(r.Context(), req, consumerAssertion)
 		}()
 
 		w.WriteHeader(http.StatusOK)
