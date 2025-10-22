@@ -245,6 +245,9 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 			}
 			submission.PreviousSchemaID = req.PreviousSchemaID
 		}
+		if req.Review != nil {
+			submission.Review = req.Review
+		}
 
 		// Save the updated submission
 		if err := tx.Save(&submission).Error; err != nil {
@@ -269,6 +272,7 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 		ProviderID:        submission.ProviderID,
 		CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
+		Review:            submission.Review,
 	}
 
 	return response, nil
@@ -293,6 +297,7 @@ func (s *SchemaService) GetSchemaSubmission(submissionID string) (*models.Schema
 		ProviderID:        submission.ProviderID,
 		CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
+		Review:            submission.Review,
 	}
 
 	return response, nil
@@ -331,6 +336,7 @@ func (s *SchemaService) GetSchemaSubmissions(providerID *string, statusFilter *[
 			ProviderID:        submission.ProviderID,
 			CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
+			Review:            submission.Review,
 		})
 	}
 
