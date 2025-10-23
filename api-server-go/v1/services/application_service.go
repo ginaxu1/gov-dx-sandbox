@@ -235,6 +235,11 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 			}
 			submission.PreviousApplicationID = req.PreviousApplicationID
 		}
+		if req.Review != nil {
+			submission.Review = req.Review
+		}
+
+		// Save the updated submission
 		if err := tx.Save(&submission).Error; err != nil {
 			return fmt.Errorf("failed to update application submission: %w", err)
 		}
@@ -254,6 +259,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		ConsumerID:             submission.ConsumerID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
+		Review:                 submission.Review,
 	}
 
 	return response, nil
@@ -277,6 +283,7 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 		ConsumerID:             submission.ConsumerID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
+		Review:                 submission.Review,
 	}
 
 	return response, nil
@@ -313,6 +320,7 @@ func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statu
 			ConsumerID:             submission.ConsumerID,
 			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
+			Review:                 submission.Review,
 		})
 	}
 

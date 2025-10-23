@@ -33,9 +33,9 @@ func (s *ProviderService) CreateProvider(req *models.CreateProviderRequest) (*mo
 		// Use shared entityService instance
 		newEntity, err := s.entityService.CreateEntity(&models.CreateEntityRequest{
 			Name:        req.Name,
-			EntityType:  req.EntityType,
 			Email:       req.Email,
 			PhoneNumber: req.PhoneNumber,
+			IdpUserID:   req.IdpUserID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create entity: %w", err)
@@ -55,8 +55,8 @@ func (s *ProviderService) CreateProvider(req *models.CreateProviderRequest) (*mo
 	response := &models.ProviderResponse{
 		ProviderID:  provider.ProviderID,
 		EntityID:    provider.EntityID,
+		IdpUserID:   entity.IdpUserID,
 		Name:        entity.Name,
-		EntityType:  entity.EntityType,
 		Email:       entity.Email,
 		PhoneNumber: entity.PhoneNumber,
 		CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
@@ -79,11 +79,11 @@ func (s *ProviderService) GetProvider(providerID string) (*models.ProviderRespon
 		ProviderID:  provider.ProviderID,
 		EntityID:    provider.EntityID,
 		Name:        provider.Entity.Name,
-		EntityType:  provider.Entity.EntityType,
 		Email:       provider.Entity.Email,
 		PhoneNumber: provider.Entity.PhoneNumber,
 		CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   provider.UpdatedAt.Format(time.RFC3339),
+		IdpUserID:   provider.Entity.IdpUserID,
 	}, nil
 }
 
@@ -99,8 +99,8 @@ func (s *ProviderService) UpdateProvider(providerID string, req *models.UpdatePr
 	if req.Name != nil {
 		provider.Entity.Name = *req.Name
 	}
-	if req.EntityType != nil {
-		provider.Entity.EntityType = *req.EntityType
+	if req.IdpUserID != nil {
+		provider.Entity.IdpUserID = *req.IdpUserID
 	}
 	if req.Email != nil {
 		provider.Entity.Email = *req.Email
@@ -122,11 +122,11 @@ func (s *ProviderService) UpdateProvider(providerID string, req *models.UpdatePr
 		ProviderID:  provider.ProviderID,
 		EntityID:    provider.EntityID,
 		Name:        provider.Entity.Name,
-		EntityType:  provider.Entity.EntityType,
 		Email:       provider.Entity.Email,
 		PhoneNumber: provider.Entity.PhoneNumber,
 		CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   provider.UpdatedAt.Format(time.RFC3339),
+		IdpUserID:   provider.Entity.IdpUserID,
 	}
 
 	return response, nil
@@ -146,8 +146,8 @@ func (s *ProviderService) GetAllProviders() ([]models.ProviderResponse, error) {
 		response[i] = models.ProviderResponse{
 			ProviderID:  provider.ProviderID,
 			EntityID:    provider.EntityID,
+			IdpUserID:   provider.Entity.IdpUserID,
 			Name:        provider.Entity.Name,
-			EntityType:  provider.Entity.EntityType,
 			Email:       provider.Entity.Email,
 			PhoneNumber: provider.Entity.PhoneNumber,
 			CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
