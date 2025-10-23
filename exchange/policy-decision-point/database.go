@@ -14,9 +14,9 @@ import (
 
 // DatabaseServiceInterface defines the interface for database operations
 type DatabaseServiceInterface interface {
-	GetAllProviderMetadata() (*models.ProviderMetadata, error)
-	UpdateProviderField(fieldName string, field models.ProviderMetadataField) error
-	UpdateProviderMetadata(metadata *models.ProviderMetadata) error
+	CreatePolicyMetadata(req *models.PolicyMetadataCreateRequest) (string, error)
+	UpdateAllowList(req *models.AllowListUpdateRequest) error
+	GetAllPolicyMetadata() (map[string]interface{}, error)
 	Close() error
 }
 
@@ -83,172 +83,158 @@ func (ds *DatabaseService) Close() error {
 	return nil
 }
 
-// GetAllProviderMetadata retrieves all provider metadata from the database
-func (ds *DatabaseService) GetAllProviderMetadata() (*models.ProviderMetadata, error) {
-	query := `SELECT field_name, owner, provider, consent_required, access_control_type, allow_list, created_at, updated_at 
-			  FROM provider_metadata ORDER BY created_at DESC`
+// CreatePolicyMetadata creates a new policy metadata record
+func (ds *DatabaseService) CreatePolicyMetadata(req *models.PolicyMetadataCreateRequest) (string, error) {
+	// Generate UUID for the new record
+	var id string
+	err := ds.db.QueryRow("SELECT gen_random_uuid()").Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate UUID: %w", err)
+	}
+
+	// Insert new policy metadata record
+	query := `INSERT INTO policy_metadata 
+		(id, field_name, display_name, description, source, is_owner, owner, access_control_type, allow_list, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+
+	now := time.Now().UTC()
+	owner := "CITIZEN"    // Default owner as per schema
+	allowListJSON := "[]" // Default empty allow list
+
+	_, err = ds.db.Exec(query, id, req.FieldName, req.DisplayName, req.Description,
+		req.Source, req.IsOwner, owner, req.AccessControlType, allowListJSON, now, now)
+	if err != nil {
+		return "", fmt.Errorf("failed to create policy metadata: %w", err)
+	}
+
+	slog.Info("Created policy metadata", "id", id, "field_name", req.FieldName)
+	return id, nil
+}
+
+// UpdateAllowList updates the allow list for a specific field
+func (ds *DatabaseService) UpdateAllowList(req *models.AllowListUpdateRequest) error {
+	// Parse expires_at timestamp
+	expiresAt, err := time.Parse(time.RFC3339, req.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("invalid expires_at format, expected RFC3339: %w", err)
+	}
+
+	// Get current allow list for the field
+	var currentAllowListJSON string
+	query := `SELECT allow_list FROM policy_metadata WHERE field_name = $1`
+	err = ds.db.QueryRow(query, req.FieldName).Scan(&currentAllowListJSON)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("field %s not found", req.FieldName)
+		}
+		return fmt.Errorf("failed to get current allow list: %w", err)
+	}
+
+	// Parse current allow list
+	var currentAllowList []models.AllowListEntry
+	if err := json.Unmarshal([]byte(currentAllowListJSON), &currentAllowList); err != nil {
+		return fmt.Errorf("failed to parse current allow list: %w", err)
+	}
+
+	// Check if application already exists in allow list
+	found := false
+	for i, entry := range currentAllowList {
+		if entry.ApplicationID == req.ApplicationID {
+			// Update existing entry
+			currentAllowList[i] = models.AllowListEntry{
+				ApplicationID: req.ApplicationID,
+				ExpiresAt:     expiresAt.Unix(),
+			}
+			found = true
+			break
+		}
+	}
+
+	// Add new entry if not found
+	if !found {
+		newEntry := models.AllowListEntry{
+			ApplicationID: req.ApplicationID,
+			ExpiresAt:     expiresAt.Unix(),
+		}
+		currentAllowList = append(currentAllowList, newEntry)
+	}
+
+	// Serialize updated allow list
+	updatedAllowListJSON, err := json.Marshal(currentAllowList)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated allow list: %w", err)
+	}
+
+	// Update the allow list in database
+	updateQuery := `UPDATE policy_metadata SET allow_list = $1, updated_at = $2 WHERE field_name = $3`
+	now := time.Now().UTC()
+	_, err = ds.db.Exec(updateQuery, updatedAllowListJSON, now, req.FieldName)
+	if err != nil {
+		return fmt.Errorf("failed to update allow list: %w", err)
+	}
+
+	slog.Info("Updated allow list", "field_name", req.FieldName, "application_id", req.ApplicationID)
+	return nil
+}
+
+// GetAllPolicyMetadata retrieves all policy metadata from the database
+func (ds *DatabaseService) GetAllPolicyMetadata() (map[string]interface{}, error) {
+	query := `SELECT field_name, display_name, description, source, is_owner, owner, access_control_type, allow_list 
+			  FROM policy_metadata ORDER BY created_at DESC`
 
 	rows, err := ds.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get provider metadata: %w", err)
+		return nil, fmt.Errorf("failed to get policy metadata: %w", err)
 	}
 	defer rows.Close()
 
-	fields := make(map[string]models.ProviderMetadataField)
+	fields := make(map[string]interface{})
 	for rows.Next() {
-		field := models.ProviderMetadataField{}
-		var fieldName string
-		var allowListJSON sql.NullString
-		var provider sql.NullString
-		var createdAt, updatedAt time.Time
+		var fieldName, displayName, description, source, owner, accessControlType string
+		var isOwner bool
+		var allowListJSON string
 
-		err := rows.Scan(&fieldName, &field.Owner, &provider, &field.ConsentRequired, &field.AccessControlType, &allowListJSON, &createdAt, &updatedAt)
+		err := rows.Scan(&fieldName, &displayName, &description, &source, &isOwner, &owner, &accessControlType, &allowListJSON)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan provider field: %w", err)
+			return nil, fmt.Errorf("failed to scan policy metadata field: %w", err)
 		}
 
-		// Handle NULL provider values
-		if provider.Valid {
-			field.Provider = provider.String
-		} else {
-			field.Provider = "" // Empty string for NULL providers
-		}
-
-		// Parse JSON fields
-		if allowListJSON.Valid {
-			err = json.Unmarshal([]byte(allowListJSON.String), &field.AllowList)
-			if err != nil {
+		// Parse allow list JSON
+		var allowList []interface{}
+		if allowListJSON != "" {
+			if err := json.Unmarshal([]byte(allowListJSON), &allowList); err != nil {
 				slog.Warn("Failed to parse allow list", "field", fieldName, "error", err)
-				field.AllowList = []models.PDPAllowListEntry{}
+				allowList = []interface{}{}
 			}
 		}
 
-		fields[fieldName] = field
+		// Create field metadata structure
+		fieldMetadata := map[string]interface{}{
+			"owner":               owner,
+			"provider":            source, // Using source as provider for now
+			"is_owner":            isOwner,
+			"access_control_type": accessControlType,
+			"allow_list":          allowList,
+		}
+
+		// Add optional fields if they exist
+		if displayName != "" {
+			fieldMetadata["display_name"] = displayName
+		}
+		if description != "" {
+			fieldMetadata["description"] = description
+		}
+
+		fields[fieldName] = fieldMetadata
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating over rows: %w", err)
 	}
 
-	return &models.ProviderMetadata{
-		Fields: fields,
+	return map[string]interface{}{
+		"fields": fields,
 	}, nil
-}
-
-// UpdateProviderField updates a specific provider field in the database
-func (ds *DatabaseService) UpdateProviderField(fieldName string, field models.ProviderMetadataField) error {
-	// Serialize JSON fields
-	allowListJSON, err := json.Marshal(field.AllowList)
-	if err != nil {
-		return fmt.Errorf("failed to marshal allow list: %w", err)
-	}
-
-	now := time.Now().UTC()
-
-	// Check if field exists
-	var exists bool
-	checkQuery := `SELECT EXISTS(SELECT 1 FROM provider_metadata WHERE field_name = $1)`
-	err = ds.db.QueryRow(checkQuery, fieldName).Scan(&exists)
-	if err != nil {
-		return fmt.Errorf("failed to check if field exists: %w", err)
-	}
-
-	if exists {
-		// Update existing field
-		updateQuery := `UPDATE provider_metadata SET 
-			owner = $1, provider = $2, consent_required = $3, access_control_type = $4, 
-			allow_list = $5, updated_at = $6 
-			WHERE field_name = $7`
-
-		_, err = ds.db.Exec(updateQuery, field.Owner, field.Provider, field.ConsentRequired,
-			field.AccessControlType, allowListJSON, now, fieldName)
-		if err != nil {
-			return fmt.Errorf("failed to update provider field: %w", err)
-		}
-		slog.Info("Updated provider field", "fieldName", fieldName)
-	} else {
-		// Insert new field
-		insertQuery := `INSERT INTO provider_metadata 
-			(field_name, owner, provider, consent_required, access_control_type, allow_list, created_at, updated_at) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-
-		_, err = ds.db.Exec(insertQuery, fieldName, field.Owner, field.Provider, field.ConsentRequired,
-			field.AccessControlType, allowListJSON, now, now)
-		if err != nil {
-			return fmt.Errorf("failed to insert provider field: %w", err)
-		}
-		slog.Info("Created provider field", "fieldName", fieldName)
-	}
-
-	return nil
-}
-
-// UpdateProviderMetadata updates multiple provider fields in the database
-func (ds *DatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetadata) error {
-	if metadata == nil || metadata.Fields == nil {
-		return fmt.Errorf("metadata or fields cannot be nil")
-	}
-
-	tx, err := ds.db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	now := time.Now().UTC()
-
-	for fieldName, field := range metadata.Fields {
-		// Serialize JSON fields with proper error handling
-		allowListJSON, err := json.Marshal(field.AllowList)
-		if err != nil {
-			slog.Error("Failed to marshal allow list", "field", fieldName, "error", err)
-			return fmt.Errorf("failed to marshal allow list for field %s: %w", fieldName, err)
-		}
-
-		// Ensure required fields have default values
-		if field.Owner == "" {
-			field.Owner = "external"
-		}
-		// Use system-default provider for empty provider values
-		if field.Provider == "" {
-			field.Provider = "system-default"
-		}
-		if field.AccessControlType == "" {
-			field.AccessControlType = "public"
-		}
-
-		// Use UPSERT (INSERT ... ON CONFLICT ... DO UPDATE)
-		upsertQuery := `INSERT INTO provider_metadata 
-			(field_name, owner, provider, consent_required, access_control_type, allow_list, created_at, updated_at) 
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-			ON CONFLICT (field_name) DO UPDATE SET
-			owner = EXCLUDED.owner,
-			provider = EXCLUDED.provider,
-			consent_required = EXCLUDED.consent_required,
-			access_control_type = EXCLUDED.access_control_type,
-			allow_list = EXCLUDED.allow_list,
-			updated_at = EXCLUDED.updated_at`
-
-		// Use system-default provider for data integrity
-		// This ensures all fields have a valid provider reference, maintaining
-		// foreign key constraints and data integrity
-		providerValue := field.Provider
-
-		_, err = tx.Exec(upsertQuery, fieldName, field.Owner, providerValue, field.ConsentRequired,
-			field.AccessControlType, allowListJSON, now, now)
-		if err != nil {
-			slog.Error("Failed to upsert provider field", "field", fieldName, "error", err)
-			return fmt.Errorf("failed to upsert provider field %s: %w", fieldName, err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		slog.Error("Failed to commit transaction", "error", err)
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	slog.Info("Updated provider metadata", "fields", len(metadata.Fields))
-	return nil
 }
 
 // getEnv gets an environment variable with a default value

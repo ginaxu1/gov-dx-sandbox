@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Policy Decision Point API
   description: |
@@ -100,30 +100,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /metadata/update:
+  /policy-metadata:
     post:
-      summary: Update Provider Metadata
+      summary: Create Policy Metadata
       description: |
-        Update provider metadata with new field grants and permissions. This endpoint
-        allows adding or updating field access permissions for specific consumers.
-      operationId: updateProviderMetadata
+        Create field metadata records when Provider schema is approved. This endpoint
+        allows creating new policy metadata entries for data fields with their access
+        control settings and display information.
+      operationId: createPolicyMetadata
       tags:
-        - Metadata Management
+        - Policy Metadata Management
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProviderMetadataUpdateRequest'
+              $ref: '#/components/schemas/PolicyMetadataCreateRequest'
       responses:
-        '200':
-          description: Provider metadata updated successfully
+        '201':
+          description: Policy metadata created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProviderMetadataUpdateResponse'
+                $ref: '#/components/schemas/PolicyMetadataCreateResponse'
         '400':
           description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /allow-list:
+    post:
+      summary: Update Allow List
+      description: |
+        Update allow_list when ConsumerApp is approved. This endpoint allows adding
+        or updating application access permissions for specific data fields.
+      operationId: updateAllowList
+      tags:
+        - Policy Metadata Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllowListUpdateRequest'
+      responses:
+        '200':
+          description: Allow list updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowListUpdateResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Field not found
           content:
             application/json:
               schema:
@@ -147,11 +189,11 @@ components:
       properties:
         consumer_id:
           type: string
-          description: ID of the consumer application making the request
+          description: ID of the consumer that owns the application
           example: passport-app
         app_id:
           type: string
-          description: ID of the application (usually same as consumer_id)
+          description: ID of the application making the request
           example: passport-app
         request_id:
           type: string
@@ -286,46 +328,91 @@ components:
             field:
               type: string
               description: Field that caused the error
-              example: "consumer_id"
+              example: "application_id"
             message:
               type: string
               description: Detailed error message
-              example: "consumer_id is required"
+              example: "application_id is required"
 
-    ProviderMetadataUpdateRequest:
-      type: object
-      required:
-        - application_id
-        - fields
-      properties:
-        application_id:
-          type: string
-          description: ID of the application requesting the metadata update
-          example: "passport-app"
-        fields:
-          type: array
-          description: List of field grants to add or update
-          items:
-            $ref: '#/components/schemas/ProviderFieldGrant'
-          minItems: 1
-
-    ProviderFieldGrant:
+    PolicyMetadataCreateRequest:
       type: object
       required:
         - field_name
-        - grant_duration
+        - display_name
+        - source
+        - access_control_type
       properties:
         field_name:
           type: string
-          description: Name of the field being granted access
+          description: Name of the field being created
           example: "person.fullName"
-        grant_duration:
+        display_name:
           type: string
-          description: Duration of the grant in ISO 8601 format (e.g., "P30D", "P1M", "P1Y", "PT1H", "PT30M")
-          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
-          example: "P30D"
+          description: Human-readable display name for the field
+          example: "Full Name"
+        description:
+          type: string
+          description: Description of the field
+          example: "Complete name of the person"
+        source:
+          type: string
+          description: Source system for this field
+          enum: ["primary", "fallback"]
+          example: "primary"
+        is_owner:
+          type: boolean
+          description: Whether the field owner is the data owner
+          example: true
+        access_control_type:
+          type: string
+          description: Access control type for the field
+          enum: ["public", "restricted"]
+          example: "restricted"
+        allow_list:
+          type: array
+          description: Initial allow list entries
+          items:
+            $ref: '#/components/schemas/AllowListEntry'
+          example: []
 
-    ProviderMetadataUpdateResponse:
+    PolicyMetadataCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the creation was successful
+          example: true
+        message:
+          type: string
+          description: Human-readable message about the creation
+          example: "Created policy metadata for field person.fullName"
+        id:
+          type: string
+          description: UUID of the created policy metadata record
+          example: "123e4567-e89b-12d3-a456-426614174000"
+
+    AllowListUpdateRequest:
+      type: object
+      required:
+        - field_name
+        - application_id
+        - expires_at
+      properties:
+        field_name:
+          type: string
+          description: Name of the field to update
+          example: "person.fullName"
+        application_id:
+          type: string
+          description: ID of the application to add to allow list
+          example: "passport-app"
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration timestamp for the access grant
+          example: "2024-12-31T23:59:59Z"
+
+    AllowListUpdateResponse:
       type: object
       properties:
         success:
@@ -335,11 +422,19 @@ components:
         message:
           type: string
           description: Human-readable message about the update
-          example: "Updated 3 fields for application passport-app"
-        updated:
+          example: "Updated allow list for field person.fullName with application passport-app"
+
+    AllowListEntry:
+      type: object
+      properties:
+        application_id:
+          type: string
+          description: ID of the application
+          example: "passport-app"
+        expires_at:
           type: integer
-          description: Number of fields that were updated
-          example: 3
+          description: Expiration timestamp as Unix timestamp
+          example: 1704067199
 
   securitySchemes:
     BearerAuth:
@@ -357,5 +452,5 @@ tags:
     description: Policy decision and authorization operations
   - name: Debug
     description: Debug and diagnostic operations
-  - name: Metadata Management
-    description: Provider metadata management operations
+  - name: Policy Metadata Management
+    description: Policy metadata and allow list management operations

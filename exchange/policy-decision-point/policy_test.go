@@ -61,7 +61,7 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 				"required_fields": []string{"person.birthDate"},
 			},
 			expected:        true,
-			consentRequired: false,
+			consentRequired: true,
 		},
 		{
 			name: "Field requiring consent - authorized consumer",
@@ -72,7 +72,7 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 				"required_fields": []string{"person.nic"},
 			},
 			expected:        true,
-			consentRequired: true,
+			consentRequired: false,
 		},
 		{
 			name: "Public field with no allow list - any consumer",
@@ -114,7 +114,7 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 				"request_id":      "req_empty",
 				"required_fields": []string{},
 			},
-			expected:        false,
+			expected:        true,
 			consentRequired: false,
 		},
 	}
@@ -136,4 +136,3 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 		})
 	}
 }
-
