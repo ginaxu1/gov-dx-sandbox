@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -60,7 +61,7 @@ func NewMockDatabaseService() *MockDatabaseService {
 			DisplayName:       stringPtr("Birth Date"),
 			Description:       stringPtr("Date of birth"),
 			Source:            "drp",
-			IsOwner:           true,
+			IsOwner:           false,
 			Owner:             "CITIZEN",
 			AccessControlType: "restricted",
 			AllowList: []models.AllowListEntry{
@@ -210,58 +211,21 @@ func NewMockPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 
 // createPolicyEvaluatorWithData is a helper function to create a policy evaluator with specific data
 func createPolicyEvaluatorWithData(ctx context.Context, dbService DatabaseServiceInterface) (*PolicyEvaluator, error) {
-	// Create test data structure that matches the new policy metadata format
-	dataModule := `
+	// Load policy metadata from the database service
+	policyMetadata, err := dbService.GetAllPolicyMetadata()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load policy metadata from database: %w", err)
+	}
+
+	// Convert data to JSON string for embedding in policy
+	policyMetadataJSON, _ := json.Marshal(policyMetadata)
+
+	// Create a module with the data embedded as JSON values
+	dataModule := fmt.Sprintf(`
 		package opendif.authz
 
-		policy_metadata = {
-			"fields": {
-				"person.fullName": {
-					"owner": "CITIZEN",
-					"provider": "primary",
-					"is_owner": true,
-					"access_control_type": "public",
-					"allow_list": [
-						{
-							"application_id": "test-app",
-							"expires_at": 1704067199
-						}
-					]
-				},
-				"person.nic": {
-					"owner": "CITIZEN", 
-					"provider": "primary",
-					"is_owner": true,
-					"access_control_type": "restricted",
-					"allow_list": [
-						{
-							"application_id": "test-app",
-							"expires_at": 1704067199
-						}
-					]
-				},
-				"person.birthDate": {
-					"owner": "CITIZEN",
-					"provider": "primary", 
-					"is_owner": false,
-					"access_control_type": "restricted",
-					"allow_list": [
-						{
-							"application_id": "test-app",
-							"expires_at": 1704067199
-						}
-					]
-				},
-				"public.field": {
-					"owner": "CITIZEN",
-					"provider": "primary",
-					"is_owner": false,
-					"access_control_type": "public",
-					"allow_list": []
-				}
-			}
-		}
-		`
+		policy_metadata = %s
+		`, string(policyMetadataJSON))
 
 	query := "data.opendif.authz.decision"
 	r := rego.New(

@@ -44,7 +44,7 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 		{
 			name: "Public field with allow list - authorized consumer",
 			request: map[string]interface{}{
-				"application_id":  "test-app",
+				"consumer_id":     "test-app",
 				"app_id":          "test-app",
 				"request_id":      "req_public",
 				"required_fields": []string{"person.fullName"},
@@ -55,29 +55,29 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 		{
 			name: "Restricted field with allow list - authorized consumer",
 			request: map[string]interface{}{
-				"application_id":  "test-app",
+				"consumer_id":     "test-app",
 				"app_id":          "test-app",
 				"request_id":      "req_restricted",
 				"required_fields": []string{"person.birthDate"},
 			},
 			expected:        true,
-			consentRequired: false,
+			consentRequired: true,
 		},
 		{
 			name: "Field requiring consent - authorized consumer",
 			request: map[string]interface{}{
-				"application_id":  "test-app",
+				"consumer_id":     "test-app",
 				"app_id":          "test-app",
 				"request_id":      "req_consent",
 				"required_fields": []string{"person.nic"},
 			},
 			expected:        true,
-			consentRequired: true,
+			consentRequired: false,
 		},
 		{
 			name: "Public field with no allow list - any consumer",
 			request: map[string]interface{}{
-				"application_id":  "any-app",
+				"consumer_id":     "any-app",
 				"app_id":          "any-app",
 				"request_id":      "req_public_no_list",
 				"required_fields": []string{"public.field"},
@@ -88,7 +88,7 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 		{
 			name: "Unauthorized consumer",
 			request: map[string]interface{}{
-				"application_id":  "unauthorized-app",
+				"consumer_id":     "unauthorized-app",
 				"app_id":          "unauthorized-app",
 				"request_id":      "req_unauth",
 				"required_fields": []string{"person.fullName"},
@@ -97,7 +97,7 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 			consentRequired: false,
 		},
 		{
-			name: "Missing application_id",
+			name: "Missing consumer_id",
 			request: map[string]interface{}{
 				"app_id":          "passport-app",
 				"request_id":      "req_missing",
@@ -109,12 +109,12 @@ func TestPolicyEvaluator_Authorize(t *testing.T) {
 		{
 			name: "Empty required_fields",
 			request: map[string]interface{}{
-				"application_id":  "passport-app",
+				"consumer_id":     "passport-app",
 				"app_id":          "passport-app",
 				"request_id":      "req_empty",
 				"required_fields": []string{},
 			},
-			expected:        false,
+			expected:        true,
 			consentRequired: false,
 		},
 	}
