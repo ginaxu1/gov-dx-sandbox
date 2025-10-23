@@ -21,11 +21,27 @@ import (
 // OAuth2Handler handles OAuth 2.0 endpoints
 type OAuth2Handler struct {
 	oauthService *services.OAuth2Service
+	// Configuration options for production vs test environments
+	allowLoginRedirect bool
+	loginURL           string
 }
 
 // NewOAuth2Handler creates a new OAuth 2.0 handler
 func NewOAuth2Handler(oauthService *services.OAuth2Service) *OAuth2Handler {
-	return &OAuth2Handler{oauthService: oauthService}
+	return &OAuth2Handler{
+		oauthService:       oauthService,
+		allowLoginRedirect: true,     // Default to allowing login redirects
+		loginURL:           "/login", // Default login URL
+	}
+}
+
+// NewOAuth2HandlerWithConfig creates a new OAuth 2.0 handler with custom configuration
+func NewOAuth2HandlerWithConfig(oauthService *services.OAuth2Service, allowLoginRedirect bool, loginURL string) *OAuth2Handler {
+	return &OAuth2Handler{
+		oauthService:       oauthService,
+		allowLoginRedirect: allowLoginRedirect,
+		loginURL:           loginURL,
+	}
 }
 
 // SetupOAuth2Routes sets up OAuth 2.0 routes
@@ -79,10 +95,23 @@ func (h *OAuth2Handler) handleAuthorize(w http.ResponseWriter, r *http.Request) 
 	userID, err := h.extractAuthenticatedUserID(r)
 	if err != nil {
 		slog.Error("Failed to extract authenticated user ID", "error", err)
-		// In production, redirect to the actual login page with proper parameters
-		loginURL := "/login?client_id=" + clientID + "&redirect_uri=" + url.QueryEscape(redirectURI) + "&state=" + state
-		http.Redirect(w, r, loginURL, http.StatusFound)
-		return
+
+		// Production-ready authentication handling
+		// Determine the appropriate response based on request type and configuration
+		if h.IsAPIRequest(r) {
+			// For API clients, always return OAuth2 error
+			h.respondWithOAuth2Error(w, "access_denied", "User authentication required", state)
+			return
+		} else if h.shouldRedirectToLogin(r) {
+			// For browser requests, redirect to login page with proper OAuth2 parameters
+			loginURL := h.buildLoginURL(clientID, redirectURI, state, scope)
+			http.Redirect(w, r, loginURL, http.StatusFound)
+			return
+		} else {
+			// Fallback to OAuth2 error
+			h.respondWithOAuth2Error(w, "access_denied", "User authentication required", state)
+			return
+		}
 	}
 	scopes := []string{}
 	if scope != "" {
@@ -411,6 +440,99 @@ func (h *OAuth2Handler) handleDataAccess(w http.ResponseWriter, r *http.Request)
 }
 
 // Helper methods
+
+// shouldRedirectToLogin determines if the request should redirect to login page
+// This handles different scenarios: browser requests vs API requests, test environments, etc.
+func (h *OAuth2Handler) shouldRedirectToLogin(r *http.Request) bool {
+	// If login redirects are disabled, always return OAuth2 error
+	if !h.allowLoginRedirect {
+		return false
+	}
+
+	// Check if this is a browser request (has Accept header with HTML)
+	acceptHeader := r.Header.Get("Accept")
+	if strings.Contains(acceptHeader, "text/html") {
+		return true
+	}
+
+	// Check if this is a test environment
+	if r.Header.Get("X-Test-Environment") == "true" {
+		return true
+	}
+
+	// Check if the request comes from a browser (has User-Agent)
+	userAgent := r.Header.Get("User-Agent")
+	if userAgent != "" && !strings.Contains(strings.ToLower(userAgent), "curl") &&
+		!strings.Contains(strings.ToLower(userAgent), "postman") &&
+		!strings.Contains(strings.ToLower(userAgent), "insomnia") &&
+		!strings.Contains(strings.ToLower(userAgent), "httpie") {
+		return true
+	}
+
+	// Check for mobile app user agents that might need login redirects
+	if strings.Contains(strings.ToLower(userAgent), "mobile") ||
+		strings.Contains(strings.ToLower(userAgent), "android") ||
+		strings.Contains(strings.ToLower(userAgent), "iphone") {
+		return true
+	}
+
+	// Default to returning OAuth2 error for API clients
+	return false
+}
+
+// buildLoginURL constructs a proper login URL with OAuth2 parameters
+func (h *OAuth2Handler) buildLoginURL(clientID, redirectURI, state, scope string) string {
+	params := url.Values{}
+	params.Set("client_id", clientID)
+	params.Set("redirect_uri", redirectURI)
+	if state != "" {
+		params.Set("state", state)
+	}
+	if scope != "" {
+		params.Set("scope", scope)
+	}
+
+	// Use the configured login URL
+	loginURL := h.loginURL
+	if strings.Contains(loginURL, "?") {
+		loginURL += "&" + params.Encode()
+	} else {
+		loginURL += "?" + params.Encode()
+	}
+
+	return loginURL
+}
+
+// SetLoginRedirectConfig allows runtime configuration of login redirect behavior
+func (h *OAuth2Handler) SetLoginRedirectConfig(allowRedirect bool, loginURL string) {
+	h.allowLoginRedirect = allowRedirect
+	h.loginURL = loginURL
+}
+
+// IsAPIRequest determines if the request is from an API client vs browser
+func (h *OAuth2Handler) IsAPIRequest(r *http.Request) bool {
+	// Check for API-specific headers
+	if r.Header.Get("X-API-Key") != "" || r.Header.Get("X-API-Token") != "" {
+		return true
+	}
+
+	// Check for JSON content type
+	contentType := r.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/json") {
+		return true
+	}
+
+	// Check for API client user agents
+	userAgent := strings.ToLower(r.Header.Get("User-Agent"))
+	apiClients := []string{"curl", "postman", "insomnia", "httpie", "wget", "python-requests", "go-http-client"}
+	for _, client := range apiClients {
+		if strings.Contains(userAgent, client) {
+			return true
+		}
+	}
+
+	return false
+}
 
 // extractAuthenticatedUserID extracts the authenticated user ID from the request
 // This function supports multiple authentication mechanisms:

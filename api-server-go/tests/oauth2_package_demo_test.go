@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -111,57 +110,4 @@ func TestOAuth2PackageUsage(t *testing.T) {
 
 		t.Log("Client credentials config created successfully")
 	})
-}
-
-// DemonstrateOAuth2PackageUsage demonstrates how a real client application would use our OAuth 2.0 server
-func DemonstrateOAuth2PackageUsage() {
-	// This is an example of how a client application would integrate with our OAuth 2.0 server
-
-	baseURL := "http://localhost:3000"
-
-	// Step 1: Configure OAuth 2.0 client
-	config := &oauth2.Config{
-		ClientID:     "your-client-id",
-		ClientSecret: "your-client-secret",
-		RedirectURL:  "https://your-app.com/auth/callback",
-		Scopes:       []string{"read:data"},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  baseURL + "/oauth2/authorize",
-			TokenURL: baseURL + "/oauth2/token",
-		},
-	}
-
-	// Step 2: Generate authorization URL
-	state := "random-state-string"
-	authURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline)
-
-	// Step 3: Redirect user to authURL
-	fmt.Printf("Redirect user to: %s\n", authURL)
-
-	// Step 4: After user authorizes, exchange code for token
-	ctx := context.Background()
-	// In a real application, you would get the code from the callback URL
-	code := "authorization-code-from-callback"
-
-	token, err := config.Exchange(ctx, code)
-	if err != nil {
-		fmt.Printf("Token exchange failed: %v\n", err)
-		return
-	}
-
-	// Step 5: Use the token to make authenticated requests
-	fmt.Printf("Access token: %s\n", token.AccessToken)
-	fmt.Printf("Token type: %s\n", token.TokenType)
-	fmt.Printf("Expires at: %v\n", token.Expiry)
-
-	// Step 6: Use TokenSource for automatic token refresh
-	tokenSource := config.TokenSource(ctx, token)
-
-	// The token source will automatically refresh the token when needed
-	// You can use it with http.Client
-	client := oauth2.NewClient(ctx, tokenSource)
-
-	// Use the client to make authenticated requests
-	// resp, err := client.Get("http://localhost:3000/api/v1/data")
-	_ = client // Use client for authenticated requests
 }

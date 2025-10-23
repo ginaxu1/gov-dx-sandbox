@@ -8,11 +8,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"os"
-	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/api-server-go/pkg/errors"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
@@ -453,63 +450,6 @@ func (s *OAuth2Service) getUserInfo(userID string) (*models.UserInfo, error) {
 		LastName:  "Doe",
 	}
 	return userInfo, nil
-}
-
-// JWT Token Generation (for future enhancement)
-func (s *OAuth2Service) GenerateJWTToken(userInfo *models.UserInfo, clientID string, scopes []string) (string, error) {
-	// This would generate a proper JWT token with claims
-	// For now, we'll return a placeholder
-	claims := jwt.MapClaims{
-		"sub":   userInfo.UserID,
-		"email": userInfo.Email,
-		"aud":   clientID,
-		"scp":   scopes,
-		"iss":   "opendif.com",
-		"exp":   time.Now().Add(1 * time.Hour).Unix(),
-		"iat":   time.Now().Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	// Get JWT secret from environment variable
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		// Generate a random secret for development/testing
-		secretBytes := make([]byte, 32)
-		rand.Read(secretBytes)
-		secret = base64.URLEncoding.EncodeToString(secretBytes)
-		slog.Warn("JWT_SECRET not set, using generated secret for development")
-	}
-	return token.SignedString([]byte(secret))
-}
-
-// GenerateAuthorizationCode generates and stores an authorization code for a client
-func (s *OAuth2Service) GenerateAuthorizationCode(clientID, state string, codeChallenge string) (string, error) {
-	client, err := s.GetClient(clientID)
-	if err != nil {
-		return "", err
-	}
-
-	// Generate a random authorization code
-	codeBytes := make([]byte, 32)
-	if _, err := rand.Read(codeBytes); err != nil {
-		return "", fmt.Errorf("failed to generate authorization code: %w", err)
-	}
-	authCode := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(codeBytes)
-
-	// Store the authorization code in the database
-	query := `
-		INSERT INTO oauth2_authorization_codes (code, client_id, user_id, redirect_uri, scopes, code_challenge, expires_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	expiresAt := time.Now().Add(10 * time.Minute) // Authorization codes expire in 10 minutes
-	_, err = s.db.Exec(query, authCode, clientID, "test-user", client.RedirectURI, strings.Join(client.Scopes, ","), codeChallenge, expiresAt, time.Now())
-	if err != nil {
-		return "", fmt.Errorf("failed to store authorization code: %w", err)
-	}
-
-	slog.Info("Created authorization code", "client_id", clientID, "state", state)
-	return authCode, nil
 }
 
 // GenerateAuthCodeURL generates the authorization URL for a client using oauth2 package with PKCE support
