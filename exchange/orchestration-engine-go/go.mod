@@ -7,7 +7,10 @@ require (
 	github.com/stretchr/testify v1.11.1
 )
 
-require github.com/lib/pq v1.10.9
+require (
+	github.com/lib/pq v1.10.9
+	golang.org/x/oauth2 v0.32.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

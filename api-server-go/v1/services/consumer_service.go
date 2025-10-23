@@ -33,9 +33,9 @@ func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*mo
 		// Use shared entityService instance
 		newEntity, err := s.entityService.CreateEntity(&models.CreateEntityRequest{
 			Name:        req.Name,
-			EntityType:  req.EntityType,
 			Email:       req.Email,
 			PhoneNumber: req.PhoneNumber,
+			IdpUserID:   req.IdpUserID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create entity: %w", err)
@@ -56,8 +56,8 @@ func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*mo
 	response := &models.ConsumerResponse{
 		ConsumerID:  consumer.ConsumerID,
 		EntityID:    consumer.EntityID,
+		IdpUserID:   entity.IdpUserID,
 		Name:        entity.Name,
-		EntityType:  entity.EntityType,
 		Email:       entity.Email,
 		PhoneNumber: entity.PhoneNumber,
 		CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
@@ -79,8 +79,8 @@ func (s *ConsumerService) UpdateConsumer(consumerID string, req *models.UpdateCo
 	if req.Name != nil {
 		consumer.Entity.Name = *req.Name
 	}
-	if req.EntityType != nil {
-		consumer.Entity.EntityType = *req.EntityType
+	if req.IdpUserID != nil {
+		consumer.Entity.IdpUserID = *req.IdpUserID
 	}
 	if req.Email != nil {
 		consumer.Entity.Email = *req.Email
@@ -102,8 +102,8 @@ func (s *ConsumerService) UpdateConsumer(consumerID string, req *models.UpdateCo
 	response := &models.ConsumerResponse{
 		ConsumerID:  consumer.ConsumerID,
 		EntityID:    consumer.EntityID,
+		IdpUserID:   consumer.Entity.IdpUserID,
 		Name:        consumer.Entity.Name,
-		EntityType:  consumer.Entity.EntityType,
 		Email:       consumer.Entity.Email,
 		PhoneNumber: consumer.Entity.PhoneNumber,
 		CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
@@ -126,11 +126,11 @@ func (s *ConsumerService) GetConsumer(consumerID string) (*models.ConsumerRespon
 		ConsumerID:  consumer.ConsumerID,
 		EntityID:    consumer.EntityID,
 		Name:        consumer.Entity.Name,
-		EntityType:  consumer.Entity.EntityType,
 		Email:       consumer.Entity.Email,
 		PhoneNumber: consumer.Entity.PhoneNumber,
 		CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   consumer.UpdatedAt.Format(time.RFC3339),
+		IdpUserID:   consumer.Entity.IdpUserID,
 	}, nil
 }
 
@@ -148,8 +148,8 @@ func (s *ConsumerService) GetAllConsumers() ([]models.ConsumerResponse, error) {
 		response[i] = models.ConsumerResponse{
 			ConsumerID:  consumer.ConsumerID,
 			EntityID:    consumer.EntityID,
+			IdpUserID:   consumer.Entity.IdpUserID,
 			Name:        consumer.Entity.Name,
-			EntityType:  consumer.Entity.EntityType,
 			Email:       consumer.Entity.Email,
 			PhoneNumber: consumer.Entity.PhoneNumber,
 			CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
