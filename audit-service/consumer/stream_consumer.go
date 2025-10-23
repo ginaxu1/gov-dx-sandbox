@@ -13,7 +13,6 @@ import (
 const (
 	streamName     = "audit-events"
 	groupName      = "audit-processors"
-	consumerName   = "audit-service-instance-1" // This should be dynamic (e.g., from hostname)
 	dlqStreamName  = "audit-events_dlq"
 	maxRetry       = 5
 	blockTimeout   = 5 * time.Second
@@ -28,12 +27,13 @@ type AuditEventProcessor interface {
 
 // StreamConsumer holds the logic for consuming from the Redis Stream.
 type StreamConsumer struct {
-	client    *redisclient.RedisClient
-	processor AuditEventProcessor
+	client       *redisclient.RedisClient
+	processor    AuditEventProcessor
+	consumerName string
 }
 
 // NewStreamConsumer creates a new consumer and ensures the stream group exists.
-func NewStreamConsumer(client *redisclient.RedisClient, processor AuditEventProcessor) (*StreamConsumer, error) {
+func NewStreamConsumer(client *redisclient.RedisClient, processor AuditEventProcessor, consumerName string) (*StreamConsumer, error) {
 	ctx := context.Background()
 
 	// Ensure the consumer group exists
@@ -44,8 +44,9 @@ func NewStreamConsumer(client *redisclient.RedisClient, processor AuditEventProc
 	log.Printf("Consumer group %s ensured for stream %s", groupName, streamName)
 
 	return &StreamConsumer{
-		client:    client,
-		processor: processor,
+		client:       client,
+		processor:    processor,
+		consumerName: consumerName,
 	}, nil
 }
 
@@ -71,7 +72,7 @@ func (c *StreamConsumer) Start(ctx context.Context) {
 // readNewMessages reads new messages from the stream.
 func (c *StreamConsumer) readNewMessages(ctx context.Context) {
 	// Use the abstracted method from RedisClient
-	messages, err := c.client.ReadFromStreamGroup(ctx, streamName, groupName, consumerName, blockTimeout)
+	messages, err := c.client.ReadFromStreamGroup(ctx, streamName, groupName, c.consumerName, blockTimeout)
 	if err != nil {
 		log.Printf("Error in ReadFromStreamGroup: %v", err)
 		time.Sleep(1 * time.Second) // Avoid spamming on repeated errors
@@ -87,7 +88,7 @@ func (c *StreamConsumer) readNewMessages(ctx context.Context) {
 // claimPendingMessages checks for "stuck" messages and processes them.
 func (c *StreamConsumer) claimPendingMessages(ctx context.Context) {
 	// Check for pending messages for this consumer
-	pending, err := c.client.GetPendingMessages(ctx, streamName, groupName, consumerName)
+	pending, err := c.client.GetPendingMessages(ctx, streamName, groupName, c.consumerName)
 	if err != nil {
 		log.Printf("Error checking pending messages: %v", err)
 		return
@@ -104,7 +105,7 @@ func (c *StreamConsumer) claimPendingMessages(ctx context.Context) {
 
 	if len(msgIDs) > 0 {
 		// Claim the messages
-		claimedMsgs, err := c.client.ClaimMessages(ctx, streamName, groupName, consumerName, pendingTimeout, msgIDs)
+		claimedMsgs, err := c.client.ClaimMessages(ctx, streamName, groupName, c.consumerName, pendingTimeout, msgIDs)
 		if err != nil {
 			log.Printf("Error claiming messages: %v", err)
 			return

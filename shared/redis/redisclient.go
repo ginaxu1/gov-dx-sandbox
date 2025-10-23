@@ -1,4 +1,4 @@
-package redis
+package redisclient
 
 import (
 	"context"
@@ -48,11 +48,6 @@ func (c *RedisClient) Close() error {
 	return c.client.Close()
 }
 
-// GetClient returns the underlying go-redis client if needed.
-func (c *RedisClient) GetClient() *redis.Client {
-	return c.client
-}
-
 // PublishAuditEvent adds an event to the audit stream using XADD.
 // 'data' should be a map[string]interface{} representing the event.
 func (c *RedisClient) PublishAuditEvent(ctx context.Context, streamName string, data map[string]interface{}) (string, error) {
@@ -70,116 +65,96 @@ func (c *RedisClient) PublishAuditEvent(ctx context.Context, streamName string, 
 	return msgID, nil
 }
 
-// CreateConsumerGroup creates a consumer group for the stream
-func (c *RedisClient) CreateConsumerGroup(ctx context.Context, streamName, groupName string) error {
-	err := c.client.XGroupCreateMkStream(ctx, streamName, groupName, "0").Err()
-	if err != nil && !contains(err.Error(), "BUSYGROUP") {
-		return fmt.Errorf("failed to create consumer group %s: %w", groupName, err)
-	}
-	return nil
-}
+// --- New Consumer Methods ---
 
-// ConsumeFromStream starts consuming messages from the stream using XREADGROUP
-func (c *RedisClient) ConsumeFromStream(ctx context.Context, streamName, groupName, consumerName string) (<-chan redis.XStream, error) {
-	// Create consumer group first
-	if err := c.CreateConsumerGroup(ctx, streamName, groupName); err != nil {
-		return nil, err
-	}
-
-	// Create channel for streaming results
-	ch := make(chan redis.XStream, 1)
-
-	go func() {
-		defer close(ch)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				// XREADGROUP with blocking
-				streams, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
-					Group:    groupName,
-					Consumer: consumerName,
-					Streams:  []string{streamName, ">"},
-					Block:    0, // Block indefinitely
-				}).Result()
-
-				if err != nil {
-					// Log error and retry after delay
-					time.Sleep(5 * time.Second)
-					continue
-				}
-
-				// Send streams to channel
-				for _, stream := range streams {
-					select {
-					case ch <- stream:
-					case <-ctx.Done():
-						return
-					}
-				}
-			}
-		}
-	}()
-
-	return ch, nil
-}
-
-// AcknowledgeMessage acknowledges a processed message
-func (c *RedisClient) AcknowledgeMessage(ctx context.Context, streamName, groupName, messageID string) error {
-	err := c.client.XAck(ctx, streamName, groupName, messageID).Err()
+// EnsureStreamGroupExists creates the consumer group (idempotent).
+// Call this on consumer startup.
+func (c *RedisClient) EnsureStreamGroupExists(ctx context.Context, streamName, groupName string) error {
+	// XGROUP CREATE streamName groupName $ MKSTREAM
+	// This command is idempotent.
+	// - Creates the consumer group 'groupName' for 'streamName'.
+	// - '$' means it will only read *new* messages (not historical ones).
+	// - 'MKSTREAM' creates the stream if it doesn't already exist.
+	err := c.client.XGroupCreateMkStream(ctx, streamName, groupName, "$").Err()
 	if err != nil {
-		return fmt.Errorf("failed to acknowledge message %s: %w", messageID, err)
+		// "BUSYGROUP" error is fine, it means the group already exists.
+		if _, ok := err.(redis.Error); !ok || err.Error() != "BUSYGROUP Consumer Group name already exists" {
+			return fmt.Errorf("failed to create consumer group: %w", err)
+		}
 	}
 	return nil
 }
 
-// GetPendingMessages gets unacknowledged messages for recovery
-func (c *RedisClient) GetPendingMessages(ctx context.Context, streamName, groupName string) ([]redis.XPendingExt, error) {
-	result := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
-		Stream: streamName,
-		Group:  groupName,
-		Start:  "-",
-		End:    "+",
-		Count:  100,
-	})
+// ReadFromStreamGroup blocks and reads new messages from the stream.
+// Returns a slice of messages or an error.
+func (c *RedisClient) ReadFromStreamGroup(ctx context.Context, streamName, groupName, consumerName string, block time.Duration) ([]redis.XMessage, error) {
+	// XREADGROUP GROUP groupName consumerName COUNT 1 BLOCK <block-ms> STREAMS streamName >
+	streams, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    groupName,
+		Consumer: consumerName,
+		Streams:  []string{streamName, ">"},
+		Count:    1, // Read one at a time for safer processing
+		Block:    block,
+	}).Result()
 
-	if result.Err() != nil {
-		return nil, fmt.Errorf("failed to get pending messages: %w", result.Err())
+	if err != nil {
+		// redis.Nil indicates a timeout, which is normal
+		if err == redis.Nil {
+			return nil, nil // Return nil, nil to indicate no new message
+		}
+		return nil, fmt.Errorf("failed to XReadGroup: %w", err)
 	}
 
-	return result.Val(), nil
+	// We are only reading from one stream, so safe to return the first element
+	if len(streams) > 0 {
+		return streams[0].Messages, nil
+	}
+
+	return nil, nil
 }
 
-// ClaimPendingMessages claims unacknowledged messages for reprocessing
-func (c *RedisClient) ClaimPendingMessages(ctx context.Context, streamName, groupName, consumerName string, minIdleTime time.Duration) ([]redis.XMessage, error) {
-	result := c.client.XClaim(ctx, &redis.XClaimArgs{
+// GetPendingMessages checks for messages delivered to a consumer but not yet acknowledged.
+func (c *RedisClient) GetPendingMessages(ctx context.Context, streamName, groupName, consumerName string) ([]redis.XPendingExt, error) {
+	// XPENDING streamName groupName Start End Count Consumer
+	pending, err := c.client.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream:   streamName,
+		Group:    groupName,
+		Start:    "-", // From the beginning
+		End:      "+", // To the end
+		Count:    10,  // Check up to 10 pending messages
+		Consumer: consumerName,
+	}).Result()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to check XPending: %w", err)
+	}
+	return pending, nil
+}
+
+// ClaimMessages allows a consumer to "steal" pending messages from another consumer
+// (or itself) that have been idle for too long.
+func (c *RedisClient) ClaimMessages(ctx context.Context, streamName, groupName, consumerName string, minIdle time.Duration, msgIDs []string) ([]redis.XMessage, error) {
+	// XCLAIM stream group consumer min-idle-time msgID1 [msgID2 ...]
+	claimedMsgs, err := c.client.XClaim(ctx, &redis.XClaimArgs{
 		Stream:   streamName,
 		Group:    groupName,
 		Consumer: consumerName,
-		MinIdle:  minIdleTime,
-		Messages: []string{"0-0"},
-	})
+		MinIdle:  minIdle,
+		Messages: msgIDs,
+	}).Result()
 
-	if result.Err() != nil {
-		return nil, fmt.Errorf("failed to claim pending messages: %w", result.Err())
+	if err != nil {
+		return nil, fmt.Errorf("failed to XClaim messages: %w", err)
 	}
-
-	return result.Val(), nil
+	return claimedMsgs, nil
 }
 
-// GetStreamLength returns the current stream length
-func (c *RedisClient) GetStreamLength(ctx context.Context, streamName string) (int64, error) {
-	return c.client.XLen(ctx, streamName).Result()
-}
-
-// HealthCheck verifies Redis connectivity
-func (c *RedisClient) HealthCheck(ctx context.Context) error {
-	return c.client.Ping(ctx).Err()
-}
-
-// Helper function to check if error message contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || (len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || contains(s[1:], substr))))
+// AckMessage acknowledges a message as successfully processed.
+func (c *RedisClient) AckMessage(ctx context.Context, streamName, groupName, msgID string) error {
+	// XACK streamName groupName msgID
+	err := c.client.XAck(ctx, streamName, groupName, msgID).Err()
+	if err != nil {
+		return fmt.Errorf("failed to XAck message %s: %w", msgID, err)
+	}
+	return nil
 }
