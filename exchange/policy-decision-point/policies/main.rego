@@ -12,7 +12,7 @@ decision = {
     "allow": true,
     "consent_required": consent_required,
     "consent_required_fields": consent_fields
-} {
+} if {
     # Check if all requested fields are authorized for the app
     all_fields_authorized(get_required_fields(input), get_app_id(input))
     
@@ -22,66 +22,87 @@ decision = {
 }
 
 # Helper function to check if all requested fields are authorized for the app
-all_fields_authorized(requested_fields, app_id) {
+all_fields_authorized(requested_fields, app_id) if {
+    # If no fields requested, allow access
+    count(requested_fields) == 0
+}
+
+all_fields_authorized(requested_fields, app_id) if {
     # All requested fields must be authorized
     field := requested_fields[_]
     field_authorized(field, app_id)
 }
 
 # Helper function to check if a specific field is authorized for the app
-field_authorized(field, app_id) {
-    field_metadata := provider_metadata.fields[field]
+field_authorized(field, app_id) if {
+    field_metadata := policy_metadata.fields[field]
     
     # Public fields with no allow list are always authorized
     field_metadata.access_control_type == "public"
     count(field_metadata.allow_list) == 0
-} else = true {
-    field_metadata := provider_metadata.fields[field]
+}
+
+field_authorized(field, app_id) if {
+    field_metadata := policy_metadata.fields[field]
     
     # Public fields with allow list require app to be in allow list
     field_metadata.access_control_type == "public"
     count(field_metadata.allow_list) > 0
     app_in_allow_list(field, app_id)
-} else = true {
-    field_metadata := provider_metadata.fields[field]
+}
+
+field_authorized(field, app_id) if {
+    field_metadata := policy_metadata.fields[field]
     
     # Restricted fields require app to be in allow list
     field_metadata.access_control_type == "restricted"
     app_in_allow_list(field, app_id)
-} else = false {
-    # Default to false for any other case
-    true
 }
 
 # Helper function to check if app is in the allow list for a field
-app_in_allow_list(field, app_id) {
-    field_metadata := provider_metadata.fields[field]
+app_in_allow_list(field, app_id) if {
+    field_metadata := policy_metadata.fields[field]
     allow_list := field_metadata.allow_list[_]
-    allow_list.consumer_id == app_id
+    allow_list.application_id == app_id
 }
 
 # Function to get fields that require consent
-# Consent is required when: consent_required: true (determined by @isOwner directive)
-get_consent_required_fields(requested_fields, app_id) = fields {
+# Consent is required when: !is_owner && access_control_type != "public"
+get_consent_required_fields(requested_fields, app_id) = fields if {
     fields := [field | 
         field := requested_fields[_]
-        field_metadata := provider_metadata.fields[field]
-        field_metadata.consent_required == true
+        field_metadata := policy_metadata.fields[field]
+        consent_required_for_field(field_metadata)
     ]
 }
 
+# Helper function to determine if consent is required for a field
+# Consent required: !is_owner && access_control_type != "public"
+consent_required_for_field(field_metadata) if {
+    not field_metadata.is_owner
+    field_metadata.access_control_type != "public"
+}
+
 # Helper functions for input format
-# Get consumer ID from the input
-get_consumer_id(req) = consumer_id {
-    consumer_id := req.consumer_id
+# Get application ID from the input
+get_application_id(req) = application_id if {
+    application_id := req.consumer_id
 }
 
 # Get required fields from the input
-get_required_fields(req) = fields {
+get_required_fields(req) = fields if {
     fields := req.required_fields
 }
 
 # Get app ID from the input
-get_app_id(req) = app_id {
+get_app_id(req) = app_id if {
     app_id := req.app_id
+}
+
+# Debug data rule for debugging policy metadata
+debug_data = {
+    "policy_metadata": policy_metadata,
+    "available_fields": [field | field := policy_metadata.fields[_]],
+    "field_count": count(policy_metadata.fields),
+    "message": "Policy metadata loaded successfully"
 }
