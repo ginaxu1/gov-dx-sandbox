@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	redisclient "github.com/gov-dx-sandbox/shared/redis"
-	"github.com/redis/go-redis/v9"
+	"github.com/gov-dx-sandbox/shared/redis"
+	redisclient "github.com/redis/go-redis/v9"
 )
 
 const (
@@ -27,13 +27,13 @@ type AuditEventProcessor interface {
 
 // StreamConsumer holds the logic for consuming from the Redis Stream.
 type StreamConsumer struct {
-	client       *redisclient.RedisClient
+	client       *redis.RedisClient
 	processor    AuditEventProcessor
 	consumerName string
 }
 
 // NewStreamConsumer creates a new consumer and ensures the stream group exists.
-func NewStreamConsumer(client *redisclient.RedisClient, processor AuditEventProcessor, consumerName string) (*StreamConsumer, error) {
+func NewStreamConsumer(client *redis.RedisClient, processor AuditEventProcessor, consumerName string) (*StreamConsumer, error) {
 	ctx := context.Background()
 
 	// Ensure the consumer group exists
@@ -119,7 +119,7 @@ func (c *StreamConsumer) claimPendingMessages(ctx context.Context) {
 }
 
 // processMessage contains the core logic for processing and acknowledging.
-func (c *StreamConsumer) processMessage(ctx context.Context, msg redis.XMessage) {
+func (c *StreamConsumer) processMessage(ctx context.Context, msg redisclient.XMessage) {
 	log.Printf("Processing message: %s", msg.ID)
 
 	// Convert map[string]interface{} to map[string]string

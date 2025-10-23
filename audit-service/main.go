@@ -10,7 +10,7 @@ import (
 
 	"github.com/gov-dx-sandbox/audit-service/consumer"
 	"github.com/gov-dx-sandbox/audit-service/services"
-	redisclient "github.com/gov-dx-sandbox/shared/redis"
+	"github.com/gov-dx-sandbox/shared/redis"
 )
 
 // main is the entry point for the audit service.
@@ -64,13 +64,13 @@ func main() {
 	}
 
 	// 3. Connect to Redis
-	redisCfg := &redisclient.Config{
+	redisCfg := &redis.Config{
 		Addr:     getEnvOrDefault("REDIS_ADDR", "localhost:6379"),
 		Password: getEnvOrDefault("REDIS_PASSWORD", ""),
 		DB:       0,
 	}
 
-	redisClient, err := redisclient.NewClient(redisCfg)
+	redisClient, err := redis.NewClient(redisCfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}

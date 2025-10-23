@@ -5,7 +5,7 @@ import (
 
 	"github.com/gov-dx-sandbox/audit-service/consumer"
 	"github.com/gov-dx-sandbox/audit-service/services"
-	redisclient "github.com/gov-dx-sandbox/shared/redis"
+	"github.com/gov-dx-sandbox/shared/redis"
 )
 
 // TestConsumerLogic tests the consumer logic without requiring a real database or Redis
@@ -42,14 +42,14 @@ func contains(s, substr string) bool {
 func TestRedisClientConfig(t *testing.T) {
 	t.Run("RedisClient_Config", func(t *testing.T) {
 		// Test Redis client configuration
-		config := &redisclient.Config{
+		config := &redis.Config{
 			Addr:     "localhost:6379",
 			Password: "",
 			DB:       0,
 		}
 
 		// This will fail because Redis is not running, but it tests the config
-		client, err := redisclient.NewClient(config)
+		client, err := redis.NewClient(config)
 		if err == nil {
 			// If Redis is running, close the client
 			client.Close()
@@ -66,13 +66,13 @@ func TestRedisClientConfig(t *testing.T) {
 func TestStreamConsumerCreation(t *testing.T) {
 	t.Run("StreamConsumer_Creation", func(t *testing.T) {
 		// Create a mock Redis client (this will fail to connect, but tests the structure)
-		config := &redisclient.Config{
+		config := &redis.Config{
 			Addr:     "localhost:6379",
 			Password: "",
 			DB:       0,
 		}
 
-		client, err := redisclient.NewClient(config)
+		client, err := redis.NewClient(config)
 		if err != nil {
 			t.Logf("Redis not available for testing: %v", err)
 			return
@@ -84,7 +84,7 @@ func TestStreamConsumerCreation(t *testing.T) {
 		processor := consumer.NewDatabaseEventProcessor(auditService)
 
 		// Test stream consumer creation
-		streamConsumer, err := consumer.NewStreamConsumer(client, processor)
+		streamConsumer, err := consumer.NewStreamConsumer(client, processor, "test-consumer")
 		if err != nil {
 			t.Fatalf("Failed to create stream consumer: %v", err)
 		}
