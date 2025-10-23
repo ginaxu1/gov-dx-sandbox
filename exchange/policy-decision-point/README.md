@@ -35,7 +35,7 @@ docker build -t pdp . && docker run -p 8082:8082 pdp
 **Request:**
 ```json
 {
-  "consumer_id": "passport-app",
+  "application_id": "passport-app",
   "app_id": "passport-app", 
   "request_id": "req_123",
   "required_fields": ["person.fullName", "person.photo"]
@@ -56,7 +56,7 @@ docker build -t pdp . && docker run -p 8082:8082 pdp
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer_id": "passport-app",
+    "application_id": "passport-app",
     "app_id": "passport-app",
     "request_id": "req_123",
     "required_fields": ["person.fullName", "person.photo"]
@@ -90,7 +90,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer_id": "passport-app",
+    "application_id": "passport-app",
     "app_id": "passport-app",
     "request_id": "req_001",
     "required_fields": ["person.fullName"]
@@ -100,7 +100,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer_id": "passport-app",
+    "application_id": "passport-app",
     "app_id": "passport-app",
     "request_id": "req_002",
     "required_fields": ["person.nic", "person.photo"]
@@ -110,7 +110,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer_id": "unknown-app",
+    "application_id": "unknown-app",
     "app_id": "unknown-app",
     "request_id": "req_003",
     "required_fields": ["person.birthDate"]
@@ -120,7 +120,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer_id": "driver-app",
+    "application_id": "driver-app",
     "app_id": "driver-app",
     "request_id": "req_004",
     "required_fields": ["person.birthDate"]
@@ -152,7 +152,7 @@ Fields are configured in the database and can be updated via the `/metadata/upda
       "access_control_type": "restricted",
       "allow_list": [
         {
-          "consumer_id": "driver-app",
+          "application_id": "driver-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
         }

@@ -50,7 +50,7 @@ type PolicyEvaluator struct {
 
 // AuthorizationRequest represents the input structure for policy evaluation
 type AuthorizationRequest struct {
-	ConsumerID     string    `json:"consumer_id"`
+	ApplicationID  string    `json:"application_id"`
 	AppID          string    `json:"app_id"`
 	RequestID      string    `json:"request_id"`
 	RequiredFields []string  `json:"required_fields"`
@@ -144,7 +144,7 @@ func (p *PolicyEvaluator) Authorize(ctx context.Context, input interface{}) (*Au
 	}
 
 	slog.Info("Policy evaluation completed",
-		"consumer_id", authReq.ConsumerID,
+		"application_id", authReq.ApplicationID,
 		"app_id", authReq.AppID,
 		"request_id", authReq.RequestID,
 		"required_fields", authReq.RequiredFields,
@@ -168,8 +168,8 @@ func (p *PolicyEvaluator) validateInput(input interface{}) (*AuthorizationReques
 	}
 
 	// Validate required fields
-	if authReq.ConsumerID == "" {
-		return nil, fmt.Errorf("consumer_id is required")
+	if authReq.ApplicationID == "" {
+		return nil, fmt.Errorf("application_id is required")
 	}
 	if authReq.AppID == "" {
 		return nil, fmt.Errorf("app_id is required")

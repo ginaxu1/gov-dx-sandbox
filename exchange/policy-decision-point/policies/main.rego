@@ -79,9 +79,9 @@ consent_required_for_field(field_metadata) {
 }
 
 # Helper functions for input format
-# Get consumer ID from the input
-get_consumer_id(req) = consumer_id {
-    consumer_id := req.consumer_id
+# Get application ID from the input
+get_application_id(req) = application_id {
+    application_id := req.application_id
 }
 
 # Get required fields from the input

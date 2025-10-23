@@ -25,7 +25,7 @@ func TestConsentLogic(t *testing.T) {
 		{
 			name: "Owner with public field - no consent required",
 			request: models.PolicyDecisionRequest{
-				ConsumerID:     "test-app",
+				ApplicationID:  "test-app",
 				AppID:          "test-app",
 				RequestID:      "req-1",
 				RequiredFields: []string{"person.fullName"},
@@ -37,7 +37,7 @@ func TestConsentLogic(t *testing.T) {
 		{
 			name: "Owner with restricted field - no consent required",
 			request: models.PolicyDecisionRequest{
-				ConsumerID:     "test-app",
+				ApplicationID:  "test-app",
 				AppID:          "test-app",
 				RequestID:      "req-2",
 				RequiredFields: []string{"person.nic"},
@@ -49,7 +49,7 @@ func TestConsentLogic(t *testing.T) {
 		{
 			name: "Non-owner with restricted field - consent required",
 			request: models.PolicyDecisionRequest{
-				ConsumerID:     "test-app",
+				ApplicationID:  "test-app",
 				AppID:          "test-app",
 				RequestID:      "req-3",
 				RequiredFields: []string{"person.birthDate"},
@@ -61,7 +61,7 @@ func TestConsentLogic(t *testing.T) {
 		{
 			name: "Non-owner with public field - no consent required",
 			request: models.PolicyDecisionRequest{
-				ConsumerID:     "test-app",
+				ApplicationID:  "test-app",
 				AppID:          "test-app",
 				RequestID:      "req-4",
 				RequiredFields: []string{"public.field"},
@@ -73,7 +73,7 @@ func TestConsentLogic(t *testing.T) {
 		{
 			name: "Mixed fields - some require consent",
 			request: models.PolicyDecisionRequest{
-				ConsumerID:     "test-app",
+				ApplicationID:  "test-app",
 				AppID:          "test-app",
 				RequestID:      "req-5",
 				RequiredFields: []string{"person.fullName", "person.birthDate", "public.field"},
@@ -85,7 +85,7 @@ func TestConsentLogic(t *testing.T) {
 		{
 			name: "Unauthorized app - access denied",
 			request: models.PolicyDecisionRequest{
-				ConsumerID:     "unauthorized-app",
+				ApplicationID:  "unauthorized-app",
 				AppID:          "unauthorized-app",
 				RequestID:      "req-6",
 				RequiredFields: []string{"person.fullName"},
@@ -142,7 +142,7 @@ func TestConsentLogicEdgeCases(t *testing.T) {
 	// Test with empty fields
 	t.Run("Empty required fields", func(t *testing.T) {
 		request := models.PolicyDecisionRequest{
-			ConsumerID:     "test-app",
+			ApplicationID:  "test-app",
 			AppID:          "test-app",
 			RequestID:      "req-empty",
 			RequiredFields: []string{},
@@ -162,7 +162,7 @@ func TestConsentLogicEdgeCases(t *testing.T) {
 	// Test with non-existent field
 	t.Run("Non-existent field", func(t *testing.T) {
 		request := models.PolicyDecisionRequest{
-			ConsumerID:     "test-app",
+			ApplicationID:  "test-app",
 			AppID:          "test-app",
 			RequestID:      "req-nonexistent",
 			RequiredFields: []string{"nonexistent.field"},
@@ -241,7 +241,7 @@ func TestConsentLogicWithRealData(t *testing.T) {
 	// Test owner field - should not require consent
 	t.Run("Owner field - no consent required", func(t *testing.T) {
 		request := models.PolicyDecisionRequest{
-			ConsumerID:     "test-app",
+			ApplicationID:  "test-app",
 			AppID:          "test-app",
 			RequestID:      "req-owner",
 			RequiredFields: []string{"test.ownerField"},
@@ -264,7 +264,7 @@ func TestConsentLogicWithRealData(t *testing.T) {
 	// Test non-owner field - should require consent
 	t.Run("Non-owner field - consent required", func(t *testing.T) {
 		request := models.PolicyDecisionRequest{
-			ConsumerID:     "test-app",
+			ApplicationID:  "test-app",
 			AppID:          "test-app",
 			RequestID:      "req-nonowner",
 			RequiredFields: []string{"test.nonOwnerField"},

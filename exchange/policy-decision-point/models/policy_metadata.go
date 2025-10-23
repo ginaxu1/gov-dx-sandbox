@@ -55,7 +55,7 @@ type PolicyMetadata struct {
 
 // PolicyDecisionRequest represents a policy decision request
 type PolicyDecisionRequest struct {
-	ConsumerID     string                 `json:"consumer_id"`
+	ApplicationID  string                 `json:"application_id"`
 	AppID          string                 `json:"app_id"`
 	RequestID      string                 `json:"request_id"`
 	RequiredFields []string               `json:"required_fields"`
