@@ -23,6 +23,11 @@ decision = {
 
 # Helper function to check if all requested fields are authorized for the app
 all_fields_authorized(requested_fields, app_id) {
+    # If no fields requested, allow access
+    count(requested_fields) == 0
+}
+
+all_fields_authorized(requested_fields, app_id) {
     # All requested fields must be authorized
     field := requested_fields[_]
     field_authorized(field, app_id)

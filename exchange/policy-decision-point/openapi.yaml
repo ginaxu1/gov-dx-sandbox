@@ -182,18 +182,18 @@ components:
     PolicyDecisionRequest:
       type: object
       required:
-        - application_id
+        - consumer_id
         - app_id
         - request_id
         - required_fields
       properties:
-        application_id:
+        consumer_id:
           type: string
-          description: ID of the application making the request
+          description: ID of the consumer that owns the application
           example: passport-app
         app_id:
           type: string
-          description: ID of the application (usually same as application_id)
+          description: ID of the application making the request
           example: passport-app
         request_id:
           type: string

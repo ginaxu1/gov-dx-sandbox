@@ -26,6 +26,8 @@ docker build -t pdp . && docker run -p 8082:8082 pdp
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/decide` | POST | Authorization decision |
+| `/policy-metadata` | POST | Create policy metadata for fields |
+| `/allow-list` | POST | Update allow list for applications |
 | `/health` | GET | Health check |
 
 ## Authorization Request
@@ -35,7 +37,7 @@ docker build -t pdp . && docker run -p 8082:8082 pdp
 **Request:**
 ```json
 {
-  "application_id": "passport-app",
+  "consumer_id": "passport-app",
   "app_id": "passport-app", 
   "request_id": "req_123",
   "required_fields": ["person.fullName", "person.photo"]
@@ -56,7 +58,7 @@ docker build -t pdp . && docker run -p 8082:8082 pdp
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "application_id": "passport-app",
+    "consumer_id": "passport-app",
     "app_id": "passport-app",
     "request_id": "req_123",
     "required_fields": ["person.fullName", "person.photo"]
@@ -90,7 +92,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "application_id": "passport-app",
+    "consumer_id": "passport-app",
     "app_id": "passport-app",
     "request_id": "req_001",
     "required_fields": ["person.fullName"]
@@ -100,7 +102,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "application_id": "passport-app",
+    "consumer_id": "passport-app",
     "app_id": "passport-app",
     "request_id": "req_002",
     "required_fields": ["person.nic", "person.photo"]
@@ -110,7 +112,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "application_id": "unknown-app",
+    "consumer_id": "unknown-app",
     "app_id": "unknown-app",
     "request_id": "req_003",
     "required_fields": ["person.birthDate"]
@@ -120,7 +122,7 @@ curl -X POST http://localhost:8082/decide \
 curl -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "application_id": "driver-app",
+    "consumer_id": "driver-app",
     "app_id": "driver-app",
     "request_id": "req_004",
     "required_fields": ["person.birthDate"]
@@ -131,30 +133,90 @@ curl -X POST http://localhost:8082/decide \
 
 - `policies/main.rego` - OPA authorization policies
 
+## Policy Metadata Management
+
+### Create Policy Metadata
+
+**Endpoint:** `POST /policy-metadata`
+
+**Request:**
+```json
+{
+  "field_name": "person.fullName",
+  "display_name": "Full Name",
+  "description": "Complete name of the person",
+  "source": "primary",
+  "is_owner": true,
+  "access_control_type": "public",
+  "allow_list": []
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Created policy metadata for field person.fullName",
+  "id": "82907bce-38c4-44b5-9392-7f7fd70c8c67"
+}
+```
+
+### Update Allow List
+
+**Endpoint:** `POST /allow-list`
+
+**Request:**
+```json
+{
+  "field_name": "person.fullName",
+  "application_id": "passport-app",
+  "expires_at": "2024-12-31T23:59:59Z"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Updated allow list for field person.fullName with application passport-app"
+}
+```
+
 ## Field Configuration
 
-Fields are configured in the database and can be updated via the `/metadata/update` endpoint:
+Fields are configured in the database via the policy metadata endpoints. The consent logic is:
+
+- **Consent Required**: `!is_owner && access_control_type != "public"`
+- **Owner Fields**: No consent required regardless of access control type
+- **Public Fields**: No consent required for non-owners
+- **Restricted Fields**: Consent required for non-owners
+
+### Example Field Configurations
 
 ```json
 {
   "fields": {
     "person.fullName": {
-      "owner": "citizen",
-      "provider": "drp",
-      "consent_required": false,
+      "owner": "CITIZEN",
+      "provider": "primary",
+      "is_owner": true,
       "access_control_type": "public",
-      "allow_list": []
+      "allow_list": [
+        {
+          "application_id": "passport-app",
+          "expires_at": "2024-12-31T23:59:59Z"
+        }
+      ]
     },
     "person.birthDate": {
-      "owner": "rgd",
-      "provider": "drp", 
-      "consent_required": false,
+      "owner": "CITIZEN",
+      "provider": "primary", 
+      "is_owner": false,
       "access_control_type": "restricted",
       "allow_list": [
         {
-          "application_id": "driver-app",
-          "expires_at": 1757560679,
-          "grant_duration": "30d"
+          "application_id": "passport-app",
+          "expires_at": "2024-12-31T23:59:59Z"
         }
       ]
     }
