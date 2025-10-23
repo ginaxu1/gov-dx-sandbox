@@ -51,14 +51,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize metadata handler with database service and evaluator
-	metadataHandler := NewMetadataHandler(evaluator.dbService, evaluator)
+	// Initialize metadata handler with database service
+	metadataHandler := NewMetadataHandler(evaluator.dbService)
 
 	// Setup routes
 	mux := http.NewServeMux()
 	mux.Handle("/decide", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.policyDecisionHandler)))
 	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(evaluator.debugHandler)))
-	mux.Handle("/metadata/update", utils.PanicRecoveryMiddleware(http.HandlerFunc(metadataHandler.UpdateProviderMetadata)))
+	mux.Handle("/policy-metadata", utils.PanicRecoveryMiddleware(http.HandlerFunc(metadataHandler.CreatePolicyMetadata)))
+	mux.Handle("/allow-list", utils.PanicRecoveryMiddleware(http.HandlerFunc(metadataHandler.UpdateAllowList)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("policy-decision-point")))
 
 	// Create server using utils
