@@ -2,13 +2,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gov-dx-sandbox/audit-service/consumer"
+	"github.com/gov-dx-sandbox/audit-service/handlers"
+	"github.com/gov-dx-sandbox/audit-service/middleware"
 	"github.com/gov-dx-sandbox/audit-service/services"
 	"github.com/gov-dx-sandbox/shared/redis"
 )
@@ -97,10 +102,56 @@ func main() {
 
 	// 5. Start the consumer in a new goroutine
 	go streamConsumer.Start(ctx)
+	log.Println("Redis Stream consumer started.")
 
-	log.Println("Audit service started. Waiting for events...")
+	// 6. Setup and Start the HTTP API Server
+	apiHandler := handlers.NewAuditHandler(auditService)
 
-	// 6. Wait for shutdown signal
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/logs", apiHandler.HandleAuditLogs)
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy","service":"audit-service"}`))
+	})
+	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"version":"1.0.0","service":"audit-service"}`))
+	})
+
+	// Add CORS middleware
+	handler := middleware.NewCORSMiddleware()(mux)
+
+	httpServer := &http.Server{
+		Addr:    ":" + getEnvOrDefault("PORT", "3001"),
+		Handler: handler,
+	}
+
+	// Start the server in a goroutine so it doesn't block
+	go func() {
+		log.Printf("HTTP API server starting on %s", httpServer.Addr)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("HTTP server ListenAndServe error: %v", err)
+		}
+		log.Println("HTTP server stopped.")
+	}()
+
+	log.Println("Audit service started. Available endpoints:")
+	log.Println("  GET  /health - Health check")
+	log.Println("  GET  /version - Version info")
+	log.Println("  GET  /api/logs - Retrieve audit logs")
+
+	// 7. Wait for shutdown signal
 	<-ctx.Done()
-	log.Println("Audit service shutting down.")
+	log.Println("Audit service shutting down...")
+
+	// 8. Gracefully shut down the HTTP server
+	//    Give it 5 seconds to finish any active requests.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server graceful shutdown failed: %v", err)
+	}
 }

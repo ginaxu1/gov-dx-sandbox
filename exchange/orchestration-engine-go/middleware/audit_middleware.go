@@ -2,30 +2,47 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
+	"context"
 	"io"
 	"net/http"
+	"os"
 	"reflect"
 	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/shared/redis"
 )
 
 // AuditMiddleware handles audit logging for requests
 type AuditMiddleware struct {
-	auditServiceURL string
-	httpClient      *http.Client
-	schemaService   interface{} // Schema service interface
+	redisClient   *redis.RedisClient
+	schemaService interface{} // Schema service interface
 }
 
 // NewAuditMiddleware creates a new audit middleware
-func NewAuditMiddleware(auditServiceURL string, schemaService interface{}) *AuditMiddleware {
+func NewAuditMiddleware(schemaService interface{}) *AuditMiddleware {
+	// Try to connect to Redis
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
+	redisClient, err := redis.NewClient(&redis.Config{
+		Addr:     redisAddr,
+		Password: os.Getenv("REDIS_PASSWORD"),
+		DB:       0,
+	})
+	if err != nil {
+		logger.Log.Warn("Failed to connect to Redis, audit middleware will be in degraded state", "error", err)
+		redisClient = nil
+	} else {
+		logger.Log.Info("Successfully connected to Redis for audit logging")
+	}
+
 	return &AuditMiddleware{
-		auditServiceURL: auditServiceURL,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		redisClient:   redisClient,
 		schemaService: schemaService,
 	}
 }
@@ -90,7 +107,7 @@ func (am *AuditMiddleware) AuditHandler(next http.HandlerFunc) http.HandlerFunc 
 		}
 
 		// Send audit log asynchronously (don't block the response)
-		go am.sendAuditLog(auditRequest, startTime)
+		go am.sendAuditLog(auditRequest, startTime, responseWrapper.body.String())
 
 		// Write the response to the original writer
 		w.WriteHeader(responseWrapper.statusCode)
@@ -98,42 +115,42 @@ func (am *AuditMiddleware) AuditHandler(next http.HandlerFunc) http.HandlerFunc 
 	}
 }
 
-// sendAuditLog sends the audit log to the audit service
-func (am *AuditMiddleware) sendAuditLog(auditRequest AuditLogRequest, startTime time.Time) {
-	// Marshal the audit request
-	requestBody, err := json.Marshal(auditRequest)
-	if err != nil {
-		logger.Log.Error("Failed to marshal audit request", "error", err)
+// sendAuditLog sends the audit log to Redis Streams
+func (am *AuditMiddleware) sendAuditLog(auditRequest AuditLogRequest, startTime time.Time, responseData string) {
+	if am.redisClient == nil {
+		logger.Log.Warn("Redis client not available, skipping audit log")
 		return
 	}
 
-	// Create HTTP request
-	req, err := http.NewRequest("POST", am.auditServiceURL+"/api/logs", bytes.NewBuffer(requestBody))
-	if err != nil {
-		logger.Log.Error("Failed to create audit request", "error", err)
-		return
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Prepare audit event data for Redis Streams
+	eventData := map[string]interface{}{
+		"event_id":           uuid.New().String(),
+		"consumer_id":        auditRequest.ApplicationID,
+		"provider_id":        auditRequest.SchemaID,
+		"requested_data":     auditRequest.RequestedData,
+		"response_data":      responseData,
+		"transaction_status": auditRequest.Status,
+		"user_agent":         "", // Will be filled from request if needed
+		"ip_address":         "", // Will be filled from request if needed
+		"timestamp":          time.Now().Unix(),
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send the request
-	resp, err := am.httpClient.Do(req)
+	// Publish to Redis Stream
+	msgID, err := am.redisClient.PublishAuditEvent(ctx, "audit-events", eventData)
 	if err != nil {
-		logger.Log.Error("Failed to send audit log", "error", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		logger.Log.Error("Audit service returned error", "status", resp.StatusCode)
+		logger.Log.Error("Failed to publish audit event to Redis Stream", "error", err)
 		return
 	}
 
 	// Log successful audit
-	logger.Log.Info("Audit log sent successfully",
+	logger.Log.Info("Audit log sent successfully to Redis Stream",
 		"status", auditRequest.Status,
 		"duration", time.Since(startTime),
-		"audit_service_status", resp.StatusCode)
+		"message_id", msgID)
 }
 
 // responseWriter wraps http.ResponseWriter to capture response details
