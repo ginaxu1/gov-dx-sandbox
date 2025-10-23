@@ -24,9 +24,9 @@ func (s *EntityService) CreateEntity(req *models.CreateEntityRequest) (*models.E
 	entity := models.Entity{
 		EntityID:    "ent_" + uuid.New().String(),
 		Name:        req.Name,
-		EntityType:  req.EntityType,
 		Email:       req.Email,
 		PhoneNumber: req.PhoneNumber,
+		IdpUserID:   req.IdpUserID,
 	}
 
 	if err := s.db.Create(&entity).Error; err != nil {
@@ -35,8 +35,8 @@ func (s *EntityService) CreateEntity(req *models.CreateEntityRequest) (*models.E
 
 	response := &models.EntityResponse{
 		EntityID:    entity.EntityID,
+		IdpUserID:   entity.IdpUserID,
 		Name:        entity.Name,
-		EntityType:  entity.EntityType,
 		Email:       entity.Email,
 		PhoneNumber: entity.PhoneNumber,
 		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
@@ -58,8 +58,8 @@ func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRe
 	if req.Name != nil {
 		entity.Name = *req.Name
 	}
-	if req.EntityType != nil {
-		entity.EntityType = *req.EntityType
+	if req.IdpUserID != nil {
+		entity.IdpUserID = *req.IdpUserID
 	}
 	if req.Email != nil {
 		entity.Email = *req.Email
@@ -74,8 +74,8 @@ func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRe
 
 	response := &models.EntityResponse{
 		EntityID:    entity.EntityID,
+		IdpUserID:   entity.IdpUserID,
 		Name:        entity.Name,
-		EntityType:  entity.EntityType,
 		Email:       entity.Email,
 		PhoneNumber: entity.PhoneNumber,
 		CreatedAt:   entity.CreatedAt.Format(time.RFC3339),
@@ -89,14 +89,8 @@ func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRe
 func (s *EntityService) GetEntity(entityID string) (*models.EntityResponse, error) {
 	var result struct {
 		models.Entity
-		ProviderID *string `gorm:"column:provider_id"`
-		ConsumerID *string `gorm:"column:consumer_id"`
 	}
-
 	err := s.db.Table("entities").
-		Select("entities.*, providers.provider_id, consumers.consumer_id").
-		Joins("LEFT JOIN providers ON entities.entity_id = providers.entity_id").
-		Joins("LEFT JOIN consumers ON entities.entity_id = consumers.entity_id").
 		Where("entities.entity_id = ?", entityID).
 		First(&result).Error
 
@@ -106,14 +100,12 @@ func (s *EntityService) GetEntity(entityID string) (*models.EntityResponse, erro
 
 	response := &models.EntityResponse{
 		EntityID:    result.Entity.EntityID,
+		IdpUserID:   result.Entity.IdpUserID,
 		Name:        result.Entity.Name,
-		EntityType:  result.Entity.EntityType,
 		Email:       result.Entity.Email,
 		PhoneNumber: result.Entity.PhoneNumber,
 		CreatedAt:   result.Entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   result.Entity.UpdatedAt.Format(time.RFC3339),
-		ProviderID:  result.ProviderID,
-		ConsumerID:  result.ConsumerID,
 	}
 
 	return response, nil
@@ -123,16 +115,9 @@ func (s *EntityService) GetEntity(entityID string) (*models.EntityResponse, erro
 func (s *EntityService) GetAllEntities() ([]models.EntityResponse, error) {
 	var results []struct {
 		models.Entity
-		ProviderID *string `gorm:"column:provider_id"`
-		ConsumerID *string `gorm:"column:consumer_id"`
 	}
 
-	err := s.db.Table("entities").
-		Select("entities.*, providers.provider_id, consumers.consumer_id").
-		Joins("LEFT JOIN providers ON entities.entity_id = providers.entity_id").
-		Joins("LEFT JOIN consumers ON entities.entity_id = consumers.entity_id").
-		Find(&results).Error
-
+	err := s.db.Table("entities").Find(&results).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch entities: %w", err)
 	}
@@ -141,14 +126,12 @@ func (s *EntityService) GetAllEntities() ([]models.EntityResponse, error) {
 	for i, result := range results {
 		response[i] = models.EntityResponse{
 			EntityID:    result.Entity.EntityID,
+			IdpUserID:   result.Entity.IdpUserID,
 			Name:        result.Entity.Name,
-			EntityType:  result.Entity.EntityType,
 			Email:       result.Entity.Email,
 			PhoneNumber: result.Entity.PhoneNumber,
 			CreatedAt:   result.Entity.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:   result.Entity.UpdatedAt.Format(time.RFC3339),
-			ProviderID:  result.ProviderID,
-			ConsumerID:  result.ConsumerID,
 		}
 	}
 
