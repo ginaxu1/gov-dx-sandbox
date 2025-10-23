@@ -357,7 +357,8 @@ components:
         source:
           type: string
           description: Source system for this field
-          example: "passport_system"
+          enum: ["primary", "fallback"]
+          example: "primary"
         is_owner:
           type: boolean
           description: Whether the field owner is the data owner
@@ -365,6 +366,7 @@ components:
         access_control_type:
           type: string
           description: Access control type for the field
+          enum: ["public", "restricted"]
           example: "restricted"
         allow_list:
           type: array

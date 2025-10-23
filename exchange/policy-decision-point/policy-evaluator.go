@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 )
 
 // Policy Decision Point specific constants
@@ -177,9 +177,7 @@ func (p *PolicyEvaluator) validateInput(input interface{}) (*AuthorizationReques
 	if authReq.RequestID == "" {
 		return nil, fmt.Errorf("request_id is required")
 	}
-	if len(authReq.RequiredFields) == 0 {
-		return nil, fmt.Errorf("required_fields cannot be empty")
-	}
+	// Empty fields are allowed - they will be handled by the policy logic
 
 	// Add timestamp if not provided
 	if authReq.Timestamp.IsZero() {

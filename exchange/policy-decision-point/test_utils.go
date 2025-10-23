@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/models"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 )
 
 // MockDatabaseService is a mock implementation of DatabaseService for testing
