@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -166,6 +167,20 @@ func (s *OAuth2Service) ValidateClient(clientID, clientSecret, redirectURI strin
 	return client, nil
 }
 
+// ValidateClientCredentials validates only client ID and secret (for refresh tokens and client credentials)
+func (s *OAuth2Service) ValidateClientCredentials(clientID, clientSecret string) (*models.OAuth2Client, error) {
+	client, err := s.GetClient(clientID)
+	if err != nil {
+		return nil, err
+	}
+
+	if client.ClientSecret != clientSecret {
+		return nil, errors.UnauthorizedError("Invalid client credentials")
+	}
+
+	return client, nil
+}
+
 // CreateAuthorizationCode creates a new authorization code
 func (s *OAuth2Service) CreateAuthorizationCode(clientID, userID, redirectURI string, scopes []string) (*models.OAuth2AuthorizationCode, error) {
 	code := s.generateAuthorizationCode()
@@ -314,15 +329,15 @@ func (s *OAuth2Service) ValidateAccessToken(accessToken string) (*models.UserInf
 
 // RefreshAccessToken creates a new access token using a refresh token
 func (s *OAuth2Service) RefreshAccessToken(refreshToken, clientID, clientSecret string) (*models.OAuth2AccessToken, error) {
-	// Validate client credentials
-	_, err := s.ValidateClient(clientID, clientSecret, "")
+	// Validate client credentials (no redirect URI needed for refresh tokens)
+	_, err := s.ValidateClientCredentials(clientID, clientSecret)
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate refresh token
-	query := `SELECT refresh_token, client_id, user_id, scopes, expires_at, is_active 
-			  FROM oauth2_refresh_tokens WHERE refresh_token = ? AND client_id = ?`
+	// Validate refresh token using the consolidated oauth2_tokens table
+	query := `SELECT token, client_id, user_id, scopes, expires_at, is_active 
+			  FROM oauth2_tokens WHERE token = ? AND client_id = ? AND token_type = 'refresh'`
 
 	var refresh models.OAuth2RefreshToken
 	var scopesJSON string
@@ -455,8 +470,15 @@ func (s *OAuth2Service) GenerateJWTToken(userInfo *models.UserInfo, clientID str
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	// In a real implementation, you would use a proper secret key
-	secret := "your-secret-key"
+	// Get JWT secret from environment variable
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		// Generate a random secret for development/testing
+		secretBytes := make([]byte, 32)
+		rand.Read(secretBytes)
+		secret = base64.URLEncoding.EncodeToString(secretBytes)
+		slog.Warn("JWT_SECRET not set, using generated secret for development")
+	}
 	return token.SignedString([]byte(secret))
 }
 
@@ -631,11 +653,29 @@ func (s *OAuth2Service) markAuthorizationCodeAsUsed(code string) error {
 	return err
 }
 
+// extractUserInfoFromRefreshToken extracts user ID and scopes from an existing refresh token
+func (s *OAuth2Service) extractUserInfoFromRefreshToken(refreshToken string) (string, []string, error) {
+	query := `SELECT user_id, scopes FROM oauth2_tokens WHERE token = ? AND token_type = 'refresh' AND is_active = true`
+
+	var userID, scopesJSON string
+	err := s.db.QueryRow(query, refreshToken).Scan(&userID, &scopesJSON)
+	if err != nil {
+		return "", nil, fmt.Errorf("refresh token not found or invalid: %w", err)
+	}
+
+	// Parse scopes from JSON
+	scopes := shared.JSONToScopes(scopesJSON)
+	return userID, scopes, nil
+}
+
 // storeOAuth2Token stores an oauth2.Token in our consolidated database
 func (s *OAuth2Service) storeOAuth2Token(clientID string, token *oauth2.Token) error {
-	// Extract user ID from token (in a real implementation, this would come from the token claims)
-	userID := "user_123"            // This should be extracted from the token
-	scopes := []string{"read:data"} // Default scopes
+	// Extract user ID and scopes from the existing refresh token in the database
+	userID, scopes, err := s.extractUserInfoFromRefreshToken(token.RefreshToken)
+	if err != nil {
+		slog.Error("Failed to extract user info from refresh token", "error", err)
+		return fmt.Errorf("failed to extract user info from refresh token: %w", err)
+	}
 	now := time.Now()
 
 	// Calculate access token expiry

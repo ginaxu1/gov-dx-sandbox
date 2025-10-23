@@ -3,6 +3,7 @@ package shared
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -22,27 +23,39 @@ func GenerateToken() (string, error) {
 }
 
 // ScopesToJSON converts a slice of scopes to JSON string
+// Uses json.Marshal for proper JSON encoding to handle special characters safely
 func ScopesToJSON(scopes []string) string {
 	if len(scopes) == 0 {
 		return "[]"
 	}
-	return fmt.Sprintf(`["%s"]`, strings.Join(scopes, `","`))
+
+	// Use json.Marshal for proper JSON encoding
+	// This handles special characters like quotes, backslashes, etc. safely
+	jsonBytes, err := json.Marshal(scopes)
+	if err != nil {
+		// Fallback to empty array if marshaling fails
+		return "[]"
+	}
+
+	return string(jsonBytes)
 }
 
 // JSONToScopes converts a JSON string to a slice of scopes
+// Uses json.Unmarshal for proper JSON parsing to handle special characters safely
 func JSONToScopes(scopesJSON string) []string {
 	if scopesJSON == "[]" || scopesJSON == "" {
 		return []string{}
 	}
-	// Simple JSON parsing for scopes array
-	scopesJSON = strings.Trim(scopesJSON, "[]")
-	if scopesJSON == "" {
+
+	// Use json.Unmarshal for proper JSON parsing
+	// This handles special characters like quotes, backslashes, etc. safely
+	var scopes []string
+	err := json.Unmarshal([]byte(scopesJSON), &scopes)
+	if err != nil {
+		// Fallback to empty slice if parsing fails
 		return []string{}
 	}
-	scopes := strings.Split(scopesJSON, ",")
-	for i, scope := range scopes {
-		scopes[i] = strings.Trim(scope, `"`)
-	}
+
 	return scopes
 }
 
@@ -66,4 +79,41 @@ func CreateTokenResponse(accessToken, refreshToken, scope string, expiresIn int)
 	}
 
 	return response
+}
+
+// TestScopesWithSpecialCharacters demonstrates how the fixed functions handle special characters
+// This function can be used for testing purposes
+func TestScopesWithSpecialCharacters() {
+	// Test cases with special characters that could cause issues with manual string concatenation
+	testCases := [][]string{
+		{"read:data", "write:data"},
+		{"scope with spaces", "scope\"with\"quotes"},
+		{"scope\\with\\backslashes", "scope\nwith\nnewlines"},
+		{"scope\twith\ttabs", "scope/with/slashes"},
+		{"scope with unicode: 测试", "scope with emoji: 🚀"},
+		{"scope with special chars: !@#$%^&*()", "scope with brackets: [test]"},
+	}
+
+	for i, scopes := range testCases {
+		// Convert to JSON
+		jsonStr := ScopesToJSON(scopes)
+
+		// Convert back from JSON
+		parsedScopes := JSONToScopes(jsonStr)
+
+		// Verify round-trip conversion works
+		if len(scopes) != len(parsedScopes) {
+			fmt.Printf("Test case %d failed: length mismatch\n", i)
+			continue
+		}
+
+		for j, scope := range scopes {
+			if scope != parsedScopes[j] {
+				fmt.Printf("Test case %d failed: scope mismatch at index %d\n", i, j)
+				break
+			}
+		}
+
+		fmt.Printf("Test case %d passed: %v -> %s -> %v\n", i, scopes, jsonStr, parsedScopes)
+	}
 }
