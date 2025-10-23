@@ -76,22 +76,22 @@ func NewPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 
 	query := "data.opendif.authz.decision"
 
-	// Load provider metadata from database
-	providerMetadata, err := dbService.GetAllProviderMetadata()
+	// Load policy metadata from database
+	policyMetadata, err := dbService.GetAllPolicyMetadata()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load provider metadata from database: %w", err)
+		return nil, fmt.Errorf("failed to load policy metadata from database: %w", err)
 	}
-	slog.Info("Provider metadata data loaded from database", "fields", len(providerMetadata.Fields))
+	slog.Info("Policy metadata loaded from database", "fields", len(policyMetadata["fields"].(map[string]interface{})))
 
 	// Convert data to JSON string for embedding in policy
-	providerMetadataJSON, _ := json.Marshal(providerMetadata)
+	policyMetadataJSON, _ := json.Marshal(policyMetadata)
 
 	// Create a module with the data embedded as JSON values
 	dataModule := fmt.Sprintf(`
 		package opendif.authz
 
-		provider_metadata = %s
-		`, string(providerMetadataJSON))
+		policy_metadata = %s
+		`, string(policyMetadataJSON))
 
 	r := rego.New(
 		rego.Query(query),
@@ -209,20 +209,20 @@ func (p *PolicyEvaluator) convertToDecision(result interface{}) (*AuthorizationD
 func (p *PolicyEvaluator) DebugData(ctx context.Context) (interface{}, error) {
 	query := "data.opendif.authz.debug_data"
 
-	// Load provider metadata from database
-	providerMetadata, err := p.dbService.GetAllProviderMetadata()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load provider metadata from database: %w", err)
+	// For now, use empty metadata structure
+	// TODO: Implement proper policy metadata loading from database
+	policyMetadata := map[string]interface{}{
+		"fields": map[string]interface{}{},
 	}
 
 	// Convert data to JSON string for embedding in policy
-	debugProviderMetadataJSON, _ := json.Marshal(providerMetadata)
+	debugProviderMetadataJSON, _ := json.Marshal(policyMetadata)
 
 	// Create a module with the data embedded as JSON values
 	debugDataModule := fmt.Sprintf(`
 package opendif.authz
 
-provider_metadata = %s
+policy_metadata = %s
 `, string(debugProviderMetadataJSON))
 
 	r := rego.New(
@@ -252,22 +252,22 @@ provider_metadata = %s
 func (p *PolicyEvaluator) RefreshMetadata(ctx context.Context) error {
 	slog.Info("Refreshing provider metadata from database...")
 
-	// Load provider metadata from database
-	providerMetadata, err := p.dbService.GetAllProviderMetadata()
+	// Load policy metadata from database
+	policyMetadata, err := p.dbService.GetAllPolicyMetadata()
 	if err != nil {
-		return fmt.Errorf("failed to load provider metadata from database: %w", err)
+		return fmt.Errorf("failed to load policy metadata from database: %w", err)
 	}
-	slog.Info("Provider metadata data refreshed from database", "fields", len(providerMetadata.Fields))
+	slog.Info("Policy metadata loaded from database", "fields", len(policyMetadata["fields"].(map[string]interface{})))
 
 	// Convert data to JSON string for embedding in policy
-	providerMetadataJSON, _ := json.Marshal(providerMetadata)
+	policyMetadataJSON, _ := json.Marshal(policyMetadata)
 
 	// Create a module with the data embedded as JSON values
 	dataModule := fmt.Sprintf(`
 		package opendif.authz
 
-		provider_metadata = %s
-		`, string(providerMetadataJSON))
+		policy_metadata = %s
+		`, string(policyMetadataJSON))
 
 	query := "data.opendif.authz.decision"
 	r := rego.New(

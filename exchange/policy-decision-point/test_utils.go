@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,86 +11,187 @@ import (
 
 // MockDatabaseService is a mock implementation of DatabaseService for testing
 type MockDatabaseService struct {
-	metadata *models.ProviderMetadata
+	policyMetadata []models.PolicyMetadata
 }
 
 // NewMockDatabaseService creates a new mock database service with test data
 func NewMockDatabaseService() *MockDatabaseService {
-	// Create test provider metadata
-	metadata := &models.ProviderMetadata{
-		Fields: map[string]models.ProviderMetadataField{
-			"person.fullName": {
-				Owner:             "citizen",
-				Provider:          "drp",
-				ConsentRequired:   false,
-				AccessControlType: "public",
-				AllowList: []models.PDPAllowListEntry{
-					{
-						ConsumerID:    "test-app",
-						ExpiresAt:     time.Now().Add(24 * time.Hour).Unix(),
-						GrantDuration: "30d",
-					},
+	// Create test policy metadata
+	policyMetadata := []models.PolicyMetadata{
+		{
+			ID:                "test-id-1",
+			FieldName:         "person.fullName",
+			DisplayName:       stringPtr("Full Name"),
+			Description:       stringPtr("Complete name of the person"),
+			Source:            "drp",
+			IsOwner:           true,
+			Owner:             "CITIZEN",
+			AccessControlType: "public",
+			AllowList: []models.AllowListEntry{
+				{
+					ApplicationID: "test-app",
+					ExpiresAt:     time.Now().Add(24 * time.Hour).Unix(),
 				},
 			},
-			"person.nic": {
-				Owner:             "citizen",
-				Provider:          "drp",
-				ConsentRequired:   true,
-				AccessControlType: "public",
-				AllowList: []models.PDPAllowListEntry{
-					{
-						ConsumerID:    "test-app",
-						ExpiresAt:     time.Now().Add(24 * time.Hour).Unix(),
-						GrantDuration: "30d",
-					},
+			CreatedAt: time.Now().Format(time.RFC3339),
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		},
+		{
+			ID:                "test-id-2",
+			FieldName:         "person.nic",
+			DisplayName:       stringPtr("NIC Number"),
+			Description:       stringPtr("National Identity Card number"),
+			Source:            "drp",
+			IsOwner:           true,
+			Owner:             "CITIZEN",
+			AccessControlType: "restricted",
+			AllowList: []models.AllowListEntry{
+				{
+					ApplicationID: "test-app",
+					ExpiresAt:     time.Now().Add(24 * time.Hour).Unix(),
 				},
 			},
-			"person.birthDate": {
-				Owner:             "citizen",
-				Provider:          "drp",
-				ConsentRequired:   false,
-				AccessControlType: "restricted",
-				AllowList: []models.PDPAllowListEntry{
-					{
-						ConsumerID:    "test-app",
-						ExpiresAt:     time.Now().Add(24 * time.Hour).Unix(),
-						GrantDuration: "30d",
-					},
+			CreatedAt: time.Now().Format(time.RFC3339),
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		},
+		{
+			ID:                "test-id-3",
+			FieldName:         "person.birthDate",
+			DisplayName:       stringPtr("Birth Date"),
+			Description:       stringPtr("Date of birth"),
+			Source:            "drp",
+			IsOwner:           true,
+			Owner:             "CITIZEN",
+			AccessControlType: "restricted",
+			AllowList: []models.AllowListEntry{
+				{
+					ApplicationID: "test-app",
+					ExpiresAt:     time.Now().Add(24 * time.Hour).Unix(),
 				},
 			},
-			"public.field": {
-				Owner:             "external",
-				Provider:          "external-provider",
-				ConsentRequired:   false,
-				AccessControlType: "public",
-				AllowList:         []models.PDPAllowListEntry{}, // Empty allow list means public access
-			},
+			CreatedAt: time.Now().Format(time.RFC3339),
+			UpdatedAt: time.Now().Format(time.RFC3339),
+		},
+		{
+			ID:                "test-id-4",
+			FieldName:         "public.field",
+			DisplayName:       stringPtr("Public Field"),
+			Description:       stringPtr("A public field"),
+			Source:            "external",
+			IsOwner:           false,
+			Owner:             "CITIZEN",
+			AccessControlType: "public",
+			AllowList:         []models.AllowListEntry{}, // Empty allow list means public access
+			CreatedAt:         time.Now().Format(time.RFC3339),
+			UpdatedAt:         time.Now().Format(time.RFC3339),
 		},
 	}
 
 	return &MockDatabaseService{
-		metadata: metadata,
+		policyMetadata: policyMetadata,
 	}
 }
 
-// GetAllProviderMetadata returns the mock provider metadata
-func (m *MockDatabaseService) GetAllProviderMetadata() (*models.ProviderMetadata, error) {
-	return m.metadata, nil
-}
+// CreatePolicyMetadata creates a new policy metadata record
+func (m *MockDatabaseService) CreatePolicyMetadata(req *models.PolicyMetadataCreateRequest) (string, error) {
+	id := fmt.Sprintf("test-id-%d", len(m.policyMetadata)+1)
 
-// UpdateProviderField is a no-op for testing
-func (m *MockDatabaseService) UpdateProviderField(fieldName string, field models.ProviderMetadataField) error {
-	if m.metadata.Fields == nil {
-		m.metadata.Fields = make(map[string]models.ProviderMetadataField)
+	// Convert allow list from request
+	allowList := make([]models.AllowListEntry, len(req.AllowList))
+	for i, entry := range req.AllowList {
+		allowList[i] = models.AllowListEntry{
+			ApplicationID: entry.ApplicationID,
+			ExpiresAt:     entry.ExpiresAt,
+		}
 	}
-	m.metadata.Fields[fieldName] = field
-	return nil
+
+	newRecord := models.PolicyMetadata{
+		ID:                id,
+		FieldName:         req.FieldName,
+		DisplayName:       stringPtr(req.DisplayName),
+		Description:       stringPtr(req.Description),
+		Source:            req.Source,
+		IsOwner:           req.IsOwner,
+		Owner:             "CITIZEN",
+		AccessControlType: req.AccessControlType,
+		AllowList:         allowList,
+		CreatedAt:         time.Now().Format(time.RFC3339),
+		UpdatedAt:         time.Now().Format(time.RFC3339),
+	}
+
+	m.policyMetadata = append(m.policyMetadata, newRecord)
+	return id, nil
 }
 
-// UpdateProviderMetadata is a no-op for testing
-func (m *MockDatabaseService) UpdateProviderMetadata(metadata *models.ProviderMetadata) error {
-	m.metadata = metadata
-	return nil
+// UpdateAllowList updates the allow list for a specific field
+func (m *MockDatabaseService) UpdateAllowList(req *models.AllowListUpdateRequest) error {
+	// Parse expires_at timestamp
+	expiresAt, err := time.Parse(time.RFC3339, req.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("invalid expires_at format, expected RFC3339: %w", err)
+	}
+
+	// Find the field and update its allow list
+	for i, record := range m.policyMetadata {
+		if record.FieldName == req.FieldName {
+			// Check if application already exists in allow list
+			found := false
+			for j, entry := range record.AllowList {
+				if entry.ApplicationID == req.ApplicationID {
+					// Update existing entry
+					record.AllowList[j] = models.AllowListEntry{
+						ApplicationID: req.ApplicationID,
+						ExpiresAt:     expiresAt.Unix(),
+					}
+					found = true
+					break
+				}
+			}
+
+			// Add new entry if not found
+			if !found {
+				newEntry := models.AllowListEntry{
+					ApplicationID: req.ApplicationID,
+					ExpiresAt:     expiresAt.Unix(),
+				}
+				record.AllowList = append(record.AllowList, newEntry)
+			}
+
+			record.UpdatedAt = time.Now().Format(time.RFC3339)
+			m.policyMetadata[i] = record
+			return nil
+		}
+	}
+
+	return fmt.Errorf("field %s not found", req.FieldName)
+}
+
+// GetAllPolicyMetadata returns mock policy metadata for testing
+func (m *MockDatabaseService) GetAllPolicyMetadata() (map[string]interface{}, error) {
+	// Convert mock data to the expected format
+	fields := make(map[string]interface{})
+	for _, record := range m.policyMetadata {
+		fieldMetadata := map[string]interface{}{
+			"owner":               record.Owner,
+			"provider":            record.Source,
+			"is_owner":            record.IsOwner,
+			"access_control_type": record.AccessControlType,
+			"allow_list":          record.AllowList,
+		}
+
+		if record.DisplayName != nil {
+			fieldMetadata["display_name"] = *record.DisplayName
+		}
+		if record.Description != nil {
+			fieldMetadata["description"] = *record.Description
+		}
+
+		fields[record.FieldName] = fieldMetadata
+	}
+
+	return map[string]interface{}{
+		"fields": fields,
+	}, nil
 }
 
 // Close is a no-op for testing
@@ -104,27 +204,64 @@ func NewMockPolicyEvaluator(ctx context.Context) (*PolicyEvaluator, error) {
 	// Create mock database service
 	dbService := NewMockDatabaseService()
 
-	// Load provider metadata from mock service
-	providerMetadata, err := dbService.GetAllProviderMetadata()
-	if err != nil {
-		return nil, err
-	}
-
 	// Create policy evaluator with mock data
-	return createPolicyEvaluatorWithData(ctx, providerMetadata, dbService)
+	return createPolicyEvaluatorWithData(ctx, dbService)
 }
 
 // createPolicyEvaluatorWithData is a helper function to create a policy evaluator with specific data
-func createPolicyEvaluatorWithData(ctx context.Context, metadata *models.ProviderMetadata, dbService DatabaseServiceInterface) (*PolicyEvaluator, error) {
-	// Convert data to JSON string for embedding in policy
-	providerMetadataJSON, _ := json.Marshal(metadata)
-
-	// Create a module with the data embedded as JSON values
-	dataModule := fmt.Sprintf(`
+func createPolicyEvaluatorWithData(ctx context.Context, dbService DatabaseServiceInterface) (*PolicyEvaluator, error) {
+	// Create test data structure that matches the new policy metadata format
+	dataModule := `
 		package opendif.authz
 
-		provider_metadata = %s
-		`, string(providerMetadataJSON))
+		policy_metadata = {
+			"fields": {
+				"person.fullName": {
+					"owner": "CITIZEN",
+					"provider": "primary",
+					"is_owner": true,
+					"access_control_type": "public",
+					"allow_list": [
+						{
+							"application_id": "test-app",
+							"expires_at": 1704067199
+						}
+					]
+				},
+				"person.nic": {
+					"owner": "CITIZEN", 
+					"provider": "primary",
+					"is_owner": true,
+					"access_control_type": "restricted",
+					"allow_list": [
+						{
+							"application_id": "test-app",
+							"expires_at": 1704067199
+						}
+					]
+				},
+				"person.birthDate": {
+					"owner": "CITIZEN",
+					"provider": "primary", 
+					"is_owner": false,
+					"access_control_type": "restricted",
+					"allow_list": [
+						{
+							"application_id": "test-app",
+							"expires_at": 1704067199
+						}
+					]
+				},
+				"public.field": {
+					"owner": "CITIZEN",
+					"provider": "primary",
+					"is_owner": false,
+					"access_control_type": "public",
+					"allow_list": []
+				}
+			}
+		}
+		`
 
 	query := "data.opendif.authz.decision"
 	r := rego.New(
@@ -139,4 +276,9 @@ func createPolicyEvaluatorWithData(ctx context.Context, metadata *models.Provide
 	}
 
 	return &PolicyEvaluator{preparedQuery: pq, dbService: dbService}, nil
+}
+
+// Helper function to create string pointers
+func stringPtr(s string) *string {
+	return &s
 }
