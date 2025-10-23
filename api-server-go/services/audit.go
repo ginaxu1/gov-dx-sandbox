@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,85 +11,77 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
+	"github.com/gov-dx-sandbox/shared/redis"
 )
 
-// AuditService handles communication with the audit-service
+// AuditService handles communication with the audit-service via Redis
 type AuditService struct {
-	auditServiceURL string
-	httpClient      *http.Client
+	redisClient *redis.RedisClient
 }
 
-// NewAuditService creates a new audit service
-func NewAuditService(auditServiceURL string) *AuditService {
+// NewAuditService creates a new audit service with Redis support
+func NewAuditService() *AuditService {
+	// Try to connect to Redis
+	redisClient, err := redis.NewClient(&redis.Config{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
+	if err != nil {
+		slog.Warn("Failed to connect to Redis, audit service will be in degraded state", "error", err)
+		redisClient = nil
+	}
+
 	return &AuditService{
-		auditServiceURL: auditServiceURL,
-		httpClient: &http.Client{
-			Timeout: 5 * time.Second, // Short timeout to avoid blocking main requests
-		},
+		redisClient: redisClient,
 	}
 }
 
-// SendAuditLog sends an audit log to the audit-service
-func (s *AuditService) SendAuditLog(ctx context.Context, auditReq *models.AuditLogRequest) error {
-	// Convert to new simplified log structure
-	logReq := models.LogRequest{
-		Status:        s.mapTransactionStatus(auditReq.TransactionStatus),
-		RequestedData: s.extractGraphQLQuery(auditReq.RequestedData),
-		ConsumerID:    auditReq.ConsumerID,
-		ProviderID:    auditReq.ProviderID,
-	}
-
-	// Serialize the request
-	reqBody, err := json.Marshal(logReq)
-	if err != nil {
-		return fmt.Errorf("failed to marshal audit request: %w", err)
-	}
-
-	// Create HTTP request to new /api/logs endpoint
-	req, err := http.NewRequestWithContext(ctx, "POST", s.auditServiceURL+"/api/logs", bytes.NewBuffer(reqBody))
-	if err != nil {
-		return fmt.Errorf("failed to create audit request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send request
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send audit request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("audit service returned status %d", resp.StatusCode)
-	}
-
-	// Parse response
-	var logResp models.Log
-	if err := json.NewDecoder(resp.Body).Decode(&logResp); err != nil {
-		slog.Warn("Failed to parse audit response", "error", err)
-		// Don't return error here as the audit was likely successful
-	}
-
-	slog.Debug("Audit log sent successfully", "log_id", logResp.ID, "status", logResp.Status)
-	return nil
-}
-
-// SendAuditLogAsync sends an audit log asynchronously to avoid blocking the main request
+// SendAuditLogAsync sends an audit log asynchronously to Redis stream
 func (s *AuditService) SendAuditLogAsync(auditReq *models.AuditLogRequest) {
+	if s.redisClient == nil {
+		slog.Warn("Redis client not available, skipping audit log",
+			"event_id", auditReq.EventID,
+			"consumer_id", auditReq.ConsumerID,
+			"provider_id", auditReq.ProviderID)
+		return
+	}
+
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 
-		if err := s.SendAuditLog(ctx, auditReq); err != nil {
-			slog.Error("Failed to send audit log asynchronously",
+		if err := s.sendAuditLogToRedis(ctx, auditReq); err != nil {
+			slog.Error("Failed to send audit log to Redis stream",
 				"error", err,
 				"event_id", auditReq.EventID,
 				"consumer_id", auditReq.ConsumerID,
 				"provider_id", auditReq.ProviderID)
+		} else {
+			slog.Debug("Audit log sent to Redis stream successfully",
+				"event_id", auditReq.EventID)
 		}
 	}()
+}
+
+// sendAuditLogToRedis sends an audit log to Redis stream
+func (s *AuditService) sendAuditLogToRedis(ctx context.Context, auditReq *models.AuditLogRequest) error {
+	// Convert to simple map for Redis stream
+	event := map[string]interface{}{
+		"event_id":           auditReq.EventID.String(),
+		"consumer_id":        auditReq.ConsumerID,
+		"provider_id":        auditReq.ProviderID,
+		"requested_data":     string(auditReq.RequestedData),
+		"response_data":      string(auditReq.ResponseData),
+		"transaction_status": auditReq.TransactionStatus,
+		"user_agent":         auditReq.UserAgent,
+		"ip_address":         auditReq.IPAddress,
+		"timestamp":          time.Now().Unix(),
+	}
+
+	// Use the new PublishAuditEvent method
+	_, err := s.redisClient.PublishAuditEvent(ctx, "audit-events", event)
+	return err
 }
 
 // ExtractConsumerIDFromRequest extracts consumer ID from request path, headers, query params, or body

@@ -2,184 +2,78 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"flag"
-	"log/slog"
-	"net/http"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/gov-dx-sandbox/audit-service/handlers"
-	"github.com/gov-dx-sandbox/audit-service/middleware"
+	"github.com/gov-dx-sandbox/audit-service/consumer"
 	"github.com/gov-dx-sandbox/audit-service/services"
+	"github.com/gov-dx-sandbox/shared/redis"
 )
 
-// Build information - set during build
-var (
-	Version   = "dev"
-	BuildTime = "unknown"
-	GitCommit = "unknown"
-)
-
-// Database-related functions are now in database.go
-
+// main is the entry point for the audit service.
 func main() {
-	// Parse command line flags
-	var (
-		env  = flag.String("env", getEnvOrDefault("ENVIRONMENT", "production"), "Environment (development, production)")
-		port = flag.String("port", getEnvOrDefault("PORT", "3001"), "Port to listen on")
-	)
-	flag.Parse()
+	// 1. Setup graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Server configuration
-	serverPort := *port
+	go func() {
+		<-sigChan
+		log.Println("Shutdown signal received, canceling context...")
+		cancel()
+	}()
 
-	// Initialize database connection
+	// 2. Connect to Database (Your existing logic)
 	dbConfig := NewDatabaseConfig()
-	slog.Info("Connecting to database",
-		"host", dbConfig.Host,
-		"port", dbConfig.Port,
-		"database", dbConfig.Database)
+	log.Printf("Connecting to database: %s:%s/%s", dbConfig.Host, dbConfig.Port, dbConfig.Database)
 
 	db, err := ConnectDB(dbConfig)
 	if err != nil {
-		slog.Error("Failed to connect to database", "error", err)
-		os.Exit(1)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	// Note: We'll close the database connection in graceful shutdown, not with defer
-
-	// Initialize database tables
-	slog.Info("Initializing database tables and views")
-	if err := InitDatabase(db); err != nil {
-		slog.Error("Failed to initialize database", "error", err)
-		// Don't exit immediately - log the error and continue
-		// The service can still start and handle requests, database operations will fail gracefully
-		slog.Warn("Continuing with database initialization failure - some operations may not work")
-	}
-
-	// Initialize services
-	auditService := services.NewAuditService(db)
-
-	// Initialize handlers
-	auditHandler := handlers.NewAuditHandler(auditService)
-
-	// Setup routes
-	mux := http.NewServeMux()
-
-	// Health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		// Simple health check - just return healthy if service is running
-		// Database connectivity is checked during startup, not in health check
-		w.WriteHeader(http.StatusOK)
-		response := map[string]string{
-			"service": "audit-service",
-			"status":  "healthy",
-		}
-
-		json.NewEncoder(w).Encode(response)
-	})
-
-	// Version endpoint
-	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-
-		response := map[string]string{
-			"version":   Version,
-			"buildTime": BuildTime,
-			"gitCommit": GitCommit,
-			"service":   "audit-service",
-		}
-
-		json.NewEncoder(w).Encode(response)
-	})
-
-	// API endpoints for log access
-	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			auditHandler.GetLogs(w, r)
-		case http.MethodPost:
-			auditHandler.CreateLog(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-
-	// Start server
-	slog.Info("Audit Service starting",
-		"environment", *env,
-		"port", serverPort,
-		"version", Version,
-		"buildTime", BuildTime,
-		"gitCommit", GitCommit)
-	slog.Info("Database configuration",
-		"host", dbConfig.Host,
-		"port", dbConfig.Port,
-		"database", dbConfig.Database,
-		"choreoHost", os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"),
-		"fallbackHost", os.Getenv("DB_HOST"))
-
-	// Setup CORS middleware
-	corsMiddleware := middleware.NewCORSMiddleware()
-
-	// Apply middleware chain: CORS -> main handler
-	handler := corsMiddleware(mux)
-
-	server := &http.Server{
-		Addr:         ":" + serverPort,
-		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
-	// Start server in a goroutine
-	go func() {
-		slog.Info("Audit Service starting",
-			"environment", *env,
-			"port", serverPort,
-			"version", Version,
-			"buildTime", BuildTime,
-			"gitCommit", GitCommit)
-		slog.Info("Database configuration",
-			"host", dbConfig.Host,
-			"port", dbConfig.Port,
-			"database", dbConfig.Database,
-			"choreoHost", os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"),
-		)
-
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("Server failed to start", "error", err)
-			os.Exit(1)
+	defer func() {
+		if err := GracefulShutdown(db); err != nil {
+			log.Printf("Error during database graceful shutdown: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	slog.Info("Shutting down Audit Service...")
-
-	// Create a deadline to wait for
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Attempt graceful shutdown
-	if err := server.Shutdown(ctx); err != nil {
-		slog.Error("Server forced to shutdown", "error", err)
-		os.Exit(1)
+	// Initialize database tables
+	log.Println("Initializing database tables and views")
+	if err := InitDatabase(db); err != nil {
+		log.Printf("Failed to initialize database: %v", err)
+		log.Println("Continuing with database initialization failure - some operations may not work")
 	}
 
-	// Gracefully close database connection
-	if err := GracefulShutdown(db); err != nil {
-		slog.Error("Error during database graceful shutdown", "error", err)
+	// 3. Connect to Redis
+	redisCfg := &redis.Config{
+		Addr:     getEnvOrDefault("REDIS_ADDR", "localhost:6379"),
+		Password: getEnvOrDefault("REDIS_PASSWORD", ""),
+		DB:       0,
 	}
 
-	slog.Info("Audit Service exited")
+	redisClient, err := redis.NewClient(redisCfg)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer redisClient.Close()
+
+	// 4. Create the processor and consumer
+	// The processor (DatabaseEventProcessor) links our consumer to our database.
+	auditService := services.NewAuditService(db)
+	processor := consumer.NewDatabaseEventProcessor(auditService)
+	streamConsumer, err := consumer.NewStreamConsumer(redisClient, processor)
+	if err != nil {
+		log.Fatalf("Failed to create stream consumer: %v", err)
+	}
+
+	// 5. Start the consumer in a new goroutine
+	go streamConsumer.Start(ctx)
+
+	log.Println("Audit service started. Waiting for events...")
+
+	// 6. Wait for shutdown signal
+	<-ctx.Done()
+	log.Println("Audit service shutting down.")
 }

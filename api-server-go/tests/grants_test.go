@@ -125,7 +125,7 @@ func TestGrantsService_GetAllProviderFields(t *testing.T) {
 
 	// Create some test provider metadata
 	_, err := ts.DB.Exec(`
-		INSERT INTO provider_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, metadata, created_at, updated_at) 
+		INSERT INTO policy_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, metadata, created_at, updated_at) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
 	`, "person.fullName", "government", "passport-service", true, "restricted", `[{"type": "government", "value": "passport"}]`, "Full name field", `{"category": "personal"}`)
 	if err != nil {
@@ -133,7 +133,7 @@ func TestGrantsService_GetAllProviderFields(t *testing.T) {
 	}
 
 	_, err = ts.DB.Exec(`
-		INSERT INTO provider_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, metadata, created_at, updated_at) 
+		INSERT INTO policy_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, metadata, created_at, updated_at) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
 	`, "person.nic", "government", "passport-service", true, "restricted", `[{"type": "government", "value": "passport"}]`, "NIC field", `{"category": "personal"}`)
 	if err != nil {
@@ -174,7 +174,7 @@ func TestGrantsService_GetProviderField(t *testing.T) {
 
 	// Create test provider metadata
 	_, err := ts.DB.Exec(`
-		INSERT INTO provider_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, metadata, created_at, updated_at) 
+		INSERT INTO policy_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, metadata, created_at, updated_at) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
 	`, "person.fullName", "government", "passport-service", true, "restricted", `[{"type": "government", "value": "passport"}]`, "Full name field", `{"category": "personal"}`)
 	if err != nil {

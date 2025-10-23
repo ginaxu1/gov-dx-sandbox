@@ -19,9 +19,9 @@ type AuditMiddleware struct {
 }
 
 // NewAuditMiddleware creates a new audit middleware
-func NewAuditMiddleware(auditServiceURL string) *AuditMiddleware {
+func NewAuditMiddleware() *AuditMiddleware {
 	return &AuditMiddleware{
-		auditService: services.NewAuditService(auditServiceURL),
+		auditService: services.NewAuditService(),
 	}
 }
 

@@ -17,7 +17,7 @@ func TestAuditMiddlewareIntegration(t *testing.T) {
 	defer ts.Close()
 
 	// Create audit middleware with a mock audit service URL
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Create a test handler that simulates processing time
 	processingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +61,7 @@ func TestAuditMiddlewareSequence(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Track the sequence of events
 	var eventSequence []string
@@ -121,7 +121,7 @@ func TestAuditMiddlewareFailedRequest(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Create a handler that returns an error
 	errorHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +160,7 @@ func TestAuditMiddlewareSkippedEndpoints(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Create a simple handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +204,7 @@ func TestAuditMiddlewareConcurrentRequests(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Create a handler with some processing time
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -252,7 +252,7 @@ func TestAuditMiddlewareResponseCapture(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Test data to be returned in response
 	expectedResponseData := map[string]interface{}{
@@ -308,7 +308,7 @@ func TestAuditMiddlewareRequestCapture(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Create handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -357,7 +357,7 @@ func TestAuditMiddlewareWithRealAPI(t *testing.T) {
 	ts := NewTestServer()
 	defer ts.Close()
 
-	auditMiddleware := middleware.NewAuditMiddleware("http://localhost:3002")
+	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Wrap the existing API server with audit middleware
 	auditedMux := http.NewServeMux()

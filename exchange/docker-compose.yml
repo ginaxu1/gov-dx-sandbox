@@ -84,6 +84,27 @@ services:
     networks:
       - exchange-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis-${ENVIRONMENT:-local}
+    ports:
+      - "${PORT_REDIS:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - exchange-network
+
+volumes:
+  redis_data:
+
 networks:
   exchange-network:
     driver: bridge
