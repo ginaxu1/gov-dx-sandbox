@@ -79,7 +79,9 @@ func (h *OAuth2Handler) handleAuthorize(w http.ResponseWriter, r *http.Request) 
 	userID, err := h.extractAuthenticatedUserID(r)
 	if err != nil {
 		slog.Error("Failed to extract authenticated user ID", "error", err)
-		h.respondWithOAuth2Error(w, "access_denied", "User authentication required", state)
+		// In production, redirect to the actual login page with proper parameters
+		loginURL := "/login?client_id=" + clientID + "&redirect_uri=" + url.QueryEscape(redirectURI) + "&state=" + state
+		http.Redirect(w, r, loginURL, http.StatusFound)
 		return
 	}
 	scopes := []string{}
