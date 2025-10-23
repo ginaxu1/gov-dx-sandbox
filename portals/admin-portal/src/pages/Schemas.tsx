@@ -18,7 +18,7 @@ import {
     MessageSquare
 } from 'lucide-react';
 
-import type { ApprovedSchema, SchemaSubmission  } from '../types/graphql';
+import type { ApprovedSchema, SchemaSubmission  } from '../types/schema';
 import { SchemaService } from '../services/schemaService';
 
 interface FilterOptionsApproved {

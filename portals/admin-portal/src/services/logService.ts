@@ -24,23 +24,6 @@ interface LogQueryParams {
 }
 
 export class LogService {
-    // static async fetchLogs(consumerId?: string, providerId?: string): Promise<LogEntry[]> {
-    //     try {
-    //         const response = await fetch(`${window.configs.logsUrl}/logs?${consumerId ? `consumerId=${consumerId}` : ''}${providerId ? `&providerId=${providerId}` : ''}`);
-
-    //         if (!response.ok) {
-    //             throw new Error(`HTTP error! status: ${response.status}`);
-    //         }
-            
-    //         const data: LogResponse = await response.json();
-
-    //         return data.logs;  
-    //     } catch (error) {
-    //         console.error('Error fetching logs:', error);
-    //         throw error;
-    //     }
-    // }
-    
     static async fetchLogsWithParams(params?: LogQueryParams): Promise<LogEntry[]> {
         try {
             const url = new URL(`${window.configs.logsUrl}/logs`);
@@ -68,12 +51,6 @@ export class LogService {
         }
     }
 
-    /**
-     * Export logs data (placeholder for future implementation)
-     * @param params - Query parameters for filtering the export
-     * @param format - Export format (csv, json, etc.)
-     * @returns Promise<Blob>
-     */
     static async exportLogs(params?: LogQueryParams, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
         try {
             const url = new URL(`${window.configs.logsUrl}/logs/export`);
@@ -100,11 +77,6 @@ export class LogService {
         }
     }
 
-    /**
-     * Get log statistics
-     * @param params - Query parameters for filtering
-     * @returns Promise with log statistics
-     */
     static async getLogStatistics(params?: LogQueryParams): Promise<{
         total: number;
         success: number;

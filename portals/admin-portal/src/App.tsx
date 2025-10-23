@@ -11,31 +11,27 @@ import { Members } from './pages/Members';
 
 function App() {
   const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // const fetchEntityInfoFromDB = async (entityId: string) => {
-  //   try {
-  //     // fetch entity info from API
-  //     const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
-  //     if (!response.ok) {
-  //       throw new Error('Failed to fetch entity info');
-  //     }
-  //     const data = await response.json();
-  //     return data;
-  //   } catch (error) {
-  //     console.error('Error fetching entity info:', error);
-  //     return null;
-  //   }
-  // };
+  const [loading, setLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
-    const fetchEntityInfo = async () => {
-      if (!state.isAuthenticated) {
+    const fetchUserInfo = async () => {
+      // If authentication is still being determined, keep loading
+      if (state.isLoading) {
         return;
       }
 
-      setLoading(true);
+      // If user is signing out, don't try to fetch user info
+      if (isSigningOut) {
+        return;
+      }
+
+      if (!state.isAuthenticated) {
+        setLoading(false);
+        return;
+      }
       
       try {
         // Fetch fresh data from API
@@ -53,19 +49,38 @@ function App() {
         setError('An error occurred while fetching entity info');
       } finally {
         setLoading(false);
+        setIsSigningIn(false);
+        setIsSigningOut(false);
       }
     };
-
-    fetchEntityInfo();
-  }, [state.isAuthenticated]);
+    fetchUserInfo();
+  }, [state.isAuthenticated, state.isLoading, isSigningIn, isSigningOut]);
 
   const handleSignIn = () => {
+    setIsSigningIn(true);
+    setError(null);
     signIn();
   };
 
   const handleSignOut = () => {
+    setIsSigningOut(true);
+    setError(null);
     signOut();
   };
+
+  // Show loading while fetching user data or during authentication
+  if (loading || state.isLoading || isSigningIn || isSigningOut) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center relative">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">
+            {isSigningIn ? 'Signing in...' : isSigningOut ? 'Signing out...' : 'Loading...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Show login screen if not authenticated
   if (!state.isAuthenticated) {
@@ -83,18 +98,6 @@ function App() {
           >
             Sign In to Continue
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading while fetching entity data
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center relative">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading entity information...</p>
         </div>
       </div>
     );

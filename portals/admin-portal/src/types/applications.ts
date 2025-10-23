@@ -1,5 +1,3 @@
-// types/applications.ts
-
 export interface ApplicationRegistration {
   applicationName: string;
   applicationDescription?: string;
@@ -27,7 +25,7 @@ export interface ApprovedApplication {
 }
  
 // API Response structure
-export interface PendingApplicationApiResponse {
+export interface ApplicationSubmissionApiResponse {
   count: number;
   items: ApplicationSubmission[] | null;
 }
