@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gov-dx-sandbox/audit-service/handlers"
 	"github.com/gov-dx-sandbox/audit-service/services"
 	_ "github.com/lib/pq"
 )
@@ -22,7 +21,6 @@ const (
 type TestServer struct {
 	DB           *sql.DB
 	AuditService *services.AuditService
-	Handler      *handlers.AuditHandler
 }
 
 // SetupTestServer creates a test server using PostgreSQL (only option currently supported)
@@ -71,12 +69,10 @@ func setupPostgresTestServer(t *testing.T) *TestServer {
 
 	// Create services
 	auditService := services.NewAuditService(db)
-	handler := handlers.NewAuditHandler(auditService)
 
 	return &TestServer{
 		DB:           db,
 		AuditService: auditService,
-		Handler:      handler,
 	}
 }
 
