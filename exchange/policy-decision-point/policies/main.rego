@@ -86,7 +86,7 @@ consent_required_for_field(field_metadata) {
 # Helper functions for input format
 # Get application ID from the input
 get_application_id(req) = application_id {
-    application_id := req.application_id
+    application_id := req.consumer_id
 }
 
 # Get required fields from the input
@@ -97,4 +97,12 @@ get_required_fields(req) = fields {
 # Get app ID from the input
 get_app_id(req) = app_id {
     app_id := req.app_id
+}
+
+# Debug data rule for debugging policy metadata
+debug_data = {
+    "policy_metadata": policy_metadata,
+    "available_fields": [field | field := policy_metadata.fields[_]],
+    "field_count": count(policy_metadata.fields),
+    "message": "Policy metadata loaded successfully"
 }

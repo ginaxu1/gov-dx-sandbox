@@ -50,7 +50,7 @@ type PolicyEvaluator struct {
 
 // AuthorizationRequest represents the input structure for policy evaluation
 type AuthorizationRequest struct {
-	ApplicationID  string    `json:"application_id"`
+	ApplicationID  string    `json:"consumer_id"`
 	AppID          string    `json:"app_id"`
 	RequestID      string    `json:"request_id"`
 	RequiredFields []string  `json:"required_fields"`
