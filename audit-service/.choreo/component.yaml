@@ -46,10 +46,4 @@ configurations:
           # Allowed types - string, number, boolean, secret
           type: number
           defaultValue: 3001
-    - name: ENVIRONMENT
-      valueFrom:
-        configForm:
-          displayName: Environment
-          required: false
-          type: string
-          defaultValue: production
+  
