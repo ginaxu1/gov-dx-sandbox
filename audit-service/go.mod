@@ -4,7 +4,6 @@ go 1.24.6
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/gov-dx-sandbox/audit-service/shared/redis v0.0.0
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.3.0
 	gorm.io/driver/postgres v1.6.0
@@ -24,5 +23,3 @@ require (
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )
-
-replace github.com/gov-dx-sandbox/audit-service/shared/redis => ./shared/redis

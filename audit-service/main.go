@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/audit-service/shared/redis"
+	"github.com/gov-dx-sandbox/audit-service/redis"
 
 	"github.com/gov-dx-sandbox/audit-service/consumer"
 	"github.com/gov-dx-sandbox/audit-service/handlers"

@@ -3,24 +3,27 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Build arguments
+# Build arguments with defaults
 ARG SERVICE_PATH=audit-service
 ARG BUILD_VERSION=latest
-ARG BUILD_TIME
-ARG GIT_COMMIT
+ARG BUILD_TIME=unknown
+ARG GIT_COMMIT=unknown
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Copy go mod files and source code
+# Copy go mod files first for better caching
 COPY go.mod go.sum ./
-COPY . ./
+
 # Download dependencies
 RUN go mod download
 
+# Copy source code
+COPY . ./
+
 # Build the application with build info
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-w -s -X main.Version=${BUILD_VERSION:-latest} -X main.BuildTime=${BUILD_TIME:-unknown} -X main.GitCommit=${GIT_COMMIT:-unknown}" \
+    -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
     -o /app/service_binary .
 
 # Final stage
