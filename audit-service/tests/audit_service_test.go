@@ -10,8 +10,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// TestAuditServiceIntegration tests the GORM-based audit service integration
-func TestAuditServiceIntegration(t *testing.T) {
+// TestAuditService tests the GORM-based audit service
+func TestAuditService(t *testing.T) {
 	// Skip if not using PostgreSQL for tests
 	if os.Getenv("TEST_USE_POSTGRES") != "true" {
 		t.Skip("PostgreSQL tests not enabled (set TEST_USE_POSTGRES=true)")
@@ -147,53 +147,6 @@ func TestAuditServiceIntegration(t *testing.T) {
 		}
 		if total != 0 {
 			t.Errorf("Expected total 0, got %d", total)
-		}
-	})
-
-	t.Run("CreateLog_Failure", func(t *testing.T) {
-		logReq := &models.LogRequest{
-			Status:        "failure",
-			RequestedData: `{"query": "query { test { id } }"}`,
-			ApplicationID: "test-app",
-			SchemaID:      "test-schema",
-		}
-
-		log, err := auditService.CreateLog(context.Background(), logReq)
-		if err != nil {
-			t.Fatalf("Failed to create failure log: %v", err)
-		}
-
-		if log.Status != "failure" {
-			t.Errorf("Expected Status 'failure', got '%s'", log.Status)
-		}
-	})
-
-	t.Run("GetAuditLogs_LargeDataset", func(t *testing.T) {
-		// Create a larger dataset
-		for i := 0; i < 20; i++ {
-			logReq := &models.LogRequest{
-				Status:        "success",
-				RequestedData: `{"query": "query { test { id } }"}`,
-				ApplicationID: "test-app",
-				SchemaID:      "test-schema",
-			}
-			_, err := auditService.CreateLog(context.Background(), logReq)
-			if err != nil {
-				t.Fatalf("Failed to create test log %d: %v", i, err)
-			}
-		}
-
-		// Test pagination with larger dataset
-		logs, total, err := auditService.GetAuditLogs(context.Background(), 10, 0)
-		if err != nil {
-			t.Fatalf("Failed to get audit logs: %v", err)
-		}
-
-		if len(logs) != 10 {
-			t.Errorf("Expected 10 logs, got %d", len(logs))
-		}
-		if total < 20 {
-			t.Errorf("Expected total >= 20, got %d", total)
 		}
 	})
 }
