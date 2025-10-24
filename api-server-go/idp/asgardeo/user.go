@@ -167,7 +167,7 @@ func (a *Client) DeleteUser(ctx context.Context, userId string) error {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 
-	if res.StatusCode != 204 {
+	if res.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("failed to delete user, status code: %d", res.StatusCode)
 	}
 
