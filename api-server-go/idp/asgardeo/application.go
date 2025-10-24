@@ -90,6 +90,10 @@ func (a *Client) GetApplicationOIDC(ctx context.Context, applicationId string) (
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed: %s", res.Status)
+	}
+
 	defer res.Body.Close()
 
 	var oidcResponse AsgardeoApplicationOIDCResponse
@@ -113,7 +117,7 @@ func (a *Client) CreateApplication(ctx context.Context, app *idp.Application) (*
 	appInstance := AsgardeoApplication{
 		Name:        app.Name,
 		Description: app.Description,
-		TemplateId:  "m2m-application",
+		TemplateId:  ApplicationTemplateIDM2M,
 		AssociatedRoles: AssociatedRole{
 			AllowedAudience: "APPLICATION",
 			Roles:           []string{},
@@ -153,7 +157,7 @@ func (a *Client) CreateApplication(ctx context.Context, app *idp.Application) (*
 	}
 
 	location := resp.Header.Get("Location")
-	applicationId := strings.TrimLeft(location, url)
+	applicationId := strings.TrimPrefix(location, url)
 
 	return &applicationId, nil
 }
