@@ -64,7 +64,7 @@ func (a *Client) GetUser(ctx context.Context, userId string) (*idp.UserInfo, err
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get user, status code: %d", res.StatusCode)
 	}
 
