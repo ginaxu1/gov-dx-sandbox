@@ -11,11 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gov-dx-sandbox/audit-service/shared/redis"
+
 	"github.com/gov-dx-sandbox/audit-service/consumer"
 	"github.com/gov-dx-sandbox/audit-service/handlers"
 	"github.com/gov-dx-sandbox/audit-service/middleware"
 	"github.com/gov-dx-sandbox/audit-service/services"
-	"github.com/gov-dx-sandbox/shared/redis"
 )
 
 // main is the entry point for the audit service.
@@ -31,8 +32,8 @@ func main() {
 		cancel()
 	}()
 
-	// 2. Connect to Database with explicit configuration
-	dbConfig := &DatabaseConfig{
+	// 2. Connect to Database using GORM
+	dbConfig := &GormDatabaseConfig{
 		Host:            getEnvOrDefault("CHOREO_DB_AUDIT_HOSTNAME", "localhost"),
 		Port:            getEnvOrDefault("CHOREO_DB_AUDIT_PORT", "5432"),
 		Username:        getEnvOrDefault("CHOREO_DB_AUDIT_USERNAME", "postgres"),
@@ -51,19 +52,21 @@ func main() {
 
 	log.Printf("Connecting to database: %s:%s/%s", dbConfig.Host, dbConfig.Port, dbConfig.Database)
 
-	db, err := ConnectDB(dbConfig)
+	db, err := NewGormDatabase(dbConfig)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer func() {
-		if err := GracefulShutdown(db); err != nil {
-			log.Printf("Error during database graceful shutdown: %v", err)
+		if sqlDB, err := db.DB(); err == nil {
+			if err := sqlDB.Close(); err != nil {
+				log.Printf("Error during database graceful shutdown: %v", err)
+			}
 		}
 	}()
 
-	// Initialize database tables
+	// Initialize database tables using GORM AutoMigrate
 	log.Println("Initializing database tables and views")
-	if err := InitDatabase(db); err != nil {
+	if err := AutoMigrate(db); err != nil {
 		log.Printf("Failed to initialize database: %v", err)
 		log.Println("Continuing with database initialization failure - some operations may not work")
 	}

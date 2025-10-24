@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gov-dx-sandbox/shared/redis"
+	"github.com/gov-dx-sandbox/audit-service/shared/redis"
+
 	redisclient "github.com/redis/go-redis/v9"
 )
 

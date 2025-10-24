@@ -20,7 +20,7 @@ RUN go mod download
 
 # Build the application with build info
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
+    -ldflags="-w -s -X main.Version=${BUILD_VERSION:-latest} -X main.BuildTime=${BUILD_TIME:-unknown} -X main.GitCommit=${GIT_COMMIT:-unknown}" \
     -o /app/service_binary .
 
 # Final stage

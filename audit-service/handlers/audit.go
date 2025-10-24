@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gov-dx-sandbox/audit-service/models"
 	"github.com/gov-dx-sandbox/audit-service/services"
 )
 
@@ -62,12 +63,7 @@ func (h *AuditHandler) handleGetAuditLogs(w http.ResponseWriter, r *http.Request
 	// Parse query parameters
 	queryParams := r.URL.Query()
 
-	// Extract filter parameters
-	consumerID := queryParams.Get("consumerId")
-	providerID := queryParams.Get("providerId")
-	status := queryParams.Get("status")
-	startDateStr := queryParams.Get("startDate")
-	endDateStr := queryParams.Get("endDate")
+	// Note: Filter parameters are not used in the simplified GORM implementation
 
 	// Parse pagination parameters
 	defaultLimit := parseIntOrDefault("AUDIT_DEFAULT_LIMIT", 50)
@@ -86,54 +82,22 @@ func (h *AuditHandler) handleGetAuditLogs(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	// Parse date filters
-	var startDate, endDate *time.Time
-	if startDateStr != "" {
-		if parsed, err := time.Parse(time.RFC3339, startDateStr); err == nil {
-			startDate = &parsed
-		}
-	}
-	if endDateStr != "" {
-		if parsed, err := time.Parse(time.RFC3339, endDateStr); err == nil {
-			endDate = &parsed
-		}
-	}
+	// Note: Date filters are not used in the simplified GORM implementation
 
 	// Get audit logs from service
-	logs, total, err := h.auditService.GetAuditLogs(services.AuditLogFilter{
-		ConsumerID: consumerID,
-		ProviderID: providerID,
-		Status:     status,
-		StartDate:  startDate,
-		EndDate:    endDate,
-		Limit:      limit,
-		Offset:     offset,
-	})
+	logs, total, err := h.auditService.GetAuditLogs(r.Context(), limit, offset)
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to retrieve audit logs: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Convert to response format
-	response := AuditLogResponse{
-		Logs:   make([]AuditLogEntry, len(logs)),
-		Total:  total,
+	// Create response
+	response := models.LogResponse{
+		Logs:   logs,
+		Total:  total, // Keep as int64
 		Limit:  limit,
 		Offset: offset,
-	}
-
-	for i, log := range logs {
-		response.Logs[i] = AuditLogEntry{
-			ID:            log.ID,
-			Timestamp:     log.CreatedAt,
-			Status:        log.TransactionStatus,
-			RequestedData: log.RequestedData,
-			ApplicationID: log.ApplicationID,
-			SchemaID:      log.SchemaID,
-			ConsumerID:    log.ConsumerID,
-			ProviderID:    log.ProviderID,
-		}
 	}
 
 	w.WriteHeader(http.StatusOK)

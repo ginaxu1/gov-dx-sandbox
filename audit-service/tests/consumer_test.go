@@ -3,9 +3,10 @@ package tests
 import (
 	"testing"
 
+	"github.com/gov-dx-sandbox/audit-service/shared/redis"
+
 	"github.com/gov-dx-sandbox/audit-service/consumer"
 	"github.com/gov-dx-sandbox/audit-service/services"
-	"github.com/gov-dx-sandbox/shared/redis"
 )
 
 // TestConsumerLogic tests the consumer logic without requiring a real database or Redis
