@@ -23,8 +23,13 @@ type AuditLog struct {
 	ApplicationID     string    `gorm:"type:varchar(255);not null" json:"application_id"`
 	SchemaID          string    `gorm:"type:varchar(255);not null" json:"schema_id"`
 	Status            string    `gorm:"type:varchar(255);not null" json:"status"`
-	CreatedAt         time.Time `gorm:"type:timestamp with time zone;default:now()" json:"created_at"`
-	UpdatedAt         time.Time `gorm:"type:timestamp with time zone;default:now()" json:"updated_at"`
+	// New fields for M2M vs User differentiation
+	RequestType string    `gorm:"type:varchar(50);default:'unknown'" json:"request_type"`
+	AuthMethod  string    `gorm:"type:varchar(50);default:'none'" json:"auth_method"`
+	UserID      *string   `gorm:"type:varchar(255)" json:"user_id"`
+	SessionID   *string   `gorm:"type:varchar(255)" json:"session_id"`
+	CreatedAt   time.Time `gorm:"type:timestamp with time zone;default:now()" json:"created_at"`
+	UpdatedAt   time.Time `gorm:"type:timestamp with time zone;default:now()" json:"updated_at"`
 }
 
 // TableName returns the table name for the AuditLog model
@@ -46,6 +51,11 @@ type LogRequest struct {
 	RequestedData string `json:"requestedData" validate:"required"`
 	ApplicationID string `json:"applicationId" validate:"required"`
 	SchemaID      string `json:"schemaId" validate:"required"`
+	// New fields for M2M vs User differentiation
+	RequestType string `json:"requestType,omitempty"`
+	AuthMethod  string `json:"authMethod,omitempty"`
+	UserID      string `json:"userId,omitempty"`
+	SessionID   string `json:"sessionId,omitempty"`
 }
 
 // Log represents the response structure for audit logs

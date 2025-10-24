@@ -40,12 +40,35 @@ type StreamConsumer struct {
 func NewStreamConsumer(client *redis.RedisClient, processor AuditEventProcessor, consumerName string) (*StreamConsumer, error) {
 	ctx := context.Background()
 
+	log.Printf("Creating StreamConsumer with streamName=%s, groupName=%s, consumerName=%s", streamName, groupName, consumerName)
+
 	// Ensure the consumer group exists
+	log.Printf("Ensuring consumer group %s exists for stream %s", groupName, streamName)
 	err := client.EnsureStreamGroupExists(ctx, streamName, groupName)
 	if err != nil {
+		log.Printf("ERROR: Failed to create consumer group %s for stream %s: %v", groupName, streamName, err)
 		return nil, fmt.Errorf("failed to create consumer group: %w", err)
 	}
-	log.Printf("Consumer group %s ensured for stream %s", groupName, streamName)
+	log.Printf("SUCCESS: Consumer group %s ensured for stream %s", groupName, streamName)
+
+	// Verify the consumer group was created by checking Redis
+	log.Printf("Verifying consumer group creation...")
+	groups, err := client.GetClient().XInfoGroups(ctx, streamName).Result()
+	if err != nil {
+		log.Printf("WARNING: Could not verify consumer group creation: %v", err)
+	} else {
+		found := false
+		for _, group := range groups {
+			if group.Name == groupName {
+				found = true
+				log.Printf("VERIFIED: Consumer group %s found in Redis", groupName)
+				break
+			}
+		}
+		if !found {
+			log.Printf("ERROR: Consumer group %s not found in Redis after creation", groupName)
+		}
+	}
 
 	return &StreamConsumer{
 		client:       client,
@@ -57,14 +80,25 @@ func NewStreamConsumer(client *redis.RedisClient, processor AuditEventProcessor,
 // Start consuming events in a blocking loop.
 // This should be run in a goroutine from your main.go.
 func (c *StreamConsumer) Start(ctx context.Context) {
-	log.Println("Starting audit stream consumer...")
+	log.Printf("Starting audit stream consumer for stream=%s, group=%s, consumer=%s", streamName, groupName, c.consumerName)
+
+	// Verify Redis connection before starting
+	if err := c.client.GetClient().Ping(ctx).Err(); err != nil {
+		log.Printf("ERROR: Redis connection failed: %v", err)
+		return
+	}
+	log.Printf("Redis connection verified")
+
 	for {
 		select {
 		case <-ctx.Done():
 			log.Println("Consumer shutting down.")
 			return
 		default:
-			// First, check for any old, "stuck" messages to reclaim.
+			// First, process any pending messages for this consumer
+			c.processPendingMessages(ctx)
+
+			// Then, check for any old, "stuck" messages to reclaim.
 			c.claimPendingMessages(ctx)
 
 			// Now, read new messages.
@@ -76,11 +110,18 @@ func (c *StreamConsumer) Start(ctx context.Context) {
 // readNewMessages reads new messages from the stream.
 func (c *StreamConsumer) readNewMessages(ctx context.Context) {
 	// Use the abstracted method from RedisClient
+	log.Printf("Attempting to read from stream=%s, group=%s, consumer=%s", streamName, groupName, c.consumerName)
 	messages, err := c.client.ReadFromStreamGroup(ctx, streamName, groupName, c.consumerName, blockTimeout)
 	if err != nil {
-		log.Printf("Error in ReadFromStreamGroup: %v", err)
+		log.Printf("ERROR in ReadFromStreamGroup: %v", err)
 		time.Sleep(1 * time.Second) // Avoid spamming on repeated errors
 		return
+	}
+
+	if len(messages) > 0 {
+		log.Printf("Received %d messages from stream", len(messages))
+	} else {
+		log.Printf("No new messages received (timeout or empty stream)")
 	}
 
 	// Process the received messages
@@ -220,6 +261,42 @@ func parseIntOrDefault(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// processPendingMessages processes all pending messages for this consumer
+func (c *StreamConsumer) processPendingMessages(ctx context.Context) {
+	// Check for pending messages for this consumer
+	pending, err := c.client.GetPendingMessages(ctx, streamName, groupName, c.consumerName)
+	if err != nil {
+		log.Printf("Error checking pending messages: %v", err)
+		return
+	}
+
+	if len(pending) == 0 {
+		return // No pending messages
+	}
+
+	log.Printf("Found %d pending messages for consumer %s", len(pending), c.consumerName)
+
+	// Process each pending message
+	for _, p := range pending {
+		log.Printf("Processing pending message: %s", p.ID)
+
+		// Read the specific message
+		messages, err := c.client.GetClient().XRange(ctx, streamName, p.ID, p.ID).Result()
+		if err != nil {
+			log.Printf("ERROR: Failed to read pending message %s: %v", p.ID, err)
+			continue
+		}
+
+		if len(messages) == 0 {
+			log.Printf("WARNING: Pending message %s not found in stream", p.ID)
+			continue
+		}
+
+		// Process the message
+		c.processMessage(ctx, messages[0])
+	}
 }
 
 // parseDurationOrDefault gets environment variable as duration or returns default value

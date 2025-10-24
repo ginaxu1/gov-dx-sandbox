@@ -49,6 +49,11 @@ func (c *RedisClient) Close() error {
 	return c.client.Close()
 }
 
+// GetClient returns the underlying Redis client for advanced operations
+func (c *RedisClient) GetClient() *redis.Client {
+	return c.client
+}
+
 // PublishAuditEvent adds an event to the audit stream using XADD.
 // 'data' should be a map[string]interface{} representing the event.
 func (c *RedisClient) PublishAuditEvent(ctx context.Context, streamName string, data map[string]interface{}) (string, error) {
