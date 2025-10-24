@@ -4,12 +4,12 @@ go 1.24.6
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 	github.com/lib/pq v1.10.9
 	github.com/open-policy-agent/opa v1.8.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.0
+	github.com/joho/godotenv v1.5.1
 )
 
 require (

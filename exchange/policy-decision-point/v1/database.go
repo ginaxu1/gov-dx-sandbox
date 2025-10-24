@@ -33,7 +33,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 		Port:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432"),
 		Username:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres"),
 		Password:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password"),
-		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME_V1", "testdb"),
+		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "testdb"),
 		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
 		MaxOpenConns:    25,
 		MaxIdleConns:    5,

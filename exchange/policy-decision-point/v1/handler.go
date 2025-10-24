@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gov-dx-sandbox/exchange/policy-decision-point/shared/utils"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/services"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"gorm.io/gorm"
 )
 
@@ -26,12 +26,12 @@ func NewHandler(db *gorm.DB) *Handler {
 
 // SetupRoutes configures all API routes
 func (h *Handler) SetupRoutes(mux *http.ServeMux) {
-	mux.Handle("/api/policy/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handlePolicyService)))
+	mux.Handle("/api/v1/policy/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handlePolicyService)))
 }
 
 // handlePolicyService handles policy metadata service requests
 func (h *Handler) handlePolicyService(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/policy")
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/policy")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
 	if len(parts) != 1 {
