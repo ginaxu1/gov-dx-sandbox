@@ -37,41 +37,6 @@ func TestGetApplicationInfoIntegration(t *testing.T) {
 	}
 }
 
-//func TestCreateApplicationIntegration(t *testing.T) {
-//	ctx := context.Background()
-//
-//	baseURL := os.Getenv("ASGARDEO_BASE_URL") // e.g. https://api.asgardeo.io/t/yourorg
-//	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-//	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-//
-//	if clientID == "" || clientSecret == "" || baseURL == "" {
-//		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-//	}
-//
-//	client := NewClient(
-//		baseURL,
-//		clientID,
-//		clientSecret,
-//		[]string{"internal_application_mgt_create internal_application_mgt_delete internal_application_mgt_update internal_application_mgt_view"},
-//	)
-//
-//	appInstance := &idp.Application{
-//		Name:        "TestApp",
-//		Description: "This is a test application",
-//		TemplateId:  "m2m-application",
-//	}
-//
-//	applicationId, err := client.CreateApplication(ctx, appInstance)
-//
-//	if err != nil {
-//		t.Fatalf("CreateApplication failed: %v", err)
-//	}
-//
-//	if applicationId == nil || *applicationId == "" {
-//		t.Errorf("Expected non-empty application ID, got %v", applicationId)
-//	}
-//}
-
 func TestGetApplicationOIDCIntegration(t *testing.T) {
 	ctx := context.Background()
 
