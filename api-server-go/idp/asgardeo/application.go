@@ -90,12 +90,11 @@ func (a *Client) GetApplicationOIDC(ctx context.Context, applicationId string) (
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
+	defer res.Body.Close()
+
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("request failed: %s", res.Status)
 	}
-
-	defer res.Body.Close()
-
 	var oidcResponse AsgardeoApplicationOIDCResponse
 
 	err = json.NewDecoder(res.Body).Decode(&oidcResponse)
