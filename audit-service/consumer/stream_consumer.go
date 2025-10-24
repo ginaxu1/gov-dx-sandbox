@@ -4,19 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gov-dx-sandbox/shared/redis"
 	redisclient "github.com/redis/go-redis/v9"
 )
 
-const (
-	streamName     = "audit-events"
-	groupName      = "audit-processors"
-	dlqStreamName  = "audit-events_dlq"
-	maxRetry       = 5
-	blockTimeout   = 5 * time.Second
-	pendingTimeout = 1 * time.Minute // Time before a message is considered "stuck"
+// Default configuration values - can be overridden by environment variables
+var (
+	streamName     = getEnvOrDefault("AUDIT_STREAM_NAME", "audit-events")
+	groupName      = getEnvOrDefault("AUDIT_GROUP_NAME", "audit-processors")
+	dlqStreamName  = getEnvOrDefault("AUDIT_DLQ_STREAM_NAME", "audit-events_dlq")
+	maxRetry       = parseIntOrDefault("AUDIT_MAX_RETRY", 5)
+	blockTimeout   = parseDurationOrDefault("AUDIT_BLOCK_TIMEOUT", "5s")
+	pendingTimeout = parseDurationOrDefault("AUDIT_PENDING_TIMEOUT", "1m")
 )
 
 // AuditEventProcessor defines the interface for processing a message.
@@ -133,6 +136,9 @@ func (c *StreamConsumer) processMessage(ctx context.Context, msg redisclient.XMe
 		}
 	}
 
+	// Get retry count from message metadata
+	retryCount := c.getRetryCount(msg)
+
 	// Try to process the event
 	err := c.processor.ProcessAuditEvent(ctx, eventData)
 
@@ -144,21 +150,44 @@ func (c *StreamConsumer) processMessage(ctx context.Context, msg redisclient.XMe
 		return
 	}
 
-	// FAILURE: Handle the error
-	log.Printf("WARNING: Failed to process message %s: %v", msg.ID, err)
+	// FAILURE: Handle the error with retry logic
+	log.Printf("WARNING: Failed to process message %s (attempt %d/%d): %v", msg.ID, retryCount+1, maxRetry, err)
 
-	// For now, we'll move failed messages to DLQ immediately
-	// In a production system, you'd want to track retry counts
-	log.Printf("CRITICAL: Message %s failed. Moving to DLQ.", msg.ID)
+	// Check if we've exceeded max retries
+	if retryCount >= maxRetry {
+		log.Printf("CRITICAL: Message %s exceeded max retries (%d). Moving to DLQ.", msg.ID, maxRetry)
+		c.moveToDLQ(ctx, msg, err)
+		return
+	}
 
+	// Increment retry count and let the message be redelivered
+	log.Printf("Message %s will be retried (attempt %d/%d)", msg.ID, retryCount+1, maxRetry)
+	// Don't ACK the message - let it be redelivered for retry
+}
+
+// getRetryCount extracts the retry count from message metadata
+func (c *StreamConsumer) getRetryCount(msg redisclient.XMessage) int {
+	if retryStr, exists := msg.Values["_retry_count"]; exists {
+		if retryStr, ok := retryStr.(string); ok {
+			if retryCount, err := strconv.Atoi(retryStr); err == nil {
+				return retryCount
+			}
+		}
+	}
+	return 0
+}
+
+// moveToDLQ moves a failed message to the Dead Letter Queue
+func (c *StreamConsumer) moveToDLQ(ctx context.Context, msg redisclient.XMessage, originalErr error) {
 	// 1. Add to Dead Letter Queue (DLQ)
 	dlqData := make(map[string]interface{})
 	for k, v := range msg.Values {
 		dlqData[k] = v
 	}
-	dlqData["_error"] = err.Error()
+	dlqData["_error"] = originalErr.Error()
 	dlqData["_original_id"] = msg.ID
 	dlqData["_failed_at"] = time.Now().Format(time.RFC3339)
+	dlqData["_retry_count"] = c.getRetryCount(msg)
 
 	_, dlqErr := c.client.PublishAuditEvent(ctx, dlqStreamName, dlqData)
 	if dlqErr != nil {
@@ -172,4 +201,35 @@ func (c *StreamConsumer) processMessage(ctx context.Context, msg redisclient.XMe
 	if err := c.client.AckMessage(ctx, streamName, groupName, msg.ID); err != nil {
 		log.Printf("ERROR: Failed to XACK message %s after DLQ: %v", msg.ID, err)
 	}
+}
+
+// getEnvOrDefault gets environment variable or returns default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// parseIntOrDefault gets environment variable as int or returns default value
+func parseIntOrDefault(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+// parseDurationOrDefault gets environment variable as duration or returns default value
+func parseDurationOrDefault(key, defaultValue string) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil {
+			return parsed
+		}
+	}
+	if parsed, err := time.ParseDuration(defaultValue); err == nil {
+		return parsed
+	}
+	return 5 * time.Second // fallback
 }

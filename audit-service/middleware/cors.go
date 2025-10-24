@@ -1,6 +1,10 @@
 package middleware
 
-import "net/http"
+import (
+	"net/http"
+	"os"
+	"strconv"
+)
 
 // CORSMiddleware creates a CORS middleware
 func CORSMiddleware() func(http.Handler) http.Handler {
@@ -11,7 +15,7 @@ func CORSMiddleware() func(http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
+			w.Header().Set("Access-Control-Max-Age", getCORSMaxAge())
 
 			// Handle preflight (OPTIONS) requests
 			if r.Method == http.MethodOptions {
@@ -27,4 +31,15 @@ func CORSMiddleware() func(http.Handler) http.Handler {
 // NewCORSMiddleware creates a new CORS middleware
 func NewCORSMiddleware() func(http.Handler) http.Handler {
 	return CORSMiddleware()
+}
+
+// getCORSMaxAge gets the CORS max age from environment variable or returns default
+func getCORSMaxAge() string {
+	if value := os.Getenv("CORS_MAX_AGE"); value != "" {
+		// Validate that it's a valid number
+		if _, err := strconv.Atoi(value); err == nil {
+			return value
+		}
+	}
+	return "86400" // Default: 24 hours
 }

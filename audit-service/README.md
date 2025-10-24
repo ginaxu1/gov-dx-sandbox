@@ -1,106 +1,302 @@
 # Audit Service
 
-A simple Go microservice that provides read-only access to audit logs for different portals.
-
 ## Overview
 
-The Audit Service implements the goal: "who made this request, what did they ask for, and did they get that data" by exposing audit data through secure API endpoints tailored to each role's access level.
+The Audit Service provides reliable, asynchronous audit logging for the OpenDIF ecosystem. It captures audit events from various services and stores them persistently in PostgreSQL. The system uses Redis Streams as an asynchronous buffer to ensure no audit logs are lost, even if the audit service is temporarily unavailable.
+
+## Architecture
+
+```
+┌─────────────────┐       ┌───────────────────┐
+│ Frontend UI/App │──────▶│  Audit Service    │
+└─────────────────┘       │  (API Server)     │
+                          │  (GET /api/logs)  │
+                          └─────────▲─────────┘
+                                    │
+                                    │ Reads from
+                                    │
+┌─────────────────┐       ┌─────────▼─────────┐
+│ api-server-go   │───┐   │   PostgreSQL      │
+└─────────────────┘   │   │   Database        │
+                      │   └─────────▲─────────┘
+                      │             │
+┌─────────────────┐   │ (XADD)      │ Writes to
+│ orchestration-  │───┼──▶┌─────────┴─────────┐
+│ engine          │   │   │  Redis Streams    │
+└─────────────────┘   │   │  (audit-events)   │
+                      │   └─────────┬─────────┘
+┌─────────────────┐   │             │
+│ ...any other    │───┘             │ (XREADGROUP)
+│ producer...     │                 │
+└─────────────────┘       ┌─────────▼─────────┐
+                          │  Audit Service    │
+                          │  (Consumer)       │
+                          └───────────────────┘
+```
 
 ## Features
 
-- **Read-only access** to the `audit_logs` table
-- **Role-based endpoints** for different portals
-- **Filtering capabilities** by date, consumer, provider, status
-- **Pagination support** for large datasets
-- **JWT authentication** for provider and consumer endpoints
+- **Reliable Message Delivery**: Uses Redis Streams with consumer groups for guaranteed message processing
+- **Fault Tolerance**: Messages are persisted in Redis and can be reprocessed after service restarts
+- **Retry Logic**: Built-in retry mechanism with configurable max retries and Dead Letter Queue (DLQ)
+- **Graceful Degradation**: Continues to serve API requests even when Redis is unavailable
+- **Environment Flexibility**: Configurable Redis connection via environment variables
+
+## Quick Start
+
+### Prerequisites
+
+1. **Redis Server**:
+   ```bash
+   docker run -d --name redis -p 6379:6379 redis:7-alpine
+   ```
+
+2. **PostgreSQL Database**:
+   ```bash
+   # Set up your PostgreSQL database
+   export CHOREO_DB_AUDIT_HOSTNAME=localhost
+   export CHOREO_DB_AUDIT_PORT=5432
+   export CHOREO_DB_AUDIT_USERNAME=postgres
+   export CHOREO_DB_AUDIT_PASSWORD=password
+   export CHOREO_DB_AUDIT_DATABASENAME=gov_dx_sandbox
+   ```
+
+### Running the Service
+
+```bash
+# Set environment variables
+export REDIS_ADDR=localhost:6379
+export REDIS_PASSWORD=""  # Optional
+
+# Start the audit service
+cd audit-service
+go run main.go
+```
+
+Expected output:
+```
+Audit service started. Waiting for events...
+Consumer group audit-processors ensured for stream audit-events
+Redis Stream consumer started.
+```
 
 ## API Endpoints
 
-### For NDX Admin Portal
-- `GET /audit/events` - Returns all logs with filtering capabilities
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/audit-logs` | GET | Retrieve audit logs with filtering |
 
-### For Data Provider Portal  
-- `GET /audit/provider/events` - Returns logs only where the provider's ID matches the authenticated JWT
+### Health Check
 
-### For Data Consumer Portal
-- `GET /audit/consumer/events` - Returns logs only where the consumer ID matches the authenticated JWT
+```bash
+curl http://localhost:8081/health
+```
 
-## Query Parameters
+### Retrieve Audit Logs
 
-All endpoints support the following query parameters:
+```bash
+# Get all audit logs
+curl http://localhost:8081/audit-logs
 
-- `consumer_id` - Filter by consumer ID
-- `provider_id` - Filter by provider ID  
-- `transaction_status` - Filter by status (SUCCESS/FAILURE)
-- `start_date` - Filter by start date (YYYY-MM-DD format)
-- `end_date` - Filter by end date (YYYY-MM-DD format)
-- `limit` - Number of results per page (default: 50, max: 1000)
-- `offset` - Number of results to skip for pagination
+# Filter by consumer ID
+curl "http://localhost:8081/audit-logs?consumer_id=test-app"
 
-## Authentication
+# Filter by date range
+curl "http://localhost:8081/audit-logs?start_date=2024-01-01&end_date=2024-01-31"
+```
 
-- **Admin Portal**: No authentication required (internal use)
-- **Provider Portal**: Requires JWT token with `provider_id` claim
-- **Consumer Portal**: Requires JWT token with `consumer_id` claim
+## How Audit Logging Works
 
-## Response Format
+### 1. Request Flow
+
+When a request is made to services with audit middleware:
+
+1. **Request Reception**: Service receives the request
+2. **Authentication**: JWT token is validated to extract consumer information
+3. **Processing**: Request is processed normally
+4. **Response Generation**: Response is generated
+5. **Audit Logging**: Audit info is captured and sent to Redis Streams
+
+### 2. Audit Data Captured
+
+For each request, the following audit information is captured:
 
 ```json
 {
-  "events": [
-    {
-      "event_id": "uuid",
-      "timestamp": "2024-01-01T12:00:00Z",
-      "consumer_id": "consumer-123",
-      "provider_id": "provider-456", 
-      "transaction_status": "SUCCESS",
-      "citizen_hash": "hashed-citizen-id"
-    }
-  ],
-  "total": 100,
-  "limit": 50,
-  "offset": 0
+  "event_id": "uuid-generated-event-id",
+  "consumer_id": "application-id-from-jwt",
+  "provider_id": "schema-id-from-active-schema",
+  "requested_data": "{\"query\": \"...\", \"variables\": {...}}",
+  "response_data": "{\"data\": {...}, \"errors\": [...]}",
+  "transaction_status": "success|failure",
+  "user_agent": "client-user-agent",
+  "ip_address": "client-ip-address",
+  "timestamp": 1698000000
 }
 ```
 
-## Security Notes
+### 3. Redis Streams Flow
 
-- **Sensitive data is excluded**: `requested_data` and `response_data` are intentionally omitted from API responses for security
-- **Role-based access**: Each endpoint only returns data relevant to the authenticated user's role
-- **JWT validation**: Provider and consumer endpoints validate JWT tokens to ensure proper authorization
-
-## Environment Variables
-
-### Choreo Environment Variables (Primary)
-- `CHOREO_DB_AUDIT_HOSTNAME` - Database hostname
-- `CHOREO_DB_AUDIT_PORT` - Database port
-- `CHOREO_DB_AUDIT_USERNAME` - Database username
-- `CHOREO_DB_AUDIT_PASSWORD` - Database password
-- `CHOREO_DB_AUDIT_DATABASENAME` - Database name
-
-### Fallback Environment Variables (Local Development)
-- `DB_HOST` - Database host (default: localhost)
-- `DB_PORT` - Database port (default: 5432)
-- `DB_USER` - Database username (default: user)
-- `DB_PASSWORD` - Database password (default: password)
-- `DB_NAME` - Database name (default: gov_dx_sandbox)
-- `DB_SSLMODE` - SSL mode (default: disable)
-- `PORT` - Service port (default: 3001)
-
-## Running the Service
-
-```bash
-# Install dependencies
-go mod tidy
-
-# Run the service
-go run main.go
-
-# Or build and run
-go build -o audit-service
-./audit-service
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   API Server    │    │   Redis         │    │   Audit Service │
+│                 │    │   Streams       │    │                 │
+│ 1. Publish      │───▶│ 2. Store in     │───▶│ 3. Consume      │
+│    Audit Event  │    │    Stream       │    │    Messages     │
+│                 │    │                 │    │                 │
+│                 │    │ 4. Acknowledge  │◀───│ 5. Process &    │
+│                 │    │    (XACK)       │    │    Save to DB   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-## Health Check
+## Testing the Complete Flow
 
-- `GET /health` - Returns service health status
+### Step 1: Start the Audit Service
+
+```bash
+cd audit-service
+export REDIS_ADDR=localhost:6379
+go run main.go
+```
+
+### Step 2: Start the Orchestration Engine (with audit middleware)
+
+```bash
+cd exchange/orchestration-engine-go
+export REDIS_ADDR=localhost:6379
+go run main.go
+```
+
+### Step 3: Make a Test Request
+
+```bash
+curl -X POST http://localhost:4000/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "query": "query { person(nic: \"123456789V\") { fullName address } }"
+  }'
+```
+
+### Step 4: Verify Audit Logs
+
+1. **Check Redis Stream**:
+   ```bash
+   redis-cli xlen audit-events
+   redis-cli xrange audit-events - +
+   ```
+
+2. **Check Database**:
+   ```sql
+   SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 10;
+   ```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_ADDR` | `localhost:6379` | Redis server address |
+| `REDIS_PASSWORD` | `""` | Redis password (optional) |
+| `CHOREO_DB_AUDIT_HOSTNAME` | `localhost` | PostgreSQL hostname |
+| `CHOREO_DB_AUDIT_PORT` | `5432` | PostgreSQL port |
+| `CHOREO_DB_AUDIT_USERNAME` | `postgres` | PostgreSQL username |
+| `CHOREO_DB_AUDIT_PASSWORD` | `password` | PostgreSQL password |
+| `CHOREO_DB_AUDIT_DATABASENAME` | `gov_dx_sandbox` | PostgreSQL database name |
+
+### Redis Streams Configuration
+
+- **Stream Name**: `audit-events`
+- **Consumer Group**: `audit-processors`
+- **Dead Letter Queue**: `audit-events_dlq`
+- **Max Retries**: 5
+- **Block Timeout**: 5 seconds
+- **Pending Timeout**: 1 minute
+
+## Development
+
+### Building
+
+```bash
+go build .
+```
+
+### Running Tests
+
+```bash
+go test ./tests/... -v
+```
+
+### Docker
+
+```bash
+# Build image
+docker build -t audit-service .
+
+# Run container
+docker run -p 8081:8081 \
+  -e REDIS_ADDR=redis:6379 \
+  -e CHOREO_DB_AUDIT_HOSTNAME=postgres \
+  audit-service
+```
+
+## Monitoring
+
+### Redis Streams Monitoring
+
+```bash
+# Check stream length
+redis-cli xlen audit-events
+
+# Check consumer groups
+redis-cli xinfo groups audit-events
+
+# Check pending messages
+redis-cli xpending audit-events audit-processors
+```
+
+### Database Monitoring
+
+```sql
+-- Check recent audit logs
+SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 10;
+
+-- Check logs by consumer
+SELECT consumer_id, COUNT(*) FROM audit_logs GROUP BY consumer_id;
+
+-- Check success/failure rates
+SELECT transaction_status, COUNT(*) FROM audit_logs GROUP BY transaction_status;
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Redis Connection Failed**
+   - Check Redis is running: `redis-cli ping`
+   - Verify `REDIS_ADDR` environment variable
+   - Check Redis authentication
+
+2. **Database Connection Failed**
+   - Verify PostgreSQL is running
+   - Check database credentials
+   - Ensure database exists
+
+3. **No Audit Logs Appearing**
+   - Check Redis Streams for messages: `redis-cli xlen audit-events`
+   - Verify consumer group exists: `redis-cli xinfo groups audit-events`
+   - Check service logs for errors
+
+### Logs
+
+The service logs important events:
+- Redis connection status
+- Message processing success/failure
+- Database operations
+- Error conditions
+
+## License
+
+This project is part of the OpenDIF ecosystem.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -69,9 +70,11 @@ func (h *AuditHandler) handleGetAuditLogs(w http.ResponseWriter, r *http.Request
 	endDateStr := queryParams.Get("endDate")
 
 	// Parse pagination parameters
-	limit := 50 // default
+	defaultLimit := parseIntOrDefault("AUDIT_DEFAULT_LIMIT", 50)
+	maxLimit := parseIntOrDefault("AUDIT_MAX_LIMIT", 1000)
+	limit := defaultLimit
 	if limitStr := queryParams.Get("limit"); limitStr != "" {
-		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 1000 {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= maxLimit {
 			limit = parsedLimit
 		}
 	}
@@ -135,4 +138,14 @@ func (h *AuditHandler) handleGetAuditLogs(w http.ResponseWriter, r *http.Request
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// parseIntOrDefault gets environment variable as int or returns default value
+func parseIntOrDefault(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
 }

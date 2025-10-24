@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -78,7 +79,8 @@ func (c *RedisClient) EnsureStreamGroupExists(ctx context.Context, streamName, g
 	err := c.client.XGroupCreateMkStream(ctx, streamName, groupName, "$").Err()
 	if err != nil {
 		// "BUSYGROUP" error is fine, it means the group already exists.
-		if _, ok := err.(redis.Error); !ok || err.Error() != "BUSYGROUP Consumer Group name already exists" {
+		// Use string contains check instead of exact string comparison for better compatibility
+		if !isBusyGroupError(err) {
 			return fmt.Errorf("failed to create consumer group: %w", err)
 		}
 	}
@@ -157,4 +159,19 @@ func (c *RedisClient) AckMessage(ctx context.Context, streamName, groupName, msg
 		return fmt.Errorf("failed to XAck message %s: %w", msgID, err)
 	}
 	return nil
+}
+
+// isBusyGroupError checks if the error is a BUSYGROUP error indicating the consumer group already exists
+func isBusyGroupError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check if it's a Redis error and contains BUSYGROUP
+	if redisErr, ok := err.(redis.Error); ok {
+		return strings.Contains(strings.ToUpper(redisErr.Error()), "BUSYGROUP")
+	}
+
+	// Fallback: check error message for BUSYGROUP
+	return strings.Contains(strings.ToUpper(err.Error()), "BUSYGROUP")
 }

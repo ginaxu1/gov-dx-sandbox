@@ -147,11 +147,25 @@ func main() {
 	log.Println("Audit service shutting down...")
 
 	// 8. Gracefully shut down the HTTP server
-	//    Give it 5 seconds to finish any active requests.
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	//    Give it configurable time to finish any active requests.
+	shutdownTimeout := parseShutdownTimeout("SHUTDOWN_TIMEOUT", "5s")
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		log.Printf("HTTP server graceful shutdown failed: %v", err)
 	}
+}
+
+// parseShutdownTimeout gets environment variable as duration or returns default value
+func parseShutdownTimeout(key, defaultValue string) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := time.ParseDuration(value); err == nil {
+			return parsed
+		}
+	}
+	if parsed, err := time.ParseDuration(defaultValue); err == nil {
+		return parsed
+	}
+	return 5 * time.Second // fallback
 }

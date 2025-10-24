@@ -24,14 +24,9 @@ type AuditMiddleware struct {
 // NewAuditMiddleware creates a new audit middleware
 func NewAuditMiddleware(schemaService interface{}) *AuditMiddleware {
 	// Try to connect to Redis
-	redisAddr := os.Getenv("REDIS_ADDR")
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
-	}
-
 	redisClient, err := redis.NewClient(&redis.Config{
-		Addr:     redisAddr,
-		Password: os.Getenv("REDIS_PASSWORD"),
+		Addr:     getEnvOrDefault("REDIS_ADDR", "localhost:6379"),
+		Password: getEnvOrDefault("REDIS_PASSWORD", ""),
 		DB:       0,
 	})
 	if err != nil {
@@ -257,4 +252,12 @@ func (am *AuditMiddleware) getApplicationIDFromConsumer(r *http.Request) string 
 		"subscriber", consumerAssertion.Subscriber,
 		"applicationId", consumerAssertion.ApplicationId)
 	return "unknown-app"
+}
+
+// getEnvOrDefault gets environment variable or returns default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

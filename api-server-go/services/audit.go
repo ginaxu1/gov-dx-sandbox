@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -23,8 +24,8 @@ type AuditService struct {
 func NewAuditService() *AuditService {
 	// Try to connect to Redis
 	redisClient, err := redis.NewClient(&redis.Config{
-		Addr:     "localhost:6379",
-		Password: "",
+		Addr:     getEnvOrDefault("REDIS_ADDR", "localhost:6379"),
+		Password: getEnvOrDefault("REDIS_PASSWORD", ""),
 		DB:       0,
 	})
 	if err != nil {
@@ -35,6 +36,14 @@ func NewAuditService() *AuditService {
 	return &AuditService{
 		redisClient: redisClient,
 	}
+}
+
+// getEnvOrDefault gets environment variable or returns default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // SendAuditLogAsync sends an audit log asynchronously to Redis stream

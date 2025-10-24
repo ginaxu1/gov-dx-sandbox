@@ -244,9 +244,6 @@ func main() {
 
 	// Setup CORS middleware
 	corsMiddleware := v1middleware.NewCORSMiddleware()
-
-	// Setup audit middleware
-	auditServiceURL := getEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
 	auditMiddleware := middleware.NewAuditMiddleware()
 
 	// Apply middleware chain: CORS -> Audit

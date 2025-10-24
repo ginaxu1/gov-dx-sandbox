@@ -23,19 +23,9 @@ func TestConsumerLogic(t *testing.T) {
 
 		// Test that the processor was created successfully
 		if processor == nil {
-			t.Error("Expected processor to be created, got nil")
-		}
-
-		// Test that the processor has the expected audit service
-		if processor == nil {
-			t.Error("Expected processor to have audit service, got nil")
+			t.Error("Expected processor to be non-nil, got nil")
 		}
 	})
-}
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || (len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || contains(s[1:], substr))))
 }
 
 // TestRedisClientConfig tests the Redis client configuration
