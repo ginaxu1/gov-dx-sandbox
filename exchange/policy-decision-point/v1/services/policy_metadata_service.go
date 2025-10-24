@@ -21,8 +21,8 @@ func NewPolicyMetadataService(db *gorm.DB) *PolicyMetadataService {
 	}
 }
 
-// CreatePolicyMetadatas creates new policy metadata records with validation
-func (s *PolicyMetadataService) CreatePolicyMetadatas(req *models.PolicyMetadataCreateRequest) (*models.PolicyMetadataCreateResponse, error) {
+// CreatePolicyMetadata creates new policy metadata records with validation
+func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataCreateRequest) (*models.PolicyMetadataCreateResponse, error) {
 	// Prepare policy metadata records
 	var policyMetadataList []models.PolicyMetadata
 	now := time.Now()
