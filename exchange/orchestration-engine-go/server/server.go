@@ -13,6 +13,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
@@ -159,7 +160,13 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
+	// Create audit middleware
+	auditMiddleware := middleware.NewAuditMiddleware(schemaService)
+
+	// Create a middleware chain: CORS -> Audit -> Mux
+	handler := corsMiddleware(auditMiddleware.AuditHandler(mux.ServeHTTP))
+
+	if err := http.ListenAndServe(port, handler); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
