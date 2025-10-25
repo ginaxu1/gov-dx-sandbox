@@ -83,12 +83,13 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 		}
 
 		// Calculate expiration time based on grant duration
+		var currentTime = time.Now()
 		var expiresAt time.Time
 		switch req.GrantDuration {
 		case models.GrantDurationTypeOneMonth:
-			expiresAt = time.Now().AddDate(0, 1, 0)
+			expiresAt = currentTime.AddDate(0, 1, 0)
 		case models.GrantDurationTypeOneYear:
-			expiresAt = time.Now().AddDate(1, 0, 0)
+			expiresAt = currentTime.AddDate(1, 0, 0)
 		default:
 			return nil, fmt.Errorf("invalid grant duration: %s", req.GrantDuration)
 		}
@@ -99,7 +100,7 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 		}
 		pm.AllowList[req.ApplicationID] = models.AllowListEntry{
 			ExpiresAt: expiresAt,
-			UpdatedAt: time.Now(),
+			UpdatedAt: currentTime,
 		}
 
 		if err := s.db.Save(&pm).Error; err != nil {
@@ -111,7 +112,7 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 			FieldName: record.FieldName,
 			SchemaID:  record.SchemaID,
 			ExpiresAt: expiresAt.Format(time.RFC3339),
-			UpdatedAt: time.Now().Format(time.RFC3339),
+			UpdatedAt: currentTime.Format(time.RFC3339),
 		}
 		responseRecords = append(responseRecords, responseRecord)
 	}

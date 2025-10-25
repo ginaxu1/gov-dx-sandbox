@@ -11,7 +11,7 @@ import (
 // PolicyMetadata represents the policy_metadata table
 type PolicyMetadata struct {
 	ID                uuid.UUID         `gorm:"column:id;type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	SchemaID          string            `gorm:"column:schema_id;type:varchar(255);not null;uniqueIndex:idx_policy_metadata_schema_field;constraint:fk_policy_metadata_provider_schemas,references provider_schemas(schema_id)" json:"schemaId"`
+	SchemaID          string            `gorm:"column:schema_id;type:varchar(255);not null;uniqueIndex:idx_policy_metadata_schema_field;" json:"schemaId"`
 	FieldName         string            `gorm:"column:field_name;type:text;not null;uniqueIndex:idx_policy_metadata_schema_field" json:"fieldName"`
 	DisplayName       *string           `gorm:"column:display_name;type:text" json:"displayName,omitempty"`
 	Description       *string           `gorm:"column:description;type:text" json:"description,omitempty"`
