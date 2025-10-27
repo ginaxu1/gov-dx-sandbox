@@ -65,8 +65,6 @@ func ExampleGraphQLHandler() {
 func TestGraphQLHandler_ParseSDLToPolicyRequest(t *testing.T) {
 	handler := NewGraphQLHandler()
 
-	ExampleGraphQLHandler()
-
 	sdl := `
 	directive @accessControl(type: String) on FIELD_DEFINITION
 	directive @source(value: String) on FIELD_DEFINITION

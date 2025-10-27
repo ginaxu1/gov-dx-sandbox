@@ -54,7 +54,7 @@ type CreateApplicationSubmissionRequest struct {
 type UpdateApplicationSubmissionRequest struct {
 	ApplicationName        *string               `json:"applicationName,omitempty"`
 	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
-	SelectedFields         []SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
+	SelectedFields         []SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
 	Status                 *string               `json:"status,omitempty"`
 	PreviousApplicationID  *string               `json:"previousApplicationId,omitempty"`
 	Review                 *string               `json:"review,omitempty"`
