@@ -2,82 +2,122 @@
 
 ## Overview
 
-The Audit Service provides reliable, asynchronous audit logging for the OpenDIF ecosystem. It captures audit events from various services and stores them persistently in PostgreSQL. The system uses Redis Streams as an asynchronous buffer to ensure no audit logs are lost, even if the audit service is temporarily unavailable.
+The Audit Service is a **hybrid service** that performs two separate jobs in the OpenDIF ecosystem:
+
+1. **Consumer (Write Path)**: Asynchronously processes audit messages from Redis Streams and saves them to PostgreSQL
+   - Triggered by: `streamConsumer.Start(ctx)` in main.go
+   - Runs as: Background goroutine  
+   - Reads from: Redis Stream `audit-events`
+   - Writes to: PostgreSQL `audit_logs` table
+
+2. **API Server (Read Path)**: Provides REST API endpoints for frontend portals to query and retrieve audit logs
+   - Triggered by: `httpServer.ListenAndServe()` in main.go
+   - Runs as: HTTP server on port 3001
+   - Reads from: PostgreSQL `audit_logs` table
+   - Serves: GET /api/logs and POST /api/logs endpoints
+
+This dual-role architecture allows the service to reliably consume high-volume audit events while simultaneously serving read requests to administrative and entity portals.
 
 ## Architecture
 
 ```
-┌─────────────────┐       ┌───────────────────┐
-│ Frontend UI/App │──────▶│  Audit Service    │
-└─────────────────┘       │  (API Server)     │
-                          │  (GET /api/logs)  │
-                          └─────────▲─────────┘
-                                    │
-                                    │ Reads from
-                                    │
-┌─────────────────┐       ┌─────────▼─────────┐
-│ api-server-go   │───┐   │   PostgreSQL      │
-└─────────────────┘   │   │   Database        │
-                      │   └─────────▲─────────┘
-                      │             │
-┌─────────────────┐   │ (XADD)      │ Writes to
-│ orchestration-  │───┼──▶┌─────────┴─────────┐
-│ engine          │   │   │  Redis Streams    │
-└─────────────────┘   │   │  (audit-events)   │
-                      │   └─────────┬─────────┘
-┌─────────────────┐   │             │
-│ ...any other    │───┘             │ (XREADGROUP)
-│ producer...     │                 │
-└─────────────────┘       ┌─────────▼─────────┐
-                          │  Audit Service    │
-                          │  (Consumer)       │
-                          └───────────────────┘
+┌─────────────────┐                    ┌─────────────────┐
+│ Other Services  │                    │ Frontend        │
+│ (Producers)     │                    │ Portals         │
+└────────┬────────┘                    └────────┬─────────┘
+         │                                     │
+         │ Publish to Stream                   │ GET /api/logs
+         │                                     │
+         ▼                                     ▼
+┌─────────────────────────────────────────────────────────┐
+│                    Audit Service                       │
+│                                                        │
+│  ┌────────────────┐          ┌──────────────────┐    │
+│  │   Consumer     │          │   API Server     │    │
+│  │  (Write Path)  │          │   (Read Path)    │    │
+│  │                │          │                  │    │
+│  │ Reads from     │          │ Serves REST API │    │
+│  │ Redis Streams  │          │ Port 3001       │    │
+│  │                │          │                 │    │
+│  └───────┬────────┘          └────────┬─────────┘    │
+│          │                             │             │
+│          │ Saves to Database           │ Reads from DB│
+└───────────┼─────────────────────────────┼──────────────┘
+            │                             │
+            │  ┌───────────────────────┐  │
+            └─▶│   PostgreSQL          │◀─┘
+               │   audit_logs         │
+               └───────────────────────┘
 ```
+
+## The Two Jobs Explained
+
+### 1. Consumer (Write Path)
+- **Purpose**: Background process that consumes audit events from Redis Streams
+- **Trigger**: Started by `streamConsumer.Start(ctx)` in main.go
+- **Flow**: Reads messages from Redis Stream `audit-events` → Processes them → Saves to PostgreSQL
+- **Features**: Automatic retry, dead letter queue, fault tolerance
+
+### 2. API Server (Read Path)
+- **Purpose**: Serves HTTP requests from frontend portals
+- **Trigger**: Started by `httpServer.ListenAndServe()` in main.go
+- **Flow**: Handles GET/POST requests from frontends → Queries PostgreSQL → Returns results
+- **Features**: Filtering, pagination, CORS support
+
+## Components
+
+1. **Consumer Package** (`consumer/`): Handles Redis Streams consumption and message processing
+2. **API Server** (`main.go`): HTTP server providing REST endpoints
+3. **Simple CORS Middleware**: Adds CORS headers for cross-origin requests
+4. **Handlers** (`handlers/`): Request handlers for different operations
+5. **Services** (`services/`): Business logic for audit operations
+6. **Database** (`database.go`): PostgreSQL connection management
 
 ## Features
 
-- **Reliable Message Delivery**: Uses Redis Streams with consumer groups for guaranteed message processing
-- **Fault Tolerance**: Messages are persisted in Redis and can be reprocessed after service restarts
-- **Retry Logic**: Built-in retry mechanism with configurable max retries and Dead Letter Queue (DLQ)
-- **Graceful Degradation**: Continues to serve API requests even when Redis is unavailable
-- **Environment Flexibility**: Configurable Redis connection via environment variables
+- **REST API**: Simple HTTP endpoints for creating and querying audit logs
+- **Filtering**: Filter by status, date range, consumer ID, provider ID
+- **Pagination**: Built-in support for limit and offset
+- **CORS Support**: Automatic CORS headers for cross-origin requests
+- **Database Views**: Optimized queries using PostgreSQL views
+- **Graceful Shutdown**: Handles shutdown signals gracefully
+- **Health Checks**: Health and version endpoints for monitoring
 
 ## Quick Start
 
 ### Prerequisites
 
-1. **Redis Server**:
-   ```bash
-   docker run -d --name redis -p 6379:6379 redis:7-alpine
-   ```
-
-2. **PostgreSQL Database**:
-   ```bash
-   # Set up your PostgreSQL database
-   export CHOREO_DB_AUDIT_HOSTNAME=localhost
-   export CHOREO_DB_AUDIT_PORT=5432
-   export CHOREO_DB_AUDIT_USERNAME=postgres
-   export CHOREO_DB_AUDIT_PASSWORD=password
-   export CHOREO_DB_AUDIT_DATABASENAME=gov_dx_sandbox
-   ```
+**PostgreSQL Database**:
+```bash
+# Set up your PostgreSQL database
+export CHOREO_DB_AUDIT_HOSTNAME=localhost
+export CHOREO_DB_AUDIT_PORT=5432
+export CHOREO_DB_AUDIT_USERNAME=postgres
+export CHOREO_DB_AUDIT_PASSWORD=password
+export CHOREO_DB_AUDIT_DATABASENAME=gov_dx_sandbox
+export DB_SSLMODE=disable  # For local development
+```
 
 ### Running the Service
 
 ```bash
-# Set environment variables
-export REDIS_ADDR=localhost:6379
-export REDIS_PASSWORD=""  # Optional
-
-# Start the audit service
+# Build the service
 cd audit-service
+go build -o audit-service .
+
+# Or run directly
 go run main.go
+
+# Or use the Makefile
+make build
+make run
 ```
 
 Expected output:
 ```
-Audit service started. Waiting for events...
-Consumer group audit-processors ensured for stream audit-events
-Redis Stream consumer started.
+INFO Audit Service starting environment=development port=3001
+INFO Connecting to database host=localhost port=5432 database=gov_dx_sandbox
+INFO Successfully connected to PostgreSQL database
 ```
 
 ## API Endpoints
@@ -85,111 +125,159 @@ Redis Stream consumer started.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/audit-logs` | GET | Retrieve audit logs with filtering |
+| `/version` | GET | Version information |
+| `/api/logs` | GET | Retrieve audit logs with filtering |
+| `/api/logs` | POST | Create new audit log entry |
 
 ### Health Check
 
 ```bash
-curl http://localhost:8081/health
+curl http://localhost:3001/health
+```
+
+Response:
+```json
+{
+  "service": "audit-service",
+  "status": "healthy"
+}
 ```
 
 ### Retrieve Audit Logs
 
 ```bash
 # Get all audit logs
-curl http://localhost:8081/audit-logs
+curl http://localhost:3001/api/logs
 
-# Filter by consumer ID
-curl "http://localhost:8081/audit-logs?consumer_id=test-app"
+# Filter by status
+curl "http://localhost:3001/api/logs?status=success"
 
 # Filter by date range
-curl "http://localhost:8081/audit-logs?start_date=2024-01-01&end_date=2024-01-31"
+curl "http://localhost:3001/api/logs?startDate=2024-01-01&endDate=2024-01-31"
+
+# With pagination
+curl "http://localhost:3001/api/logs?limit=10&offset=0"
 ```
 
-## How Audit Logging Works
-
-### 1. Request Flow
-
-When a request is made to services with audit middleware:
-
-1. **Request Reception**: Service receives the request
-2. **Authentication**: JWT token is validated to extract consumer information
-3. **Processing**: Request is processed normally
-4. **Response Generation**: Response is generated
-5. **Audit Logging**: Audit info is captured and sent to Redis Streams
-
-### 2. Audit Data Captured
-
-For each request, the following audit information is captured:
-
-```json
-{
-  "event_id": "uuid-generated-event-id",
-  "consumer_id": "application-id-from-jwt",
-  "provider_id": "schema-id-from-active-schema",
-  "requested_data": "{\"query\": \"...\", \"variables\": {...}}",
-  "response_data": "{\"data\": {...}, \"errors\": [...]}",
-  "transaction_status": "success|failure",
-  "user_agent": "client-user-agent",
-  "ip_address": "client-ip-address",
-  "timestamp": 1698000000
-}
-```
-
-### 3. Redis Streams Flow
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   API Server    │    │   Redis         │    │   Audit Service │
-│                 │    │   Streams       │    │                 │
-│ 1. Publish      │───▶│ 2. Store in     │───▶│ 3. Consume      │
-│    Audit Event  │    │    Stream       │    │    Messages     │
-│                 │    │                 │    │                 │
-│                 │    │ 4. Acknowledge  │◀───│ 5. Process &    │
-│                 │    │    (XACK)       │    │    Save to DB   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-## Testing the Complete Flow
-
-### Step 1: Start the Audit Service
+### Create Audit Log
 
 ```bash
-cd audit-service
-export REDIS_ADDR=localhost:6379
-go run main.go
-```
-
-### Step 2: Start the Orchestration Engine (with audit middleware)
-
-```bash
-cd exchange/orchestration-engine-go
-export REDIS_ADDR=localhost:6379
-go run main.go
-```
-
-### Step 3: Make a Test Request
-
-```bash
-curl -X POST http://localhost:4000/ \
+curl -X POST http://localhost:3001/api/logs \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "query": "query { person(nic: \"123456789V\") { fullName address } }"
+    "status": "success",
+    "requestedData": "query { personInfo(nic: \"199512345678\") { fullName } }",
+    "applicationId": "app-123",
+    "schemaId": "schema-456"
   }'
 ```
 
-### Step 4: Verify Audit Logs
+## How It Works
 
-1. **Check Redis Stream**:
+### Creating Audit Logs
+
+You can create audit logs via the REST API:
+
+```bash
+POST /api/logs
+Content-Type: application/json
+
+{
+  "status": "success",
+  "requestedData": "query { ... }",
+  "applicationId": "app-123",
+  "schemaId": "schema-456"
+}
+```
+
+### Querying Audit Logs
+
+The service provides flexible querying with:
+- **Status filtering**: `?status=success` or `?status=failure`
+- **Date range**: `?startDate=2024-01-01&endDate=2024-12-31`
+- **Consumer filtering**: `?consumerId=consumer-123`
+- **Provider filtering**: `?providerId=provider-456`
+- **Pagination**: `?limit=50&offset=0`
+
+### Database Schema
+
+The service uses the `audit_logs` table with this schema:
+
+```sql
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    status VARCHAR(10) NOT NULL CHECK (status IN ('success', 'failure')),
+    requested_data TEXT NOT NULL,
+    application_id VARCHAR(255) NOT NULL,
+    schema_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_logs_application_id ON audit_logs(application_id);
+CREATE INDEX idx_audit_logs_schema_id ON audit_logs(schema_id);
+CREATE INDEX idx_audit_logs_timestamp ON audit_logs(timestamp);
+```
+
+### Redis Streams Consumer (Automatic)
+
+When Redis is configured via `REDIS_ADDR`, the service automatically enables the Consumer (Write Path):
+- **Location**: `audit-service/consumer/`
+- **Stream name**: `audit-events`
+- **Consumer group**: `audit-processors`
+- **Features**: 
+  - Automatic retry with configurable max attempts
+  - Dead letter queue (DLQ) for failed messages
+  - Message claiming for stuck messages
+  - Fault tolerance and graceful degradation
+
+**Operation**: The consumer runs as a background goroutine, automatically processing messages from Redis Streams and saving them to PostgreSQL. The API server continues to operate independently.
+
+## Testing
+
+### Unit Tests
+
+```bash
+cd audit-service
+make test
+```
+
+### Integration Tests
+
+```bash
+# From the integration-tests directory
+cd integration-tests
+bash test-audit-service.sh
+```
+
+### Manual Testing
+
+1. **Start the service**:
    ```bash
-   redis-cli xlen audit-events
-   redis-cli xrange audit-events - +
+   cd audit-service
+   go run main.go
    ```
 
-2. **Check Database**:
-   ```sql
-   SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 10;
+2. **Test health endpoint**:
+   ```bash
+   curl http://localhost:3001/health
+   ```
+
+3. **Create a log entry**:
+   ```bash
+   curl -X POST http://localhost:3001/api/logs \
+     -H "Content-Type: application/json" \
+     -d '{
+       "status": "success",
+       "requestedData": "test query",
+       "applicationId": "test-app",
+       "schemaId": "test-schema"
+     }'
+   ```
+
+4. **Query logs**:
+   ```bash
+   curl http://localhost:3001/api/logs
    ```
 
 ## Configuration
@@ -198,22 +286,34 @@ curl -X POST http://localhost:4000/ \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REDIS_ADDR` | `localhost:6379` | Redis server address |
-| `REDIS_PASSWORD` | `""` | Redis password (optional) |
+| `PORT` | `3001` | Service port |
+| `ENVIRONMENT` | `production` | Environment (development/production) |
 | `CHOREO_DB_AUDIT_HOSTNAME` | `localhost` | PostgreSQL hostname |
 | `CHOREO_DB_AUDIT_PORT` | `5432` | PostgreSQL port |
 | `CHOREO_DB_AUDIT_USERNAME` | `postgres` | PostgreSQL username |
 | `CHOREO_DB_AUDIT_PASSWORD` | `password` | PostgreSQL password |
 | `CHOREO_DB_AUDIT_DATABASENAME` | `gov_dx_sandbox` | PostgreSQL database name |
+| `DB_SSLMODE` | `require` | SSL mode for database connection |
+| `REDIS_ADDR` | `""` | Redis server address (e.g., `localhost:6379`) - enables Consumer |
+| `REDIS_PASSWORD` | `""` | Redis password (optional) |
+| `AUDIT_STREAM_NAME` | `audit-events` | Redis stream name for audit events |
+| `AUDIT_GROUP_NAME` | `audit-processors` | Consumer group name |
+| `AUDIT_MAX_RETRY` | `5` | Maximum retry attempts for failed messages |
+| `AUDIT_BLOCK_TIMEOUT` | `5s` | Timeout for blocking stream reads |
+| `AUDIT_PENDING_TIMEOUT` | `1m` | Timeout before claiming pending messages |
 
-### Redis Streams Configuration
+### Optional Database Pool Settings
 
-- **Stream Name**: `audit-events`
-- **Consumer Group**: `audit-processors`
-- **Dead Letter Queue**: `audit-events_dlq`
-- **Max Retries**: 5
-- **Block Timeout**: 5 seconds
-- **Pending Timeout**: 1 minute
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_MAX_OPEN_CONNS` | `25` | Maximum open connections |
+| `DB_MAX_IDLE_CONNS` | `5` | Maximum idle connections |
+| `DB_CONN_MAX_LIFETIME` | `1h` | Connection max lifetime |
+| `DB_CONN_MAX_IDLE_TIME` | `30m` | Connection max idle time |
+| `DB_QUERY_TIMEOUT` | `30s` | Query timeout |
+| `DB_CONNECT_TIMEOUT` | `10s` | Connection timeout |
+| `DB_RETRY_ATTEMPTS` | `10` | Connection retry attempts |
+| `DB_RETRY_DELAY` | `2s` | Delay between retries |
 
 ## Development
 
@@ -244,17 +344,14 @@ docker run -p 8081:8081 \
 
 ## Monitoring
 
-### Redis Streams Monitoring
+### Service Monitoring
 
 ```bash
-# Check stream length
-redis-cli xlen audit-events
+# Check service health
+curl http://localhost:3001/health
 
-# Check consumer groups
-redis-cli xinfo groups audit-events
-
-# Check pending messages
-redis-cli xpending audit-events audit-processors
+# Get version information
+curl http://localhost:3001/version
 ```
 
 ### Database Monitoring

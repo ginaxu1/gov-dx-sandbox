@@ -28,22 +28,26 @@ dependencies:
   connectionReferences:
   - name: DB_AUDIT
     resourceRef: database:opendif-db/testdb
+  - name: REDIS_AUDIT
+    resourceRef: redis:opendif-redis/audit-redis
 
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
     - name: PORT
-      # +required value source
-      # Allowed value sources: connectionRef, configForm
       valueFrom:
-        # +required config form value source
         configForm:
-          # +optional display name inside the config form, name will be shown in config form if not specified
           displayName: Port
-          # +optional default value is true if not specified
           required: true
-          # +optional default value is string if not specified
-          # Allowed types - string, number, boolean, secret
           type: number
           defaultValue: 3001
-  
+    - name: REDIS_ADDR
+      valueFrom:
+        connectionRef:
+          name: REDIS_AUDIT
+          key: hostWithPort
+    - name: REDIS_PASSWORD
+      valueFrom:
+        connectionRef:
+          name: REDIS_AUDIT
+          key: password

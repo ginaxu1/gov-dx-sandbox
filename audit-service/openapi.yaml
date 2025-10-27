@@ -13,9 +13,6 @@ info:
   version: 1.0.0
   contact:
     name: OpenDIF Team
-  license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
 
 servers:
   - url: https://audit-service-dev.choreo.dev
@@ -58,11 +55,39 @@ paths:
                     type: string
                     example: "Service unavailable"
 
+  /version:
+    get:
+      summary: Version Information
+      description: Get version and build information for the audit service
+      operationId: versionCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: "audit-service"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  buildTime:
+                    type: string
+                    example: "2024-10-27T10:00:00Z"
+                  gitCommit:
+                    type: string
+                    example: "abc123def"
+
   /api/logs:
     get:
       summary: Get Logs
       description: |
-        Retrieve audit logs with optional filtering. Supports filtering by consumerId, providerId, status, and date range.
+        Retrieve audit logs with pagination. Supports filtering by consumerId, providerId, status, and date range.
         
         **For Admin Portal**: Call without parameters to get all logs
         **For Entity Portal (Consumer)**: Call with `?consumerId={consumerId}` to get logs for a specific consumer
@@ -77,14 +102,14 @@ paths:
           required: false
           schema:
             type: string
-            example: "consumer-123"
+            example: "test-app-001"
         - name: providerId
           in: query
           description: Filter logs by provider ID
           required: false
           schema:
             type: string
-            example: "provider-456"
+            example: "schema-person"
         - name: status
           in: query
           description: Filter logs by status
@@ -279,15 +304,39 @@ components:
           type: string
           description: The GraphQL query that was requested
           example: "query { personInfo(nic: \"199512345678\") { fullName } }"
-        consumerId:
+        applicationId:
           type: string
-          example: "consumer-123"
-        providerId:
+          description: Application ID (maps to consumer_id)
+          example: "test-app-001"
+        schemaId:
           type: string
-          example: "provider-456"
+          description: Schema ID (maps to provider_id)
+          example: "schema-person"
+        requestType:
+          type: string
+          description: Type of request (M2M, user, etc.)
+          example: "user"
+          required: false
+        authMethod:
+          type: string
+          description: Authentication method used
+          example: "JWT"
+          required: false
+        userId:
+          type: string
+          description: User ID (for user requests)
+          example: "user-123"
+          required: false
+        sessionId:
+          type: string
+          description: Session ID (for user requests)
+          example: "session-456"
+          required: false
       required:
         - status
         - requestedData
+        - applicationId
+        - schemaId
 
     LogResponse:
       type: object

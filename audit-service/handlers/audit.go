@@ -104,6 +104,44 @@ func (h *AuditHandler) handleGetAuditLogs(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(response)
 }
 
+// HandleCreateLog handles POST /api/logs requests
+func (h *AuditHandler) HandleCreateLog(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var logReq models.LogRequest
+	if err := json.NewDecoder(r.Body).Decode(&logReq); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if logReq.Status == "" || logReq.RequestedData == "" || logReq.ApplicationID == "" || logReq.SchemaID == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	// Validate status
+	if logReq.Status != "success" && logReq.Status != "failure" {
+		http.Error(w, "Invalid status. Must be 'success' or 'failure'", http.StatusBadRequest)
+		return
+	}
+
+	// Create log via service
+	log, err := h.auditService.CreateLog(r.Context(), &logReq)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create log: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(log)
+}
+
 // parseIntOrDefault gets environment variable as int or returns default value
 func parseIntOrDefault(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
