@@ -28,7 +28,7 @@ func (p *DatabaseEventProcessor) ProcessAuditEvent(ctx context.Context, event ma
 	if status == "" {
 		status = event["status"]
 	}
-	
+
 	logEntry := &models.LogRequest{
 		Status:        status,
 		RequestedData: event["requested_data"],

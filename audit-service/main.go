@@ -14,8 +14,6 @@ import (
 	"github.com/gov-dx-sandbox/audit-service/redis"
 
 	"github.com/gov-dx-sandbox/audit-service/consumer"
-	"github.com/gov-dx-sandbox/audit-service/handlers"
-	"github.com/gov-dx-sandbox/audit-service/middleware"
 	"github.com/gov-dx-sandbox/audit-service/services"
 )
 
@@ -108,27 +106,19 @@ func main() {
 	log.Println("Redis Stream consumer started.")
 
 	// 6. Setup and Start the HTTP API Server
-	apiHandler := handlers.NewAuditHandler(auditService)
+	apiHandler := api.NewAuditAPI(auditService)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/logs", apiHandler.HandleAuditLogs)
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy","service":"audit-service"}`))
-	})
+	mux.HandleFunc("GET /api/logs", apiHandler.GetLogsHandler)
+	mux.HandleFunc("GET /health", apiHandler.HealthHandler)
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"version":"1.0.0","service":"audit-service"}`))
 	})
-
-	// Add CORS middleware
-	handler := middleware.NewCORSMiddleware()(mux)
-
 	httpServer := &http.Server{
-		Addr:    ":" + getEnvOrDefault("PORT", "3001"),
-		Handler: handler,
+		Addr:    getEnvOrDefault("PORT", ":8080"),
+		Handler: simpleCORS(mux),
 	}
 
 	// Start the server in a goroutine so it doesn't block
@@ -171,4 +161,24 @@ func parseShutdownTimeout(key, defaultValue string) time.Duration {
 		return parsed
 	}
 	return 5 * time.Second // fallback
+}
+
+// simpleCORS is a middleware that adds permissive CORS headers.
+// It wraps the main router.
+func simpleCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set headers for all responses
+		w.Header().Set("Access-Control-Allow-Origin", "*") // Or your specific frontend domain
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle the preflight "OPTIONS" request
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Serve the actual request (e.g., GET /api/logs)
+		next.ServeHTTP(w, r)
+	})
 }
