@@ -27,7 +27,6 @@ func NewV1Handler(db *gorm.DB) *V1Handler {
 	entityService := services.NewEntityService(db)
 	pdpServiceURL := os.Getenv("PDP_SERVICE_URL")
 	if pdpServiceURL == "" {
-		slog.Error("PDP_SERVICE_URL environment variable is not set or empty")
 		panic("PDP_SERVICE_URL environment variable is not set or empty")
 	}
 	pdpService := services.NewPDPService(pdpServiceURL)
