@@ -29,7 +29,7 @@ dependencies:
   - name: DB_AUDIT
     resourceRef: database:opendif-db/testdb
   - name: REDIS_AUDIT
-    resourceRef: redis:opendif-redis/audit-redis
+    resourceRef: thirdparty:opendif-redis/1.0
 
 configurations:
   # +optional List of environment variables to be injected into the component.
