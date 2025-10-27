@@ -1,0 +1,18 @@
+# Orchestration Engine Config File and Config Template
+config.example.json
+config.json
+
+# Go build files
+bin/
+obj//
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Environment variables
+.env.*
+
+# Vendor directory
+vendor/
