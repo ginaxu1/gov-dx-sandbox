@@ -29,7 +29,7 @@ dependencies:
   - name: DB_AUDIT
     resourceRef: database:opendif-db/testdb
   - name: REDIS_AUDIT
-    resourceRef: thirdparty:opendif-redis/1.0
+    resourceRef: database:opendif-cache-server
 
 configurations:
   # +optional List of environment variables to be injected into the component.
@@ -41,13 +41,3 @@ configurations:
           required: true
           type: number
           defaultValue: 3001
-    - name: REDIS_ADDR
-      valueFrom:
-        connectionRef:
-          name: REDIS_AUDIT
-          key: hostWithPort
-    - name: REDIS_PASSWORD
-      valueFrom:
-        connectionRef:
-          name: REDIS_AUDIT
-          key: password

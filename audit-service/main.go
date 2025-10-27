@@ -99,13 +99,19 @@ func main() {
 	var redisClient *redis.RedisClient
 	var streamConsumer *consumer.StreamConsumer
 
-	redisAddr := getEnvOrDefault("REDIS_ADDR", "")
-	redisPassword := getEnvOrDefault("REDIS_PASSWORD", "")
+	redisHost := getEnvOrDefault("CHOREO_REDIS_AUDIT_HOSTNAME", getEnvOrDefault("REDIS_HOST", ""))
+	redisPort := getEnvOrDefault("CHOREO_REDIS_AUDIT_PORT", getEnvOrDefault("REDIS_PORT", ""))
+	redisUsername := getEnvOrDefault("CHOREO_REDIS_AUDIT_USERNAME", getEnvOrDefault("REDIS_USERNAME", ""))
+	redisPassword := getEnvOrDefault("CHOREO_REDIS_AUDIT_PASSWORD", getEnvOrDefault("REDIS_PASSWORD", ""))
 
-	if redisAddr != "" {
-		slog.Info("Initializing Redis connection for stream consumer", "address", redisAddr)
+	if redisHost != "" && redisPort != "" {
+		// Combine host and port
+		redisAddr := redisHost + ":" + redisPort
+
+		slog.Info("Initializing Redis connection for stream consumer", "address", redisAddr, "username", redisUsername)
 		redisConfig := &redis.Config{
 			Addr:     redisAddr,
+			Username: redisUsername,
 			Password: redisPassword,
 			DB:       0,
 		}

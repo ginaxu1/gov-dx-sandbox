@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 // Config holds all configuration for the Redis client
 type Config struct {
 	Addr     string
+	Username string
 	Password string
 	DB       int
 }
@@ -25,11 +27,19 @@ type RedisClient struct {
 
 // NewClient creates and connects a new RedisClient.
 func NewClient(cfg *Config) (*RedisClient, error) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.Addr,
-		Password: cfg.Password,
-		DB:       cfg.DB,
-	})
+	opts := &redis.Options{
+		Addr:      cfg.Addr,
+		Password:  cfg.Password,
+		DB:        cfg.DB,
+		TLSConfig: &tls.Config{},
+	}
+
+	// Set username if provided
+	if cfg.Username != "" {
+		opts.Username = cfg.Username
+	}
+
+	rdb := redis.NewClient(opts)
 
 	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
