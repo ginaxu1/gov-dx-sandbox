@@ -41,39 +41,45 @@ type UpdateSchemaRequest struct {
 	Version           *string `json:"version,omitempty"`
 }
 
+// // SelectedFieldRecord represents a record of selected fields
+// type SelectedFieldRecord struct {
+// 	FieldName string `json:"fieldName" validate:"required"`
+// 	SchemaID  string `json:"schemaId" validate:"required"`
+// }
+
 // CreateApplicationSubmissionRequest Consumer Application Submission DTOs
 type CreateApplicationSubmissionRequest struct {
-	ApplicationName        string   `json:"applicationName" validate:"required"`
-	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
-	SelectedFields         []string `json:"selectedFields" validate:"required,min=1"`
-	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
-	ConsumerID             string   `json:"consumerId" validate:"required"`
+	ApplicationName        string                `json:"applicationName" validate:"required"`
+	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
+	SelectedFields         []SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
+	PreviousApplicationID  *string               `json:"previousApplicationId,omitempty"`
+	ConsumerID             string                `json:"consumerId" validate:"required"`
 }
 
 // UpdateApplicationSubmissionRequest updates the status of a consumer application submission
 type UpdateApplicationSubmissionRequest struct {
-	ApplicationName        *string   `json:"applicationName,omitempty"`
-	ApplicationDescription *string   `json:"applicationDescription,omitempty"`
-	SelectedFields         *[]string `json:"selectedFields,omitempty" validate:"required,min=1"`
-	Status                 *string   `json:"status,omitempty"`
-	PreviousApplicationID  *string   `json:"previousApplicationId,omitempty"`
-	Review                 *string   `json:"review,omitempty"`
+	ApplicationName        *string                `json:"applicationName,omitempty"`
+	ApplicationDescription *string                `json:"applicationDescription,omitempty"`
+	SelectedFields         *[]SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
+	Status                 *string                `json:"status,omitempty"`
+	PreviousApplicationID  *string                `json:"previousApplicationId,omitempty"`
+	Review                 *string                `json:"review,omitempty"`
 }
 
 // CreateApplicationRequest creates a new consumer application
 type CreateApplicationRequest struct {
-	ApplicationName        string   `json:"applicationName" validate:"required"`
-	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
-	SelectedFields         []string `json:"selectedFields" validate:"required,min=1"`
-	ConsumerID             string   `json:"consumerId" validate:"required"`
+	ApplicationName        string                `json:"applicationName" validate:"required"`
+	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
+	SelectedFields         []SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
+	ConsumerID             string                `json:"consumerId" validate:"required"`
 }
 
 // UpdateApplicationRequest updates an existing consumer application
 type UpdateApplicationRequest struct {
-	ApplicationName        *string   `json:"applicationName,omitempty"`
-	ApplicationDescription *string   `json:"applicationDescription,omitempty"`
-	SelectedFields         *[]string `json:"selectedFields,omitempty" validate:"required,min=1"`
-	Version                *string   `json:"version,omitempty"`
+	ApplicationName        *string                `json:"applicationName,omitempty"`
+	ApplicationDescription *string                `json:"applicationDescription,omitempty"`
+	SelectedFields         *[]SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
+	Version                *string                `json:"version,omitempty"`
 }
 
 type CreateEntityRequest struct {
@@ -190,27 +196,27 @@ type SchemaSubmissionResponse struct {
 }
 
 type ApplicationResponse struct {
-	ApplicationID          string   `json:"applicationId"`
-	ApplicationName        string   `json:"applicationName"`
-	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
-	SelectedFields         []string `json:"selectedFields"`
-	ConsumerID             string   `json:"consumerId"`
-	Version                string   `json:"version"`
-	CreatedAt              string   `json:"createdAt"`
-	UpdatedAt              string   `json:"updatedAt"`
+	ApplicationID          string                `json:"applicationId"`
+	ApplicationName        string                `json:"applicationName"`
+	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
+	SelectedFields         []SelectedFieldRecord `json:"selectedFields"`
+	ConsumerID             string                `json:"consumerId"`
+	Version                string                `json:"version"`
+	CreatedAt              string                `json:"createdAt"`
+	UpdatedAt              string                `json:"updatedAt"`
 }
 
 type ApplicationSubmissionResponse struct {
-	SubmissionID           string   `json:"submissionId"`
-	PreviousApplicationID  *string  `json:"previousApplicationId,omitempty"`
-	ApplicationName        string   `json:"applicationName"`
-	ApplicationDescription *string  `json:"applicationDescription,omitempty"`
-	SelectedFields         []string `json:"selectedFields"`
-	ConsumerID             string   `json:"consumerId"`
-	Status                 string   `json:"status"`
-	CreatedAt              string   `json:"createdAt"`
-	UpdatedAt              string   `json:"updatedAt"`
-	Review                 *string  `json:"review,omitempty"`
+	SubmissionID           string                `json:"submissionId"`
+	PreviousApplicationID  *string               `json:"previousApplicationId,omitempty"`
+	ApplicationName        string                `json:"applicationName"`
+	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
+	SelectedFields         []SelectedFieldRecord `json:"selectedFields"`
+	ConsumerID             string                `json:"consumerId"`
+	Status                 string                `json:"status"`
+	CreatedAt              string                `json:"createdAt"`
+	UpdatedAt              string                `json:"updatedAt"`
+	Review                 *string               `json:"review,omitempty"`
 }
 
 // CollectionResponse Generic collection response

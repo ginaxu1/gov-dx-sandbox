@@ -11,12 +11,13 @@ import (
 
 // SchemaService handles schema-related operations
 type SchemaService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	policyService *PDPService
 }
 
 // NewSchemaService creates a new schema service
-func NewSchemaService(db *gorm.DB) *SchemaService {
-	return &SchemaService{db: db}
+func NewSchemaService(db *gorm.DB, policyService *PDPService) *SchemaService {
+	return &SchemaService{db: db, policyService: policyService}
 }
 
 // CreateSchema creates a new schema
@@ -30,8 +31,25 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		ProviderID:        req.ProviderID,
 		Version:           models.ActiveVersion,
 	}
-	if err := s.db.Create(&schema).Error; err != nil {
-		return nil, fmt.Errorf("failed to create schema: %w", err)
+
+	// Start transaction
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Create schema in the database
+		if err := tx.Create(&schema).Error; err != nil {
+			return fmt.Errorf("failed to create schema: %w", err)
+		}
+
+		// Create policy metadata in PDP
+		_, err := s.policyService.CreatePolicyMetadata(schema.SchemaID, schema.SDL)
+		if err != nil {
+			return fmt.Errorf("failed to create policy metadata in PDP: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	response := &models.SchemaResponse{

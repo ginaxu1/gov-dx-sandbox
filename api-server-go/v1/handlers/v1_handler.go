@@ -23,12 +23,13 @@ type V1Handler struct {
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) *V1Handler {
 	entityService := services.NewEntityService(db)
+	pdpService := services.NewPDPService("http://pdp-service:8080")
 	return &V1Handler{
 		entityService:      entityService,
 		providerService:    services.NewProviderService(db, entityService),
 		consumerService:    services.NewConsumerService(db, entityService),
-		schemaService:      services.NewSchemaService(db),
-		applicationService: services.NewApplicationService(db),
+		schemaService:      services.NewSchemaService(db, pdpService),
+		applicationService: services.NewApplicationService(db, pdpService),
 	}
 }
 

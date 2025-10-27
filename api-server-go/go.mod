@@ -13,6 +13,11 @@ require (
 )
 
 require (
+	github.com/agnivade/levenshtein v1.2.1 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
+)
+
+require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.6.0 // indirect
