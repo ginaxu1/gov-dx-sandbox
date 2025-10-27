@@ -39,11 +39,11 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 	now := time.Now()
 	var newRecords []models.PolicyMetadata
 	var updatedRecords []models.PolicyMetadata
-	processedFields := make(map[string]bool)
+	processedFields := make(map[string]struct{})
 
 	// Process incoming records
 	for _, record := range req.Records {
-		processedFields[record.FieldName] = true
+		processedFields[record.FieldName] = struct{}{}
 
 		if existing, exists := existingMap[record.FieldName]; exists {
 			// Update existing record with all fields
@@ -82,9 +82,10 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 	// Delete records that weren't in the request (obsolete records)
 	var idsToDelete []uuid.UUID
 	for fieldName, existing := range existingMap {
-		if !processedFields[fieldName] {
+		if _, processed := processedFields[fieldName]; !processed {
 			idsToDelete = append(idsToDelete, existing.ID)
 		}
+
 	}
 
 	if len(idsToDelete) > 0 {
