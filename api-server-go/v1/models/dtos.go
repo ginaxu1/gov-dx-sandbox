@@ -52,12 +52,12 @@ type CreateApplicationSubmissionRequest struct {
 
 // UpdateApplicationSubmissionRequest updates the status of a consumer application submission
 type UpdateApplicationSubmissionRequest struct {
-	ApplicationName        *string                `json:"applicationName,omitempty"`
-	ApplicationDescription *string                `json:"applicationDescription,omitempty"`
-	SelectedFields         *[]SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
-	Status                 *string                `json:"status,omitempty"`
-	PreviousApplicationID  *string                `json:"previousApplicationId,omitempty"`
-	Review                 *string                `json:"review,omitempty"`
+	ApplicationName        *string               `json:"applicationName,omitempty"`
+	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
+	SelectedFields         []SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
+	Status                 *string               `json:"status,omitempty"`
+	PreviousApplicationID  *string               `json:"previousApplicationId,omitempty"`
+	Review                 *string               `json:"review,omitempty"`
 }
 
 // CreateApplicationRequest creates a new consumer application
@@ -70,10 +70,11 @@ type CreateApplicationRequest struct {
 
 // UpdateApplicationRequest updates an existing consumer application
 type UpdateApplicationRequest struct {
-	ApplicationName        *string                `json:"applicationName,omitempty"`
-	ApplicationDescription *string                `json:"applicationDescription,omitempty"`
-	SelectedFields         *[]SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
-	Version                *string                `json:"version,omitempty"`
+	ApplicationName        *string `json:"applicationName,omitempty"`
+	ApplicationDescription *string `json:"applicationDescription,omitempty"`
+	//SelectedFields         []SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
+	// SelectedFields update is not allowed here to maintain data integrity
+	Version *string `json:"version,omitempty"`
 }
 
 type CreateEntityRequest struct {

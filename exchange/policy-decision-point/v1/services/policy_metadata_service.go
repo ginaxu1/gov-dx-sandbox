@@ -23,34 +23,87 @@ func NewPolicyMetadataService(db *gorm.DB) *PolicyMetadataService {
 
 // CreatePolicyMetadata creates new policy metadata records with validation
 func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataCreateRequest) (*models.PolicyMetadataCreateResponse, error) {
-	// Prepare policy metadata records
-	var policyMetadataList []models.PolicyMetadata
+	// Check if there are already records for the given schema ID
+	var existingMetadata []models.PolicyMetadata
+	if err := s.db.Where("schema_id = ?", req.SchemaID).Find(&existingMetadata).Error; err != nil {
+		return nil, fmt.Errorf("failed to check existing policy metadata: %w", err)
+	}
+
+	// Create a map for faster lookups of existing records by field name
+	existingMap := make(map[string]*models.PolicyMetadata)
+	for i := range existingMetadata {
+		existingMap[existingMetadata[i].FieldName] = &existingMetadata[i]
+	}
+
 	now := time.Now()
+	var newRecords []models.PolicyMetadata
+	var updatedRecords []models.PolicyMetadata
+	processedFields := make(map[string]bool)
+
+	// Process incoming records
 	for _, record := range req.Records {
-		policyMetadata := models.PolicyMetadata{
-			ID:                uuid.New(),
-			SchemaID:          req.SchemaID,
-			FieldName:         record.FieldName,
-			DisplayName:       record.DisplayName,
-			Description:       record.Description,
-			Source:            record.Source,
-			IsOwner:           record.IsOwner,
-			AccessControlType: record.AccessControlType,
-			AllowList:         make(models.AllowList),
-			Owner:             record.Owner,
-			CreatedAt:         now,
-			UpdatedAt:         now,
+		processedFields[record.FieldName] = true
+
+		if existing, exists := existingMap[record.FieldName]; exists {
+			// Update existing record with all fields
+			existing.DisplayName = record.DisplayName
+			existing.Description = record.Description
+			existing.Source = record.Source
+			existing.IsOwner = record.IsOwner
+			existing.AccessControlType = record.AccessControlType
+			existing.Owner = record.Owner
+			existing.UpdatedAt = now
+
+			if err := s.db.Save(existing).Error; err != nil {
+				return nil, fmt.Errorf("failed to update existing policy metadata: %w", err)
+			}
+			updatedRecords = append(updatedRecords, *existing)
+		} else {
+			// Create new record
+			policyMetadata := models.PolicyMetadata{
+				ID:                uuid.New(),
+				SchemaID:          req.SchemaID,
+				FieldName:         record.FieldName,
+				DisplayName:       record.DisplayName,
+				Description:       record.Description,
+				Source:            record.Source,
+				IsOwner:           record.IsOwner,
+				AccessControlType: record.AccessControlType,
+				AllowList:         make(models.AllowList),
+				Owner:             record.Owner,
+				CreatedAt:         now,
+				UpdatedAt:         now,
+			}
+			newRecords = append(newRecords, policyMetadata)
 		}
-		policyMetadataList = append(policyMetadataList, policyMetadata)
 	}
 
-	if err := s.db.Create(&policyMetadataList).Error; err != nil {
-		return nil, fmt.Errorf("failed to create policy metadata records: %w", err)
+	// Delete records that weren't in the request (obsolete records)
+	var idsToDelete []uuid.UUID
+	for fieldName, existing := range existingMap {
+		if !processedFields[fieldName] {
+			idsToDelete = append(idsToDelete, existing.ID)
+		}
 	}
 
-	// Prepare response
+	if len(idsToDelete) > 0 {
+		if err := s.db.Where("id IN ?", idsToDelete).Delete(&models.PolicyMetadata{}).Error; err != nil {
+			return nil, fmt.Errorf("failed to delete obsolete policy metadata records: %w", err)
+		}
+	}
+
+	// Bulk create new records
+	if len(newRecords) > 0 {
+		if err := s.db.Create(&newRecords).Error; err != nil {
+			return nil, fmt.Errorf("failed to create policy metadata records: %w", err)
+		}
+	}
+
+	// Prepare response including both new and updated records
 	var responseRecords []models.PolicyMetadataResponse
-	for _, pm := range policyMetadataList {
+
+	// Add new records to response
+	for _, pm := range newRecords {
 		responseRecord := models.PolicyMetadataResponse{
 			ID:                pm.ID.String(),
 			SchemaID:          pm.SchemaID,
@@ -67,6 +120,26 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 		}
 		responseRecords = append(responseRecords, responseRecord)
 	}
+
+	// Add updated records to response
+	for _, pm := range updatedRecords {
+		responseRecord := models.PolicyMetadataResponse{
+			ID:                pm.ID.String(),
+			SchemaID:          pm.SchemaID,
+			FieldName:         pm.FieldName,
+			DisplayName:       pm.DisplayName,
+			Description:       pm.Description,
+			Source:            pm.Source,
+			IsOwner:           pm.IsOwner,
+			AccessControlType: pm.AccessControlType,
+			AllowList:         pm.AllowList,
+			Owner:             pm.Owner,
+			CreatedAt:         pm.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:         pm.UpdatedAt.Format(time.RFC3339),
+		}
+		responseRecords = append(responseRecords, responseRecord)
+	}
+
 	return &models.PolicyMetadataCreateResponse{
 		Records: responseRecords,
 	}, nil

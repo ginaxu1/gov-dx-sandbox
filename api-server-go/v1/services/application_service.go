@@ -47,11 +47,9 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		}
 
 		// Call PDP service to update allow list
-		if s.policyService != nil {
-			_, err := s.policyService.UpdateAllowList(policyReq)
-			if err != nil {
-				return fmt.Errorf("failed to update allow list: %w", err)
-			}
+		_, err := s.policyService.UpdateAllowList(policyReq)
+		if err != nil {
+			return fmt.Errorf("failed to update allow list: %w", err)
 		}
 
 		return nil
@@ -64,7 +62,7 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		ApplicationID:          application.ApplicationID,
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         req.SelectedFields,
+		SelectedFields:         application.SelectedFields,
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
@@ -88,9 +86,6 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 	}
 	if req.ApplicationDescription != nil {
 		application.ApplicationDescription = req.ApplicationDescription
-	}
-	if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
-		application.SelectedFields = *req.SelectedFields
 	}
 	if req.Version != nil {
 		application.Version = *req.Version
@@ -233,8 +228,10 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		if req.ApplicationDescription != nil {
 			submission.ApplicationDescription = req.ApplicationDescription
 		}
-		if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
-			submission.SelectedFields = *req.SelectedFields
+		if len(req.SelectedFields) > 0 {
+			submission.SelectedFields = req.SelectedFields
+		} else {
+			return fmt.Errorf("selectedFields cannot be empty")
 		}
 		if req.Status != nil {
 			submission.Status = *req.Status

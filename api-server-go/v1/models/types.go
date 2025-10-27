@@ -41,7 +41,7 @@ func (sfr SelectedFieldRecords) Value() (driver.Value, error) {
 
 // PDP Data Types
 
-// GrantDurationType GrantDuration represents the grant type enum
+// GrantDurationType represents the grant duration type enum
 type GrantDurationType string
 
 const (
