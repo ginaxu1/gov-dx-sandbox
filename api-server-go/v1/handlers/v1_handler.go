@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
@@ -23,7 +25,8 @@ type V1Handler struct {
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) *V1Handler {
 	entityService := services.NewEntityService(db)
-	pdpService := services.NewPDPService("http://pdp-service:8080")
+	pdpService := services.NewPDPService(os.Getenv("PDP_SERVICE_URL"))
+	slog.Info("PDP Service URL", "url", os.Getenv("PDP_SERVICE_URL"))
 	return &V1Handler{
 		entityService:      entityService,
 		providerService:    services.NewProviderService(db, entityService),

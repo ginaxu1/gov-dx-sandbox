@@ -89,7 +89,7 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 	if req.ApplicationDescription != nil {
 		application.ApplicationDescription = req.ApplicationDescription
 	}
-	if req.SelectedFields != nil {
+	if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
 		application.SelectedFields = *req.SelectedFields
 	}
 	if req.Version != nil {
@@ -233,7 +233,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		if req.ApplicationDescription != nil {
 			submission.ApplicationDescription = req.ApplicationDescription
 		}
-		if req.SelectedFields != nil {
+		if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
 			submission.SelectedFields = *req.SelectedFields
 		}
 		if req.Status != nil {

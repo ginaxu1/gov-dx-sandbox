@@ -41,12 +41,6 @@ type UpdateSchemaRequest struct {
 	Version           *string `json:"version,omitempty"`
 }
 
-// // SelectedFieldRecord represents a record of selected fields
-// type SelectedFieldRecord struct {
-// 	FieldName string `json:"fieldName" validate:"required"`
-// 	SchemaID  string `json:"schemaId" validate:"required"`
-// }
-
 // CreateApplicationSubmissionRequest Consumer Application Submission DTOs
 type CreateApplicationSubmissionRequest struct {
 	ApplicationName        string                `json:"applicationName" validate:"required"`
