@@ -72,9 +72,9 @@ type CreateApplicationRequest struct {
 type UpdateApplicationRequest struct {
 	ApplicationName        *string `json:"applicationName,omitempty"`
 	ApplicationDescription *string `json:"applicationDescription,omitempty"`
-	//SelectedFields         []SelectedFieldRecord `json:"selectedFields,omitempty" validate:"required,min=1"`
-	// SelectedFields update is not allowed here to maintain data integrity
-	Version *string `json:"version,omitempty"`
+	Version                *string `json:"version,omitempty"`
+	// Note: SelectedFields is intentionally omitted to maintain data integrity.
+	// Field updates should be handled through a separate endpoint or process. That is not implemented yet.
 }
 
 type CreateEntityRequest struct {

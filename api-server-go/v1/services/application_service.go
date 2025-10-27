@@ -228,11 +228,11 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		if req.ApplicationDescription != nil {
 			submission.ApplicationDescription = req.ApplicationDescription
 		}
-		if len(req.SelectedFields) > 0 {
-			submission.SelectedFields = req.SelectedFields
-		} else {
-			return fmt.Errorf("selectedFields cannot be empty")
-		}
+
+		// Always update SelectedFields to maintain integrity
+		// Minimum 1 field is validated by the DTO
+		submission.SelectedFields = req.SelectedFields
+
 		if req.Status != nil {
 			submission.Status = *req.Status
 			// If status is approved, create a new application
