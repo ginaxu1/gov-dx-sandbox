@@ -25,7 +25,7 @@ type PDPService struct {
 func NewPDPService(baseURL string) *PDPService {
 	return &PDPService{
 		baseURL:    baseURL,
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		HTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 

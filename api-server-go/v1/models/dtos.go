@@ -73,7 +73,7 @@ type UpdateApplicationRequest struct {
 	ApplicationName        *string `json:"applicationName,omitempty"`
 	ApplicationDescription *string `json:"applicationDescription,omitempty"`
 	Version                *string `json:"version,omitempty"`
-	// Note: SelectedFields is intentionally omitted to maintain data integrity.
+	// Note: SelectedFields is intentionally omitted from UpdateApplicationRequest.
 	// Field updates should be handled through a separate endpoint or process. That is not implemented yet.
 }
 

@@ -32,11 +32,8 @@ func (sfr *SelectedFieldRecords) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface for SelectedFieldRecords
-func (sfr SelectedFieldRecords) Value() (driver.Value, error) {
-	if len(sfr) == 0 {
-		return json.Marshal([]SelectedFieldRecord{})
-	}
-	return json.Marshal(sfr)
+func (sfr *SelectedFieldRecords) Value() (driver.Value, error) {
+	return json.Marshal(*sfr)
 }
 
 // PDP Data Types
@@ -71,8 +68,8 @@ func (act *AccessControlType) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface for AccessControlType
-func (act AccessControlType) Value() (driver.Value, error) {
-	return string(act), nil
+func (act *AccessControlType) Value() (driver.Value, error) {
+	return string(*act), nil
 }
 
 // Source represents the source enum
@@ -97,8 +94,8 @@ func (s *Source) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface for Source
-func (s Source) Value() (driver.Value, error) {
-	return string(s), nil
+func (s *Source) Value() (driver.Value, error) {
+	return string(*s), nil
 }
 
 // Owner represents the owner enum
@@ -122,8 +119,8 @@ func (o *Owner) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface for Owner
-func (o Owner) Value() (driver.Value, error) {
-	return string(o), nil
+func (o *Owner) Value() (driver.Value, error) {
+	return string(*o), nil
 }
 
 // AllowListEntry represents an entry in the allow list
@@ -152,9 +149,6 @@ func (al *AllowList) Scan(value interface{}) error {
 }
 
 // Value implements the driver.Valuer interface for AllowList
-func (al AllowList) Value() (driver.Value, error) {
-	if len(al) == 0 {
-		return json.Marshal(map[string]AllowListEntry{})
-	}
-	return json.Marshal(al)
+func (al *AllowList) Value() (driver.Value, error) {
+	return json.Marshal(*al)
 }
