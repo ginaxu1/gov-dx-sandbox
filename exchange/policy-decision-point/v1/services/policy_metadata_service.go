@@ -32,7 +32,8 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 	// Create a map for faster lookups of existing records by field name
 	existingMap := make(map[string]*models.PolicyMetadata)
 	for i := range existingMetadata {
-		existingMap[existingMetadata[i].FieldName] = &existingMetadata[i]
+		metadata := existingMetadata[i]
+		existingMap[metadata.FieldName] = &metadata
 	}
 
 	now := time.Now()

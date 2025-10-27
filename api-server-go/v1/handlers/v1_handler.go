@@ -25,8 +25,13 @@ type V1Handler struct {
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) *V1Handler {
 	entityService := services.NewEntityService(db)
-	pdpService := services.NewPDPService(os.Getenv("PDP_SERVICE_URL"))
-	slog.Info("PDP Service URL", "url", os.Getenv("PDP_SERVICE_URL"))
+	pdpServiceURL := os.Getenv("PDP_SERVICE_URL")
+	if pdpServiceURL == "" {
+		slog.Error("PDP_SERVICE_URL environment variable is not set or empty")
+		panic("PDP_SERVICE_URL environment variable is not set or empty")
+	}
+	pdpService := services.NewPDPService(pdpServiceURL)
+	slog.Info("PDP Service URL", "url", pdpServiceURL)
 	return &V1Handler{
 		entityService:      entityService,
 		providerService:    services.NewProviderService(db, entityService),
