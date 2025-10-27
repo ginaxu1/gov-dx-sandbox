@@ -16,12 +16,6 @@ RUN apk add --no-cache git ca-certificates tzdata
 COPY go.mod go.sum ./
 COPY . ./
 
-# Copy shared packages - for Choreo builds, shared packages should be copied into the service directory
-COPY shared/ /app/shared/
-
-# Copy local models
-COPY models/ /app/models/
-
 # Download dependencies
 RUN go mod download
 
@@ -44,9 +38,6 @@ WORKDIR /app
 
 # Copy binary from builder stage
 COPY --from=builder /app/service_binary /app/
-
-# Copy service-specific files (policies)
-COPY --from=builder /app/policies/ /app/policies/
 
 # Change ownership to appuser
 RUN chown -R appuser:appuser /app
