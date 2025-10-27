@@ -1,3 +1,13 @@
+// NOTE: These tests are for the legacy API endpoints that were removed during V1 refactoring.
+// These tests need to be updated to work with the new V1 API endpoints:
+// - POST /api/v1/policy/metadata (instead of /policy-metadata)
+// - POST /api/v1/policy/update-allowlist (instead of /allow-list)
+// - POST /api/v1/policy/decide (new endpoint)
+// The models and handler logic have also changed to use GORM and V1 architecture.
+// 
+// ⚠️  THESE TESTS WILL NOT COMPILE until updated for V1 architecture.
+// See tests/README.md for migration guide.
+
 package main
 
 import (
@@ -7,8 +17,42 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gov-dx-sandbox/exchange/policy-decision-point/models"
+	// TODO: Update to V1 models and fix struct compatibility
+	// "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 )
+
+// Temporary mock models to prevent compilation errors
+type PolicyMetadataCreateRequest struct {
+	FieldName         string           `json:"field_name"`
+	DisplayName       string           `json:"display_name"`
+	Description       string           `json:"description"`
+	Source            string           `json:"source"`
+	IsOwner           bool             `json:"is_owner"`
+	AccessControlType string           `json:"access_control_type"`
+	AllowList         []AllowListEntry `json:"allow_list"`
+}
+
+type AllowListEntry struct {
+	ApplicationID string `json:"application_id"`
+	ExpiresAt     int64  `json:"expires_at"`
+}
+
+type PolicyMetadataCreateResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	ID      string `json:"id"`
+}
+
+type AllowListUpdateRequest struct {
+	FieldName     string `json:"field_name"`
+	ApplicationID string `json:"application_id"`
+	ExpiresAt     string `json:"expires_at"`
+}
+
+type AllowListUpdateResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
 
 func TestCreatePolicyMetadata(t *testing.T) {
 	// Create mock database service
