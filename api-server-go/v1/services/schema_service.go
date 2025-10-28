@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,12 +12,13 @@ import (
 
 // SchemaService handles schema-related operations
 type SchemaService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	policyService *PDPService
 }
 
 // NewSchemaService creates a new schema service
-func NewSchemaService(db *gorm.DB) *SchemaService {
-	return &SchemaService{db: db}
+func NewSchemaService(db *gorm.DB, policyService *PDPService) *SchemaService {
+	return &SchemaService{db: db, policyService: policyService}
 }
 
 // CreateSchema creates a new schema
@@ -30,8 +32,27 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		ProviderID:        req.ProviderID,
 		Version:           models.ActiveVersion,
 	}
+
+	// Step 1: Create schema in database first
 	if err := s.db.Create(&schema).Error; err != nil {
 		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	// Step 2: Create policy metadata in PDP (Saga Pattern)
+	_, err := s.policyService.CreatePolicyMetadata(schema.SchemaID, schema.SDL)
+	if err != nil {
+		// Compensation: Delete the schema we just created
+		if deleteErr := s.db.Delete(&schema).Error; deleteErr != nil {
+			// Log the compensation failure - this needs monitoring
+			slog.Error("Failed to compensate schema creation",
+				"schemaID", schema.SchemaID,
+				"originalError", err,
+				"compensationError", deleteErr)
+			// Return both errors for visibility
+			return nil, fmt.Errorf("failed to create policy metadata in PDP: %w, and failed to compensate: %w", err, deleteErr)
+		}
+		slog.Info("Successfully compensated schema creation", "schemaID", schema.SchemaID)
+		return nil, fmt.Errorf("failed to create policy metadata in PDP: %w", err)
 	}
 
 	response := &models.SchemaResponse{
@@ -131,7 +152,8 @@ func (s *SchemaService) GetSchemas(providerID *string) ([]*models.SchemaResponse
 		return nil, fmt.Errorf("failed to retrieve schemas: %w", err)
 	}
 
-	var responses []*models.SchemaResponse
+	// Pre-allocate slice with known capacity for better performance
+	responses := make([]*models.SchemaResponse, 0, len(schemas))
 	for _, schema := range schemas {
 		responses = append(responses, &models.SchemaResponse{
 			SchemaID:          schema.SchemaID,

@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,34 +12,61 @@ import (
 
 // ApplicationService handles application-related operations
 type ApplicationService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	policyService *PDPService
 }
 
 // NewApplicationService creates a new application service
-func NewApplicationService(db *gorm.DB) *ApplicationService {
-	return &ApplicationService{db: db}
+func NewApplicationService(db *gorm.DB, pdpService *PDPService) *ApplicationService {
+	return &ApplicationService{db: db, policyService: pdpService}
 }
 
 // CreateApplication creates a new application
 func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequest) (*models.ApplicationResponse, error) {
+
 	// Create application
 	application := models.Application{
 		ApplicationID:          "app_" + uuid.New().String(),
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         models.StringArray(req.SelectedFields),
+		SelectedFields:         req.SelectedFields,
 		ConsumerID:             req.ConsumerID,
 		Version:                models.ActiveVersion,
 	}
+
+	// Step 1: Create application in database first
 	if err := s.db.Create(&application).Error; err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create application: %w", err)
+	}
+
+	// Step 2: Update allow list in PDP (Saga Pattern)
+	policyReq := models.AllowListUpdateRequest{
+		ApplicationID: application.ApplicationID,
+		Records:       application.SelectedFields,
+		GrantDuration: models.GrantDurationTypeOneMonth, // Default duration
+	}
+
+	_, err := s.policyService.UpdateAllowList(policyReq)
+	if err != nil {
+		// Compensation: Delete the application we just created
+		if deleteErr := s.db.Delete(&application).Error; deleteErr != nil {
+			// Log the compensation failure - this needs monitoring
+			slog.Error("Failed to compensate application creation",
+				"applicationID", application.ApplicationID,
+				"originalError", err,
+				"compensationError", deleteErr)
+			// Return both errors for visibility
+			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate: %w", err, deleteErr)
+		}
+		slog.Info("Successfully compensated application creation", "applicationID", application.ApplicationID)
+		return nil, fmt.Errorf("failed to update allow list: %w", err)
 	}
 
 	response := &models.ApplicationResponse{
 		ApplicationID:          application.ApplicationID,
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         []string(application.SelectedFields),
+		SelectedFields:         application.SelectedFields,
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
@@ -57,14 +85,13 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 	}
 
 	// Update fields if provided
+	// Note: SelectedFields updates are intentionally not supported for approved applications
+	// to maintain data integrity and audit trail. Field changes require resubmission process.
 	if req.ApplicationName != nil {
 		application.ApplicationName = *req.ApplicationName
 	}
 	if req.ApplicationDescription != nil {
 		application.ApplicationDescription = req.ApplicationDescription
-	}
-	if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
-		application.SelectedFields = *req.SelectedFields
 	}
 	if req.Version != nil {
 		application.Version = *req.Version
@@ -78,7 +105,7 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 		ApplicationID:          application.ApplicationID,
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         []string(application.SelectedFields),
+		SelectedFields:         application.SelectedFields,
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
@@ -100,7 +127,7 @@ func (s *ApplicationService) GetApplication(applicationID string) (*models.Appli
 		ApplicationID:          application.ApplicationID,
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         []string(application.SelectedFields),
+		SelectedFields:         application.SelectedFields,
 		ConsumerID:             application.ConsumerID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
@@ -126,13 +153,14 @@ func (s *ApplicationService) GetApplications(consumerID *string) ([]models.Appli
 		return nil, err
 	}
 
-	var responses []models.ApplicationResponse
+	// Pre-allocate slice with known capacity for better performance
+	responses := make([]models.ApplicationResponse, 0, len(applications))
 	for _, application := range applications {
 		responses = append(responses, models.ApplicationResponse{
 			ApplicationID:          application.ApplicationID,
 			ApplicationName:        application.ApplicationName,
 			ApplicationDescription: application.ApplicationDescription,
-			SelectedFields:         []string(application.SelectedFields),
+			SelectedFields:         application.SelectedFields,
 			ConsumerID:             application.ConsumerID,
 			Version:                application.Version,
 			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
@@ -167,7 +195,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		PreviousApplicationID:  req.PreviousApplicationID,
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         models.StringArray(req.SelectedFields),
+		SelectedFields:         req.SelectedFields,
 		Status:                 models.StatusPending,
 		ConsumerID:             req.ConsumerID,
 	}
@@ -180,7 +208,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		PreviousApplicationID:  submission.PreviousApplicationID,
 		ApplicationName:        submission.ApplicationName,
 		ApplicationDescription: submission.ApplicationDescription,
-		SelectedFields:         []string(submission.SelectedFields),
+		SelectedFields:         submission.SelectedFields,
 		Status:                 submission.Status,
 		ConsumerID:             submission.ConsumerID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
@@ -207,9 +235,15 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		if req.ApplicationDescription != nil {
 			submission.ApplicationDescription = req.ApplicationDescription
 		}
-		if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
-			submission.SelectedFields = *req.SelectedFields
-		}
+
+		// Always update SelectedFields to maintain integrity for submissions
+		// This differs from UpdateApplication which intentionally omits SelectedFields updates.
+		// Rationale: Application submissions are mutable during review process and require
+		// field validation (min 1 field enforced by DTO), while approved applications
+		// should have immutable field selections for security and audit purposes.
+		// Minimum 1 field is validated by the DTO
+		submission.SelectedFields = req.SelectedFields
+
 		if req.Status != nil {
 			submission.Status = *req.Status
 			// If status is approved, create a new application
@@ -254,7 +288,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		PreviousApplicationID:  submission.PreviousApplicationID,
 		ApplicationName:        submission.ApplicationName,
 		ApplicationDescription: submission.ApplicationDescription,
-		SelectedFields:         []string(submission.SelectedFields),
+		SelectedFields:         submission.SelectedFields,
 		Status:                 submission.Status,
 		ConsumerID:             submission.ConsumerID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
@@ -278,7 +312,7 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 		PreviousApplicationID:  submission.PreviousApplicationID,
 		ApplicationName:        submission.ApplicationName,
 		ApplicationDescription: submission.ApplicationDescription,
-		SelectedFields:         []string(submission.SelectedFields),
+		SelectedFields:         submission.SelectedFields,
 		Status:                 submission.Status,
 		ConsumerID:             submission.ConsumerID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
@@ -315,7 +349,7 @@ func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statu
 			PreviousApplicationID:  submission.PreviousApplicationID,
 			ApplicationName:        submission.ApplicationName,
 			ApplicationDescription: submission.ApplicationDescription,
-			SelectedFields:         []string(submission.SelectedFields),
+			SelectedFields:         submission.SelectedFields,
 			Status:                 submission.Status,
 			ConsumerID:             submission.ConsumerID,
 			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),

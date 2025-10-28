@@ -45,12 +45,12 @@ func (SchemaSubmission) TableName() string {
 
 // Application represents the consumer_applications table
 type Application struct {
-	ApplicationID          string      `gorm:"primarykey;column:application_id" json:"applicationId"`
-	ApplicationName        string      `gorm:"column:application_name;not null" json:"applicationName"`
-	ApplicationDescription *string     `gorm:"column:application_description" json:"applicationDescription,omitempty"`
-	SelectedFields         StringArray `gorm:"column:selected_fields;type:text[];not null" json:"selectedFields"`
-	ConsumerID             string      `gorm:"column:consumer_id;not null" json:"consumerId"`
-	Version                string      `gorm:"column:version;not null" json:"version"`
+	ApplicationID          string               `gorm:"primarykey;column:application_id" json:"applicationId"`
+	ApplicationName        string               `gorm:"column:application_name;not null" json:"applicationName"`
+	ApplicationDescription *string              `gorm:"column:application_description" json:"applicationDescription,omitempty"`
+	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;not null" json:"selectedFields"`
+	ConsumerID             string               `gorm:"column:consumer_id;not null" json:"consumerId"`
+	Version                string               `gorm:"column:version;not null" json:"version"`
 	BaseModel
 
 	// Relationships
@@ -64,14 +64,14 @@ func (Application) TableName() string {
 
 // ApplicationSubmission represents the consumer_application_submissions table
 type ApplicationSubmission struct {
-	SubmissionID           string      `gorm:"primarykey;column:submission_id" json:"submissionId"`
-	PreviousApplicationID  *string     `gorm:"column:previous_application_id" json:"previousApplicationId,omitempty"`
-	ApplicationName        string      `gorm:"column:application_name;not null" json:"applicationName"`
-	ApplicationDescription *string     `gorm:"column:application_description" json:"applicationDescription,omitempty"`
-	SelectedFields         StringArray `gorm:"column:selected_fields;type:text[];not null" json:"selectedFields"`
-	ConsumerID             string      `gorm:"column:consumer_id;not null" json:"consumerId"`
-	Status                 string      `gorm:"column:status;not null" json:"status"`
-	Review                 *string     `gorm:"column:review" json:"review,omitempty"`
+	SubmissionID           string               `gorm:"primarykey;column:submission_id" json:"submissionId"`
+	PreviousApplicationID  *string              `gorm:"column:previous_application_id" json:"previousApplicationId,omitempty"`
+	ApplicationName        string               `gorm:"column:application_name;not null" json:"applicationName"`
+	ApplicationDescription *string              `gorm:"column:application_description" json:"applicationDescription,omitempty"`
+	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;not null" json:"selectedFields"`
+	ConsumerID             string               `gorm:"column:consumer_id;not null" json:"consumerId"`
+	Status                 string               `gorm:"column:status;not null" json:"status"`
+	Review                 *string              `gorm:"column:review" json:"review,omitempty"`
 	BaseModel
 
 	// Relationships
