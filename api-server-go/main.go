@@ -61,7 +61,11 @@ func main() {
 	apiServer := handlers.NewAPIServerWithDB(db)
 
 	// Initialize V1 handlers
-	v1Handler := v1handlers.NewV1Handler(gormDB)
+	v1Handler, err := v1handlers.NewV1Handler(gormDB)
+	if err != nil {
+		slog.Error("Failed to initialize V1 handler", "error", err)
+		os.Exit(1)
+	}
 
 	// Setup routes
 	mux := http.NewServeMux()

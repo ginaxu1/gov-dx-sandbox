@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -23,11 +24,11 @@ type V1Handler struct {
 }
 
 // NewV1Handler creates a new V1 handler
-func NewV1Handler(db *gorm.DB) *V1Handler {
+func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 	entityService := services.NewEntityService(db)
 	pdpServiceURL := os.Getenv("PDP_SERVICE_URL")
 	if pdpServiceURL == "" {
-		panic("PDP_SERVICE_URL environment variable is not set or empty")
+		return nil, fmt.Errorf("PDP_SERVICE_URL environment variable not set")
 	}
 	pdpService := services.NewPDPService(pdpServiceURL)
 	slog.Info("PDP Service URL", "url", pdpServiceURL)
@@ -37,7 +38,7 @@ func NewV1Handler(db *gorm.DB) *V1Handler {
 		consumerService:    services.NewConsumerService(db, entityService),
 		schemaService:      services.NewSchemaService(db, pdpService),
 		applicationService: services.NewApplicationService(db, pdpService),
-	}
+	}, nil
 }
 
 // SetupV1Routes configures all V1 API routes

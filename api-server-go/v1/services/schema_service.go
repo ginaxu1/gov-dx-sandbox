@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,24 +33,26 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		Version:           models.ActiveVersion,
 	}
 
-	// Start transaction
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// Create schema in the database
-		if err := tx.Create(&schema).Error; err != nil {
-			return fmt.Errorf("failed to create schema: %w", err)
-		}
+	// Step 1: Create schema in database first
+	if err := s.db.Create(&schema).Error; err != nil {
+		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
 
-		// Create policy metadata in PDP
-		_, err := s.policyService.CreatePolicyMetadata(schema.SchemaID, schema.SDL)
-		if err != nil {
-			return fmt.Errorf("failed to create policy metadata in PDP: %w", err)
-		}
-
-		return nil
-	})
-
+	// Step 2: Create policy metadata in PDP (Saga Pattern)
+	_, err := s.policyService.CreatePolicyMetadata(schema.SchemaID, schema.SDL)
 	if err != nil {
-		return nil, err
+		// Compensation: Delete the schema we just created
+		if deleteErr := s.db.Delete(&schema).Error; deleteErr != nil {
+			// Log the compensation failure - this needs monitoring
+			slog.Error("Failed to compensate schema creation",
+				"schemaID", schema.SchemaID,
+				"originalError", err,
+				"compensationError", deleteErr)
+			// Return both errors for visibility
+			return nil, fmt.Errorf("failed to create policy metadata in PDP: %w, and failed to compensate: %w", err, deleteErr)
+		}
+		slog.Info("Successfully compensated schema creation", "schemaID", schema.SchemaID)
+		return nil, fmt.Errorf("failed to create policy metadata in PDP: %w", err)
 	}
 
 	response := &models.SchemaResponse{

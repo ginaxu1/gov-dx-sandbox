@@ -22,35 +22,45 @@ func NewConsumerService(db *gorm.DB, entityService *EntityService) *ConsumerServ
 
 // CreateConsumer creates a new consumer
 func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*models.ConsumerResponse, error) {
+	var consumer models.Consumer
 	var entity models.Entity
-	if req.EntityID != nil {
-		// Verify entity exists
-		err := s.db.First(&entity, "entity_id = ?", req.EntityID).Error
-		if err != nil {
-			return nil, fmt.Errorf("entity not found: %w", err)
-		}
-	} else {
-		// Use shared entityService instance
-		newEntity, err := s.entityService.CreateEntity(&models.CreateEntityRequest{
-			Name:        req.Name,
-			Email:       req.Email,
-			PhoneNumber: req.PhoneNumber,
-			IdpUserID:   req.IdpUserID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create entity: %w", err)
-		}
-		entity = newEntity.ToEntity()
-	}
 
-	// Create consumer
-	consumer := models.Consumer{
-		ConsumerID: "cons_" + uuid.New().String(),
-		EntityID:   entity.EntityID,
-	}
+	// Use transaction to ensure atomicity between entity and consumer creation
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if req.EntityID != nil {
+			// Verify entity exists
+			if err := tx.First(&entity, "entity_id = ?", req.EntityID).Error; err != nil {
+				return fmt.Errorf("entity not found: %w", err)
+			}
+		} else {
+			// Create entity within same transaction
+			entity = models.Entity{
+				EntityID:    "ent_" + uuid.New().String(),
+				Name:        req.Name,
+				Email:       req.Email,
+				PhoneNumber: req.PhoneNumber,
+				IdpUserID:   req.IdpUserID,
+			}
+			if err := tx.Create(&entity).Error; err != nil {
+				return fmt.Errorf("failed to create entity: %w", err)
+			}
+		}
 
-	if err := s.db.Create(&consumer).Error; err != nil {
-		return nil, fmt.Errorf("failed to create consumer: %w", err)
+		// Create consumer
+		consumer = models.Consumer{
+			ConsumerID: "cons_" + uuid.New().String(),
+			EntityID:   entity.EntityID,
+		}
+
+		if err := tx.Create(&consumer).Error; err != nil {
+			return fmt.Errorf("failed to create consumer: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	response := &models.ConsumerResponse{

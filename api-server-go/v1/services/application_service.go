@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,29 +34,32 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		Version:                models.ActiveVersion,
 	}
 
-	// Start a transaction
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&application).Error; err != nil {
-			return err
-		}
+	// Step 1: Create application in database first
+	if err := s.db.Create(&application).Error; err != nil {
+		return nil, fmt.Errorf("failed to create application: %w", err)
+	}
 
-		// UpdateAllowList in PDP
-		policyReq := models.AllowListUpdateRequest{
-			ApplicationID: application.ApplicationID,
-			Records:       application.SelectedFields,
-			GrantDuration: models.GrantDurationTypeOneMonth, // Default duration
-		}
+	// Step 2: Update allow list in PDP (Saga Pattern)
+	policyReq := models.AllowListUpdateRequest{
+		ApplicationID: application.ApplicationID,
+		Records:       application.SelectedFields,
+		GrantDuration: models.GrantDurationTypeOneMonth, // Default duration
+	}
 
-		// Call PDP service to update allow list
-		_, err := s.policyService.UpdateAllowList(policyReq)
-		if err != nil {
-			return fmt.Errorf("failed to update allow list: %w", err)
-		}
-
-		return nil
-	})
+	_, err := s.policyService.UpdateAllowList(policyReq)
 	if err != nil {
-		return nil, err
+		// Compensation: Delete the application we just created
+		if deleteErr := s.db.Delete(&application).Error; deleteErr != nil {
+			// Log the compensation failure - this needs monitoring
+			slog.Error("Failed to compensate application creation",
+				"applicationID", application.ApplicationID,
+				"originalError", err,
+				"compensationError", deleteErr)
+			// Return both errors for visibility
+			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate: %w", err, deleteErr)
+		}
+		slog.Info("Successfully compensated application creation", "applicationID", application.ApplicationID)
+		return nil, fmt.Errorf("failed to update allow list: %w", err)
 	}
 
 	response := &models.ApplicationResponse{
