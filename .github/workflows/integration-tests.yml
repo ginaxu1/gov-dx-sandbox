@@ -1,0 +1,307 @@
+name: OpenDIF CI/CD Pipeline
+
+on:
+  # Run on pushes to dev (for deployment)
+  push:
+    branches:
+      - dev
+  # Run on pull requests to dev (for testing)
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  #
+  # JOB 1: Test the code before merging
+  #
+  build_and_test:
+    name: Build & Run Go Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            integration-tests/go/go.sum
+          key: ${{ runner.os }}-go-${{ hashFiles('integration-tests/go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install test dependencies
+        working-directory: integration-tests/go
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Set up Docker Compose for Go tests
+        working-directory: integration-tests/go
+        run: |
+          echo "Starting Docker Compose services for Go tests..."
+          docker compose up -d
+          
+          echo "Waiting for services to be ready..."
+          sleep 15
+          
+          # Health check function
+          check_service() {
+            local service=$1
+            local max_attempts=10
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              if docker compose ps $service | grep -q "healthy\|running"; then
+                echo "✅ $service is ready"
+                return 0
+              fi
+              echo "⏳ Waiting for $service... (attempt $attempt/$max_attempts)"
+              sleep 3
+              attempt=$((attempt + 1))
+            done
+            
+            echo "❌ $service failed to start"
+            docker compose logs $service
+            return 1
+          }
+          
+          # Check each service
+          check_service "postgres" || exit 1
+          check_service "redis" || exit 1
+          check_service "opa" || exit 1
+          
+          echo "All infrastructure services are ready!"
+
+      - name: Run Go Integration Tests
+        working-directory: integration-tests/go
+        env:
+          GO_ENV: test
+          USE_COMPOSE: "true"
+          TEST_TIMEOUT: 30m
+        run: |
+          echo "Running Go integration tests..."
+          go test -v -timeout 30m ./...
+
+      - name: Cleanup Go test infrastructure
+        if: always()
+        working-directory: integration-tests/go
+        run: |
+          echo "Stopping test infrastructure..."
+          docker compose down -v
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-test-results
+          path: integration-tests/go/
+          retention-days: 7
+
+  #
+  # JOB 2: Deploy and check the live environment
+  #
+  deploy_and_smoke_test:
+    name: Deploy & Run Shell Smoke Tests
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    # This job only runs on a push to dev, NOT on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start Exchange Services
+        working-directory: exchange
+        run: |
+          echo "Starting Exchange Services (Docker)..."
+          
+          # Create .env.local if it doesn't exist (using defaults from docker-compose.yml)
+          if [ ! -f .env.local ]; then
+            echo "Creating .env.local with default values..."
+            cat > .env.local << 'EOF'
+ENVIRONMENT=local
+LOG_LEVEL=info
+LOG_FORMAT=text
+PORT_PDP=8082
+PORT_CE=8081
+PORT_OE=4000
+BUILD_VERSION=ci
+BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT=${{ github.sha }}
+EOF
+          fi
+          
+          # Start services with env file
+          if [ -f .env.local ]; then
+            docker compose --env-file .env.local up --build -d
+          else
+            docker compose up --build -d
+          fi
+          
+          echo "Waiting for services to be ready..."
+          sleep 30
+          
+          # Health check function
+          check_service() {
+            local service=$1
+            local url=$2
+            local max_attempts=10
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              if curl -f -s $url > /dev/null; then
+                echo "✅ $service is healthy"
+                return 0
+              fi
+              echo "⏳ Waiting for $service to be ready... (attempt $attempt/$max_attempts)"
+              sleep 5
+              attempt=$((attempt + 1))
+            done
+            
+            echo "❌ $service failed to start"
+            docker compose logs
+            return 1
+          }
+          
+          # Check each service
+          check_service "PDP" "http://localhost:8082/health" || exit 1
+          check_service "Consent Engine" "http://localhost:8081/health" || exit 1
+          echo "All exchange services are running!"
+
+      - name: Install shell dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+
+      - name: Make shell scripts executable
+        working-directory: integration-tests
+        run: |
+          chmod +x *.sh
+          ls -la *.sh
+
+      - name: Run Shell Smoke Tests
+        working-directory: integration-tests
+        run: |
+          echo "Running shell smoke tests..."
+          
+          # Run PDP tests
+          if [ -f "test-pdp.sh" ]; then
+            echo "Running PDP tests..."
+            ./test-pdp.sh || true
+          fi
+          
+          # Run consent flow tests
+          if [ -f "test-consent-flow.sh" ]; then
+            echo "Running consent flow tests..."
+            ./test-consent-flow.sh || true
+          fi
+          
+          # Run complete flow tests
+          if [ -f "test-complete-flow.sh" ]; then
+            echo "Running complete flow tests..."
+            ./test-complete-flow.sh || true
+          fi
+          
+          echo "Smoke tests completed (non-blocking)"
+
+      - name: Show service logs on failure
+        if: failure()
+        working-directory: exchange
+        run: |
+          echo "=== Exchange Services Logs ==="
+          docker compose logs
+          
+      - name: Cleanup services
+        if: always()
+        working-directory: exchange
+        run: |
+          echo "Cleaning up services..."
+          docker compose down -v
+
+  #
+  # JOB 3: Optional - Build and push Docker images
+  #
+  build_and_push_images:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    # Only run on pushes to dev
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        # Uncomment and configure when you have a registry
+        # uses: docker/login-action@v3
+        # with:
+        #   registry: your-registry.com
+        #   username: ${{ secrets.REGISTRY_USERNAME }}
+        #   password: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          echo "Container registry login would go here"
+          echo "For now, this step is disabled. Uncomment when you configure your registry."
+
+      - name: Build Exchange Services Images
+        working-directory: exchange
+        run: |
+          echo "Building Exchange Services (Docker)..."
+          
+          # Create .env.local if it doesn't exist
+          if [ ! -f .env.local ]; then
+            echo "Creating .env.local with default values..."
+            cat > .env.local << 'EOF'
+ENVIRONMENT=local
+LOG_LEVEL=info
+LOG_FORMAT=text
+PORT_PDP=8082
+PORT_CE=8081
+PORT_OE=4000
+BUILD_VERSION=ci
+BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT=${{ github.sha }}
+EOF
+          fi
+          
+          # Build with env file
+          if [ -f .env.local ]; then
+            docker compose --env-file .env.local build
+          else
+            docker compose build
+          fi
+          
+      - name: Push Images
+        # Uncomment when ready to push
+        # run: |
+        #   docker push your-registry/opendif-service:latest
+        run: |
+          echo "Image push would go here"
+          echo "Configure your registry and uncomment the push commands."
+
+      - name: Save Images as Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images
+          path: |
+            exchange/.env.local
+          retention-days: 1
+
