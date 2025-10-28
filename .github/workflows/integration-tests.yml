@@ -21,8 +21,7 @@ env:
   TEST_TIMEOUT: 30m
 
 jobs:
-  # Job from main (tests/integration)
-  integration-tests-new:
+  integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
