@@ -10,6 +10,26 @@ on:
     branches:
       - dev
 
+# Define reusable steps using YAML anchors
+x-steps:
+  - &create-env-local
+    name: Create .env.local
+    run: |
+      if [ ! -f .env.local ]; then
+        echo "Creating .env.local with default values..."
+        cat > .env.local << 'EOF'
+ENVIRONMENT=local
+LOG_LEVEL=info
+LOG_FORMAT=text
+PORT_PDP=8082
+PORT_CE=8081
+PORT_OE=4000
+BUILD_VERSION=ci
+BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT=${{ github.sha }}
+EOF
+      fi
+
 jobs:
   #
   # JOB 1: Test the code before merging
@@ -31,9 +51,8 @@ jobs:
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
-          path: |
-            ~/go/pkg/mod
-            integration-tests/go/go.sum
+          # FIX 1: The path should *only* be the directory to cache
+          path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('integration-tests/go/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
@@ -60,6 +79,7 @@ jobs:
             local attempt=1
             
             while [ $attempt -le $max_attempts ]; do
+              # Check for 'healthy' or 'running' (as a fallback)
               if docker compose ps $service | grep -q "healthy\|running"; then
                 echo "✅ $service is ready"
                 return 0
@@ -97,14 +117,11 @@ jobs:
         run: |
           echo "Stopping test infrastructure..."
           docker compose down -v
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-test-results
-          path: integration-tests/go/
-          retention-days: 7
+      
+      # FIX 2: Removed 'Upload test results' step.
+      # It was uploading the entire source code directory, not test reports.
+      # Go test results are in the logs. If you need reports,
+      # you must first modify the 'go test' command to generate one.
 
   #
   # JOB 2: Deploy and check the live environment
@@ -129,28 +146,11 @@ jobs:
         run: |
           echo "Starting Exchange Services (Docker)..."
           
-          # Create .env.local if it doesn't exist (using defaults from docker-compose.yml)
-          if [ ! -f .env.local ]; then
-            echo "Creating .env.local with default values..."
-            cat > .env.local << 'EOF'
-ENVIRONMENT=local
-LOG_LEVEL=info
-LOG_FORMAT=text
-PORT_PDP=8082
-PORT_CE=8081
-PORT_OE=4000
-BUILD_VERSION=ci
-BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-GIT_COMMIT=${{ github.sha }}
-EOF
-          fi
+          # FIX 3: Use the reusable YAML anchor
+          *create-env-local
           
           # Start services with env file
-          if [ -f .env.local ]; then
-            docker compose --env-file .env.local up --build -d
-          else
-            docker compose up --build -d
-          fi
+          docker compose --env-file .env.local up --build -d
           
           echo "Waiting for services to be ready..."
           sleep 30
@@ -198,25 +198,23 @@ EOF
         run: |
           echo "Running shell smoke tests..."
           
-          # Run PDP tests
+          # FIX 4: Removed '|| true' to ensure test failures fail the job
           if [ -f "test-pdp.sh" ]; then
             echo "Running PDP tests..."
-            ./test-pdp.sh || true
+            ./test-pdp.sh
           fi
           
-          # Run consent flow tests
           if [ -f "test-consent-flow.sh" ]; then
             echo "Running consent flow tests..."
-            ./test-consent-flow.sh || true
+            ./test-consent-flow.sh
           fi
           
-          # Run complete flow tests
           if [ -f "test-complete-flow.sh" ]; then
             echo "Running complete flow tests..."
-            ./test-complete-flow.sh || true
+            ./test-complete-flow.sh
           fi
           
-          echo "Smoke tests completed (non-blocking)"
+          echo "Smoke tests completed."
 
       - name: Show service logs on failure
         if: failure()
@@ -265,28 +263,11 @@ EOF
         run: |
           echo "Building Exchange Services (Docker)..."
           
-          # Create .env.local if it doesn't exist
-          if [ ! -f .env.local ]; then
-            echo "Creating .env.local with default values..."
-            cat > .env.local << 'EOF'
-ENVIRONMENT=local
-LOG_LEVEL=info
-LOG_FORMAT=text
-PORT_PDP=8082
-PORT_CE=8081
-PORT_OE=4000
-BUILD_VERSION=ci
-BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-GIT_COMMIT=${{ github.sha }}
-EOF
-          fi
+          # FIX 3: Use the reusable YAML anchor to avoid duplication
+          *create-env-local
           
           # Build with env file
-          if [ -f .env.local ]; then
-            docker compose --env-file .env.local build
-          else
-            docker compose build
-          fi
+          docker compose --env-file .env.local build
           
       - name: Push Images
         # Uncomment when ready to push
@@ -296,12 +277,6 @@ EOF
           echo "Image push would go here"
           echo "Configure your registry and uncomment the push commands."
 
-      - name: Save Images as Artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-images
-          path: |
-            exchange/.env.local
-          retention-days: 1
-
+      # FIX 5: Removed 'Save Images as Artifacts' step.
+      # It was misnamed and only saved the .env.local file, not the Docker images.
+      # The correct way to "save" images is to push them to a registry.
