@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
+	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"gorm.io/driver/postgres"
@@ -46,9 +46,6 @@ type TestV1Handler struct {
 
 // NewTestV1Handler creates a new test handler with PostgreSQL test database
 func NewTestV1Handler(t *testing.T) *TestV1Handler {
-	// Set environment variable for PDP service
-	os.Setenv("PDP_SERVICE_URL", "http://localhost:8082")
-
 	// Use test database configuration
 	testDSN := "host=localhost port=5432 user=postgres password=postgres dbname=gov_dx_sandbox_test sslmode=disable"
 
@@ -75,17 +72,59 @@ func NewTestV1Handler(t *testing.T) *TestV1Handler {
 		return nil
 	}
 
-	// Create handler
-	handler, err := NewV1Handler(db)
-	if err != nil {
-		t.Skipf("Skipping test: could not create handler: %v", err)
-		return nil
-	}
+	// Create handler with mock PDP service
+	handler := NewTestV1HandlerWithMockPDP(t, db)
 
 	return &TestV1Handler{
 		T:       t,
 		db:      db,
 		handler: handler,
+	}
+}
+
+// NewTestV1HandlerWithMockPDP creates a handler with mock PDP service for testing
+func NewTestV1HandlerWithMockPDP(t *testing.T, db *gorm.DB) *V1Handler {
+	entityService := services.NewEntityService(db)
+	mockPDP := &MockPDPService{}
+
+	// Set up mock expectations for successful operations
+	mockPDP.On("UpdateAllowList", mock.AnythingOfType("models.AllowListUpdateRequest")).Return(
+		&models.AllowListUpdateResponse{
+			Records: []models.AllowListUpdateResponseRecord{
+				{
+					FieldName: "person.fullName",
+					SchemaID:  "test-schema-1",
+					ExpiresAt: "2024-12-31T23:59:59Z",
+					UpdatedAt: "2024-01-01T00:00:00Z",
+				},
+			},
+		}, nil)
+
+	mockPDP.On("CreatePolicyMetadata", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(
+		&models.PolicyMetadataCreateResponse{
+			Records: []models.PolicyMetadataResponse{
+				{
+					ID:                "policy-1",
+					SchemaID:          "test-schema-1",
+					FieldName:         "person.fullName",
+					DisplayName:       stringPtr("Full Name"),
+					Description:       stringPtr("Person's full name"),
+					Source:            models.SourcePrimary,
+					IsOwner:           true,
+					AccessControlType: models.AccessControlTypeRestricted,
+					AllowList:         models.AllowList{},
+					CreatedAt:         "2024-01-01T00:00:00Z",
+					UpdatedAt:         "2024-01-01T00:00:00Z",
+				},
+			},
+		}, nil)
+
+	return &V1Handler{
+		entityService:      entityService,
+		providerService:    services.NewProviderService(db, entityService),
+		consumerService:    services.NewConsumerService(db, entityService),
+		schemaService:      services.NewSchemaService(db, mockPDP),
+		applicationService: services.NewApplicationService(db, mockPDP),
 	}
 }
 
@@ -127,7 +166,7 @@ func TestConsumerEndpoints(t *testing.T) {
 		// First create a consumer
 		createReq := models.CreateConsumerRequest{
 			Name:        "Test Consumer",
-			Email:       "test@example.com",
+			Email:       fmt.Sprintf("test-%d@example.com", time.Now().UnixNano()),
 			PhoneNumber: "1234567890",
 			IdpUserID:   "test-user-123",
 		}
@@ -160,7 +199,7 @@ func TestConsumerEndpoints(t *testing.T) {
 		// First create a consumer
 		createReq := models.CreateConsumerRequest{
 			Name:        "Test Consumer",
-			Email:       "test@example.com",
+			Email:       fmt.Sprintf("test-%d@example.com", time.Now().UnixNano()),
 			PhoneNumber: "1234567890",
 			IdpUserID:   "test-user-123",
 		}
@@ -176,9 +215,10 @@ func TestConsumerEndpoints(t *testing.T) {
 		json.Unmarshal(createW.Body.Bytes(), &createResponse)
 
 		// Now update the consumer
+		updatedEmail := fmt.Sprintf("updated-%d@example.com", time.Now().UnixNano())
 		updateReq := models.UpdateConsumerRequest{
 			Name:        stringPtr("Updated Consumer"),
-			Email:       stringPtr("updated@example.com"),
+			Email:       stringPtr(updatedEmail),
 			PhoneNumber: stringPtr("9876543210"),
 		}
 
@@ -187,7 +227,9 @@ func TestConsumerEndpoints(t *testing.T) {
 		updateHttpReq.Header.Set("Content-Type", "application/json")
 
 		updateW := httptest.NewRecorder()
-		testHandler.handler.handleConsumers(updateW, updateHttpReq)
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(updateW, updateHttpReq)
 
 		assert.Equal(t, http.StatusOK, updateW.Code)
 
@@ -195,7 +237,7 @@ func TestConsumerEndpoints(t *testing.T) {
 		err := json.Unmarshal(updateW.Body.Bytes(), &updateResponse)
 		assert.NoError(t, err)
 		assert.Equal(t, "Updated Consumer", updateResponse.Name)
-		assert.Equal(t, "updated@example.com", updateResponse.Email)
+		assert.Equal(t, updatedEmail, updateResponse.Email)
 		assert.Equal(t, "9876543210", updateResponse.PhoneNumber)
 	})
 
@@ -208,10 +250,11 @@ func TestConsumerEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []models.ConsumerResponse
+		var response models.CollectionResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		assert.NotNil(t, response)
+		assert.NotNil(t, response.Items)
+		assert.GreaterOrEqual(t, response.Count, 1)
 	})
 }
 
@@ -253,7 +296,7 @@ func TestProviderEndpoints(t *testing.T) {
 		// First create a provider
 		createReq := models.CreateProviderRequest{
 			Name:        "Test Provider",
-			Email:       "provider@example.com",
+			Email:       fmt.Sprintf("provider-%d@example.com", time.Now().UnixNano()),
 			PhoneNumber: "1234567890",
 			IdpUserID:   "provider-user-123",
 		}
@@ -291,10 +334,11 @@ func TestProviderEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []models.ProviderResponse
+		var response models.CollectionResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		assert.NotNil(t, response)
+		assert.NotNil(t, response.Items)
+		assert.GreaterOrEqual(t, response.Count, 1)
 	})
 }
 
@@ -305,7 +349,7 @@ func TestApplicationEndpoints(t *testing.T) {
 	// First create a consumer for the application
 	consumerReq := models.CreateConsumerRequest{
 		Name:        "Test Consumer",
-		Email:       "test@example.com",
+		Email:       fmt.Sprintf("test-consumer-%d@example.com", time.Now().UnixNano()),
 		PhoneNumber: "1234567890",
 		IdpUserID:   "test-user-123",
 	}
@@ -363,10 +407,11 @@ func TestApplicationEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []models.ApplicationResponse
+		var response models.CollectionResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		assert.NotNil(t, response)
+		assert.NotNil(t, response.Items)
+		assert.GreaterOrEqual(t, response.Count, 0)
 	})
 }
 
@@ -377,7 +422,7 @@ func TestSchemaEndpoints(t *testing.T) {
 	// First create a provider for the schema
 	providerReq := models.CreateProviderRequest{
 		Name:        "Test Provider",
-		Email:       "provider@example.com",
+		Email:       fmt.Sprintf("test-provider-%d@example.com", time.Now().UnixNano()),
 		PhoneNumber: "1234567890",
 		IdpUserID:   "provider-user-123",
 	}
@@ -432,10 +477,11 @@ func TestSchemaEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []models.SchemaResponse
+		var response models.CollectionResponse
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
-		assert.NotNil(t, response)
+		assert.NotNil(t, response.Items)
+		assert.GreaterOrEqual(t, response.Count, 0)
 	})
 }
 

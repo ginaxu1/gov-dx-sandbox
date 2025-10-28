@@ -13,6 +13,13 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/v1/utils"
 )
 
+// PDPInterface defines the interface for Policy Decision Point operations
+type PDPInterface interface {
+	HealthCheck() error
+	CreatePolicyMetadata(schemaId string, sdl string) (*models.PolicyMetadataCreateResponse, error)
+	UpdateAllowList(request models.AllowListUpdateRequest) (*models.AllowListUpdateResponse, error)
+}
+
 // PDPService handles communication with the Policy Decision Point
 type PDPService struct {
 	// baseURL is the endpoint of the PDP

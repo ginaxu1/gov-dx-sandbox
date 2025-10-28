@@ -11,6 +11,7 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/v1/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
+	"github.com/gov-dx-sandbox/api-server-go/v1/utils"
 	"gorm.io/gorm"
 )
 
@@ -85,13 +86,13 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.createProvider(w, r)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
 	if len(parts) < 1 || parts[0] == "" {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Provider ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Provider ID is required")
 		return
 	}
 
@@ -105,7 +106,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateProvider(w, r, providerID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -116,7 +117,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		case http.MethodGet:
 			h.getAllSchemas(w, r, &providerID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -130,7 +131,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.createSchemaSubmission(w, r, &providerID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -141,7 +142,7 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateSchema(w, r, parts[2])
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -152,12 +153,12 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateSchemaSubmission(w, r, parts[2])
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	middleware.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // handleConsumers handles consumer-related routes
@@ -173,13 +174,13 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.createConsumer(w, r)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
 	if len(parts) < 1 || parts[0] == "" {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Consumer ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Consumer ID is required")
 		return
 	}
 
@@ -193,7 +194,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateConsumer(w, r, consumerID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -203,7 +204,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			h.getAllApplications(w, r, &consumerID)
 		} else {
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -217,7 +218,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.createApplicationSubmission(w, r, &consumerID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -228,7 +229,7 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateApplication(w, r, parts[2])
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
@@ -239,12 +240,12 @@ func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateApplicationSubmission(w, r, parts[2])
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	middleware.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // handleEntities handles entity-related routes
@@ -260,13 +261,13 @@ func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.createEntity(w, r)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
 	if len(parts) < 1 || parts[0] == "" {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Entity ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Entity ID is required")
 		return
 	}
 
@@ -280,12 +281,12 @@ func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateEntity(w, r, entityID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	middleware.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // handleSchemas handles schema-related routes
@@ -302,12 +303,12 @@ func (h *V1Handler) handleSchemas(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.createSchema(w, r)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 	if len(parts) < 1 || parts[0] == "" {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Schema ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Schema ID is required")
 		return
 	}
 	schemaID := parts[0]
@@ -320,12 +321,12 @@ func (h *V1Handler) handleSchemas(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateSchema(w, r, schemaID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	middleware.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // handleSchemaSubmissions handles schema submission-related routes
@@ -343,12 +344,12 @@ func (h *V1Handler) handleSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 		case http.MethodPost:
 			h.createSchemaSubmission(w, r, nil)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 	if len(parts) < 1 || parts[0] == "" {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
 		return
 	}
 	submissionID := parts[0]
@@ -360,12 +361,12 @@ func (h *V1Handler) handleSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 		case http.MethodPut:
 			h.updateSchemaSubmission(w, r, submissionID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	middleware.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // handleApplications handles application-related routes
@@ -382,12 +383,12 @@ func (h *V1Handler) handleApplications(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPost:
 			h.createApplication(w, r)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 	if len(parts) < 1 || parts[0] == "" {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Application ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Application ID is required")
 		return
 	}
 
@@ -400,12 +401,12 @@ func (h *V1Handler) handleApplications(w http.ResponseWriter, r *http.Request) {
 		case http.MethodPut:
 			h.updateApplication(w, r, applicationID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
-	middleware.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // handleApplicationSubmissions handles application submission-related routes
@@ -423,13 +424,13 @@ func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.
 		case http.MethodPost:
 			h.createApplicationSubmission(w, r, nil)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
 
 	if len(parts) < 1 || parts[0] == "" {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
 		return
 	}
 
@@ -442,11 +443,11 @@ func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.
 		case http.MethodPut:
 			h.updateApplicationSubmission(w, r, submissionID)
 		default:
-			middleware.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
 		return
 	}
-	middleware.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
 // Provider handlers
@@ -454,49 +455,49 @@ func (h *V1Handler) createProvider(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateProviderRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	provider, err := h.providerService.CreateProvider(&req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusCreated, provider)
+	utils.RespondWithSuccess(w, http.StatusCreated, provider)
 }
 
 func (h *V1Handler) updateProvider(w http.ResponseWriter, r *http.Request, providerID string) {
 	var req models.UpdateProviderRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	provider, err := h.providerService.UpdateProvider(providerID, &req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusOK, provider)
+	utils.RespondWithSuccess(w, http.StatusOK, provider)
 }
 
 func (h *V1Handler) getProvider(w http.ResponseWriter, r *http.Request, providerID string) {
 	provider, err := h.providerService.GetProvider(providerID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusNotFound, err.Error())
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, provider)
+	utils.RespondWithSuccess(w, http.StatusOK, provider)
 }
 
 func (h *V1Handler) getAllProviders(w http.ResponseWriter, r *http.Request) {
 	providers, err := h.providerService.GetAllProviders()
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -504,7 +505,7 @@ func (h *V1Handler) getAllProviders(w http.ResponseWriter, r *http.Request) {
 		Items: providers,
 		Count: len(providers),
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, response)
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 // Consumer handlers
@@ -512,49 +513,49 @@ func (h *V1Handler) createConsumer(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateConsumerRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	consumer, err := h.consumerService.CreateConsumer(&req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusCreated, consumer)
+	utils.RespondWithSuccess(w, http.StatusCreated, consumer)
 }
 
 func (h *V1Handler) updateConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
 	var req models.UpdateConsumerRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	consumer, err := h.consumerService.UpdateConsumer(consumerID, &req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusOK, consumer)
+	utils.RespondWithSuccess(w, http.StatusOK, consumer)
 }
 
 func (h *V1Handler) getConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
 	consumer, err := h.consumerService.GetConsumer(consumerID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusNotFound, err.Error())
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, consumer)
+	utils.RespondWithSuccess(w, http.StatusOK, consumer)
 }
 
 func (h *V1Handler) getAllConsumers(w http.ResponseWriter, r *http.Request) {
 	consumers, err := h.consumerService.GetAllConsumers()
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -562,7 +563,7 @@ func (h *V1Handler) getAllConsumers(w http.ResponseWriter, r *http.Request) {
 		Items: consumers,
 		Count: len(consumers),
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, response)
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 // Entity handlers
@@ -570,49 +571,49 @@ func (h *V1Handler) createEntity(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateEntityRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	entity, err := h.entityService.CreateEntity(&req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusCreated, entity)
+	utils.RespondWithSuccess(w, http.StatusCreated, entity)
 }
 
 func (h *V1Handler) updateEntity(w http.ResponseWriter, r *http.Request, entityID string) {
 	var req models.UpdateEntityRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	entity, err := h.entityService.UpdateEntity(entityID, &req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusOK, entity)
+	utils.RespondWithSuccess(w, http.StatusOK, entity)
 }
 
 func (h *V1Handler) getEntity(w http.ResponseWriter, r *http.Request, entityID string) {
 	entity, err := h.entityService.GetEntity(entityID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusNotFound, err.Error())
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, entity)
+	utils.RespondWithSuccess(w, http.StatusOK, entity)
 }
 
 func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
 	entities, err := h.entityService.GetAllEntities()
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -620,14 +621,14 @@ func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
 		Items: entities,
 		Count: len(entities),
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, response)
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 // Schema handlers
 func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Request, providerID *string, statusFilter *[]string) {
 	submissions, err := h.schemaService.GetSchemaSubmissions(providerID, statusFilter)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -635,23 +636,23 @@ func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 		Items: submissions,
 		Count: len(submissions),
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, response)
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
 	submission, err := h.schemaService.GetSchemaSubmission(submissionID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusNotFound, err.Error())
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, submission)
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
 func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Request, providerID *string) {
 	var req models.CreateSchemaSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -661,34 +662,34 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 
 	submission, err := h.schemaService.CreateSchemaSubmission(&req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusCreated, submission)
+	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
 func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
 	var req models.UpdateSchemaSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	submission, err := h.schemaService.UpdateSchemaSubmission(submissionID, &req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusOK, submission)
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
 func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, providerID *string) {
 	schemas, err := h.schemaService.GetSchemas(providerID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -696,57 +697,57 @@ func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, provid
 		Items: schemas,
 		Count: len(schemas),
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, response)
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 func (h *V1Handler) getSchema(w http.ResponseWriter, r *http.Request, submissionID string) {
 	schema, err := h.schemaService.GetSchema(submissionID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusNotFound, err.Error())
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, schema)
+	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
 
 func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateSchemaRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	schema, err := h.schemaService.CreateSchema(&req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusCreated, schema)
+	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
 
 func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaID string) {
 	var req models.UpdateSchemaRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	schema, err := h.schemaService.UpdateSchema(schemaID, &req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusOK, schema)
+	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
 
 // Application handlers
 func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.Request, consumerID *string, statusFilter *[]string) {
 	submissions, err := h.applicationService.GetApplicationSubmissions(consumerID, statusFilter)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -754,23 +755,23 @@ func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.
 		Items: submissions,
 		Count: len(submissions),
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, response)
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
 	submission, err := h.applicationService.GetApplicationSubmission(submissionID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusNotFound, err.Error())
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, submission)
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
 func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.Request, consumerID *string) {
 	var req models.CreateApplicationSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -780,34 +781,34 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 
 	submission, err := h.applicationService.CreateApplicationSubmission(&req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusCreated, submission)
+	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
 func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
 	var req models.UpdateApplicationSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	submission, err := h.applicationService.UpdateApplicationSubmission(submissionID, &req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusOK, submission)
+	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
 func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, consumerID *string) {
 	applications, err := h.applicationService.GetApplications(consumerID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -815,48 +816,48 @@ func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, c
 		Items: applications,
 		Count: len(applications),
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, response)
+	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 func (h *V1Handler) getApplication(w http.ResponseWriter, r *http.Request, submissionID string) {
 	application, err := h.applicationService.GetApplication(submissionID)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusNotFound, err.Error())
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	middleware.RespondWithSuccess(w, http.StatusOK, application)
+	utils.RespondWithSuccess(w, http.StatusOK, application)
 }
 
 func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateApplicationRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	application, err := h.applicationService.CreateApplication(&req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusCreated, application)
+	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
 
 func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationID string) {
 	var req models.UpdateApplicationRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	application, err := h.applicationService.UpdateApplication(applicationID, &req)
 	if err != nil {
-		middleware.RespondWithError(w, http.StatusBadRequest, err.Error())
+		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	middleware.RespondWithSuccess(w, http.StatusOK, application)
+	utils.RespondWithSuccess(w, http.StatusOK, application)
 }

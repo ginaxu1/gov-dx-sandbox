@@ -59,7 +59,7 @@ func main() {
 	})
 
 	// Apply CORS middleware
-	handler := v1middleware.CORSMiddleware(mux)
+	handler := v1middleware.NewCORSMiddleware()(mux)
 
 	// Start server
 	port := os.Getenv("PORT")

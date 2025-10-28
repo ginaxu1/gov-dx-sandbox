@@ -33,7 +33,19 @@ func (sfr *SelectedFieldRecords) Scan(value interface{}) error {
 		return fmt.Errorf("cannot scan %T into SelectedFieldRecords", value)
 	}
 
-	return json.Unmarshal(bytes, sfr)
+	// Try to unmarshal as array first
+	var records []SelectedFieldRecord
+	if err := json.Unmarshal(bytes, &records); err != nil {
+		// If that fails, try to unmarshal as a single object and wrap it in an array
+		var singleRecord SelectedFieldRecord
+		if err2 := json.Unmarshal(bytes, &singleRecord); err2 != nil {
+			return fmt.Errorf("cannot unmarshal JSON into SelectedFieldRecords: %w", err)
+		}
+		records = []SelectedFieldRecord{singleRecord}
+	}
+
+	*sfr = SelectedFieldRecords(records)
+	return nil
 }
 
 // Value implements the driver.Valuer interface for SelectedFieldRecords

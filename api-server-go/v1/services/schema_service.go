@@ -13,11 +13,11 @@ import (
 // SchemaService handles schema-related operations
 type SchemaService struct {
 	db            *gorm.DB
-	policyService *PDPService
+	policyService PDPInterface
 }
 
 // NewSchemaService creates a new schema service
-func NewSchemaService(db *gorm.DB, policyService *PDPService) *SchemaService {
+func NewSchemaService(db *gorm.DB, policyService PDPInterface) *SchemaService {
 	return &SchemaService{db: db, policyService: policyService}
 }
 
