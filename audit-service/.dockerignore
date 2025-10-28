@@ -1,0 +1,44 @@
+# Docker ignore file for Audit Service
+
+# Build artifacts
+audit-service
+audit-service-test
+*.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Documentation
+*.md
+CHANGELOG.md
+AUDIT_REVIEW.md
+
+# Test files (integration tests are in integration-tests/)
+*_test.go
+test*.sh
+docker-compose.test.yml
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+
+# Choreo deployment files (keep component.yaml)
+.choreo/.git
+.choreo/logs
+.choreo/tmp
+
+# Database setup scripts
+setup-database-remote.sh
+database/setup-audit-logs.sql
+
+# Development files
+*.local
+
