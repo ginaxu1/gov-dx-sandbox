@@ -332,9 +332,9 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 
 	response := &models.PolicyDecisionResponse{
 		ConsentRequiredFields:   consentRequiredFields,
-		UnAuthorizedFields:      unAuthorizedFields,
+		UnauthorizedFields:      unAuthorizedFields,
 		ExpiredFields:           expiredFields,
-		AppNotAuthorized:        len(unAuthorizedFields) > 0,
+		AppAuthorized:           !(len(unAuthorizedFields) > 0),
 		AppAccessExpired:        len(expiredFields) > 0,
 		AppRequiresOwnerConsent: len(consentRequiredFields) > 0,
 	}

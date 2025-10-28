@@ -89,8 +89,8 @@ type PolicyDecisionResponseFieldRecord struct {
 
 // PolicyDecisionResponse represents a policy decision response
 type PolicyDecisionResponse struct {
-	AppNotAuthorized        bool                                `json:"appNotAuthorized"`
-	UnAuthorizedFields      []PolicyDecisionResponseFieldRecord `json:"unauthorizedFields"`
+	AppAuthorized           bool                                `json:"appAuthorized"`
+	UnauthorizedFields      []PolicyDecisionResponseFieldRecord `json:"unauthorizedFields"`
 	AppAccessExpired        bool                                `json:"appAccessExpired"`
 	ExpiredFields           []PolicyDecisionResponseFieldRecord `json:"expiredFields"`
 	AppRequiresOwnerConsent bool                                `json:"appRequiresOwnerConsent"`
