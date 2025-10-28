@@ -23,30 +23,51 @@ func NewApplicationService(db *gorm.DB, pdpService *PDPService) *ApplicationServ
 
 // CreateApplication creates a new application
 func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequest) (*models.ApplicationResponse, error) {
+	var application models.Application
+	var response *models.ApplicationResponse
 
-	// Create application
-	application := models.Application{
-		ApplicationID:          "app_" + uuid.New().String(),
-		ApplicationName:        req.ApplicationName,
-		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         req.SelectedFields,
-		ConsumerID:             req.ConsumerID,
-		Version:                models.ActiveVersion,
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Create application within transaction
+		application = models.Application{
+			ApplicationID:          "app_" + uuid.New().String(),
+			ApplicationName:        req.ApplicationName,
+			ApplicationDescription: req.ApplicationDescription,
+			SelectedFields:         req.SelectedFields,
+			ConsumerID:             req.ConsumerID,
+			Version:                models.ActiveVersion,
+		}
+
+		if err := tx.Create(&application).Error; err != nil {
+			return fmt.Errorf("failed to create application: %w", err)
+		}
+
+		// Build response within transaction
+		response = &models.ApplicationResponse{
+			ApplicationID:          application.ApplicationID,
+			ApplicationName:        application.ApplicationName,
+			ApplicationDescription: application.ApplicationDescription,
+			SelectedFields:         application.SelectedFields,
+			ConsumerID:             application.ConsumerID,
+			Version:                application.Version,
+			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	// Step 1: Create application in database first
-	if err := s.db.Create(&application).Error; err != nil {
-		return nil, fmt.Errorf("failed to create application: %w", err)
-	}
-
-	// Step 2: Update allow list in PDP (Saga Pattern)
+	// Update allow list in PDP after successful database transaction (Saga Pattern)
 	policyReq := models.AllowListUpdateRequest{
 		ApplicationID: application.ApplicationID,
 		Records:       application.SelectedFields,
 		GrantDuration: models.GrantDurationTypeOneMonth, // Default duration
 	}
 
-	_, err := s.policyService.UpdateAllowList(policyReq)
+	_, err = s.policyService.UpdateAllowList(policyReq)
 	if err != nil {
 		// Compensation: Delete the application we just created
 		if deleteErr := s.db.Delete(&application).Error; deleteErr != nil {
@@ -62,54 +83,55 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		return nil, fmt.Errorf("failed to update allow list: %w", err)
 	}
 
-	response := &models.ApplicationResponse{
-		ApplicationID:          application.ApplicationID,
-		ApplicationName:        application.ApplicationName,
-		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         application.SelectedFields,
-		ConsumerID:             application.ConsumerID,
-		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
-	}
-
 	return response, nil
 }
 
 // UpdateApplication updates an existing application
 func (s *ApplicationService) UpdateApplication(applicationID string, req *models.UpdateApplicationRequest) (*models.ApplicationResponse, error) {
 	var application models.Application
-	err := s.db.First(&application, "application_id = ?", applicationID).Error
+	var response *models.ApplicationResponse
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Fetch application within transaction
+		if err := tx.First(&application, "application_id = ?", applicationID).Error; err != nil {
+			return err
+		}
+
+		// Update fields if provided
+		// Note: SelectedFields updates are intentionally not supported for approved applications
+		// to maintain data integrity and audit trail. Field changes require resubmission process.
+		if req.ApplicationName != nil {
+			application.ApplicationName = *req.ApplicationName
+		}
+		if req.ApplicationDescription != nil {
+			application.ApplicationDescription = req.ApplicationDescription
+		}
+		if req.Version != nil {
+			application.Version = *req.Version
+		}
+
+		// Save updated application
+		if err := tx.Save(&application).Error; err != nil {
+			return err
+		}
+
+		// Build response within transaction
+		response = &models.ApplicationResponse{
+			ApplicationID:          application.ApplicationID,
+			ApplicationName:        application.ApplicationName,
+			ApplicationDescription: application.ApplicationDescription,
+			SelectedFields:         application.SelectedFields,
+			ConsumerID:             application.ConsumerID,
+			Version:                application.Version,
+			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		return nil, err
-	}
-
-	// Update fields if provided
-	// Note: SelectedFields updates are intentionally not supported for approved applications
-	// to maintain data integrity and audit trail. Field changes require resubmission process.
-	if req.ApplicationName != nil {
-		application.ApplicationName = *req.ApplicationName
-	}
-	if req.ApplicationDescription != nil {
-		application.ApplicationDescription = req.ApplicationDescription
-	}
-	if req.Version != nil {
-		application.Version = *req.Version
-	}
-
-	if err := s.db.Save(&application).Error; err != nil {
-		return nil, err
-	}
-
-	response := &models.ApplicationResponse{
-		ApplicationID:          application.ApplicationID,
-		ApplicationName:        application.ApplicationName,
-		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         application.SelectedFields,
-		ConsumerID:             application.ConsumerID,
-		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -173,46 +195,65 @@ func (s *ApplicationService) GetApplications(consumerID *string) ([]models.Appli
 
 // CreateApplicationSubmission creates a new application submission
 func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateApplicationSubmissionRequest) (*models.ApplicationSubmissionResponse, error) {
-	// Validate previous application ID if provided
-	if req.PreviousApplicationID != nil {
-		var prevApp models.Application
-		err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error
-		if err != nil {
-			return nil, err
-		}
-	}
+	var submission models.ApplicationSubmission
+	var response *models.ApplicationSubmissionResponse
 
-	// Validate consumer ID
-	var consumer models.Consumer
-	err := s.db.First(&consumer, "consumer_id = ?", req.ConsumerID).Error
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Batch validate all dependencies in single transaction
+		var validationErrors []error
+
+		// Validate previous application ID if provided
+		if req.PreviousApplicationID != nil {
+			var prevApp models.Application
+			if err := tx.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
+				validationErrors = append(validationErrors, fmt.Errorf("previous application not found: %w", err))
+			}
+		}
+
+		// Validate consumer ID
+		var consumer models.Consumer
+		if err := tx.First(&consumer, "consumer_id = ?", req.ConsumerID).Error; err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("consumer not found: %w", err))
+		}
+
+		// If any validation failed, return combined error
+		if len(validationErrors) > 0 {
+			return fmt.Errorf("validation failed: %v", validationErrors)
+		}
+
+		// Create application submission within transaction
+		submission = models.ApplicationSubmission{
+			SubmissionID:           "sub_" + uuid.New().String(),
+			PreviousApplicationID:  req.PreviousApplicationID,
+			ApplicationName:        req.ApplicationName,
+			ApplicationDescription: req.ApplicationDescription,
+			SelectedFields:         req.SelectedFields,
+			Status:                 models.StatusPending,
+			ConsumerID:             req.ConsumerID,
+		}
+
+		if err := tx.Create(&submission).Error; err != nil {
+			return fmt.Errorf("failed to create application submission: %w", err)
+		}
+
+		// Build response within transaction
+		response = &models.ApplicationSubmissionResponse{
+			SubmissionID:           submission.SubmissionID,
+			PreviousApplicationID:  submission.PreviousApplicationID,
+			ApplicationName:        submission.ApplicationName,
+			ApplicationDescription: submission.ApplicationDescription,
+			SelectedFields:         submission.SelectedFields,
+			Status:                 submission.Status,
+			ConsumerID:             submission.ConsumerID,
+			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		return nil, err
-	}
-
-	// Create application submission
-	submission := models.ApplicationSubmission{
-		SubmissionID:           "sub_" + uuid.New().String(),
-		PreviousApplicationID:  req.PreviousApplicationID,
-		ApplicationName:        req.ApplicationName,
-		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         req.SelectedFields,
-		Status:                 models.StatusPending,
-		ConsumerID:             req.ConsumerID,
-	}
-	if err := s.db.Create(&submission).Error; err != nil {
-		return nil, err
-	}
-
-	response := &models.ApplicationSubmissionResponse{
-		SubmissionID:           submission.SubmissionID,
-		PreviousApplicationID:  submission.PreviousApplicationID,
-		ApplicationName:        submission.ApplicationName,
-		ApplicationDescription: submission.ApplicationDescription,
-		SelectedFields:         submission.SelectedFields,
-		Status:                 submission.Status,
-		ConsumerID:             submission.ConsumerID,
-		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil

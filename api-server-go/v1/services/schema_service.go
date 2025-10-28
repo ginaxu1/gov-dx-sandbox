@@ -23,23 +23,47 @@ func NewSchemaService(db *gorm.DB, policyService *PDPService) *SchemaService {
 
 // CreateSchema creates a new schema
 func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.SchemaResponse, error) {
-	schema := models.Schema{
-		SchemaID:          "sch_" + uuid.New().String(),
-		SchemaName:        req.SchemaName,
-		SchemaDescription: req.SchemaDescription,
-		SDL:               req.SDL,
-		Endpoint:          req.Endpoint,
-		ProviderID:        req.ProviderID,
-		Version:           models.ActiveVersion,
+	var schema models.Schema
+	var response *models.SchemaResponse
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Create schema within transaction
+		schema = models.Schema{
+			SchemaID:          "sch_" + uuid.New().String(),
+			SchemaName:        req.SchemaName,
+			SchemaDescription: req.SchemaDescription,
+			SDL:               req.SDL,
+			Endpoint:          req.Endpoint,
+			ProviderID:        req.ProviderID,
+			Version:           models.ActiveVersion,
+		}
+
+		if err := tx.Create(&schema).Error; err != nil {
+			return fmt.Errorf("failed to create schema: %w", err)
+		}
+
+		// Build response within transaction
+		response = &models.SchemaResponse{
+			SchemaID:          schema.SchemaID,
+			SchemaName:        schema.SchemaName,
+			SchemaDescription: schema.SchemaDescription,
+			SDL:               schema.SDL,
+			Endpoint:          schema.Endpoint,
+			Version:           schema.Version,
+			ProviderID:        schema.ProviderID,
+			CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	// Step 1: Create schema in database first
-	if err := s.db.Create(&schema).Error; err != nil {
-		return nil, fmt.Errorf("failed to create schema: %w", err)
-	}
-
-	// Step 2: Create policy metadata in PDP (Saga Pattern)
-	_, err := s.policyService.CreatePolicyMetadata(schema.SchemaID, schema.SDL)
+	// Create policy metadata in PDP after successful database transaction (Saga Pattern)
+	_, err = s.policyService.CreatePolicyMetadata(schema.SchemaID, schema.SDL)
 	if err != nil {
 		// Compensation: Delete the schema we just created
 		if deleteErr := s.db.Delete(&schema).Error; deleteErr != nil {
@@ -53,18 +77,6 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		}
 		slog.Info("Successfully compensated schema creation", "schemaID", schema.SchemaID)
 		return nil, fmt.Errorf("failed to create policy metadata in PDP: %w", err)
-	}
-
-	response := &models.SchemaResponse{
-		SchemaID:          schema.SchemaID,
-		SchemaName:        schema.SchemaName,
-		SchemaDescription: schema.SchemaDescription,
-		SDL:               schema.SDL,
-		Endpoint:          schema.Endpoint,
-		Version:           schema.Version,
-		ProviderID:        schema.ProviderID,
-		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
