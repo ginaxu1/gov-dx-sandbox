@@ -85,6 +85,8 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 	}
 
 	// Update fields if provided
+	// Note: SelectedFields updates are intentionally not supported for approved applications
+	// to maintain data integrity and audit trail. Field changes require resubmission process.
 	if req.ApplicationName != nil {
 		application.ApplicationName = *req.ApplicationName
 	}
@@ -151,7 +153,8 @@ func (s *ApplicationService) GetApplications(consumerID *string) ([]models.Appli
 		return nil, err
 	}
 
-	var responses []models.ApplicationResponse
+	// Pre-allocate slice with known capacity for better performance
+	responses := make([]models.ApplicationResponse, 0, len(applications))
 	for _, application := range applications {
 		responses = append(responses, models.ApplicationResponse{
 			ApplicationID:          application.ApplicationID,
@@ -233,7 +236,11 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 			submission.ApplicationDescription = req.ApplicationDescription
 		}
 
-		// Always update SelectedFields to maintain integrity
+		// Always update SelectedFields to maintain integrity for submissions
+		// This differs from UpdateApplication which intentionally omits SelectedFields updates.
+		// Rationale: Application submissions are mutable during review process and require
+		// field validation (min 1 field enforced by DTO), while approved applications
+		// should have immutable field selections for security and audit purposes.
 		// Minimum 1 field is validated by the DTO
 		submission.SelectedFields = req.SelectedFields
 

@@ -152,7 +152,8 @@ func (s *SchemaService) GetSchemas(providerID *string) ([]*models.SchemaResponse
 		return nil, fmt.Errorf("failed to retrieve schemas: %w", err)
 	}
 
-	var responses []*models.SchemaResponse
+	// Pre-allocate slice with known capacity for better performance
+	responses := make([]*models.SchemaResponse, 0, len(schemas))
 	for _, schema := range schemas {
 		responses = append(responses, &models.SchemaResponse{
 			SchemaID:          schema.SchemaID,

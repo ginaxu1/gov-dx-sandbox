@@ -112,8 +112,14 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 	}
 
 	// Bulk save updated records
-	for _, pm := range updatedRecords {
-		if err := tx.Save(pm).Error; err != nil {
+	if len(updatedRecords) > 0 {
+		// Convert slice of pointers to slice of values for batch update
+		var recordsToUpdate []models.PolicyMetadata
+		for _, pm := range updatedRecords {
+			recordsToUpdate = append(recordsToUpdate, *pm)
+		}
+
+		if err := tx.Save(&recordsToUpdate).Error; err != nil {
 			tx.Rollback()
 			return nil, fmt.Errorf("failed to update existing policy metadata: %w", err)
 		}
@@ -214,8 +220,9 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 	}()
 
 	var responseRecords []models.AllowListUpdateResponseRecord
+	var recordsToUpdate []*models.PolicyMetadata
 
-	// Update records within transaction
+	// Update records in memory first
 	for _, record := range req.Records {
 		key := record.SchemaID + ":" + record.FieldName
 		pm := policyMap[key]
@@ -229,10 +236,7 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 			UpdatedAt: currentTime,
 		}
 
-		if err := tx.Save(pm).Error; err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to update allow list for schema_id %s and field_name %s: %w", record.SchemaID, record.FieldName, err)
-		}
+		recordsToUpdate = append(recordsToUpdate, pm)
 
 		// Prepare response record
 		responseRecord := models.AllowListUpdateResponseRecord{
@@ -242,6 +246,20 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 			UpdatedAt: currentTime.Format(time.RFC3339),
 		}
 		responseRecords = append(responseRecords, responseRecord)
+	}
+
+	// Batch update all records in a single operation
+	if len(recordsToUpdate) > 0 {
+		// Convert slice of pointers to slice of values for batch update
+		var recordsToSave []models.PolicyMetadata
+		for _, pm := range recordsToUpdate {
+			recordsToSave = append(recordsToSave, *pm)
+		}
+
+		if err := tx.Save(&recordsToSave).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to batch update allow list records: %w", err)
+		}
 	}
 
 	// Commit transaction
@@ -282,7 +300,7 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 	}
 
 	var consentRequiredFields []models.PolicyDecisionResponseFieldRecord
-	var unAuthorizedFields []models.PolicyDecisionResponseFieldRecord
+	var unauthorizedFields []models.PolicyDecisionResponseFieldRecord
 	var expiredFields []models.PolicyDecisionResponseFieldRecord
 
 	// Iterate through required fields and perform logic using map lookup
@@ -295,7 +313,7 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 
 		// Check if application is authorized
 		if _, exists := pm.AllowList[req.ApplicationID]; !exists {
-			unAuthorizedFields = append(unAuthorizedFields, models.PolicyDecisionResponseFieldRecord{
+			unauthorizedFields = append(unauthorizedFields, models.PolicyDecisionResponseFieldRecord{
 				FieldName:   pm.FieldName,
 				SchemaID:    pm.SchemaID,
 				DisplayName: pm.DisplayName,
@@ -332,9 +350,9 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 
 	response := &models.PolicyDecisionResponse{
 		ConsentRequiredFields:   consentRequiredFields,
-		UnauthorizedFields:      unAuthorizedFields,
+		UnauthorizedFields:      unauthorizedFields,
 		ExpiredFields:           expiredFields,
-		AppAuthorized:           !(len(unAuthorizedFields) > 0),
+		AppAuthorized:           !(len(unauthorizedFields) > 0),
 		AppAccessExpired:        len(expiredFields) > 0,
 		AppRequiresOwnerConsent: len(consentRequiredFields) > 0,
 	}
