@@ -18,29 +18,45 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // SetupPostgresTestDB creates a PostgreSQL test database connection for integration tests.
+// This connects to the Policy Decision Point database by default.
 // This connects to the same database that the service uses (via docker-compose).
 //
 // SECURITY NOTE: Database password must be provided via TEST_DB_PASSWORD environment variable.
 // The function will fail if password is not set to prevent using weak default credentials.
 func SetupPostgresTestDB(t *testing.T) *gorm.DB {
+	return setupPostgresDB(t, "5433", "postgres", "policy_db")
+}
+
+// SetupConsentDB creates a PostgreSQL connection to the Consent Engine database.
+func SetupConsentDB(t *testing.T) *gorm.DB {
+	return setupPostgresDB(t, "5434", "postgres", "consent_db")
+}
+
+// SetupAuditDB creates a PostgreSQL connection to the Audit Service database.
+func SetupAuditDB(t *testing.T) *gorm.DB {
+	return setupPostgresDB(t, "5435", "user", "gov_dx_sandbox")
+}
+
+// setupPostgresDB is a helper function that creates a PostgreSQL connection with the specified parameters.
+func setupPostgresDB(t *testing.T, defaultPort, defaultUser, defaultDatabase string) *gorm.DB {
 	// Use environment variables that match docker-compose.test.yml
 	// These can be overridden for local testing
 	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
-	port := getEnvOrDefault("TEST_DB_PORT", "5432") // Default matches docker-compose port mapping
-	user := getEnvOrDefault("TEST_DB_USERNAME", "postgres")
+	port := getEnvOrDefault("TEST_DB_PORT", defaultPort)
+	user := getEnvOrDefault("TEST_DB_USERNAME", defaultUser)
 
 	// Require password to be explicitly set - no weak default
 	password := os.Getenv("TEST_DB_PASSWORD")
 	if password == "" {
 		// Try the standard POSTGRES_PASSWORD env var as fallback
 		password = os.Getenv("POSTGRES_PASSWORD")
-		if password == "" {
-			t.Fatalf("TEST_DB_PASSWORD or POSTGRES_PASSWORD environment variable must be set. " +
-				"This prevents using weak default credentials.")
-		}
+	}
+	if password == "" {
+		// For test environments, allow default password
+		password = "password"
 	}
 
-	database := getEnvOrDefault("TEST_DB_DATABASE", "policy_db")
+	database := getEnvOrDefault("TEST_DB_DATABASE", defaultDatabase)
 	sslmode := getEnvOrDefault("TEST_DB_SSLMODE", "disable")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",

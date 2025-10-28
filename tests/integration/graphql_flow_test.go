@@ -16,16 +16,17 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"github.com/gov-dx-sandbox/tests/integration/testutils"
 )
 
 func getConsentDB(t *testing.T) *gorm.DB {
-	dsn := "host=localhost user=postgres password=password dbname=consent_db port=5434 sslmode=disable"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	require.NoError(t, err)
+	db := testutils.SetupConsentDB(t)
+	// The test might have been skipped by SetupConsentDB if the DB is not available.
+	// We must not return a nil db, as cleanup functions depend on it and would panic.
+	// require.NotNil will fail the test here if the connection is nil.
+	require.NotNil(t, db, "Failed to get consent DB connection for cleanup")
 	return db
 }
 

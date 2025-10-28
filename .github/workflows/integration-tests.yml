@@ -1,8 +1,12 @@
 name: Integration Tests
 
 on:
-  # Run on pull requests only (validation before merge)
+  push:
+    branches:
+      - dev
   pull_request:
+    branches:
+      - dev
     paths:
       - 'tests/integration/**'
       - 'exchange/orchestration-engine/**'
@@ -10,7 +14,6 @@ on:
       - 'exchange/consent-engine/**'
       - 'exchange/shared/**'
       - '.github/workflows/integration-tests.yml'
-  # Allow manual trigger
   workflow_dispatch:
 
 concurrency:
@@ -28,7 +31,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -193,6 +195,7 @@ jobs:
           
           check_health "Policy Decision Point" "http://localhost:8082/health" || (cat logs/pdp.log && exit 1)
           check_health "Consent Engine" "http://localhost:8081/health" || (cat logs/ce.log && exit 1)
+          check_health "audit-service" "http://localhost:3001/health" || exit 1
           # Mock Provider doesn't have /health endpoint, just check if it's listening
           if curl -s -f "http://localhost:8083/graphql" > /dev/null 2>&1; then
             echo "✅ Mock Provider is responding"
@@ -202,6 +205,8 @@ jobs:
             exit 1
           fi
           check_health "Orchestration Engine" "http://localhost:4000/health" || (cat logs/oe.log && exit 1)
+          
+          echo "🎉 All services are healthy and ready!"
 
       - name: Run integration tests
         working-directory: tests/integration
