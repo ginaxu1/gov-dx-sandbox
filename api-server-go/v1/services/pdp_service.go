@@ -2,10 +2,12 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -21,32 +23,90 @@ type PDPService struct {
 	HTTPClient *http.Client
 }
 
-// NewPDPService creates a new instance of PDPService
+// NewPDPService creates a new instance of PDPService with optimized HTTP client
 func NewPDPService(baseURL string) *PDPService {
+	// Create optimized HTTP client with connection pooling
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second, // Increased timeout for policy operations
+	}
+
 	return &PDPService{
 		baseURL:    baseURL,
-		HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		HTTPClient: client,
 	}
 }
 
-// HealthCheck checks the health of the PDP service
-func (s *PDPService) HealthCheck() error {
-	resp, err := s.HTTPClient.Get(s.baseURL + "/health")
-	if err != nil {
-		return err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			slog.Error("failed to close response body", "error", err)
+// executeWithRetry executes a function with exponential backoff retry logic
+func (s *PDPService) executeWithRetry(operation func() error) error {
+	maxRetries := 3
+	baseDelay := 100 * time.Millisecond
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		err := operation()
+		if err == nil {
+			return nil
 		}
-	}(resp.Body)
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("PDP service health check failed with status: %s", resp.Status)
+		// Don't retry on the last attempt
+		if attempt == maxRetries {
+			return err
+		}
+
+		// Calculate delay with exponential backoff
+		delay := baseDelay * time.Duration(1<<uint(attempt))
+		slog.Warn("PDP operation failed, retrying",
+			"attempt", attempt+1,
+			"maxRetries", maxRetries+1,
+			"delay", delay,
+			"error", err)
+
+		time.Sleep(delay)
 	}
 
-	return nil
+	return fmt.Errorf("operation failed after %d attempts", maxRetries+1)
+}
+
+// HealthCheck checks the health of the PDP service with retry logic
+func (s *PDPService) HealthCheck() error {
+	return s.executeWithRetry(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/health", nil)
+		if err != nil {
+			return fmt.Errorf("failed to create health check request: %w", err)
+		}
+
+		resp, err := s.HTTPClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to execute health check request: %w", err)
+		}
+		defer func(Body io.ReadCloser) {
+			err := Body.Close()
+			if err != nil {
+				slog.Error("failed to close response body", "error", err)
+			}
+		}(resp.Body)
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("PDP service health check failed with status: %s", resp.Status)
+		}
+
+		return nil
+	})
 }
 
 // CreatePolicyMetadata sends a request to create policy metadata in the PDP

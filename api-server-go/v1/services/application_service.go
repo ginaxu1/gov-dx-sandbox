@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -137,32 +138,51 @@ func (s *ApplicationService) GetApplication(applicationID string) (*models.Appli
 
 // GetApplications retrieves all applications and filters by consumer ID if provided
 func (s *ApplicationService) GetApplications(consumerID *string) ([]models.ApplicationResponse, error) {
-	var applications []models.Application
-	query := s.db.Preload("Consumer")
+	// Use JOIN query to avoid N+1 problem instead of Preload
+	var results []struct {
+		ApplicationID          string    `gorm:"column:application_id"`
+		ApplicationName        string    `gorm:"column:application_name"`
+		ApplicationDescription *string   `gorm:"column:application_description"`
+		SelectedFields         string    `gorm:"column:selected_fields"`
+		ConsumerID             string    `gorm:"column:consumer_id"`
+		Version                string    `gorm:"column:version"`
+		CreatedAt              time.Time `gorm:"column:created_at"`
+		UpdatedAt              time.Time `gorm:"column:updated_at"`
+	}
+
+	query := s.db.Table("consumer_applications").
+		Select(`application_id, application_name, application_description, 
+			selected_fields, consumer_id, version, created_at, updated_at`)
+
 	if consumerID != nil && *consumerID != "" {
 		query = query.Where("consumer_id = ?", *consumerID)
 	}
 
-	// Order by created_at descending
-	query = query.Order("created_at DESC")
-
-	err := query.Find(&applications).Error
+	err := query.Order("created_at DESC").Find(&results).Error
 	if err != nil {
 		return nil, err
 	}
 
-	var responses []models.ApplicationResponse
-	for _, application := range applications {
-		responses = append(responses, models.ApplicationResponse{
-			ApplicationID:          application.ApplicationID,
-			ApplicationName:        application.ApplicationName,
-			ApplicationDescription: application.ApplicationDescription,
-			SelectedFields:         application.SelectedFields,
-			ConsumerID:             application.ConsumerID,
-			Version:                application.Version,
-			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
-		})
+	responses := make([]models.ApplicationResponse, len(results))
+	for i, result := range results {
+		// Parse SelectedFields JSON string to []SelectedFieldRecord
+		var selectedFields []models.SelectedFieldRecord
+		if result.SelectedFields != "" {
+			if err := json.Unmarshal([]byte(result.SelectedFields), &selectedFields); err != nil {
+				return nil, fmt.Errorf("failed to parse selected fields: %w", err)
+			}
+		}
+
+		responses[i] = models.ApplicationResponse{
+			ApplicationID:          result.ApplicationID,
+			ApplicationName:        result.ApplicationName,
+			ApplicationDescription: result.ApplicationDescription,
+			SelectedFields:         selectedFields,
+			ConsumerID:             result.ConsumerID,
+			Version:                result.Version,
+			CreatedAt:              result.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:              result.UpdatedAt.Format(time.RFC3339),
+		}
 	}
 
 	return responses, nil
@@ -318,8 +338,24 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 
 // GetApplicationSubmissions retrieves all application submissions and filters by consumer ID if provided
 func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statusFilter *[]string) ([]models.ApplicationSubmissionResponse, error) {
-	var submissions []models.ApplicationSubmission
-	query := s.db.Preload("Consumer").Preload("PreviousApplication")
+	// Use JOIN query to avoid N+1 problem instead of Preload
+	var results []struct {
+		SubmissionID           string    `gorm:"column:submission_id"`
+		PreviousApplicationID  *string   `gorm:"column:previous_application_id"`
+		ApplicationName        string    `gorm:"column:application_name"`
+		ApplicationDescription *string   `gorm:"column:application_description"`
+		SelectedFields         string    `gorm:"column:selected_fields"`
+		Status                 string    `gorm:"column:status"`
+		ConsumerID             string    `gorm:"column:consumer_id"`
+		CreatedAt              time.Time `gorm:"column:created_at"`
+		UpdatedAt              time.Time `gorm:"column:updated_at"`
+		Review                 *string   `gorm:"column:review"`
+	}
+
+	query := s.db.Table("consumer_application_submissions").
+		Select(`submission_id, previous_application_id, application_name, application_description,
+			selected_fields, status, consumer_id, created_at, updated_at, review`)
+
 	if consumerID != nil && *consumerID != "" {
 		query = query.Where("consumer_id = ?", *consumerID)
 	}
@@ -327,28 +363,33 @@ func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statu
 		query = query.Where("status IN ?", *statusFilter)
 	}
 
-	// Order by created_at descending
-	query = query.Order("created_at DESC")
-
-	err := query.Find(&submissions).Error
+	err := query.Order("created_at DESC").Find(&results).Error
 	if err != nil {
 		return nil, err
 	}
 
-	var responses []models.ApplicationSubmissionResponse
-	for _, submission := range submissions {
-		responses = append(responses, models.ApplicationSubmissionResponse{
-			SubmissionID:           submission.SubmissionID,
-			PreviousApplicationID:  submission.PreviousApplicationID,
-			ApplicationName:        submission.ApplicationName,
-			ApplicationDescription: submission.ApplicationDescription,
-			SelectedFields:         submission.SelectedFields,
-			Status:                 submission.Status,
-			ConsumerID:             submission.ConsumerID,
-			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
-			Review:                 submission.Review,
-		})
+	responses := make([]models.ApplicationSubmissionResponse, len(results))
+	for i, result := range results {
+		// Parse SelectedFields JSON string to []SelectedFieldRecord
+		var selectedFields []models.SelectedFieldRecord
+		if result.SelectedFields != "" {
+			if err := json.Unmarshal([]byte(result.SelectedFields), &selectedFields); err != nil {
+				return nil, fmt.Errorf("failed to parse selected fields: %w", err)
+			}
+		}
+
+		responses[i] = models.ApplicationSubmissionResponse{
+			SubmissionID:           result.SubmissionID,
+			PreviousApplicationID:  result.PreviousApplicationID,
+			ApplicationName:        result.ApplicationName,
+			ApplicationDescription: result.ApplicationDescription,
+			SelectedFields:         selectedFields,
+			Status:                 result.Status,
+			ConsumerID:             result.ConsumerID,
+			CreatedAt:              result.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:              result.UpdatedAt.Format(time.RFC3339),
+			Review:                 result.Review,
+		}
 	}
 
 	return responses, nil

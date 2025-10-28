@@ -103,9 +103,70 @@ func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
 			return nil, fmt.Errorf("failed to run auto-migration: %w", err)
 		}
 		slog.Info("GORM auto-migration completed successfully")
+
+		// Create performance indexes after migration
+		if err := createPerformanceIndexes(db); err != nil {
+			slog.Warn("Failed to create performance indexes", "error", err)
+		} else {
+			slog.Info("Performance indexes created successfully")
+		}
 	} else {
 		slog.Info("Database connected (migration skipped)")
 	}
 
 	return db, nil
+}
+
+// createPerformanceIndexes creates database indexes for performance optimization
+func createPerformanceIndexes(db *gorm.DB) error {
+	indexes := []string{
+		// Entity table indexes
+		"CREATE INDEX IF NOT EXISTS idx_entities_email ON entities(email)",
+		"CREATE INDEX IF NOT EXISTS idx_entities_idp_user_id ON entities(idp_user_id)",
+		"CREATE INDEX IF NOT EXISTS idx_entities_created_at ON entities(created_at)",
+
+		// Provider table indexes
+		"CREATE INDEX IF NOT EXISTS idx_providers_entity_id ON providers(entity_id)",
+		"CREATE INDEX IF NOT EXISTS idx_providers_created_at ON providers(created_at)",
+
+		// Consumer table indexes
+		"CREATE INDEX IF NOT EXISTS idx_consumers_entity_id ON consumers(entity_id)",
+		"CREATE INDEX IF NOT EXISTS idx_consumers_created_at ON consumers(created_at)",
+
+		// Schema table indexes
+		"CREATE INDEX IF NOT EXISTS idx_provider_schemas_provider_id ON provider_schemas(provider_id)",
+		"CREATE INDEX IF NOT EXISTS idx_provider_schemas_version ON provider_schemas(version)",
+		"CREATE INDEX IF NOT EXISTS idx_provider_schemas_created_at ON provider_schemas(created_at)",
+
+		// Schema Submission table indexes
+		"CREATE INDEX IF NOT EXISTS idx_provider_schema_submissions_provider_id ON provider_schema_submissions(provider_id)",
+		"CREATE INDEX IF NOT EXISTS idx_provider_schema_submissions_status ON provider_schema_submissions(status)",
+		"CREATE INDEX IF NOT EXISTS idx_provider_schema_submissions_previous_schema_id ON provider_schema_submissions(previous_schema_id)",
+		"CREATE INDEX IF NOT EXISTS idx_provider_schema_submissions_created_at ON provider_schema_submissions(created_at)",
+
+		// Application table indexes
+		"CREATE INDEX IF NOT EXISTS idx_consumer_applications_consumer_id ON consumer_applications(consumer_id)",
+		"CREATE INDEX IF NOT EXISTS idx_consumer_applications_version ON consumer_applications(version)",
+		"CREATE INDEX IF NOT EXISTS idx_consumer_applications_created_at ON consumer_applications(created_at)",
+
+		// Application Submission table indexes
+		"CREATE INDEX IF NOT EXISTS idx_consumer_application_submissions_consumer_id ON consumer_application_submissions(consumer_id)",
+		"CREATE INDEX IF NOT EXISTS idx_consumer_application_submissions_status ON consumer_application_submissions(status)",
+		"CREATE INDEX IF NOT EXISTS idx_consumer_application_submissions_previous_application_id ON consumer_application_submissions(previous_application_id)",
+		"CREATE INDEX IF NOT EXISTS idx_consumer_application_submissions_created_at ON consumer_application_submissions(created_at)",
+
+		// Composite indexes for common query patterns
+		"CREATE INDEX IF NOT EXISTS idx_consumers_entity_created ON consumers(entity_id, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_providers_entity_created ON providers(entity_id, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_applications_consumer_created ON consumer_applications(consumer_id, created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_schemas_provider_created ON provider_schemas(provider_id, created_at)",
+	}
+
+	for _, indexSQL := range indexes {
+		if err := db.Exec(indexSQL).Error; err != nil {
+			return fmt.Errorf("failed to create index: %s, error: %w", indexSQL, err)
+		}
+	}
+
+	return nil
 }

@@ -112,10 +112,10 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 	}
 
 	// Bulk save updated records
-	for _, pm := range updatedRecords {
-		if err := tx.Save(pm).Error; err != nil {
+	if len(updatedRecords) > 0 {
+		if err := tx.Save(&updatedRecords).Error; err != nil {
 			tx.Rollback()
-			return nil, fmt.Errorf("failed to update existing policy metadata: %w", err)
+			return nil, fmt.Errorf("failed to batch update existing policy metadata: %w", err)
 		}
 	}
 
@@ -215,7 +215,9 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 
 	var responseRecords []models.AllowListUpdateResponseRecord
 
-	// Update records within transaction
+	// Update records in batch within transaction
+	// Prepare all records for batch update
+	var recordsToUpdate []models.PolicyMetadata
 	for _, record := range req.Records {
 		key := record.SchemaID + ":" + record.FieldName
 		pm := policyMap[key]
@@ -229,10 +231,7 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 			UpdatedAt: currentTime,
 		}
 
-		if err := tx.Save(pm).Error; err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to update allow list for schema_id %s and field_name %s: %w", record.SchemaID, record.FieldName, err)
-		}
+		recordsToUpdate = append(recordsToUpdate, *pm)
 
 		// Prepare response record
 		responseRecord := models.AllowListUpdateResponseRecord{
@@ -242,6 +241,14 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 			UpdatedAt: currentTime.Format(time.RFC3339),
 		}
 		responseRecords = append(responseRecords, responseRecord)
+	}
+
+	// Batch update all records at once
+	if len(recordsToUpdate) > 0 {
+		if err := tx.Save(&recordsToUpdate).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to batch update allow list records: %w", err)
+		}
 	}
 
 	// Commit transaction

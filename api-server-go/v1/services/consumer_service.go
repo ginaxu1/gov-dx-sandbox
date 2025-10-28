@@ -146,24 +146,40 @@ func (s *ConsumerService) GetConsumer(consumerID string) (*models.ConsumerRespon
 
 // GetAllConsumers retrieves all consumers with entity information
 func (s *ConsumerService) GetAllConsumers() ([]models.ConsumerResponse, error) {
-	var consumers []models.Consumer
+	// Use JOIN query to avoid N+1 problem instead of Preload
+	var results []struct {
+		ConsumerID  string    `gorm:"column:consumer_id"`
+		EntityID    string    `gorm:"column:entity_id"`
+		CreatedAt   time.Time `gorm:"column:created_at"`
+		UpdatedAt   time.Time `gorm:"column:updated_at"`
+		IdpUserID   string    `gorm:"column:idp_user_id"`
+		Name        string    `gorm:"column:name"`
+		Email       string    `gorm:"column:email"`
+		PhoneNumber string    `gorm:"column:phone_number"`
+	}
 
-	err := s.db.Preload("Entity").Find(&consumers).Error
+	err := s.db.Table("consumers").
+		Select(`consumers.consumer_id, consumers.entity_id, consumers.created_at, consumers.updated_at,
+			entities.idp_user_id, entities.name, entities.email, entities.phone_number`).
+		Joins("LEFT JOIN entities ON consumers.entity_id = entities.entity_id").
+		Order("consumers.created_at DESC").
+		Find(&results).Error
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch consumers: %w", err)
 	}
 
-	response := make([]models.ConsumerResponse, len(consumers))
-	for i, consumer := range consumers {
+	response := make([]models.ConsumerResponse, len(results))
+	for i, result := range results {
 		response[i] = models.ConsumerResponse{
-			ConsumerID:  consumer.ConsumerID,
-			EntityID:    consumer.EntityID,
-			IdpUserID:   consumer.Entity.IdpUserID,
-			Name:        consumer.Entity.Name,
-			Email:       consumer.Entity.Email,
-			PhoneNumber: consumer.Entity.PhoneNumber,
-			CreatedAt:   consumer.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   consumer.UpdatedAt.Format(time.RFC3339),
+			ConsumerID:  result.ConsumerID,
+			EntityID:    result.EntityID,
+			IdpUserID:   result.IdpUserID,
+			Name:        result.Name,
+			Email:       result.Email,
+			PhoneNumber: result.PhoneNumber,
+			CreatedAt:   result.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   result.UpdatedAt.Format(time.RFC3339),
 		}
 	}
 

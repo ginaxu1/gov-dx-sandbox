@@ -145,24 +145,40 @@ func (s *ProviderService) UpdateProvider(providerID string, req *models.UpdatePr
 
 // GetAllProviders retrieves all providers with entity information
 func (s *ProviderService) GetAllProviders() ([]models.ProviderResponse, error) {
-	var providers []models.Provider
+	// Use JOIN query to avoid N+1 problem instead of Preload
+	var results []struct {
+		ProviderID  string    `gorm:"column:provider_id"`
+		EntityID    string    `gorm:"column:entity_id"`
+		CreatedAt   time.Time `gorm:"column:created_at"`
+		UpdatedAt   time.Time `gorm:"column:updated_at"`
+		IdpUserID   string    `gorm:"column:idp_user_id"`
+		Name        string    `gorm:"column:name"`
+		Email       string    `gorm:"column:email"`
+		PhoneNumber string    `gorm:"column:phone_number"`
+	}
 
-	err := s.db.Preload("Entity").Find(&providers).Error
+	err := s.db.Table("providers").
+		Select(`providers.provider_id, providers.entity_id, providers.created_at, providers.updated_at,
+			entities.idp_user_id, entities.name, entities.email, entities.phone_number`).
+		Joins("LEFT JOIN entities ON providers.entity_id = entities.entity_id").
+		Order("providers.created_at DESC").
+		Find(&results).Error
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch providers: %w", err)
 	}
 
-	response := make([]models.ProviderResponse, len(providers))
-	for i, provider := range providers {
+	response := make([]models.ProviderResponse, len(results))
+	for i, result := range results {
 		response[i] = models.ProviderResponse{
-			ProviderID:  provider.ProviderID,
-			EntityID:    provider.EntityID,
-			IdpUserID:   provider.Entity.IdpUserID,
-			Name:        provider.Entity.Name,
-			Email:       provider.Entity.Email,
-			PhoneNumber: provider.Entity.PhoneNumber,
-			CreatedAt:   provider.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   provider.UpdatedAt.Format(time.RFC3339),
+			ProviderID:  result.ProviderID,
+			EntityID:    result.EntityID,
+			IdpUserID:   result.IdpUserID,
+			Name:        result.Name,
+			Email:       result.Email,
+			PhoneNumber: result.PhoneNumber,
+			CreatedAt:   result.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   result.UpdatedAt.Format(time.RFC3339),
 		}
 	}
 
