@@ -1,0 +1,1328 @@
+openapi: 3.0.3
+info:
+  title: OpenDIF API Server V1
+  description: |
+    OpenDIF (Open Data Interchange Framework) API Server V1 provides endpoints for managing
+    data providers, consumers, applications, and schemas in a federated data ecosystem.
+    
+    This API follows RESTful principles and uses JSON for data exchange.
+  version: 1.0.0
+  contact:
+    name: OpenDIF Team
+    email: support@opendif.org
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.opendif.org
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the API server
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: api-server-v1
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /debug:
+    get:
+      summary: Debug endpoint
+      description: Returns debug information about the API server
+      operationId: getDebug
+      tags:
+        - Debug
+      responses:
+        '200':
+          description: Debug information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  debug:
+                    type: string
+                    example: enabled
+                  service:
+                    type: string
+                    example: api-server-v1
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/v1/entities:
+    get:
+      summary: List all entities
+      description: Retrieve a list of all entities in the system
+      operationId: getAllEntities
+      tags:
+        - Entities
+      responses:
+        '200':
+          description: List of entities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Entity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Create a new entity
+      description: Create a new entity in the system
+      operationId: createEntity
+      tags:
+        - Entities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntityRequest'
+      responses:
+        '201':
+          description: Entity created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/entities/{entityId}:
+    get:
+      summary: Get entity by ID
+      description: Retrieve a specific entity by its ID
+      operationId: getEntity
+      tags:
+        - Entities
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The entity ID
+      responses:
+        '200':
+          description: Entity details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    put:
+      summary: Update entity
+      description: Update an existing entity
+      operationId: updateEntity
+      tags:
+        - Entities
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The entity ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEntityRequest'
+      responses:
+        '200':
+          description: Entity updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/providers:
+    get:
+      summary: List all providers
+      description: Retrieve a list of all providers in the system
+      operationId: getAllProviders
+      tags:
+        - Providers
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Provider'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Create a new provider
+      description: Create a new provider in the system
+      operationId: createProvider
+      tags:
+        - Providers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderRequest'
+      responses:
+        '201':
+          description: Provider created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/providers/{providerId}:
+    get:
+      summary: Get provider by ID
+      description: Retrieve a specific provider by its ID
+      operationId: getProvider
+      tags:
+        - Providers
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The provider ID
+      responses:
+        '200':
+          description: Provider details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    put:
+      summary: Update provider
+      description: Update an existing provider
+      operationId: updateProvider
+      tags:
+        - Providers
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The provider ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderRequest'
+      responses:
+        '200':
+          description: Provider updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/consumers:
+    get:
+      summary: List all consumers
+      description: Retrieve a list of all consumers in the system
+      operationId: getAllConsumers
+      tags:
+        - Consumers
+      responses:
+        '200':
+          description: List of consumers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Consumer'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Create a new consumer
+      description: Create a new consumer in the system
+      operationId: createConsumer
+      tags:
+        - Consumers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsumerRequest'
+      responses:
+        '201':
+          description: Consumer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/consumers/{consumerId}:
+    get:
+      summary: Get consumer by ID
+      description: Retrieve a specific consumer by its ID
+      operationId: getConsumer
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The consumer ID
+      responses:
+        '200':
+          description: Consumer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    put:
+      summary: Update consumer
+      description: Update an existing consumer
+      operationId: updateConsumer
+      tags:
+        - Consumers
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The consumer ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConsumerRequest'
+      responses:
+        '200':
+          description: Consumer updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/schemas:
+    get:
+      summary: List all schemas
+      description: Retrieve a list of all schemas in the system
+      operationId: getAllSchemas
+      tags:
+        - Schemas
+      responses:
+        '200':
+          description: List of schemas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Schema'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Create a new schema
+      description: Create a new schema in the system
+      operationId: createSchema
+      tags:
+        - Schemas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSchemaRequest'
+      responses:
+        '201':
+          description: Schema created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schema'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/schemas/{schemaId}:
+    get:
+      summary: Get schema by ID
+      description: Retrieve a specific schema by its ID
+      operationId: getSchema
+      tags:
+        - Schemas
+      parameters:
+        - name: schemaId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The schema ID
+      responses:
+        '200':
+          description: Schema details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schema'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    put:
+      summary: Update schema
+      description: Update an existing schema
+      operationId: updateSchema
+      tags:
+        - Schemas
+      parameters:
+        - name: schemaId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The schema ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSchemaRequest'
+      responses:
+        '200':
+          description: Schema updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schema'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/schema-submissions:
+    get:
+      summary: List all schema submissions
+      description: Retrieve a list of all schema submissions in the system
+      operationId: getAllSchemaSubmissions
+      tags:
+        - Schema Submissions
+      responses:
+        '200':
+          description: List of schema submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SchemaSubmission'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Create a new schema submission
+      description: Create a new schema submission in the system
+      operationId: createSchemaSubmission
+      tags:
+        - Schema Submissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSchemaSubmissionRequest'
+      responses:
+        '201':
+          description: Schema submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaSubmission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/schema-submissions/{submissionId}:
+    get:
+      summary: Get schema submission by ID
+      description: Retrieve a specific schema submission by its ID
+      operationId: getSchemaSubmission
+      tags:
+        - Schema Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The schema submission ID
+      responses:
+        '200':
+          description: Schema submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaSubmission'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    put:
+      summary: Update schema submission
+      description: Update an existing schema submission
+      operationId: updateSchemaSubmission
+      tags:
+        - Schema Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The schema submission ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSchemaSubmissionRequest'
+      responses:
+        '200':
+          description: Schema submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaSubmission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/applications:
+    get:
+      summary: List all applications
+      description: Retrieve a list of all applications in the system
+      operationId: getAllApplications
+      tags:
+        - Applications
+      responses:
+        '200':
+          description: List of applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Application'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Create a new application
+      description: Create a new application in the system
+      operationId: createApplication
+      tags:
+        - Applications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationRequest'
+      responses:
+        '201':
+          description: Application created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/applications/{applicationId}:
+    get:
+      summary: Get application by ID
+      description: Retrieve a specific application by its ID
+      operationId: getApplication
+      tags:
+        - Applications
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The application ID
+      responses:
+        '200':
+          description: Application details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    put:
+      summary: Update application
+      description: Update an existing application
+      operationId: updateApplication
+      tags:
+        - Applications
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The application ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequest'
+      responses:
+        '200':
+          description: Application updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/application-submissions:
+    get:
+      summary: List all application submissions
+      description: Retrieve a list of all application submissions in the system
+      operationId: getAllApplicationSubmissions
+      tags:
+        - Application Submissions
+      responses:
+        '200':
+          description: List of application submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApplicationSubmission'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    post:
+      summary: Create a new application submission
+      description: Create a new application submission in the system
+      operationId: createApplicationSubmission
+      tags:
+        - Application Submissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationSubmissionRequest'
+      responses:
+        '201':
+          description: Application submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationSubmission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/application-submissions/{submissionId}:
+    get:
+      summary: Get application submission by ID
+      description: Retrieve a specific application submission by its ID
+      operationId: getApplicationSubmission
+      tags:
+        - Application Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The application submission ID
+      responses:
+        '200':
+          description: Application submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationSubmission'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    
+    put:
+      summary: Update application submission
+      description: Update an existing application submission
+      operationId: updateApplicationSubmission
+      tags:
+        - Application Submissions
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The application submission ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationSubmissionRequest'
+      responses:
+        '200':
+          description: Application submission updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationSubmission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    BaseModel:
+      type: object
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Entity:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            entityId:
+              type: string
+              description: Unique identifier for the entity
+            name:
+              type: string
+              description: Entity name
+            email:
+              type: string
+              format: email
+              description: Entity email address
+            phoneNumber:
+              type: string
+              description: Entity phone number
+            idpUserId:
+              type: string
+              description: Identity provider user ID
+
+    Provider:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            providerId:
+              type: string
+              description: Unique identifier for the provider
+            entityId:
+              type: string
+              description: Reference to the associated entity
+            entity:
+              $ref: '#/components/schemas/Entity'
+
+    Consumer:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            consumerId:
+              type: string
+              description: Unique identifier for the consumer
+            entityId:
+              type: string
+              description: Reference to the associated entity
+            entity:
+              $ref: '#/components/schemas/Entity'
+
+    Schema:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            schemaId:
+              type: string
+              description: Unique identifier for the schema
+            schemaName:
+              type: string
+              description: Name of the schema
+            schemaDescription:
+              type: string
+              nullable: true
+              description: Description of the schema
+            sdl:
+              type: string
+              description: Schema Definition Language content
+            endpoint:
+              type: string
+              description: GraphQL endpoint URL
+            version:
+              type: string
+              description: Schema version
+            providerId:
+              type: string
+              description: Reference to the provider
+
+    SchemaSubmission:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            submissionId:
+              type: string
+              description: Unique identifier for the submission
+            schemaName:
+              type: string
+              description: Name of the schema
+            schemaDescription:
+              type: string
+              nullable: true
+              description: Description of the schema
+            sdl:
+              type: string
+              description: Schema Definition Language content
+            schemaEndpoint:
+              type: string
+              description: GraphQL endpoint URL
+            status:
+              type: string
+              enum: [pending, approved, rejected]
+              description: Submission status
+            review:
+              type: string
+              nullable: true
+              description: Review comments
+            previousSchemaId:
+              type: string
+              nullable: true
+              description: Reference to previous schema version
+            providerId:
+              type: string
+              description: Reference to the provider
+
+    Application:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            applicationId:
+              type: string
+              description: Unique identifier for the application
+            applicationName:
+              type: string
+              description: Name of the application
+            applicationDescription:
+              type: string
+              nullable: true
+              description: Description of the application
+            status:
+              type: string
+              enum: [pending, approved, rejected]
+              description: Application status
+            consumerId:
+              type: string
+              description: Reference to the consumer
+
+    ApplicationSubmission:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            submissionId:
+              type: string
+              description: Unique identifier for the submission
+            applicationName:
+              type: string
+              description: Name of the application
+            applicationDescription:
+              type: string
+              nullable: true
+              description: Description of the application
+            selectedFields:
+              type: array
+              items:
+                $ref: '#/components/schemas/SelectedFieldRecord'
+              description: Selected fields for data access
+            status:
+              type: string
+              enum: [pending, approved, rejected]
+              description: Submission status
+            review:
+              type: string
+              nullable: true
+              description: Review comments
+            previousApplicationId:
+              type: string
+              nullable: true
+              description: Reference to previous application version
+            consumerId:
+              type: string
+              description: Reference to the consumer
+
+    SelectedFieldRecord:
+      type: object
+      properties:
+        fieldName:
+          type: string
+          description: Name of the selected field
+        fieldType:
+          type: string
+          description: Type of the field
+        description:
+          type: string
+          nullable: true
+          description: Field description
+        required:
+          type: boolean
+          description: Whether the field is required
+
+    CreateEntityRequest:
+      type: object
+      required:
+        - name
+        - email
+        - phoneNumber
+        - idpUserId
+      properties:
+        name:
+          type: string
+          description: Entity name
+        email:
+          type: string
+          format: email
+          description: Entity email address
+        phoneNumber:
+          type: string
+          description: Entity phone number
+        idpUserId:
+          type: string
+          description: Identity provider user ID
+
+    UpdateEntityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Entity name
+        email:
+          type: string
+          format: email
+          description: Entity email address
+        phoneNumber:
+          type: string
+          description: Entity phone number
+        idpUserId:
+          type: string
+          description: Identity provider user ID
+
+    CreateProviderRequest:
+      type: object
+      required:
+        - entityId
+      properties:
+        entityId:
+          type: string
+          description: Reference to the associated entity
+
+    UpdateProviderRequest:
+      type: object
+      properties:
+        entityId:
+          type: string
+          description: Reference to the associated entity
+
+    CreateConsumerRequest:
+      type: object
+      required:
+        - entityId
+      properties:
+        entityId:
+          type: string
+          description: Reference to the associated entity
+
+    UpdateConsumerRequest:
+      type: object
+      properties:
+        entityId:
+          type: string
+          description: Reference to the associated entity
+
+    CreateSchemaRequest:
+      type: object
+      required:
+        - schemaName
+        - sdl
+        - endpoint
+        - providerId
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          nullable: true
+          description: Description of the schema
+        sdl:
+          type: string
+          description: Schema Definition Language content
+        endpoint:
+          type: string
+          description: GraphQL endpoint URL
+        providerId:
+          type: string
+          description: Reference to the provider
+
+    UpdateSchemaRequest:
+      type: object
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          nullable: true
+          description: Description of the schema
+        sdl:
+          type: string
+          description: Schema Definition Language content
+        endpoint:
+          type: string
+          description: GraphQL endpoint URL
+        version:
+          type: string
+          description: Schema version
+
+    CreateSchemaSubmissionRequest:
+      type: object
+      required:
+        - schemaName
+        - sdl
+        - schemaEndpoint
+        - providerId
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          nullable: true
+          description: Description of the schema
+        sdl:
+          type: string
+          description: Schema Definition Language content
+        schemaEndpoint:
+          type: string
+          description: GraphQL endpoint URL
+        previousSchemaId:
+          type: string
+          nullable: true
+          description: Reference to previous schema version
+        providerId:
+          type: string
+          description: Reference to the provider
+
+    UpdateSchemaSubmissionRequest:
+      type: object
+      properties:
+        schemaName:
+          type: string
+          description: Name of the schema
+        schemaDescription:
+          type: string
+          nullable: true
+          description: Description of the schema
+        sdl:
+          type: string
+          description: Schema Definition Language content
+        schemaEndpoint:
+          type: string
+          description: GraphQL endpoint URL
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: Submission status
+        review:
+          type: string
+          nullable: true
+          description: Review comments
+        previousSchemaId:
+          type: string
+          nullable: true
+          description: Reference to previous schema version
+
+    CreateApplicationRequest:
+      type: object
+      required:
+        - applicationName
+        - consumerId
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          nullable: true
+          description: Description of the application
+        consumerId:
+          type: string
+          description: Reference to the consumer
+
+    UpdateApplicationRequest:
+      type: object
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          nullable: true
+          description: Description of the application
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: Application status
+
+    CreateApplicationSubmissionRequest:
+      type: object
+      required:
+        - applicationName
+        - selectedFields
+        - consumerId
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          nullable: true
+          description: Description of the application
+        selectedFields:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectedFieldRecord'
+          minItems: 1
+          description: Selected fields for data access
+        previousApplicationId:
+          type: string
+          nullable: true
+          description: Reference to previous application version
+        consumerId:
+          type: string
+          description: Reference to the consumer
+
+    UpdateApplicationSubmissionRequest:
+      type: object
+      properties:
+        applicationName:
+          type: string
+          description: Name of the application
+        applicationDescription:
+          type: string
+          nullable: true
+          description: Description of the application
+        selectedFields:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectedFieldRecord'
+          description: Selected fields for data access
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: Submission status
+        review:
+          type: string
+          nullable: true
+          description: Review comments
+        previousApplicationId:
+          type: string
+          nullable: true
+          description: Reference to previous application version
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Invalid request data"
+            code: "BAD_REQUEST"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Resource not found"
+            code: "NOT_FOUND"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal server error"
+            code: "INTERNAL_ERROR"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Debug
+    description: Debug information endpoints
+  - name: Entities
+    description: Entity management endpoints
+  - name: Providers
+    description: Provider management endpoints
+  - name: Consumers
+    description: Consumer management endpoints
+  - name: Schemas
+    description: Schema management endpoints
+  - name: Schema Submissions
+    description: Schema submission management endpoints
+  - name: Applications
+    description: Application management endpoints
+  - name: Application Submissions
+    description: Application submission management endpoints
