@@ -52,13 +52,15 @@ func NewTestV1Handler(t *testing.T) *TestV1Handler {
 	// Use test database configuration
 	testDSN := "host=localhost port=5432 user=postgres password=postgres dbname=gov_dx_sandbox_test sslmode=disable"
 
-	db, err := gorm.Open(postgres.Open(testDSN), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(testDSN), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
 		t.Skipf("Skipping test: could not connect to test database: %v", err)
 		return nil
 	}
 
-	// Auto-migrate the database
+	// Auto-migrate the database in the correct order
 	err = db.AutoMigrate(
 		&models.Entity{},
 		&models.Consumer{},

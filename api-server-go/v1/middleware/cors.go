@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -101,4 +103,42 @@ func CORSMiddleware(config CORSConfig) func(http.Handler) http.Handler {
 // NewCORSMiddleware creates a CORS middleware with default configuration
 func NewCORSMiddleware() func(http.Handler) http.Handler {
 	return CORSMiddleware(DefaultCORSConfig())
+}
+
+// PanicRecoveryMiddleware recovers from panics and logs the error
+func PanicRecoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				slog.Error("Panic recovered", "error", err, "path", r.URL.Path, "method", r.Method)
+				RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RespondWithError sends an error response
+func RespondWithError(w http.ResponseWriter, statusCode int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	errorResponse := map[string]interface{}{
+		"error": message,
+		"code":  http.StatusText(statusCode),
+	}
+
+	if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
+		slog.Error("Failed to encode error response", "error", err)
+	}
+}
+
+// RespondWithSuccess sends a success response
+func RespondWithSuccess(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.Error("Failed to encode success response", "error", err)
+	}
 }
