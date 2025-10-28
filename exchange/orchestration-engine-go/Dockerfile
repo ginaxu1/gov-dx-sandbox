@@ -32,7 +32,11 @@ RUN addgroup -g 1000 appuser && \
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/ .
+COPY --from=builder /app/orchestration-engine .
+
+
+# Install wget for health checks
+RUN apk --no-cache add wget
 
 # Create config directory
 RUN mkdir -p /app/config && \
