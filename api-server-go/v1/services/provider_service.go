@@ -22,34 +22,45 @@ func NewProviderService(db *gorm.DB, entityService *EntityService) *ProviderServ
 
 // CreateProvider creates a new provider
 func (s *ProviderService) CreateProvider(req *models.CreateProviderRequest) (*models.ProviderResponse, error) {
+	var provider models.Provider
 	var entity models.Entity
-	if req.EntityID != nil {
-		// Verify entity exists
-		err := s.db.First(&entity, "entity_id = ?", req.EntityID).Error
-		if err != nil {
-			return nil, fmt.Errorf("entity not found: %w", err)
-		}
-	} else {
-		// Use shared entityService instance
-		newEntity, err := s.entityService.CreateEntity(&models.CreateEntityRequest{
-			Name:        req.Name,
-			Email:       req.Email,
-			PhoneNumber: req.PhoneNumber,
-			IdpUserID:   req.IdpUserID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create entity: %w", err)
-		}
-		entity = newEntity.ToEntity()
-	}
-	// Create provider
-	provider := models.Provider{
-		ProviderID: "prov_" + uuid.New().String(),
-		EntityID:   entity.EntityID,
-	}
 
-	if err := s.db.Create(&provider).Error; err != nil {
-		return nil, fmt.Errorf("failed to create provider: %w", err)
+	// Use transaction to ensure atomicity between entity and provider creation
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if req.EntityID != nil {
+			// Verify entity exists
+			if err := tx.First(&entity, "entity_id = ?", req.EntityID).Error; err != nil {
+				return fmt.Errorf("entity not found: %w", err)
+			}
+		} else {
+			// Create entity within same transaction
+			entity = models.Entity{
+				EntityID:    "ent_" + uuid.New().String(),
+				Name:        req.Name,
+				Email:       req.Email,
+				PhoneNumber: req.PhoneNumber,
+				IdpUserID:   req.IdpUserID,
+			}
+			if err := tx.Create(&entity).Error; err != nil {
+				return fmt.Errorf("failed to create entity: %w", err)
+			}
+		}
+
+		// Create provider
+		provider = models.Provider{
+			ProviderID: "prov_" + uuid.New().String(),
+			EntityID:   entity.EntityID,
+		}
+
+		if err := tx.Create(&provider).Error; err != nil {
+			return fmt.Errorf("failed to create provider: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	response := &models.ProviderResponse{

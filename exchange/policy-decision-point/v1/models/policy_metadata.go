@@ -46,3 +46,21 @@ func (pm *PolicyMetadata) validateOwnerConstraint() error {
 	}
 	return nil
 }
+
+// ToResponse converts PolicyMetadata to PolicyMetadataResponse
+func (pm *PolicyMetadata) ToResponse() PolicyMetadataResponse {
+	return PolicyMetadataResponse{
+		ID:                pm.ID.String(),
+		SchemaID:          pm.SchemaID,
+		FieldName:         pm.FieldName,
+		DisplayName:       pm.DisplayName,
+		Description:       pm.Description,
+		Source:            pm.Source,
+		IsOwner:           pm.IsOwner,
+		AccessControlType: pm.AccessControlType,
+		AllowList:         pm.AllowList,
+		Owner:             pm.Owner,
+		CreatedAt:         pm.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         pm.UpdatedAt.Format(time.RFC3339),
+	}
+}

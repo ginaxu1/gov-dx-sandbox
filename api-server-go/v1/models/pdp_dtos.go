@@ -1,6 +1,6 @@
 package models
 
-// Request and Response DTOs
+// Request and Response DTOs for Policy Metadata and Allow List Management
 
 // PolicyMetadataCreateRequestRecord represents the request to create policy metadata
 type PolicyMetadataCreateRequestRecord struct {
@@ -40,17 +40,11 @@ type PolicyMetadataCreateResponse struct {
 	Records []PolicyMetadataResponse `json:"records"`
 }
 
-// AllowListUpdateRequestRecord represents the one record of request to update allow list
-type AllowListUpdateRequestRecord struct {
-	FieldName string `json:"fieldName" validate:"required"`
-	SchemaID  string `json:"schemaId" validate:"required"`
-}
-
 // AllowListUpdateRequest represents the request to update allow list
 type AllowListUpdateRequest struct {
-	ApplicationID string                         `json:"applicationId" validate:"required"`
-	Records       []AllowListUpdateRequestRecord `json:"records" validate:"required,dive"`
-	GrantDuration GrantDurationType              `json:"grantDuration" validate:"required,grant_duration_type_enum"`
+	ApplicationID string                `json:"applicationId" validate:"required"`
+	Records       []SelectedFieldRecord `json:"records" validate:"required,dive"`
+	GrantDuration GrantDurationType     `json:"grantDuration" validate:"required,grant_duration_type_enum"`
 }
 
 // AllowListUpdateResponseRecord represents one record in the allow list update response
@@ -64,35 +58,4 @@ type AllowListUpdateResponseRecord struct {
 // AllowListUpdateResponse represents the response from allow list update
 type AllowListUpdateResponse struct {
 	Records []AllowListUpdateResponseRecord `json:"records"`
-}
-
-// PolicyDecisionRequestRecord represents a policy decision request record
-type PolicyDecisionRequestRecord struct {
-	FieldName string `json:"fieldName"`
-	SchemaID  string `json:"schemaId"`
-}
-
-// PolicyDecisionRequest represents a policy decision request
-type PolicyDecisionRequest struct {
-	ApplicationID  string                        `json:"applicationId" validate:"required"`
-	RequiredFields []PolicyDecisionRequestRecord `json:"requiredFields" validate:"required,dive"`
-}
-
-// PolicyDecisionResponseFieldRecord represents a policy decision response record
-type PolicyDecisionResponseFieldRecord struct {
-	FieldName   string  `json:"fieldName"`
-	SchemaID    string  `json:"schemaId"`
-	DisplayName *string `json:"displayName,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Owner       *Owner  `json:"owner,omitempty"`
-}
-
-// PolicyDecisionResponse represents a policy decision response
-type PolicyDecisionResponse struct {
-	AppAuthorized           bool                                `json:"appAuthorized"`
-	UnauthorizedFields      []PolicyDecisionResponseFieldRecord `json:"unauthorizedFields"`
-	AppAccessExpired        bool                                `json:"appAccessExpired"`
-	ExpiredFields           []PolicyDecisionResponseFieldRecord `json:"expiredFields"`
-	AppRequiresOwnerConsent bool                                `json:"appRequiresOwnerConsent"`
-	ConsentRequiredFields   []PolicyDecisionResponseFieldRecord `json:"consentRequiredFields"`
 }
