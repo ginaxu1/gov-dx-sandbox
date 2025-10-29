@@ -35,7 +35,8 @@ make_request() {
     echo ""
     
     if [ -n "$data" ]; then
-        echo -e "${PURPLE}Data: $data${NC}"
+        echo -e "${PURPLE}Data:${NC}"
+        echo "$data" | jq . 2>/dev/null || echo "$data"
         echo ""
         response=$(curl -s -w "\n%{http_code}" -X "$method" \
             -H "Content-Type: application/json" \
@@ -50,7 +51,7 @@ make_request() {
     
     # Extract status code and body
     status_code=$(echo "$response" | tail -n1)
-    body=$(echo "$response" | head -n -1)
+    body=$(echo "$response" | sed '$d')
     
     echo -e "${BLUE}Response Status: $status_code${NC}"
     echo -e "${BLUE}Response Body:${NC}"
@@ -68,7 +69,8 @@ make_request() {
 
 # Test 1: Create Policy Metadata
 echo -e "${BLUE}=== Test 1: Create Policy Metadata ===${NC}"
-policy_metadata_data='{
+policy_metadata_data=$(cat <<'JSONEOF'
+{
   "schemaId": "person_schema_v1",
   "records": [
     {
@@ -115,7 +117,9 @@ policy_metadata_data='{
       "owner": "government"
     }
   ]
-}'
+}
+JSONEOF
+)
 make_request "POST" "$PDP_URL/api/v1/policy/metadata" "$policy_metadata_data" "201"
 
 # Test 2: Update Allow List
