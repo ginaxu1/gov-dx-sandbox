@@ -56,9 +56,10 @@ func TestCreateUserIntegration(t *testing.T) {
 	)
 
 	userInstance := &idp.User{
-		Email:     "testuser1@example.com",
-		FirstName: "Test",
-		LastName:  "User",
+		Email:       "testuser1@example.com",
+		FirstName:   "Test",
+		LastName:    "User",
+		PhoneNumber: "+1234567890",
 	}
 
 	createdUser, err := client.CreateUser(ctx, userInstance)
@@ -68,6 +69,10 @@ func TestCreateUserIntegration(t *testing.T) {
 
 	if createdUser.Email != userInstance.Email {
 		t.Errorf("Expected user email %s, got %s", userInstance.Email, createdUser.Email)
+	}
+
+	if createdUser.PhoneNumber != userInstance.PhoneNumber {
+		t.Errorf("Expected user phone number %s, got %s", userInstance.PhoneNumber, createdUser.PhoneNumber)
 	}
 
 	// delete the created user
@@ -123,9 +128,10 @@ func TestUserLifecycleIntegration(t *testing.T) {
 
 	// Step 1: Create User
 	userInstance := &idp.User{
-		Email:     "testuser@example.com",
-		FirstName: "Test",
-		LastName:  "User",
+		Email:       "testuser@example.com",
+		FirstName:   "Test",
+		LastName:    "User",
+		PhoneNumber: "+1234567890",
 	}
 
 	createdUser, err := client.CreateUser(ctx, userInstance)
@@ -141,6 +147,69 @@ func TestUserLifecycleIntegration(t *testing.T) {
 
 	if retrievedUser.Email != userInstance.Email {
 		t.Errorf("Expected user email %s, got %s", userInstance.Email, retrievedUser.Email)
+	}
+
+	if retrievedUser.PhoneNumber != userInstance.PhoneNumber {
+		t.Errorf("Expected user phone number %s, got %s", userInstance.PhoneNumber, retrievedUser.PhoneNumber)
+	}
+
+	// Step 3: Delete User
+	err = client.DeleteUser(ctx, createdUser.Id)
+	if err != nil {
+		t.Fatalf("DeleteUser failed: %v", err)
+	}
+}
+
+func TestUpdateUserIntegration(t *testing.T) {
+	ctx := context.Background()
+
+	baseURL := os.Getenv("ASGARDEO_BASE_URL")
+	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
+	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
+
+	if clientID == "" || clientSecret == "" || baseURL == "" {
+		t.Skip("Skipping integration test: missing Asgardeo environment variables")
+	}
+
+	client := NewClient(
+		baseURL,
+		clientID,
+		clientSecret,
+		[]string{"internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update"},
+	)
+
+	// Step 1: Create User
+	userInstance := &idp.User{
+		Email:       "updateuser@example.com",
+		FirstName:   "Update",
+		LastName:    "User",
+		PhoneNumber: "+1234567890",
+	}
+
+	createdUser, err := client.CreateUser(ctx, userInstance)
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// Step 2: Update User
+	updatedUserInstance := &idp.User{
+		Email:       "updateuser@example.com",
+		FirstName:   "Updated",
+		LastName:    "User",
+		PhoneNumber: "+9876543210",
+	}
+
+	updatedUser, err := client.UpdateUser(ctx, createdUser.Id, updatedUserInstance)
+	if err != nil {
+		t.Fatalf("UpdateUser failed: %v", err)
+	}
+
+	if updatedUser.FirstName != updatedUserInstance.FirstName {
+		t.Errorf("Expected updated first name %s, got %s", updatedUserInstance.FirstName, updatedUser.FirstName)
+	}
+
+	if updatedUser.PhoneNumber != updatedUserInstance.PhoneNumber {
+		t.Errorf("Expected updated phone number %s, got %s", updatedUserInstance.PhoneNumber, updatedUser.PhoneNumber)
 	}
 
 	// Step 3: Delete User
