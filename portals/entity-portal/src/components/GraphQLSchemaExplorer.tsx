@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, Info, HelpCircle } from 'lucide-react';
+import type { SelectedField } from '../types/applications';
 
 // Types for our schema representation
 interface Field {
@@ -314,7 +315,7 @@ const FieldNode: React.FC<FieldNodeProps> = ({
 // Main component
 interface GraphQLSchemaExplorerProps {
   sdl: string;
-  onSelectionChange?: (selectedFields: string[]) => void;
+  onSelectionChange?: (selectedFields: SelectedField[]) => void;
 }
 
 export const GraphQLSchemaExplorer: React.FC<GraphQLSchemaExplorerProps> = ({
@@ -348,7 +349,10 @@ export const GraphQLSchemaExplorer: React.FC<GraphQLSchemaExplorerProps> = ({
     }
     
     setSelectedFields(newSelectedFields);
-    onSelectionChange?.(Array.from(newSelectedFields));
+    onSelectionChange?.(Array.from(newSelectedFields).map(fieldPath => ({
+      fieldName: fieldPath,
+      schemaId: '' // Schema ID can be set if needed
+    })));
   };
   
   const addFieldAndChildren = (path: string, field: Field, fieldsSet: Set<string>) => {

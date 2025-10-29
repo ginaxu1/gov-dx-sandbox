@@ -5,10 +5,10 @@ import { SchemaService } from '../services/schemaService';
 import type { ApprovedSchema, SchemaSubmission } from '../types/graphql';
 
 interface SchemasPageProps {
-    providerId?: string;
+    memberId: string;
 }
 
-export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
+export const SchemasPage: React.FC<SchemasPageProps> = ({ memberId }) => {
     const navigate = useNavigate();
     const [registeredSchemas, setRegisteredSchemas] = useState<ApprovedSchema[]>([]);
     const [pendingSchemas, setPendingSchemas] = useState<SchemaSubmission[]>([]);
@@ -19,26 +19,16 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
 
     useEffect(() => {
         const fetchSchemas = async () => {
-            // For now, using a mock provider ID. In a real app, this would come from auth/context
-            const mockProviderId = providerId || 'provider-123';
-            
-            // Don't fetch if we don't have a valid provider ID and it's not the mock one
-            if (!mockProviderId) {
-                console.warn('No provider ID provided, skipping schema fetch');
-                setLoading(false);
-                return;
-            }
-            
             try {
                 setLoading(true);
                 setError(null);
-                
-                console.log('Fetching schemas for provider:', mockProviderId);
+
+                console.log('Fetching schemas for provider:', memberId);
                 
                 // Try to fetch real data from the API
                 const [approvedSchemas, schemaSubmissions] = await Promise.all([
-                    SchemaService.getApprovedSchemas(mockProviderId),
-                    SchemaService.getSchemaSubmissions(mockProviderId)
+                    SchemaService.getApprovedSchemas(memberId),
+                    SchemaService.getSchemaSubmissions(memberId)
                 ]);
 
                 console.log('Fetched approved schemas:', approvedSchemas);
@@ -66,10 +56,10 @@ export const SchemasPage: React.FC<SchemasPageProps> = ({ providerId }) => {
         };
 
         fetchSchemas();
-    }, [providerId]);
+    }, [memberId]);
 
     const handleCreateNewSchema = () => {
-        navigate('/provider/schemas/new');
+        navigate('/schemas/new');
     };
 
     const displayName = (schema: ApprovedSchema | SchemaSubmission) => {

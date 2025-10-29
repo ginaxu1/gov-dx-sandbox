@@ -25,11 +25,10 @@ interface FilterOptions {
 
 interface LogsProps {
     role: 'provider' | 'consumer';
-    consumerId?: string;
-    providerId?: string;
+    memberId: string;
 }
 
-export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
+export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
     const [logResponse, setLogResponse] = useState<LogResponse | null>(null);
@@ -81,7 +80,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
         try {
             const offset = (page - 1) * pageSize;
             const response = await LogService.fetchLogsWithParams({
-                [role === 'consumer' ? 'consumerId' : 'providerId']: role === 'consumer' ? consumerId : providerId,
+                [role === 'consumer' ? 'consumerId' : 'providerId']: memberId,
                 limit: pageSize,
                 offset: offset,
                 // Server-side filters
@@ -107,7 +106,7 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
     useEffect(() => {
         setCurrentPage(1); // Reset to first page when role/IDs change
         fetchLogsWithFilters(1);
-    }, [role, consumerId, providerId]);
+    }, [role, memberId]);
 
     // Auto-refresh functionality
     useEffect(() => {
@@ -189,14 +188,13 @@ export const Logs: React.FC<LogsProps> = ({ role, consumerId, providerId }) => {
 
     const handleExport = async () => {
         try {
-            const entityId = role === 'consumer' ? consumerId : providerId;
-            if (!entityId) {
+            if (!memberId) {
                 throw new Error(`Missing ${role} ID`);
             }
 
             // Convert current filters to query params for export (export all, not just current page)
             const queryParams = {
-                [role === 'consumer' ? 'consumerId' : 'providerId']: entityId,
+                [role === 'consumer' ? 'consumerId' : 'providerId']: memberId,
                 status: filters.status !== 'all' ? filters.status : undefined,
                 ...(role === 'provider' && filters.byConsumerId ? { consumerId: filters.byConsumerId } : {}),
                 ...(role === 'consumer' && filters.byProviderId ? { providerId: filters.byProviderId } : {}),

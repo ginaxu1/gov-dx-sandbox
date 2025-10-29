@@ -9,11 +9,11 @@ import { SchemaService } from '../services/schemaService';
 import { RegistrationSuccess } from '../components/RegistrationSuccess';
 
 interface SchemaRegistrationPageProps {
-  providerId: string;
+  memberId: string;
 }
 
 export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
-  providerId,
+  memberId,
 }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState<'input' | 'configure'>('input');
@@ -33,7 +33,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
     // Fetch registered schemas from the API
     const fetchRegisteredSchemas = async () => {
       try {
-        const response: ApprovedSchema[] = await SchemaService.getApprovedSchemas(providerId);
+        const response: ApprovedSchema[] = await SchemaService.getApprovedSchemas(memberId);
         if (response) {
           setRegisteredSchemas(response);
         }
@@ -128,9 +128,10 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         schemaDescription,
         previousSchemaId: previous_schema ? previous_schema.schemaId : null,
         schemaEndpoint: endpoint,
+        memberId: memberId
       };
       
-      await SchemaService.registerSchema(providerId, registration);
+      await SchemaService.registerSchema(registration);
       
       // Show success page on successful registration
       setShowSuccess(true);

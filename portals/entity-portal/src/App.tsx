@@ -10,65 +10,65 @@ import {ApplicationRegistration} from './pages/ApplicationRegistration';
 import {Shield} from 'lucide-react';
 import MemberInfo from './pages/MemberInfo';
 
-interface EntityProps {
-  entityId: string;
+interface MemberProps {
+  memberId: string;
   name: string;
   email: string;
-  entityType: 'gov' | 'business' | '';
   phoneNumber: string;
-  providerId?: string;
-  consumerId?: string;
   createdAt: string;
   updatedAt: string;
-  roles: Array<'provider' | 'consumer'>;
+  idpUserId: string;
 }
 
 function App() {
-  const [entityData, setEntityData] = useState<EntityProps | null>(null);
+  const [memberData, setMemberData] = useState<MemberProps | null>(null);
   const {state, signIn, signOut, getBasicUserInfo} = useAuthContext();
   const [loading, setLoading] = useState(false);
 
-  // Save entity state to localStorage to persist through auth redirects
-  const saveEntityStateToStorage = (entityInfo: EntityProps) => {
-    localStorage.setItem('entity_data', JSON.stringify(entityInfo));
+  // Save member state to localStorage to persist through auth redirects
+  const saveMemberStateToStorage = (memberInfo: MemberProps) => {
+    localStorage.setItem('member_data', JSON.stringify(memberInfo));
   };
 
-  // Get entity state from localStorage
-  const getEntityStateFromStorage = (): { entityData: EntityProps | null } => {
+  // Get member state from localStorage
+  const getMemberStateFromStorage = (): { memberData: MemberProps | null } => {
     try {
-      const entityDataStr = localStorage.getItem('entity_data');
+      const memberDataStr = localStorage.getItem('member_data');
 
       return {
-        entityData: entityDataStr ? JSON.parse(entityDataStr) : null,
+        memberData: memberDataStr ? JSON.parse(memberDataStr) : null,
       };
     } catch (error) {
-      console.error('Failed to parse stored entity data:', error);
-      return {entityData: null};
+      console.error('Failed to parse stored member data:', error);
+      return {memberData: null};
     }
   };
 
-  // Clear entity state from localStorage
-  const clearEntityStateFromStorage = () => {
-    localStorage.removeItem('entity_data');
+  // Clear member state from localStorage
+  const clearMemberStateFromStorage = () => {
+    localStorage.removeItem('member_data');
   };
 
-  const fetchEntityInfoFromDB = async (entityId: string) => {
+  const fetchMemberInfoFromDB = async (idpUserId: string) => {
     try {
-      // fetch entity info from API
-      const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`);
+      // fetch member info from API
+      const url = new URL(`${window.configs.apiUrl}/members`);
+      url.searchParams.append('idpUserId', idpUserId);
+
+      const response = await fetch(url.toString());
       if (!response.ok) {
-        throw new Error('Failed to fetch entity info');
+        throw new Error('Failed to fetch member info');
       }
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error('Error fetching entity info:', error);
+      console.error('Error fetching member info:', error);
       return null;
     }
   };
 
   useEffect(() => {
-    const fetchEntityInfo = async () => {
+    const fetchMemberInfo = async () => {
       if (!state.isAuthenticated) {
         return;
       }
@@ -77,88 +77,71 @@ function App() {
 
       try {
         // First check localStorage for existing data
-        const storedState = getEntityStateFromStorage();
-        if (storedState.entityData) {
-          console.log('Loading entity data from storage');
-          setEntityData(storedState.entityData);
+        const storedState = getMemberStateFromStorage();
+        if (storedState.memberData) {
+          console.log('Loading member data from storage');
+          setMemberData(storedState.memberData);
           return;
         }
 
         // Fetch fresh data from API
         const userBasicInfo = await getBasicUserInfo();
-        console.log('Fetching entity info from user attributes:', userBasicInfo);
+        console.log('Fetching member info from user attributes:', userBasicInfo);
 
-        const entityId = userBasicInfo.memberId;
-        if (!entityId) {
+        const memberId = userBasicInfo.memberId;
+        if (!memberId) {
           throw new Error('User does not have a memberId attribute');
         }
 
-        const fetchedEntityInfoFromDB = await fetchEntityInfoFromDB(entityId);
-        if (fetchedEntityInfoFromDB) {
-          const roles: Array<'provider' | 'consumer'> = [];
-          if (fetchedEntityInfoFromDB.consumerId && fetchedEntityInfoFromDB.consumerId !== '') {
-            roles.push('consumer');
-          }
-          if (fetchedEntityInfoFromDB.providerId && fetchedEntityInfoFromDB.providerId !== '') {
-            roles.push('provider');
-          }
-
-          const entityInfo: EntityProps = {
-            entityId: fetchedEntityInfoFromDB.entityId || '',
-            name: fetchedEntityInfoFromDB.name || '',
-            email: fetchedEntityInfoFromDB.email || '',
-            entityType: fetchedEntityInfoFromDB.entityType || '',
-            phoneNumber: fetchedEntityInfoFromDB.phoneNumber || '',
-            providerId: fetchedEntityInfoFromDB.providerId || '',
-            consumerId: fetchedEntityInfoFromDB.consumerId || '',
-            createdAt: fetchedEntityInfoFromDB.createdAt || '',
-            updatedAt: fetchedEntityInfoFromDB.updatedAt || '',
-            roles: roles
+        const fetchedMemberInfoFromDB = await fetchMemberInfoFromDB(memberId);
+        if (fetchedMemberInfoFromDB) {
+          const memberInfo: MemberProps = {
+            memberId: fetchedMemberInfoFromDB.memberId || '',
+            name: fetchedMemberInfoFromDB.name || '',
+            email: fetchedMemberInfoFromDB.email || '',
+            phoneNumber: fetchedMemberInfoFromDB.phoneNumber || '',
+            createdAt: fetchedMemberInfoFromDB.createdAt || '',
+            updatedAt: fetchedMemberInfoFromDB.updatedAt || '',
+            idpUserId: fetchedMemberInfoFromDB.idpUserId || '',
           };
+          console.log('Parsed member info from DB:', memberInfo);
 
-          console.log('Parsed entity info from DB:', entityInfo);
-          setEntityData(entityInfo);
+          setMemberData(memberInfo);
 
           // Save to localStorage for auth redirect recovery
-          saveEntityStateToStorage(entityInfo);
+          saveMemberStateToStorage(memberInfo);
         } else {
-          // Fallback to empty entity data if fetch fails
-          const emptyEntityData: EntityProps = {
-            entityId: '',
+          // Fallback to empty member data if fetch fails
+          const emptyMemberData: MemberProps = {
+            memberId: '',
             name: '',
             email: '',
             phoneNumber: '',
-            entityType: '',
             createdAt: '',
             updatedAt: '',
-            roles: [],
-            providerId: undefined,
-            consumerId: undefined,
+            idpUserId: '',
           };
-          setEntityData(emptyEntityData);
+          setMemberData(emptyMemberData);
         }
       } catch (error) {
-        console.error('Failed to fetch entity info:', error);
-        // Fallback to empty entity data if fetch fails
-        const emptyEntityData: EntityProps = {
-          entityId: '',
+        console.error('Failed to fetch member info:', error);
+        // Fallback to empty member data if fetch fails
+        const emptyMemberData: MemberProps = {
+          memberId: '',
           name: '',
           email: '',
           phoneNumber: '',
-          entityType: '',
           createdAt: '',
           updatedAt: '',
-          roles: [],
-          providerId: undefined,
-          consumerId: undefined,
+          idpUserId: '',
         };
-        setEntityData(emptyEntityData);
+        setMemberData(emptyMemberData);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchEntityInfo();
+    fetchMemberInfo();
   }, [state.isAuthenticated]);
 
   const handleSignIn = () => {
@@ -166,8 +149,8 @@ function App() {
   };
 
   const handleSignOut = () => {
-    clearEntityStateFromStorage();
-    setEntityData(null);
+    clearMemberStateFromStorage();
+    setMemberData(null);
     signOut();
   };
 
@@ -178,9 +161,9 @@ function App() {
         className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
           <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4"/>
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Entity Portal</h1>
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Member Portal</h1>
           <p className="text-gray-600 mb-4">
-            Sign in to access the OpenDIF Entity Portal.
+            Sign in to access the OpenDIF Member Portal.
           </p>
           <button
             onClick={handleSignIn}
@@ -193,15 +176,15 @@ function App() {
     );
   }
 
-  // Show loading while fetching entity data
-  if (loading || !entityData) {
+  // Show loading while fetching member data
+  if (loading || !memberData) {
     return (
       <div
         className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center relative">
         <div className="text-center">
           <div
             className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading entity information...</p>
+          <p className="text-gray-600">Loading member information...</p>
         </div>
       </div>
     );
@@ -217,48 +200,36 @@ function App() {
           <main className="flex-1 overflow-auto pt-16">
             <Routes>
               <Route path="/" element={<MemberInfo
-                name={entityData.name}
-                email={entityData.email}
-                phoneNumber={entityData.phoneNumber}
-                entityType={entityData.entityType}
-                roles={entityData.roles}
-                createdAt={entityData.createdAt}
-                updatedAt={entityData.updatedAt}
+                name={memberData.name}
+                email={memberData.email}
+                phoneNumber={memberData.phoneNumber}
+                createdAt={memberData.createdAt}
+                updatedAt={memberData.updatedAt}
               />}/>
-              <Route path="/provider/schemas"
-                     element={<SchemasPage providerId={entityData?.providerId || ''}/>}/>
+              <Route path="/schemas"
+                     element={<SchemasPage memberId={memberData?.memberId || ''}/>}/>
               <Route
-                path="/provider/schemas/new"
+                path="/schemas/new"
                 element={
                   <SchemaRegistrationPage
-                    providerId={entityData?.providerId || ''}
+                    memberId={memberData?.memberId || ''}
                   />
                 }
               />
               <Route path="/provider/logs"
-                     element={<Logs role="provider" providerId={entityData?.providerId || ''}/>}/>
-              <Route path="*" element={<Navigate to="/" replace/>}/>
-              <Route path="/" element={<MemberInfo
-                name={entityData.name}
-                email={entityData.email}
-                phoneNumber={entityData.phoneNumber}
-                entityType={entityData.entityType}
-                roles={entityData.roles}
-                createdAt={entityData.createdAt}
-                updatedAt={entityData.updatedAt}
-              />}/>
-              <Route path="/consumer/applications"
-                     element={<Applications consumerId={entityData?.consumerId || ''}/>}/>
+                     element={<Logs role="provider" memberId={memberData?.memberId || ''}/>}/>
+              <Route path="/applications"
+                     element={<Applications memberId={memberData?.memberId || ''}/>}/>
               <Route
                 path="/consumer/applications/new"
                 element={
                   <ApplicationRegistration
-                    consumerId={entityData?.consumerId || ''}
+                    memberId={memberData?.memberId || ''}
                   />
                 }
               />
               <Route path="/consumer/logs"
-                     element={<Logs role="consumer" consumerId={entityData?.consumerId || ''}/>}/>
+                     element={<Logs role="consumer" memberId={memberData?.memberId || ''}/>}/>
               <Route path="*" element={<Navigate to="/" replace/>}/>
             </Routes>
           </main>

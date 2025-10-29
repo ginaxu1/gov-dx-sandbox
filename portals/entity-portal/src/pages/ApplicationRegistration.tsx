@@ -4,10 +4,10 @@ import { ArrowLeft, FileText, Settings, CheckCircle } from 'lucide-react';
 import { GraphQLSchemaExplorer } from '../components/GraphQLSchemaExplorer';
 import { ApplicationService } from '../services/applicationService';
 import { RegistrationSuccess } from '../components/RegistrationSuccess';
-import type { ApplicationRegistration as ApplicationRegistrationData } from '../types/applications';
+import type { ApplicationRegistration as ApplicationRegistrationData, SelectedField } from '../types/applications';
 
 interface ApplicationRegistrationProps {
-    consumerId: string;
+    memberId: string;
 }
 
 // Sample SDL for demonstration purposes
@@ -65,12 +65,12 @@ type BirthInfo {
 
 
 export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = ({ 
-    consumerId
+    memberId
 }) => {
     const navigate = useNavigate();
     const [applicationName, setApplicationName] = useState('');
     const [description, setDescription] = useState('');
-    const [selectedFields, setSelectedFields] = useState<string[]>([]);
+    const [selectedFields, setSelectedFields] = useState<SelectedField[]>([]);
     const [showSuccess, setShowSuccess] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string>('');
@@ -88,10 +88,11 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                 applicationName: applicationName,
                 applicationDescription: description,
                 selectedFields: selectedFields,
+                memberId: memberId,
             };
-            
-            await ApplicationService.registerApplication(consumerId, applicationData);
-            
+
+            await ApplicationService.registerApplication(applicationData);
+
             // Show success page on successful registration
             setShowSuccess(true);
         } catch (error) {
@@ -104,11 +105,11 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
     };
 
     const handleBack = () => {
-        navigate('/consumer/applications');
+        navigate('/applications');
     };
 
     const handleSuccessRedirect = () => {
-        navigate('/consumer/applications');
+        navigate('/applications');
     };
 
     // Show success page after successful registration

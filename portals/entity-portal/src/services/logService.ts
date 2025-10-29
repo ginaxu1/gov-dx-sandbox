@@ -3,8 +3,10 @@ interface LogEntry {
     timestamp: string;
     status: 'failure' | 'success';
     requestedData: string;
-    consumerId: string;
-    providerId: string;
+    applicationId: string; // ID of the application making the request
+    schemaId: string; // ID of the schema being accessed
+    consumerId: string; // Member ID of the consumer
+    providerId: string; // Member ID of the provider
 }
 
 interface LogResponse {
