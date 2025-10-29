@@ -6,7 +6,7 @@ type Member struct {
 	Name        string `gorm:"column:name;not null" json:"name"`
 	Email       string `gorm:"column:email;not null;unique" json:"email"`
 	PhoneNumber string `gorm:"column:phone_number;not null" json:"phoneNumber"`
-	IdpUserID   string `gorm:"column:idp_user_id;not null" json:"idpUserId"`
+	IdpUserID   string `gorm:"column:idp_user_id;not null;unique" json:"idpUserId"`
 	BaseModel
 }
 
