@@ -10,6 +10,7 @@ type IdentityProviderAPI interface {
 type UserManager interface {
 	CreateUser(ctx context.Context, userInfo *User) (*UserInfo, error)
 	GetUser(ctx context.Context, userId string) (*UserInfo, error)
+	UpdateUser(ctx context.Context, userId string, userInfo *User) (*UserInfo, error)
 	DeleteUser(ctx context.Context, userId string) error
 }
 
@@ -22,16 +23,18 @@ type ApplicationManager interface {
 }
 
 type User struct {
-	FirstName string
-	LastName  string
-	Email     string
+	FirstName   string
+	LastName    string
+	Email       string
+	PhoneNumber string
 }
 
 type UserInfo struct {
-	Id        string
-	Email     string
-	FirstName string
-	LastName  string
+	Id          string
+	Email       string
+	FirstName   string
+	LastName    string
+	PhoneNumber string
 }
 
 type Application struct {

@@ -1,35 +1,66 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/api-server-go/idp"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"gorm.io/gorm"
 )
 
 // EntityService handles entity-related operations
 type EntityService struct {
-	db *gorm.DB
+	db  *gorm.DB
+	idp *idp.IdentityProviderAPI
 }
 
 // NewEntityService creates a new entity service
-func NewEntityService(db *gorm.DB) *EntityService {
-	return &EntityService{db: db}
+func NewEntityService(db *gorm.DB, idp *idp.IdentityProviderAPI) *EntityService {
+	return &EntityService{db: db, idp: idp}
 }
 
 // CreateEntity creates a new entity
 func (s *EntityService) CreateEntity(req *models.CreateEntityRequest) (*models.EntityResponse, error) {
+	// Create user in the IDP using the factory-created client
+	ctx := context.Background()
+
+	userInstance := &idp.User{
+		Email:       req.Email,
+		FirstName:   req.Name,
+		LastName:    "",
+		PhoneNumber: req.PhoneNumber,
+	}
+
+	createdUser, err := (*s.idp).CreateUser(ctx, userInstance)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user in IDP: %w", err)
+	}
+
+	if createdUser.Email != userInstance.Email {
+		return nil, fmt.Errorf("IDP user email mismatch")
+	}
+
+	slog.Info("Created user in IDP", "userID", createdUser.Id)
+
+	// Create entity in the database
 	entity := models.Entity{
 		EntityID:    "ent_" + uuid.New().String(),
 		Name:        req.Name,
 		Email:       req.Email,
 		PhoneNumber: req.PhoneNumber,
-		IdpUserID:   req.IdpUserID,
+		IdpUserID:   createdUser.Id,
 	}
 
 	if err := s.db.Create(&entity).Error; err != nil {
+		// Rollback IDP user creation if DB operation fails (not implemented here)
+		err := (*s.idp).DeleteUser(ctx, createdUser.Id)
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to create entity: %w", err)
 	}
 
@@ -54,21 +85,50 @@ func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRe
 		return nil, fmt.Errorf("entity not found: %w", err)
 	}
 
+	// Check if we need to update the IDP user
+	needsIdpUpdate := false
+	beforeUpdateName := entity.Name
+	beforeUpdatePhoneNumber := entity.PhoneNumber
+
 	// Update fields if provided
 	if req.Name != nil {
 		entity.Name = *req.Name
-	}
-	if req.IdpUserID != nil {
-		entity.IdpUserID = *req.IdpUserID
-	}
-	if req.Email != nil {
-		entity.Email = *req.Email
+		needsIdpUpdate = true
 	}
 	if req.PhoneNumber != nil {
 		entity.PhoneNumber = *req.PhoneNumber
+		needsIdpUpdate = true
+	}
+
+	// Update user in IDP if necessary
+	if needsIdpUpdate {
+		ctx := context.Background()
+		userInstance := &idp.User{
+			Email:       entity.Email,
+			FirstName:   entity.Name,
+			LastName:    "",
+			PhoneNumber: entity.PhoneNumber,
+		}
+
+		_, err := (*s.idp).UpdateUser(ctx, entity.IdpUserID, userInstance)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update user in IDP: %w", err)
+		}
+
+		slog.Info("Updated user in IDP", "userID", entity.IdpUserID)
 	}
 
 	if err := s.db.Save(&entity).Error; err != nil {
+		// Rollback IDP user update if DB operation fails (not implemented here)
+		_, err := (*s.idp).UpdateUser(context.Background(), entity.IdpUserID, &idp.User{
+			Email:       entity.Email,
+			FirstName:   beforeUpdateName,
+			LastName:    "",
+			PhoneNumber: beforeUpdatePhoneNumber,
+		})
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to update entity: %w", err)
 	}
 

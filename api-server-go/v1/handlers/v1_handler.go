@@ -8,9 +8,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gov-dx-sandbox/api-server-go/idp"
+	"github.com/gov-dx-sandbox/api-server-go/idp/idpfactory"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
+
 	"gorm.io/gorm"
 )
 
@@ -25,7 +28,26 @@ type V1Handler struct {
 
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
-	entityService := services.NewEntityService(db)
+	// Get scopes from environment variable, fallback to default if not set
+	asgScopesEnv := os.Getenv("ASGARDEO_SCOPES")
+	var scopes []string
+	if asgScopesEnv != "" {
+		// Split by space to handle multiple scopes
+		scopes = strings.Fields(asgScopesEnv)
+	}
+	// Create the NewIdpProvider
+	idpProvider, err := idpfactory.NewIdpAPIProvider(idpfactory.FactoryConfig{
+		ProviderType: idp.ProviderAsgardeo,
+		BaseURL:      os.Getenv("ASGARDEO_BASE_URL"),
+		ClientID:     os.Getenv("ASGARDEO_CLIENT_ID"),
+		ClientSecret: os.Getenv("ASGARDEO_CLIENT_SECRET"),
+		Scopes:       scopes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create IDP provider: %w", err)
+	}
+	entityService := services.NewEntityService(db, &idpProvider)
+
 	pdpServiceURL := os.Getenv("PDP_SERVICE_URL")
 	if pdpServiceURL == "" {
 		return nil, fmt.Errorf("PDP_SERVICE_URL environment variable not set")
