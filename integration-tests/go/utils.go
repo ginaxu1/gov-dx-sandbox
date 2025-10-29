@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -172,7 +173,12 @@ func WaitForServices(timeout time.Duration) error {
 
 func waitForPostgreSQL(timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	connStr := "postgres://test_user:test_password@localhost:5432/opendif_test?sslmode=disable"
+	// Use port 5433 when USE_COMPOSE is set, otherwise default to 5432
+	port := "5432"
+	if os.Getenv("USE_COMPOSE") == "true" {
+		port = "5433"
+	}
+	connStr := fmt.Sprintf("postgres://test_user:test_password@localhost:%s/opendif_test?sslmode=disable", port)
 	for time.Now().Before(deadline) {
 		conn, err := sql.Open("postgres", connStr)
 		if err == nil {

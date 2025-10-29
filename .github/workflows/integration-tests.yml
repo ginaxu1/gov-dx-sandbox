@@ -10,25 +10,7 @@ on:
     branches:
       - dev
 
-# Define reusable steps using YAML anchors
-x-steps:
-  - &create-env-local
-    name: Create .env.local
-    run: |
-      if [ ! -f .env.local ]; then
-        echo "Creating .env.local with default values..."
-        cat > .env.local << 'EOF'
-ENVIRONMENT=local
-LOG_LEVEL=info
-LOG_FORMAT=text
-PORT_PDP=8082
-PORT_CE=8081
-PORT_OE=4000
-BUILD_VERSION=ci
-BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-GIT_COMMIT=${{ github.sha }}
-EOF
-      fi
+# Note: Removed YAML anchors for heredoc as they cause parsing issues with GitHub Actions
 
 jobs:
   #
@@ -146,8 +128,21 @@ jobs:
         run: |
           echo "Starting Exchange Services (Docker)..."
           
-          # FIX 3: Use the reusable YAML anchor
-          *create-env-local
+          # Create .env.local if it doesn't exist (using defaults from docker-compose.yml)
+          if [ ! -f .env.local ]; then
+            echo "Creating .env.local with default values..."
+            {
+              echo "ENVIRONMENT=local"
+              echo "LOG_LEVEL=info"
+              echo "LOG_FORMAT=text"
+              echo "PORT_PDP=8082"
+              echo "PORT_CE=8081"
+              echo "PORT_OE=4000"
+              echo "BUILD_VERSION=ci"
+              echo "BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+              echo "GIT_COMMIT=${{ github.sha }}"
+            } > .env.local
+          fi
           
           # Start services with env file
           docker compose --env-file .env.local up --build -d
@@ -263,8 +258,21 @@ jobs:
         run: |
           echo "Building Exchange Services (Docker)..."
           
-          # FIX 3: Use the reusable YAML anchor to avoid duplication
-          *create-env-local
+          # Create .env.local if it doesn't exist (using defaults from docker-compose.yml)
+          if [ ! -f .env.local ]; then
+            echo "Creating .env.local with default values..."
+            {
+              echo "ENVIRONMENT=local"
+              echo "LOG_LEVEL=info"
+              echo "LOG_FORMAT=text"
+              echo "PORT_PDP=8082"
+              echo "PORT_CE=8081"
+              echo "PORT_OE=4000"
+              echo "BUILD_VERSION=ci"
+              echo "BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+              echo "GIT_COMMIT=${{ github.sha }}"
+            } > .env.local
+          fi
           
           # Build with env file
           docker compose --env-file .env.local build

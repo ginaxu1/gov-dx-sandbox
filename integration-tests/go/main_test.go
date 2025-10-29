@@ -48,9 +48,12 @@ func TestMain(m *testing.M) {
 
 // getPostgresURL returns the PostgreSQL connection string
 func getPostgresURL() string {
-	// Use Docker Compose service name if in compose mode
+	// Always use localhost since tests run on host, not in container
+	// Docker Compose ports are mapped to localhost
 	if os.Getenv("USE_COMPOSE") == "true" {
-		return "postgres://test_user:test_password@postgres:5432/opendif_test?sslmode=disable"
+		// When using compose, connect via localhost with fixed port mapping
+		// Using port 5433 to avoid conflicts with local PostgreSQL
+		return "postgres://test_user:test_password@localhost:5433/opendif_test?sslmode=disable"
 	}
 	if testDB != nil {
 		return testDB.ConnectionString()
@@ -60,9 +63,9 @@ func getPostgresURL() string {
 
 // getRedisURL returns the Redis connection string
 func getRedisURL() string {
-	// Use Docker Compose service name if in compose mode
+	// Always use localhost since tests run on host, not in container
 	if os.Getenv("USE_COMPOSE") == "true" {
-		return "redis:6379"
+		return "localhost:6379"
 	}
 	if testRedis != nil {
 		return testRedis.ConnectionString()
@@ -72,8 +75,6 @@ func getRedisURL() string {
 
 // getOPAURL returns the OPA service URL
 func getOPAURL() string {
-	if os.Getenv("USE_COMPOSE") == "true" {
-		return "http://opa:8181"
-	}
+	// Always use localhost since tests run on host, not in container
 	return "http://localhost:8181"
 }
