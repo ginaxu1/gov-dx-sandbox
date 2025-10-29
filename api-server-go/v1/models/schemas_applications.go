@@ -3,7 +3,7 @@ package models
 // Schema represents the provider_schemas table
 type Schema struct {
 	SchemaID          string  `gorm:"primarykey;column:schema_id" json:"schemaId"`
-	ProviderID        string  `gorm:"column:provider_id;not null" json:"providerId"`
+	MemberID          string  `gorm:"column:member_id;not null" json:"memberId"`
 	SchemaName        string  `gorm:"column:schema_name;not null" json:"schemaName"`
 	SDL               string  `gorm:"column:sdl;not null" json:"sdl"`
 	Endpoint          string  `gorm:"column:endpoint;not null" json:"endpoint"`
@@ -12,12 +12,12 @@ type Schema struct {
 	BaseModel
 
 	// Relationships
-	Provider Provider `gorm:"foreignKey:ProviderID;references:ProviderID" json:"provider"`
+	Member Member `gorm:"foreignKey:MemberID;references:MemberID" json:"member"`
 }
 
 // TableName sets the table name for GORM
 func (Schema) TableName() string {
-	return "provider_schemas"
+	return "schemas"
 }
 
 // SchemaSubmission represents the provider_schema_submissions table
@@ -29,18 +29,18 @@ type SchemaSubmission struct {
 	SDL               string  `gorm:"column:sdl;not null" json:"sdl"`
 	SchemaEndpoint    string  `gorm:"column:schema_endpoint;not null" json:"schemaEndpoint"`
 	Status            string  `gorm:"column:status;not null" json:"status"`
-	ProviderID        string  `gorm:"column:provider_id;not null" json:"providerId"`
+	MemberID          string  `gorm:"column:member_id;not null" json:"memberId"`
 	Review            *string `gorm:"column:review" json:"review,omitempty"`
 	BaseModel
 
 	// Relationships
-	Provider       Provider `gorm:"foreignKey:ProviderID;references:ProviderID" json:"provider"`
-	PreviousSchema *Schema  `gorm:"foreignKey:PreviousSchemaID;references:SchemaID" json:"previousSchema,omitempty"`
+	Member         Member  `gorm:"foreignKey:MemberID;references:MemberID" json:"member"`
+	PreviousSchema *Schema `gorm:"foreignKey:PreviousSchemaID;references:SchemaID" json:"previousSchema,omitempty"`
 }
 
 // TableName sets the table name for GORM
 func (SchemaSubmission) TableName() string {
-	return "provider_schema_submissions"
+	return "schema_submissions"
 }
 
 // Application represents the consumer_applications table
@@ -49,17 +49,17 @@ type Application struct {
 	ApplicationName        string               `gorm:"column:application_name;not null" json:"applicationName"`
 	ApplicationDescription *string              `gorm:"column:application_description" json:"applicationDescription,omitempty"`
 	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;not null" json:"selectedFields"`
-	ConsumerID             string               `gorm:"column:consumer_id;not null" json:"consumerId"`
+	MemberID               string               `gorm:"column:member_id;not null" json:"memberId"`
 	Version                string               `gorm:"column:version;not null" json:"version"`
 	BaseModel
 
 	// Relationships
-	Consumer Consumer `gorm:"foreignKey:ConsumerID;references:ConsumerID" json:"consumer"`
+	Member Member `gorm:"foreignKey:MemberID;references:MemberID" json:"member"`
 }
 
 // TableName sets the table name for GORM
 func (Application) TableName() string {
-	return "consumer_applications"
+	return "applications"
 }
 
 // ApplicationSubmission represents the consumer_application_submissions table
@@ -69,17 +69,17 @@ type ApplicationSubmission struct {
 	ApplicationName        string               `gorm:"column:application_name;not null" json:"applicationName"`
 	ApplicationDescription *string              `gorm:"column:application_description" json:"applicationDescription,omitempty"`
 	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;not null" json:"selectedFields"`
-	ConsumerID             string               `gorm:"column:consumer_id;not null" json:"consumerId"`
+	MemberID               string               `gorm:"column:member_id;not null" json:"memberId"`
 	Status                 string               `gorm:"column:status;not null" json:"status"`
 	Review                 *string              `gorm:"column:review" json:"review,omitempty"`
 	BaseModel
 
 	// Relationships
-	Consumer            Consumer     `gorm:"foreignKey:ConsumerID;references:ConsumerID" json:"consumer"`
+	Member              Member       `gorm:"foreignKey:MemberID;references:MemberID" json:"member"`
 	PreviousApplication *Application `gorm:"foreignKey:PreviousApplicationID;references:ApplicationID" json:"previousApplication,omitempty"`
 }
 
 // TableName sets the table name for GORM
 func (ApplicationSubmission) TableName() string {
-	return "consumer_application_submissions"
+	return "application_submissions"
 }
