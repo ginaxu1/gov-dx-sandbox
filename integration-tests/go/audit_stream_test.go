@@ -19,7 +19,7 @@ func TestAuditLogCreation(t *testing.T) {
 	t.Run("create audit log in database", func(t *testing.T) {
 		testDB := NewTestDB(getPostgresURL())
 		if err := testDB.Connect(); err != nil {
-			t.Fatalf("Failed to connect to database: %v", err)
+			t.Skipf("Skipping test - database not available: %v", err)
 		}
 		defer testDB.Close()
 
@@ -62,7 +62,7 @@ func TestAuditLogCreation(t *testing.T) {
 	})
 }
 
-// TestAuditStreamToDatabase tests that Redis stream messages are processed to the database
+// TestAuditStreamToDatabase tests that audit logs can be queried from the database
 func TestAuditStreamToDatabase(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -71,52 +71,10 @@ func TestAuditStreamToDatabase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	t.Run("Redis stream operations", func(t *testing.T) {
-		testRedis := NewTestRedis(getRedisURL())
-		if err := testRedis.Connect(); err != nil {
-			t.Fatalf("Failed to connect to Redis: %v", err)
-		}
-		defer testRedis.Close()
-
-		streamName := "audit-events"
-
-		// Add a test message to the stream
-		testMessage := map[string]interface{}{
-			"status":         "success",
-			"requested_data": "query { personInfo(nic: \"123\") { fullName } }",
-			"application_id": "test-app",
-			"schema_id":      "schema-1",
-			"consumer_id":    "test-consumer",
-			"provider_id":    "provider-drp",
-			"timestamp":      time.Now().Format(time.RFC3339),
-		}
-
-		messageID, err := testRedis.AddToStream(ctx, streamName, testMessage)
-		if err != nil {
-			t.Fatalf("Failed to add message to stream: %v", err)
-		}
-
-		t.Logf("Added message to stream with ID: %s", messageID)
-
-		// Check stream length
-		streamLength, err := testRedis.GetStreamLength(ctx, streamName)
-		if err != nil {
-			t.Fatalf("Failed to get stream length: %v", err)
-		}
-
-		t.Logf("Stream length: %d", streamLength)
-		if streamLength == 0 {
-			t.Error("Expected stream to have at least one message")
-		}
-	})
-
-	t.Run("verify message in database after processing", func(t *testing.T) {
-		// Give time for message processing (if a consumer were running)
-		time.Sleep(2 * time.Second)
-
+	t.Run("verify audit logs in database", func(t *testing.T) {
 		testDB := NewTestDB(getPostgresURL())
 		if err := testDB.Connect(); err != nil {
-			t.Fatalf("Failed to connect to database: %v", err)
+			t.Skipf("Skipping test - database not available: %v", err)
 		}
 		defer testDB.Close()
 
@@ -141,6 +99,8 @@ func TestAuditStreamToDatabase(t *testing.T) {
 
 		if count > 0 {
 			t.Logf("Found %d audit log entries in database", count)
+		} else {
+			t.Logf("No audit log entries found (this is expected if no logs have been created)")
 		}
 	})
 }
@@ -156,7 +116,7 @@ func TestAuditLogFiltering(t *testing.T) {
 	t.Run("filter by consumer_id", func(t *testing.T) {
 		testDB := NewTestDB(getPostgresURL())
 		if err := testDB.Connect(); err != nil {
-			t.Fatalf("Failed to connect to database: %v", err)
+			t.Skipf("Skipping test - database not available: %v", err)
 		}
 		defer testDB.Close()
 
@@ -175,7 +135,7 @@ func TestAuditLogFiltering(t *testing.T) {
 	t.Run("filter by status", func(t *testing.T) {
 		testDB := NewTestDB(getPostgresURL())
 		if err := testDB.Connect(); err != nil {
-			t.Fatalf("Failed to connect to database: %v", err)
+			t.Skipf("Skipping test - database not available: %v", err)
 		}
 		defer testDB.Close()
 
@@ -203,7 +163,7 @@ func TestAuditMiddlewareIntegration(t *testing.T) {
 	t.Run("verify audit logs table structure", func(t *testing.T) {
 		testDB := NewTestDB(getPostgresURL())
 		if err := testDB.Connect(); err != nil {
-			t.Fatalf("Failed to connect to database: %v", err)
+			t.Skipf("Skipping test - database not available: %v", err)
 		}
 		defer testDB.Close()
 

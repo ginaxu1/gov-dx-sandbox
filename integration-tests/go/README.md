@@ -26,9 +26,8 @@ Tests authentication and authorization flows:
 
 ### 2. Audit Logging (`audit_stream_test.go`)
 
-Tests asynchronous audit logging:
+Tests audit logging functionality:
 - Audit log creation in database
-- Redis stream message processing
 - Audit log filtering and querying
 - Audit middleware integration
 

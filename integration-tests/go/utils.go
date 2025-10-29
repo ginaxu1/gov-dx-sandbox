@@ -99,7 +99,7 @@ func (tr *TestRedis) Connect() error {
 	// Simplified version - in real implementation would use redis client
 	// For now, just verify connection string exists
 	if tr.connStr == "" {
-		return fmt.Errorf("Redis connection string is empty")
+		return fmt.Errorf("redis connection string is empty")
 	}
 	return nil
 }
@@ -190,7 +190,7 @@ func waitForPostgreSQL(timeout time.Duration) error {
 		}
 		time.Sleep(time.Second)
 	}
-	return fmt.Errorf("timeout waiting for PostgreSQL")
+	return fmt.Errorf("timeout waiting for postgresql")
 }
 
 func waitForRedis(timeout time.Duration) error {
