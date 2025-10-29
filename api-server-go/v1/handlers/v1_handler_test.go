@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gov-dx-sandbox/api-server-go/idp"
+	"github.com/gov-dx-sandbox/api-server-go/idp/idpfactory"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"github.com/stretchr/testify/assert"
@@ -84,7 +86,18 @@ func NewTestV1Handler(t *testing.T) *TestV1Handler {
 
 // NewTestV1HandlerWithMockPDP creates a handler with mock PDP service for testing
 func NewTestV1HandlerWithMockPDP(t *testing.T, db *gorm.DB) *V1Handler {
-	entityService := services.NewEntityService(db)
+	// Create a test IDP provider (using dummy values for testing)
+	idpProvider, err := idpfactory.NewIdpAPIProvider(idpfactory.FactoryConfig{
+		ProviderType: idp.ProviderAsgardeo,
+		BaseURL:      "http://localhost:9443",
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		Scopes:       []string{},
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test IDP provider: %v", err)
+	}
+	entityService := services.NewEntityService(db, &idpProvider)
 	mockPDP := &MockPDPService{}
 
 	// Set up mock expectations for successful operations

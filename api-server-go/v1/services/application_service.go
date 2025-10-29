@@ -13,11 +13,11 @@ import (
 // ApplicationService handles application-related operations
 type ApplicationService struct {
 	db            *gorm.DB
-	policyService *PDPService
+	policyService PDPInterface
 }
 
 // NewApplicationService creates a new application service
-func NewApplicationService(db *gorm.DB, pdpService *PDPService) *ApplicationService {
+func NewApplicationService(db *gorm.DB, pdpService PDPInterface) *ApplicationService {
 	return &ApplicationService{db: db, policyService: pdpService}
 }
 

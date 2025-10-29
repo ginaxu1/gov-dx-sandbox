@@ -101,34 +101,44 @@ func (s *ProviderService) GetProvider(providerID string) (*models.ProviderRespon
 // UpdateProvider updates an existing provider and its associated entity
 func (s *ProviderService) UpdateProvider(providerID string, req *models.UpdateProviderRequest) (*models.ProviderResponse, error) {
 	var provider models.Provider
-	err := s.db.Preload("Entity").First(&provider, "provider_id = ?", providerID).Error
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Fetch provider with entity in single query within transaction
+		if err := tx.Preload("Entity").First(&provider, "provider_id = ?", providerID).Error; err != nil {
+			return fmt.Errorf("provider not found: %w", err)
+		}
+
+		// Update associated entity fields if provided
+		if req.Name != nil {
+			provider.Entity.Name = *req.Name
+		}
+		if req.IdpUserID != nil {
+			provider.Entity.IdpUserID = *req.IdpUserID
+		}
+		if req.Email != nil {
+			provider.Entity.Email = *req.Email
+		}
+		if req.PhoneNumber != nil {
+			provider.Entity.PhoneNumber = *req.PhoneNumber
+		}
+
+		// Batch save both entity and provider in single transaction
+		if err := tx.Save(&provider.Entity).Error; err != nil {
+			return fmt.Errorf("failed to update entity: %w", err)
+		}
+
+		if err := tx.Save(&provider).Error; err != nil {
+			return fmt.Errorf("failed to update provider: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("provider not found: %w", err)
+		return nil, err
 	}
 
-	// Update associated entity fields if provided
-	if req.Name != nil {
-		provider.Entity.Name = *req.Name
-	}
-	if req.IdpUserID != nil {
-		provider.Entity.IdpUserID = *req.IdpUserID
-	}
-	if req.Email != nil {
-		provider.Entity.Email = *req.Email
-	}
-	if req.PhoneNumber != nil {
-		provider.Entity.PhoneNumber = *req.PhoneNumber
-	}
-
-	if err := s.db.Save(&provider.Entity).Error; err != nil {
-		return nil, fmt.Errorf("failed to update entity: %w", err)
-	}
-
-	// Save updated provider (if there were any provider-specific fields to update)
-	if err := s.db.Save(&provider).Error; err != nil {
-		return nil, fmt.Errorf("failed to update provider: %w", err)
-	}
-
+	// Build response outside transaction - just data transformation
 	response := &models.ProviderResponse{
 		ProviderID:  provider.ProviderID,
 		EntityID:    provider.EntityID,
