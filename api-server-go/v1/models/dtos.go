@@ -101,7 +101,7 @@ type MemberResponse struct {
 	IdpUserID   string `json:"idpUserId"`
 }
 
-// ToMember converts an EntityResponse to a Member model (for internal use)
+// ToMember converts a MemberResponse to a Member model (for internal use)
 func (e *MemberResponse) ToMember() Member {
 	return Member{
 		MemberID:    e.MemberID,

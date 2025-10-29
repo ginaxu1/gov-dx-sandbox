@@ -145,13 +145,13 @@ func (s *MemberService) UpdateMember(memberID string, req *models.UpdateMemberRe
 	return response, nil
 }
 
-// GetMember retrieves a Member by ID with associated provider/consumer information
+// GetMember retrieves a Member by ID
 func (s *MemberService) GetMember(memberID string) (*models.MemberResponse, error) {
 	var result struct {
 		models.Member
 	}
-	err := s.db.Table("entities").
-		Where("entities.member_id = ?", memberID).
+	err := s.db.Table("members").
+		Where("members.member_id = ?", memberID).
 		First(&result).Error
 
 	if err != nil {
@@ -171,7 +171,7 @@ func (s *MemberService) GetMember(memberID string) (*models.MemberResponse, erro
 	return response, nil
 }
 
-// GetAllMembers retrieves all entities with their associated provider/consumer information
+// GetAllMembers retrieves all members
 func (s *MemberService) GetAllMembers() ([]models.MemberResponse, error) {
 	var results []struct {
 		models.Member
@@ -179,7 +179,7 @@ func (s *MemberService) GetAllMembers() ([]models.MemberResponse, error) {
 
 	err := s.db.Table("members").Find(&results).Error
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch entities: %w", err)
+		return nil, fmt.Errorf("failed to fetch members: %w", err)
 	}
 
 	response := make([]models.MemberResponse, len(results))
