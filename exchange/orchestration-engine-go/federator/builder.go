@@ -7,20 +7,19 @@ import (
 	"github.com/graphql-go/graphql/language/kinds"
 )
 
-func BuildProviderLevelQuery(fieldsMap []string) []*FederationServiceAST {
+func BuildProviderLevelQuery(fieldsMap *[]ProviderLevelFieldRecord) []*FederationServiceAST {
 	var queries []*FederationServiceAST
 	var addedServiceKeys []string
 
-	for _, field := range fieldsMap {
-		// split with periods and create a string.
-		var args = strings.Split(field, ".")
+	for _, field := range *fieldsMap {
 
-		serviceKey := args[0]
+		serviceKey := field.ServiceKey
 
 		if !contains(addedServiceKeys, serviceKey) {
 			addedServiceKeys = append(addedServiceKeys, serviceKey)
 			queries = append(queries, &FederationServiceAST{
 				ServiceKey: serviceKey,
+				SchemaID:   field.SchemaId,
 				QueryAst: &ast.Document{
 					Kind: kinds.Document,
 					Definitions: []ast.Node{
@@ -41,8 +40,9 @@ func BuildProviderLevelQuery(fieldsMap []string) []*FederationServiceAST {
 		}
 		// find the query with the service key
 		for _, q := range queries {
-			if q.ServiceKey == serviceKey {
-				pushFieldToAst(args[1:], q.QueryAst.Definitions[0].(*ast.OperationDefinition).SelectionSet)
+			if q.ServiceKey == serviceKey && q.SchemaID == field.SchemaId {
+				var args = strings.Split(field.FieldPath, ".")
+				pushFieldToAst(args, q.QueryAst.Definitions[0].(*ast.OperationDefinition).SelectionSet)
 				break
 			}
 		}

@@ -25,7 +25,8 @@ type AuthConfig struct {
 	APIKeyValue string `json:"apiKeyValue,omitempty"`
 
 	// For OAuth2 auth
-	TokenURL     string `json:"tokenUrl,omitempty"`
-	ClientID     string `json:"clientId,omitempty"`
-	ClientSecret string `json:"clientSecret,omitempty"`
+	TokenURL     string   `json:"tokenUrl,omitempty"`
+	ClientID     string   `json:"clientId,omitempty"`
+	ClientSecret string   `json:"clientSecret,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
 }

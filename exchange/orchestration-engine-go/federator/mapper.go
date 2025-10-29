@@ -12,7 +12,7 @@ import (
 
 // SchemaCollectionResponse holds the traditional response structure for backward compatibility
 type SchemaCollectionResponse struct {
-	ProviderFieldMap    []string
+	ProviderFieldMap    *[]ProviderLevelFieldRecord
 	Arguments           []*ast.Argument
 	VariableDefinitions []*ast.VariableDefinition
 }
@@ -26,7 +26,7 @@ type SourceSchemaInfo struct {
 	SubFieldSchemaInfos    map[string]*SourceSchemaInfo // Schema info for fields inside array elements
 }
 
-func QueryBuilder(maps []string, args []*ArgSource) ([]*federationServiceRequest, error) {
+func QueryBuilder(maps *[]ProviderLevelFieldRecord, args []*ArgSource) ([]*federationServiceRequest, error) {
 
 	// initialize return variable
 	var requests = make([]*federationServiceRequest, 0)
@@ -43,7 +43,7 @@ func QueryBuilder(maps []string, args []*ArgSource) ([]*federationServiceRequest
 				continue
 			}
 
-			if arg.ProviderKey == q.ServiceKey {
+			if arg.ArgMapping.ProviderKey == q.ServiceKey && arg.ArgMapping.SchemaID == q.SchemaID {
 				providerArgs = append(providerArgs, arg)
 			}
 		}
@@ -65,31 +65,40 @@ func QueryBuilder(maps []string, args []*ArgSource) ([]*federationServiceRequest
 	return requests, nil
 }
 
-// ProviderFieldMap A function to convert the directives into a map of service key to list of fields.
-func ProviderFieldMap(directives []*ast.Directive) []string {
-	var fieldMap = make([]string, 0)
+type ProviderLevelFieldRecord struct {
+	ServiceKey string
+	SchemaId   string
+	FieldPath  string
+}
+
+// ProviderFieldMap A function to convert the directives into a map of service key to a list of fields.
+func ProviderFieldMap(directives []*ast.Directive) *[]ProviderLevelFieldRecord {
+	var fieldMap = make([]ProviderLevelFieldRecord, 0)
 
 	for _, dir := range directives {
 		if dir.Name.Value == "sourceInfo" {
-			var serviceKey, fieldPath string
+			record := ProviderLevelFieldRecord{}
 			for _, arg := range dir.Arguments {
 				if arg.Name.Value == "providerKey" {
 					if val, ok := arg.Value.(*ast.StringValue); ok {
-						serviceKey = val.Value
+						record.ServiceKey = val.Value
+					}
+				}
+				if arg.Name.Value == "schemaId" {
+					if val, ok := arg.Value.(*ast.StringValue); ok {
+						record.SchemaId = val.Value
 					}
 				}
 				if arg.Name.Value == "providerField" {
 					if val, ok := arg.Value.(*ast.StringValue); ok {
-						fieldPath = val.Value
+						record.FieldPath = val.Value
 					}
 				}
 			}
-			if serviceKey != "" && fieldPath != "" {
-				fieldMap = append(fieldMap, serviceKey+"."+fieldPath)
-			}
+			fieldMap = append(fieldMap, record)
 		}
 	}
-	return fieldMap
+	return &fieldMap
 }
 
 func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) (*SchemaCollectionResponse, error) {
@@ -114,9 +123,7 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) (*Schema
 	}
 	var providerDirectives, arguments = RecursivelyExtractSourceSchemaInfo(selections, schema, queryObjectDef, nil, nil)
 
-	var providerFieldMap = make([]string, 0)
-
-	providerFieldMap = ProviderFieldMap(providerDirectives)
+	providerFieldMap := ProviderFieldMap(providerDirectives)
 
 	// get variable definitions from the query
 	var variableDefinitions = query.Definitions[0].(*ast.OperationDefinition).VariableDefinitions
