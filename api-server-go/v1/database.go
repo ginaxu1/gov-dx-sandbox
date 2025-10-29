@@ -58,8 +58,11 @@ func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
 	// Configure GORM logger
 	gormLogger := logger.Default.LogMode(logger.Warn)
 
+	// DisableForeignKeyConstraintWhenMigrating: true is set to allow tables
+	// to be created first, then FK constraints can be added manually if needed
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: gormLogger,
+		Logger:                                   gormLogger,
+		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
