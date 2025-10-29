@@ -44,9 +44,7 @@ export class ApplicationService {
     try {
       const url = new URL(`${baseUrl}/application-submissions`);
       url.searchParams.append('memberId', memberId);
-      url.searchParams.append('status', 'pending');
-      url.searchParams.append('status', 'rejected');
-
+      url.searchParams.append('status', 'pending,rejected');
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {

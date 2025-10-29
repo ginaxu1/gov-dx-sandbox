@@ -51,8 +51,9 @@ function App() {
 
   const fetchMemberInfoFromDB = async (idpUserId: string) => {
     try {
+      const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
       // fetch member info from API
-      const url = new URL(`${window.configs.apiUrl}/members`);
+      const url = new URL(`${baseUrl}/members`);
       url.searchParams.append('idpUserId', idpUserId);
 
       const response = await fetch(url.toString());
@@ -221,7 +222,7 @@ function App() {
               <Route path="/applications"
                      element={<Applications memberId={memberData?.memberId || ''}/>}/>
               <Route
-                path="/consumer/applications/new"
+                path="/applications/new"
                 element={
                   <ApplicationRegistration
                     memberId={memberData?.memberId || ''}
