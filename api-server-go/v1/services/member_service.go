@@ -172,10 +172,34 @@ func (s *MemberService) GetMember(memberID string) (*models.MemberResponse, erro
 }
 
 // GetAllMembers retrieves all members
-func (s *MemberService) GetAllMembers() ([]models.MemberResponse, error) {
-	var results []struct {
-		models.Member
+func (s *MemberService) GetAllMembers(idpUserId *string, email *string) ([]models.MemberResponse, error) {
+	if (idpUserId != nil && *idpUserId != "") || (email != nil && *email != "") {
+		var member models.Member
+		query := s.db.Table("members")
+		if idpUserId != nil && *idpUserId != "" {
+			query = query.Where("idp_user_id = ?", *idpUserId)
+		}
+		if email != nil && *email != "" {
+			query = query.Where("email = ?", *email)
+		}
+		err := query.First(&member).Error
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch member: %w", err)
+		}
+
+		response := []models.MemberResponse{{
+			MemberID:    member.MemberID,
+			IdpUserID:   member.IdpUserID,
+			Name:        member.Name,
+			Email:       member.Email,
+			PhoneNumber: member.PhoneNumber,
+			CreatedAt:   member.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   member.UpdatedAt.Format(time.RFC3339),
+		}}
+
+		return response, nil
 	}
+	var results []models.Member
 
 	err := s.db.Table("members").Find(&results).Error
 	if err != nil {
@@ -185,13 +209,13 @@ func (s *MemberService) GetAllMembers() ([]models.MemberResponse, error) {
 	response := make([]models.MemberResponse, len(results))
 	for i, result := range results {
 		response[i] = models.MemberResponse{
-			MemberID:    result.Member.MemberID,
-			IdpUserID:   result.Member.IdpUserID,
-			Name:        result.Member.Name,
-			Email:       result.Member.Email,
-			PhoneNumber: result.Member.PhoneNumber,
-			CreatedAt:   result.Member.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   result.Member.UpdatedAt.Format(time.RFC3339),
+			MemberID:    result.MemberID,
+			IdpUserID:   result.IdpUserID,
+			Name:        result.Name,
+			Email:       result.Email,
+			PhoneNumber: result.PhoneNumber,
+			CreatedAt:   result.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   result.UpdatedAt.Format(time.RFC3339),
 		}
 	}
 
