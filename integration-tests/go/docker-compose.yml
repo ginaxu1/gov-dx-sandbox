@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   postgres:
@@ -8,7 +7,7 @@ services:
       POSTGRES_PASSWORD: test_password
       POSTGRES_DB: opendif_test
     ports:
-      - "5432"  # Random port mapping
+      - "5433:5432"  # Fixed port mapping for tests (using 5433 to avoid conflicts)
     volumes:
       - ./testdata/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
       - ./testdata/seed-data.sql:/docker-entrypoint-initdb.d/02-seed-data.sql
@@ -23,7 +22,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379"  # Random port mapping
+      - "6379:6379"  # Fixed port mapping for tests
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -35,7 +34,7 @@ services:
   opa:
     image: openpolicyagent/opa:latest
     ports:
-      - "8181"  # Random port mapping
+      - "8181:8181"  # Fixed port mapping for tests
     command:
       - "run"
       - "--server"
