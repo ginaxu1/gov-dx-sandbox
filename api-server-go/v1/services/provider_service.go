@@ -138,7 +138,6 @@ func (s *ProviderService) UpdateProvider(providerID string, req *models.UpdatePr
 		return nil, err
 	}
 
-	// Build response outside transaction - just data transformation
 	response := &models.ProviderResponse{
 		ProviderID:  provider.ProviderID,
 		EntityID:    provider.EntityID,

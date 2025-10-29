@@ -117,7 +117,6 @@ func (s *ConsumerService) UpdateConsumer(consumerID string, req *models.UpdateCo
 		return nil, err
 	}
 
-	// Build response outside transaction - just data transformation
 	response := &models.ConsumerResponse{
 		ConsumerID:  consumer.ConsumerID,
 		EntityID:    consumer.EntityID,
