@@ -9,7 +9,7 @@ type CreateSchemaSubmissionRequest struct {
 	SDL               string  `json:"sdl" validate:"required"`
 	SchemaEndpoint    string  `json:"schemaEndpoint" validate:"required"`
 	PreviousSchemaID  *string `json:"previousSchemaId,omitempty"`
-	ProviderID        string  `json:"providerId" validate:"required"`
+	MemberID          string  `json:"memberId" validate:"required"`
 }
 
 // UpdateSchemaSubmissionRequest updates the status of a provider schema submission
@@ -29,7 +29,7 @@ type CreateSchemaRequest struct {
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
 	SDL               string  `json:"sdl" validate:"required"`
 	Endpoint          string  `json:"endpoint" validate:"required"`
-	ProviderID        string  `json:"providerId" validate:"required"`
+	MemberID          string  `json:"memberId" validate:"required"`
 }
 
 // UpdateSchemaRequest updates an existing provider schema
@@ -47,7 +47,7 @@ type CreateApplicationSubmissionRequest struct {
 	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
 	SelectedFields         []SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
 	PreviousApplicationID  *string               `json:"previousApplicationId,omitempty"`
-	ConsumerID             string                `json:"consumerId" validate:"required"`
+	MemberID               string                `json:"memberId" validate:"required"`
 }
 
 // UpdateApplicationSubmissionRequest updates the status of a consumer application submission
@@ -65,7 +65,7 @@ type CreateApplicationRequest struct {
 	ApplicationName        string                `json:"applicationName" validate:"required"`
 	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
 	SelectedFields         []SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
-	ConsumerID             string                `json:"consumerId" validate:"required"`
+	MemberID               string                `json:"memberId" validate:"required"`
 }
 
 // UpdateApplicationRequest updates an existing consumer application
@@ -77,49 +77,19 @@ type UpdateApplicationRequest struct {
 	// Field updates should be handled through a separate endpoint or process. That is not implemented yet.
 }
 
-type CreateEntityRequest struct {
+type CreateMemberRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Email       string `json:"email" validate:"required,email"`
 	PhoneNumber string `json:"phoneNumber" validate:"required"`
 }
 
-type UpdateEntityRequest struct {
+type UpdateMemberRequest struct {
 	Name        *string `json:"name,omitempty"`
 	PhoneNumber *string `json:"phoneNumber,omitempty"`
 }
 
-type CreateConsumerRequest struct {
-	Name        string  `json:"name" validate:"required"`
-	Email       string  `json:"email" validate:"required,email"`
-	PhoneNumber string  `json:"phoneNumber" validate:"required"`
-	IdpUserID   string  `json:"idpUserId" validate:"required"`
-	EntityID    *string `json:"entityId,omitempty"`
-}
-
-type UpdateConsumerRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Email       *string `json:"email,omitempty"`
-	PhoneNumber *string `json:"phoneNumber,omitempty"`
-	IdpUserID   *string `json:"idpUserId,omitempty"`
-}
-
-type CreateProviderRequest struct {
-	Name        string  `json:"name" validate:"required"`
-	Email       string  `json:"email" validate:"required,email"`
-	PhoneNumber string  `json:"phoneNumber" validate:"required"`
-	EntityID    *string `json:"entityId,omitempty"`
-	IdpUserID   string  `json:"idpUserId" validate:"required"`
-}
-
-type UpdateProviderRequest struct {
-	Name        *string `json:"name,omitempty"`
-	IdpUserID   *string `json:"idpUserId,omitempty"`
-	Email       *string `json:"email,omitempty"`
-	PhoneNumber *string `json:"phoneNumber,omitempty"`
-}
-
-type EntityResponse struct {
-	EntityID    string `json:"entityId"`
+type MemberResponse struct {
+	MemberID    string `json:"memberId"`
 	Name        string `json:"name"`
 	Email       string `json:"email"`
 	PhoneNumber string `json:"phoneNumber"`
@@ -128,10 +98,10 @@ type EntityResponse struct {
 	IdpUserID   string `json:"idpUserId"`
 }
 
-// ToEntity converts an EntityResponse to an Entity model (for internal use)
-func (e *EntityResponse) ToEntity() Entity {
-	return Entity{
-		EntityID:    e.EntityID,
+// ToMember converts a MemberResponse to a Member model (for internal use)
+func (e *MemberResponse) ToMember() Member {
+	return Member{
+		MemberID:    e.MemberID,
 		Name:        e.Name,
 		Email:       e.Email,
 		PhoneNumber: e.PhoneNumber,
@@ -139,31 +109,9 @@ func (e *EntityResponse) ToEntity() Entity {
 	}
 }
 
-type ProviderResponse struct {
-	ProviderID  string `json:"providerId"`
-	EntityID    string `json:"entityId"`
-	Name        string `json:"name"`
-	Email       string `json:"email"`
-	PhoneNumber string `json:"phoneNumber"`
-	IdpUserID   string `json:"idpUserId"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
-}
-
-type ConsumerResponse struct {
-	ConsumerID  string `json:"consumerId"`
-	EntityID    string `json:"entityId"`
-	Name        string `json:"name"`
-	Email       string `json:"email"`
-	PhoneNumber string `json:"phoneNumber"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
-	IdpUserID   string `json:"idpUserId"`
-}
-
 type SchemaResponse struct {
 	SchemaID          string  `json:"schemaId"`
-	ProviderID        string  `json:"providerId"`
+	MemberID          string  `json:"memberId"`
 	SchemaName        string  `json:"schemaName"`
 	SDL               string  `json:"sdl"`
 	Endpoint          string  `json:"endpoint"`
@@ -181,7 +129,7 @@ type SchemaSubmissionResponse struct {
 	SDL               string  `json:"sdl"`
 	SchemaEndpoint    string  `json:"schemaEndpoint"`
 	Status            string  `json:"status"`
-	ProviderID        string  `json:"providerId"`
+	MemberID          string  `json:"memberId"`
 	CreatedAt         string  `json:"createdAt"`
 	UpdatedAt         string  `json:"updatedAt"`
 	Review            *string `json:"review,omitempty"`
@@ -192,7 +140,7 @@ type ApplicationResponse struct {
 	ApplicationName        string                `json:"applicationName"`
 	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
 	SelectedFields         []SelectedFieldRecord `json:"selectedFields"`
-	ConsumerID             string                `json:"consumerId"`
+	MemberID               string                `json:"memberId"`
 	Version                string                `json:"version"`
 	CreatedAt              string                `json:"createdAt"`
 	UpdatedAt              string                `json:"updatedAt"`
@@ -204,7 +152,7 @@ type ApplicationSubmissionResponse struct {
 	ApplicationName        string                `json:"applicationName"`
 	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
 	SelectedFields         []SelectedFieldRecord `json:"selectedFields"`
-	ConsumerID             string                `json:"consumerId"`
+	MemberID               string                `json:"memberId"`
 	Status                 string                `json:"status"`
 	CreatedAt              string                `json:"createdAt"`
 	UpdatedAt              string                `json:"updatedAt"`
