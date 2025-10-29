@@ -208,7 +208,7 @@ func (s *GrantsService) DeleteConsumerGrant(consumerID string) error {
 // GetAllProviderFields retrieves all provider fields
 func (s *GrantsService) GetAllProviderFields() (*models.ProviderMetadataData, error) {
 	query := `SELECT field_name, owner, provider, consent_required, access_control_type, allow_list, description, expiry_time, metadata, created_at, updated_at 
-			  FROM policy_metadata ORDER BY created_at DESC`
+			  FROM provider_metadata ORDER BY created_at DESC`
 
 	rows, err := s.db.Query(query)
 	if err != nil {
@@ -266,7 +266,7 @@ func (s *GrantsService) GetAllProviderFields() (*models.ProviderMetadataData, er
 // GetProviderField retrieves a specific provider field
 func (s *GrantsService) GetProviderField(fieldName string) (*models.ProviderField, error) {
 	query := `SELECT field_name, owner, provider, consent_required, access_control_type, allow_list, description, expiry_time, metadata, created_at, updated_at 
-			  FROM policy_metadata WHERE field_name = $1`
+			  FROM provider_metadata WHERE field_name = $1`
 
 	row := s.db.QueryRow(query, fieldName)
 
@@ -340,7 +340,7 @@ func (s *GrantsService) CreateProviderField(req models.CreateProviderFieldReques
 		UpdatedAt:         now.Format(time.RFC3339),
 	}
 
-	query := `INSERT INTO policy_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, expiry_time, metadata, created_at, updated_at) 
+	query := `INSERT INTO provider_metadata (field_name, owner, provider, consent_required, access_control_type, allow_list, description, expiry_time, metadata, created_at, updated_at) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	slog.Debug("Executing provider field insert", "fieldName", field.FieldName)
@@ -402,7 +402,7 @@ func (s *GrantsService) UpdateProviderField(fieldName string, req models.UpdateP
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	query := `UPDATE policy_metadata SET owner = $1, provider = $2, consent_required = $3, access_control_type = $4, allow_list = $5, description = $6, expiry_time = $7, metadata = $8, updated_at = $9 WHERE field_name = $10`
+	query := `UPDATE provider_metadata SET owner = $1, provider = $2, consent_required = $3, access_control_type = $4, allow_list = $5, description = $6, expiry_time = $7, metadata = $8, updated_at = $9 WHERE field_name = $10`
 
 	slog.Debug("Executing provider field update", "fieldName", fieldName, "query", query)
 	_, err = s.db.Exec(query, field.Owner, field.Provider, field.ConsentRequired, field.AccessControlType, allowListJSON, field.Description, field.ExpiryTime, metadataJSON, now, fieldName)
@@ -417,7 +417,7 @@ func (s *GrantsService) UpdateProviderField(fieldName string, req models.UpdateP
 
 // DeleteProviderField deletes a provider field
 func (s *GrantsService) DeleteProviderField(fieldName string) error {
-	query := `DELETE FROM policy_metadata WHERE field_name = $1`
+	query := `DELETE FROM provider_metadata WHERE field_name = $1`
 
 	result, err := s.db.Exec(query, fieldName)
 	if err != nil {

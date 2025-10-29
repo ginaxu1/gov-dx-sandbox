@@ -249,9 +249,9 @@ func InitDatabase(db *sql.DB) error {
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 	);`
 
-	// Create policy_metadata table
+	// Create provider_metadata table
 	createProviderMetadataTable := `
-	CREATE TABLE IF NOT EXISTS policy_metadata (
+	CREATE TABLE IF NOT EXISTS provider_metadata (
 		field_name VARCHAR(255) PRIMARY KEY,
 		owner VARCHAR(255) NOT NULL,
 		provider VARCHAR(255) NOT NULL,
@@ -272,8 +272,8 @@ func InitDatabase(db *sql.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_provider_submissions_status ON provider_submissions(status);",
 		"CREATE INDEX IF NOT EXISTS idx_provider_schemas_provider_id ON provider_schemas(provider_id);",
 		"CREATE INDEX IF NOT EXISTS idx_provider_schemas_status ON provider_schemas(status);",
-		"CREATE INDEX IF NOT EXISTS idx_policy_metadata_owner ON policy_metadata(owner);",
-		"CREATE INDEX IF NOT EXISTS idx_policy_metadata_provider ON policy_metadata(provider);",
+		"CREATE INDEX IF NOT EXISTS idx_provider_metadata_owner ON provider_metadata(owner);",
+		"CREATE INDEX IF NOT EXISTS idx_provider_metadata_provider ON provider_metadata(provider);",
 	}
 
 	// Execute table creation queries

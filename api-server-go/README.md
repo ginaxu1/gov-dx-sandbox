@@ -55,7 +55,7 @@ make test-docker
 - `provider_profiles` - Approved provider profiles
 - `provider_schemas` - Provider data schemas and SDL definitions
 - `consumer_grants` - Consumer access grants and permissions
-- `policy_metadata` - Field-level metadata and access controls
+- `provider_metadata` - Field-level metadata and access controls
 
 ### Database Configuration
 
