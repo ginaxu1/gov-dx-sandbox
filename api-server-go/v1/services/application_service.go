@@ -176,20 +176,18 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 	// Validate previous application ID if provided
 	if req.PreviousApplicationID != nil {
 		var prevApp models.Application
-		err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error
-		if err != nil {
-			return nil, err
+		if err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
+			return nil, fmt.Errorf("previous application not found: %w", err)
 		}
 	}
 
 	// Validate consumer ID
 	var consumer models.Consumer
-	err := s.db.First(&consumer, "consumer_id = ?", req.ConsumerID).Error
-	if err != nil {
-		return nil, err
+	if err := s.db.First(&consumer, "consumer_id = ?", req.ConsumerID).Error; err != nil {
+		return nil, fmt.Errorf("consumer not found: %w", err)
 	}
 
-	// Create application submission
+	// Create application submission (single write operation - no transaction needed)
 	submission := models.ApplicationSubmission{
 		SubmissionID:           "sub_" + uuid.New().String(),
 		PreviousApplicationID:  req.PreviousApplicationID,
@@ -200,9 +198,10 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		ConsumerID:             req.ConsumerID,
 	}
 	if err := s.db.Create(&submission).Error; err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create application submission: %w", err)
 	}
 
+	// Build response - just data transformation
 	response := &models.ApplicationSubmissionResponse{
 		SubmissionID:           submission.SubmissionID,
 		PreviousApplicationID:  submission.PreviousApplicationID,

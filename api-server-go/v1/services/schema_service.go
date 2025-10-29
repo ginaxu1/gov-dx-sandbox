@@ -187,7 +187,7 @@ func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissio
 		}
 	}
 
-	// Create submission
+	// Create submission (single write operation - no transaction needed)
 	submission := models.SchemaSubmission{
 		SubmissionID:      "sub_" + uuid.New().String(),
 		PreviousSchemaID:  req.PreviousSchemaID,
@@ -202,6 +202,7 @@ func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissio
 		return nil, fmt.Errorf("failed to create schema submission: %w", err)
 	}
 
+	// Build response - just data transformation
 	response := &models.SchemaSubmissionResponse{
 		SubmissionID:      submission.SubmissionID,
 		PreviousSchemaID:  submission.PreviousSchemaID,

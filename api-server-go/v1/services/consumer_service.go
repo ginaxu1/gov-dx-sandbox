@@ -80,35 +80,44 @@ func (s *ConsumerService) CreateConsumer(req *models.CreateConsumerRequest) (*mo
 // UpdateConsumer updates an existing consumer and its associated entity
 func (s *ConsumerService) UpdateConsumer(consumerID string, req *models.UpdateConsumerRequest) (*models.ConsumerResponse, error) {
 	var consumer models.Consumer
-	err := s.db.Preload("Entity").First(&consumer, "consumer_id = ?", consumerID).Error
+
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		// Fetch consumer with entity in single query within transaction
+		if err := tx.Preload("Entity").First(&consumer, "consumer_id = ?", consumerID).Error; err != nil {
+			return fmt.Errorf("consumer not found: %w", err)
+		}
+
+		// Update associated entity fields if provided
+		if req.Name != nil {
+			consumer.Entity.Name = *req.Name
+		}
+		if req.IdpUserID != nil {
+			consumer.Entity.IdpUserID = *req.IdpUserID
+		}
+		if req.Email != nil {
+			consumer.Entity.Email = *req.Email
+		}
+		if req.PhoneNumber != nil {
+			consumer.Entity.PhoneNumber = *req.PhoneNumber
+		}
+
+		// Batch save both entity and consumer in single transaction
+		if err := tx.Save(&consumer.Entity).Error; err != nil {
+			return fmt.Errorf("failed to update entity: %w", err)
+		}
+
+		if err := tx.Save(&consumer).Error; err != nil {
+			return fmt.Errorf("failed to update consumer: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("consumer not found: %w", err)
+		return nil, err
 	}
 
-	// Update associated entity fields if provided
-	if req.Name != nil {
-		consumer.Entity.Name = *req.Name
-	}
-	if req.IdpUserID != nil {
-		consumer.Entity.IdpUserID = *req.IdpUserID
-	}
-	if req.Email != nil {
-		consumer.Entity.Email = *req.Email
-	}
-	if req.PhoneNumber != nil {
-		consumer.Entity.PhoneNumber = *req.PhoneNumber
-	}
-
-	// Save updated entity
-	if err := s.db.Save(&consumer.Entity).Error; err != nil {
-		return nil, fmt.Errorf("failed to update entity: %w", err)
-	}
-
-	// Save updated consumer (if there were any consumer-specific fields to update)
-	if err := s.db.Save(&consumer).Error; err != nil {
-		return nil, fmt.Errorf("failed to update consumer: %w", err)
-	}
-
+	// Build response outside transaction - just data transformation
 	response := &models.ConsumerResponse{
 		ConsumerID:  consumer.ConsumerID,
 		EntityID:    consumer.EntityID,

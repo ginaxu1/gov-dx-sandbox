@@ -33,7 +33,32 @@ func (sfr *SelectedFieldRecords) Scan(value interface{}) error {
 		return fmt.Errorf("cannot scan %T into SelectedFieldRecords", value)
 	}
 
-	return json.Unmarshal(bytes, sfr)
+	// Try to unmarshal as array of objects first (new format)
+	var records []SelectedFieldRecord
+	if err := json.Unmarshal(bytes, &records); err != nil {
+		// If that fails, try to unmarshal as array of strings (old format) and convert
+		var stringArray []string
+		if err2 := json.Unmarshal(bytes, &stringArray); err2 != nil {
+			// If that also fails, try to unmarshal as a single object and wrap it
+			var singleRecord SelectedFieldRecord
+			if err3 := json.Unmarshal(bytes, &singleRecord); err3 != nil {
+				return fmt.Errorf("cannot unmarshal JSON into SelectedFieldRecords: tried array of objects (%v), array of strings (%v), and single object (%v)", err, err2, err3)
+			}
+			records = []SelectedFieldRecord{singleRecord}
+		} else {
+			// Convert array of strings to array of objects (default schemaId to empty)
+			records = make([]SelectedFieldRecord, len(stringArray))
+			for i, fieldPath := range stringArray {
+				records[i] = SelectedFieldRecord{
+					FieldName: fieldPath,
+					SchemaID:  "", // Old format doesn't have schemaId
+				}
+			}
+		}
+	}
+
+	*sfr = SelectedFieldRecords(records)
+	return nil
 }
 
 // Value implements the driver.Valuer interface for SelectedFieldRecords
