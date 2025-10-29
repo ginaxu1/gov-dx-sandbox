@@ -56,10 +56,16 @@ func TestCreateUserIntegration(t *testing.T) {
 	)
 
 	userInstance := &idp.User{
+<<<<<<< HEAD
 		Email:       "testuser1@example.com",
 		FirstName:   "Test",
 		LastName:    "User",
 		PhoneNumber: "+1234567890",
+=======
+		Email:     "testuser1@example.com",
+		FirstName: "Test",
+		LastName:  "User",
+>>>>>>> 3a6237e (Add back idp directory)
 	}
 
 	createdUser, err := client.CreateUser(ctx, userInstance)
@@ -71,10 +77,13 @@ func TestCreateUserIntegration(t *testing.T) {
 		t.Errorf("Expected user email %s, got %s", userInstance.Email, createdUser.Email)
 	}
 
+<<<<<<< HEAD
 	if createdUser.PhoneNumber != userInstance.PhoneNumber {
 		t.Errorf("Expected user phone number %s, got %s", userInstance.PhoneNumber, createdUser.PhoneNumber)
 	}
 
+=======
+>>>>>>> 3a6237e (Add back idp directory)
 	// delete the created user
 	err = client.DeleteUser(ctx, createdUser.Id)
 	if err != nil {
@@ -128,10 +137,16 @@ func TestUserLifecycleIntegration(t *testing.T) {
 
 	// Step 1: Create User
 	userInstance := &idp.User{
+<<<<<<< HEAD
 		Email:       "testuser@example.com",
 		FirstName:   "Test",
 		LastName:    "User",
 		PhoneNumber: "+1234567890",
+=======
+		Email:     "testuser@example.com",
+		FirstName: "Test",
+		LastName:  "User",
+>>>>>>> 3a6237e (Add back idp directory)
 	}
 
 	createdUser, err := client.CreateUser(ctx, userInstance)
@@ -149,6 +164,7 @@ func TestUserLifecycleIntegration(t *testing.T) {
 		t.Errorf("Expected user email %s, got %s", userInstance.Email, retrievedUser.Email)
 	}
 
+<<<<<<< HEAD
 	if retrievedUser.PhoneNumber != userInstance.PhoneNumber {
 		t.Errorf("Expected user phone number %s, got %s", userInstance.PhoneNumber, retrievedUser.PhoneNumber)
 	}
@@ -212,6 +228,8 @@ func TestUpdateUserIntegration(t *testing.T) {
 		t.Errorf("Expected updated phone number %s, got %s", updatedUserInstance.PhoneNumber, updatedUser.PhoneNumber)
 	}
 
+=======
+>>>>>>> 3a6237e (Add back idp directory)
 	// Step 3: Delete User
 	err = client.DeleteUser(ctx, createdUser.Id)
 	if err != nil {

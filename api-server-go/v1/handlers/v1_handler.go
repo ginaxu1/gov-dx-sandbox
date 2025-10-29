@@ -10,9 +10,10 @@ import (
 
 	"github.com/gov-dx-sandbox/api-server-go/idp"
 	"github.com/gov-dx-sandbox/api-server-go/idp/idpfactory"
-	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
+	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
+	"github.com/gov-dx-sandbox/api-server-go/v1/utils"
 
 	"gorm.io/gorm"
 )
@@ -66,32 +67,32 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 // SetupV1Routes configures all V1 API routes
 func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	// Provider routes
-	mux.Handle("/api/v1/providers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
-	mux.Handle("/api/v1/providers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
+	mux.Handle("/api/v1/providers", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
+	mux.Handle("/api/v1/providers/", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
 
 	// Schema routes
-	mux.Handle("/api/v1/schemas", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
-	mux.Handle("/api/v1/schemas/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
+	mux.Handle("/api/v1/schemas", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
+	mux.Handle("/api/v1/schemas/", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
 
 	// SchemaSubmission routes
-	mux.Handle("/api/v1/schema-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
-	mux.Handle("/api/v1/schema-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
+	mux.Handle("/api/v1/schema-submissions", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
+	mux.Handle("/api/v1/schema-submissions/", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
 
 	// Consumer routes
-	mux.Handle("/api/v1/consumers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
-	mux.Handle("/api/v1/consumers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
+	mux.Handle("/api/v1/consumers", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
+	mux.Handle("/api/v1/consumers/", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
 
 	// Application routes
-	mux.Handle("/api/v1/applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
-	mux.Handle("/api/v1/applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
+	mux.Handle("/api/v1/applications", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
+	mux.Handle("/api/v1/applications/", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
 
 	// ApplicationSubmission routes
-	mux.Handle("/api/v1/application-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
-	mux.Handle("/api/v1/application-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
+	mux.Handle("/api/v1/application-submissions", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
+	mux.Handle("/api/v1/application-submissions/", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
 
 	// Entity routes
-	mux.Handle("/api/v1/entities", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
-	mux.Handle("/api/v1/entities/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
+	mux.Handle("/api/v1/entities", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
+	mux.Handle("/api/v1/entities/", v1middleware.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
 }
 
 // handleProviders handles provider-related routes

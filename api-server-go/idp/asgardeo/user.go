@@ -259,7 +259,6 @@ func (a *Client) UpdateUser(ctx context.Context, userId string, userInfo *idp.Us
 
 	return updatedInfo, nil
 }
-
 func (a *Client) DeleteUser(ctx context.Context, userId string) error {
 	url := fmt.Sprintf("%s/scim2/Users/%s", a.BaseURL, userId)
 

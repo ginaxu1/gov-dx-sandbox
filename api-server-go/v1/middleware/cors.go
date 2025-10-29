@@ -1,10 +1,13 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/gov-dx-sandbox/api-server-go/v1/utils"
 )
 
 // CORSConfig holds the CORS configuration
@@ -101,4 +104,17 @@ func CORSMiddleware(config CORSConfig) func(http.Handler) http.Handler {
 // NewCORSMiddleware creates a CORS middleware with default configuration
 func NewCORSMiddleware() func(http.Handler) http.Handler {
 	return CORSMiddleware(DefaultCORSConfig())
+}
+
+// PanicRecoveryMiddleware recovers from panics and logs the error
+func PanicRecoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				slog.Error("Panic recovered", "error", err, "path", r.URL.Path, "method", r.Method)
+				utils.RespondWithError(w, http.StatusInternalServerError, "Internal server error")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
