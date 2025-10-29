@@ -10,7 +10,10 @@ on:
     branches:
       - dev
 
-# Note: Removed YAML anchors for heredoc as they cause parsing issues with GitHub Actions
+# Reusable workflow inputs/outputs could be added here if needed
+env:
+  GO_VERSION: '1.24'
+  TEST_TIMEOUT: 30m
 
 jobs:
   #
@@ -28,12 +31,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
-          # FIX 1: The path should *only* be the directory to cache
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('integration-tests/go/go.sum') }}
           restore-keys: |
@@ -88,10 +90,10 @@ jobs:
         env:
           GO_ENV: test
           USE_COMPOSE: "true"
-          TEST_TIMEOUT: 30m
+          TEST_TIMEOUT: ${{ env.TEST_TIMEOUT }}
         run: |
           echo "Running Go integration tests..."
-          go test -v -timeout 30m ./...
+          go test -v -timeout ${{ env.TEST_TIMEOUT }} ./...
 
       - name: Cleanup Go test infrastructure
         if: always()
@@ -99,11 +101,6 @@ jobs:
         run: |
           echo "Stopping test infrastructure..."
           docker compose down -v
-      
-      # FIX 2: Removed 'Upload test results' step.
-      # It was uploading the entire source code directory, not test reports.
-      # Go test results are in the logs. If you need reports,
-      # you must first modify the 'go test' command to generate one.
 
   #
   # JOB 2: Deploy and check the live environment
@@ -123,12 +120,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Start Exchange Services
+      - name: Create .env.local file
         working-directory: exchange
         run: |
-          echo "Starting Exchange Services (Docker)..."
-          
-          # Create .env.local if it doesn't exist (using defaults from docker-compose.yml)
           if [ ! -f .env.local ]; then
             echo "Creating .env.local with default values..."
             {
@@ -143,38 +137,41 @@ jobs:
               echo "GIT_COMMIT=${{ github.sha }}"
             } > .env.local
           fi
-          
-          # Start services with env file
+
+      - name: Start Exchange Services
+        working-directory: exchange
+        run: |
+          echo "Starting Exchange Services (Docker)..."
           docker compose --env-file .env.local up --build -d
           
           echo "Waiting for services to be ready..."
           sleep 30
           
           # Health check function
-          check_service() {
-            local service=$1
-            local url=$2
+          check_service_health() {
+            local service_name=$1
+            local health_url=$2
             local max_attempts=10
             local attempt=1
             
             while [ $attempt -le $max_attempts ]; do
-              if curl -f -s $url > /dev/null; then
-                echo "✅ $service is healthy"
+              if curl -f -s $health_url > /dev/null; then
+                echo "✅ $service_name is healthy"
                 return 0
               fi
-              echo "⏳ Waiting for $service to be ready... (attempt $attempt/$max_attempts)"
+              echo "⏳ Waiting for $service_name to be ready... (attempt $attempt/$max_attempts)"
               sleep 5
               attempt=$((attempt + 1))
             done
             
-            echo "❌ $service failed to start"
+            echo "❌ $service_name failed to start"
             docker compose logs
             return 1
           }
           
           # Check each service
-          check_service "PDP" "http://localhost:8082/health" || exit 1
-          check_service "Consent Engine" "http://localhost:8081/health" || exit 1
+          check_service_health "PDP" "http://localhost:8082/health" || exit 1
+          check_service_health "Consent Engine" "http://localhost:8081/health" || exit 1
           echo "All exchange services are running!"
 
       - name: Install shell dependencies
@@ -193,21 +190,10 @@ jobs:
         run: |
           echo "Running shell smoke tests..."
           
-          # FIX 4: Removed '|| true' to ensure test failures fail the job
-          if [ -f "test-pdp.sh" ]; then
-            echo "Running PDP tests..."
-            ./test-pdp.sh
-          fi
-          
-          if [ -f "test-consent-flow.sh" ]; then
-            echo "Running consent flow tests..."
-            ./test-consent-flow.sh
-          fi
-          
-          if [ -f "test-complete-flow.sh" ]; then
-            echo "Running complete flow tests..."
-            ./test-complete-flow.sh
-          fi
+          # Run tests if they exist
+          [ -f "test-pdp.sh" ] && echo "Running PDP tests..." && ./test-pdp.sh
+          [ -f "test-consent-flow.sh" ] && echo "Running consent flow tests..." && ./test-consent-flow.sh
+          [ -f "test-complete-flow.sh" ] && echo "Running complete flow tests..." && ./test-complete-flow.sh
           
           echo "Smoke tests completed."
 
@@ -217,7 +203,7 @@ jobs:
         run: |
           echo "=== Exchange Services Logs ==="
           docker compose logs
-          
+
       - name: Cleanup services
         if: always()
         working-directory: exchange
@@ -234,7 +220,7 @@ jobs:
     needs: build_and_test
     # Only run on pushes to dev
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -242,23 +228,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Container Registry
-        # Uncomment and configure when you have a registry
-        # uses: docker/login-action@v3
-        # with:
-        #   registry: your-registry.com
-        #   username: ${{ secrets.REGISTRY_USERNAME }}
-        #   password: ${{ secrets.REGISTRY_PASSWORD }}
-        run: |
-          echo "Container registry login would go here"
-          echo "For now, this step is disabled. Uncomment when you configure your registry."
-
-      - name: Build Exchange Services Images
+      - name: Create .env.local file
         working-directory: exchange
         run: |
-          echo "Building Exchange Services (Docker)..."
-          
-          # Create .env.local if it doesn't exist (using defaults from docker-compose.yml)
           if [ ! -f .env.local ]; then
             echo "Creating .env.local with default values..."
             {
@@ -273,10 +245,24 @@ jobs:
               echo "GIT_COMMIT=${{ github.sha }}"
             } > .env.local
           fi
-          
-          # Build with env file
+
+      - name: Build Exchange Services Images
+        working-directory: exchange
+        run: |
+          echo "Building Exchange Services (Docker)..."
           docker compose --env-file .env.local build
-          
+
+      - name: Login to Container Registry
+        # Uncomment and configure when you have a registry
+        # uses: docker/login-action@v3
+        # with:
+        #   registry: your-registry.com
+        #   username: ${{ secrets.REGISTRY_USERNAME }}
+        #   password: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          echo "Container registry login would go here"
+          echo "For now, this step is disabled. Uncomment when you configure your registry."
+
       - name: Push Images
         # Uncomment when ready to push
         # run: |
@@ -284,7 +270,3 @@ jobs:
         run: |
           echo "Image push would go here"
           echo "Configure your registry and uncomment the push commands."
-
-      # FIX 5: Removed 'Save Images as Artifacts' step.
-      # It was misnamed and only saved the .env.local file, not the Docker images.
-      # The correct way to "save" images is to push them to a registry.

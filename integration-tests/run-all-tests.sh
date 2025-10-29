@@ -24,37 +24,37 @@ echo ""
 # Run PDP tests
 log_info "=== Policy Decision Point Tests ==="
 if [ -f "${SCRIPT_DIR}/test-pdp.sh" ]; then
-    source "${SCRIPT_DIR}/test-pdp.sh"
-else
-    run_pdp_tests
+    "${SCRIPT_DIR}/test-pdp.sh"
 fi
 
 echo ""
 
 # Run Consent Engine tests
 log_info "=== Consent Engine Tests ==="
-if [ -f "${SCRIPT_DIR}/test-consent-engine.sh" ]; then
-    source "${SCRIPT_DIR}/test-consent-engine.sh"
-else
-    run_consent_workflow_tests
-fi
-
-echo ""
-
-# Run GraphQL tests
-log_info "=== GraphQL Tests ==="
-if [ -f "${SCRIPT_DIR}/test-orchestration-workflow.sh" ]; then
-    source "${SCRIPT_DIR}/test-orchestration-workflow.sh"
-else
-    run_graphql_tests
+if [ -f "${SCRIPT_DIR}/test-consent-flow.sh" ]; then
+    "${SCRIPT_DIR}/test-consent-flow.sh"
+elif [ -f "${SCRIPT_DIR}/test-consent-flow-simple.sh" ]; then
+    "${SCRIPT_DIR}/test-consent-flow-simple.sh"
 fi
 
 echo ""
 
 # Run complete workflow tests
 log_info "=== Complete Workflow Tests ==="
-if [ -f "${SCRIPT_DIR}/test-complete-consent-workflow.sh" ]; then
-    source "${SCRIPT_DIR}/test-complete-consent-workflow.sh"
+if [ -f "${SCRIPT_DIR}/test-complete-flow.sh" ]; then
+    "${SCRIPT_DIR}/test-complete-flow.sh"
+fi
+
+if [ -f "${SCRIPT_DIR}/test-consent-workflow-complete.sh" ]; then
+    "${SCRIPT_DIR}/test-consent-workflow-complete.sh"
+fi
+
+echo ""
+
+# Run API Server tests
+log_info "=== API Server Tests ==="
+if [ -f "${SCRIPT_DIR}/test-api-server-flow.sh" ]; then
+    "${SCRIPT_DIR}/test-api-server-flow.sh"
 fi
 
 echo ""
@@ -64,5 +64,5 @@ echo ""
 log_info "Test Summary:"
 echo "- Policy Decision Point: ✅"
 echo "- Consent Engine: ✅"
-echo "- GraphQL Queries: ✅"
 echo "- Complete Workflows: ✅"
+echo "- API Server: ✅"

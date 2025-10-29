@@ -123,9 +123,39 @@ application_data='{
 }'
 make_request "POST" "$API_SERVER_URL/api/v1/application-submissions" "$application_data" "201"
 
-# Test 7: PDP Policy Decision (V1)
-echo -e "${BLUE}=== Test 7: PDP Policy Decision (V1) ===${NC}"
-pdp_data='{
+# Test 7: PDP Policy Metadata Creation (V1) - MUST CREATE BEFORE DECISION TEST
+echo -e "${BLUE}=== Test 7: PDP Policy Metadata Creation (V1) ===${NC}"
+policy_metadata_data=$(cat <<'JSONEOF'
+{
+  "schemaId": "schema_test_v1",
+  "records": [
+    {
+      "fieldName": "person.fullName",
+      "displayName": "Full Name",
+      "description": "Person's full name",
+      "source": "primary",
+      "isOwner": true,
+      "accessControlType": "public"
+    },
+    {
+      "fieldName": "person.nic",
+      "displayName": "NIC Number",
+      "description": "National Identity Card number",
+      "source": "primary",
+      "isOwner": false,
+      "accessControlType": "restricted",
+      "owner": "government"
+    }
+  ]
+}
+JSONEOF
+)
+make_request "POST" "$PDP_URL/api/v1/policy/metadata" "$policy_metadata_data" "201"
+
+# Test 8: PDP Policy Decision (V1) - AFTER METADATA IS CREATED
+echo -e "${BLUE}=== Test 8: PDP Policy Decision (V1) ===${NC}"
+pdp_data=$(cat <<'JSONEOF'
+{
   "applicationId": "test-app-v1",
   "requiredFields": [
     {
@@ -137,38 +167,15 @@ pdp_data='{
       "schemaId": "schema_test_v1"
     }
   ]
-}'
+}
+JSONEOF
+)
 make_request "POST" "$PDP_URL/api/v1/policy/decide" "$pdp_data" "200"
-
-# Test 8: PDP Policy Metadata Creation (V1)
-echo -e "${BLUE}=== Test 8: PDP Policy Metadata Creation (V1) ===${NC}"
-policy_metadata_data='{
-  "schemaId": "schema_test_v1",
-  "records": [
-    {
-      "fieldName": "person.fullName",
-      "displayName": "Full Name",
-      "description": "Person's full name",
-      "source": "provider",
-      "isOwner": true,
-      "accessControlType": "public"
-    },
-    {
-      "fieldName": "person.nic",
-      "displayName": "NIC Number",
-      "description": "National Identity Card number",
-      "source": "provider",
-      "isOwner": false,
-      "accessControlType": "restricted",
-      "owner": "government"
-    }
-  ]
-}'
-make_request "POST" "$PDP_URL/api/v1/policy/metadata" "$policy_metadata_data" "201"
 
 # Test 9: PDP Allow List Update (V1)
 echo -e "${BLUE}=== Test 9: PDP Allow List Update (V1) ===${NC}"
-allowlist_data='{
+allowlist_data=$(cat <<'JSONEOF'
+{
   "applicationId": "test-app-v1",
   "records": [
     {
@@ -177,7 +184,9 @@ allowlist_data='{
     }
   ],
   "grantDuration": "30d"
-}'
+}
+JSONEOF
+)
 make_request "POST" "$PDP_URL/api/v1/policy/update-allowlist" "$allowlist_data" "200"
 
 # Test 10: Consent Engine Consent Creation
