@@ -77,7 +77,7 @@ policy_metadata_data=$(cat <<'JSONEOF'
       "fieldName": "person.fullName",
       "displayName": "Full Name",
       "description": "Person's full name",
-      "source": "provider",
+      "source": "primary",
       "isOwner": true,
       "accessControlType": "public"
     },
@@ -85,7 +85,7 @@ policy_metadata_data=$(cat <<'JSONEOF'
       "fieldName": "person.nic",
       "displayName": "NIC Number",
       "description": "National Identity Card number",
-      "source": "provider",
+      "source": "primary",
       "isOwner": false,
       "accessControlType": "restricted",
       "owner": "government"
@@ -94,7 +94,7 @@ policy_metadata_data=$(cat <<'JSONEOF'
       "fieldName": "person.photo",
       "displayName": "Photo",
       "description": "Person's photo",
-      "source": "provider",
+      "source": "primary",
       "isOwner": false,
       "accessControlType": "restricted",
       "owner": "government"
@@ -103,7 +103,7 @@ policy_metadata_data=$(cat <<'JSONEOF'
       "fieldName": "person.birthDate",
       "displayName": "Birth Date",
       "description": "Person's birth date",
-      "source": "provider",
+      "source": "primary",
       "isOwner": false,
       "accessControlType": "public"
     },
@@ -111,7 +111,7 @@ policy_metadata_data=$(cat <<'JSONEOF'
       "fieldName": "person.permanentAddress",
       "displayName": "Permanent Address",
       "description": "Person's permanent address",
-      "source": "provider",
+      "source": "primary",
       "isOwner": false,
       "accessControlType": "restricted",
       "owner": "government"

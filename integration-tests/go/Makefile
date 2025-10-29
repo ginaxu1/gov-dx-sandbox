@@ -50,18 +50,18 @@ clean: ## Clean up test artifacts
 
 run-compose: ## Start Docker Compose services
 	@echo "Starting Docker Compose services..."
-	docker-compose up -d
+	docker compose up -d
 
 down-compose: ## Stop Docker Compose services
 	@echo "Stopping Docker Compose services..."
-	docker-compose down -v
+	docker compose down -v
 
 logs: ## Show Docker Compose logs
-	docker-compose logs -f
+	docker compose logs -f
 
 clean-all: clean down-compose ## Clean everything including containers
 	@echo "Cleaning everything..."
-	docker-compose down -v --rmi local || true
+	docker compose down -v --rmi local || true
 
 coverage: deps ## Generate test coverage report
 	@echo "Generating coverage report..."

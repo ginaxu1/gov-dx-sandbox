@@ -29,6 +29,44 @@ echo ""
 echo -e "${PURPLE}Step 3: DataCustodian checks consent with PDP${NC}"
 echo "DataCustodian sends 'check consent?' query to PDP"
 
+# First, create policy metadata for the fields we'll test
+echo "Creating policy metadata for test fields..."
+POLICY_METADATA_RESPONSE=$(curl -s -X POST http://localhost:8082/api/v1/policy/metadata \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schemaId": "person_schema_v1",
+    "records": [
+      {
+        "fieldName": "person.fullName",
+        "displayName": "Full Name",
+        "description": "Person'\''s full name",
+        "source": "primary",
+        "isOwner": true,
+        "accessControlType": "public"
+      },
+      {
+        "fieldName": "person.nic",
+        "displayName": "NIC Number",
+        "description": "National Identity Card number",
+        "source": "primary",
+        "isOwner": false,
+        "accessControlType": "restricted",
+        "owner": "government"
+      },
+      {
+        "fieldName": "person.photo",
+        "displayName": "Photo",
+        "description": "Person'\''s photo",
+        "source": "primary",
+        "isOwner": false,
+        "accessControlType": "restricted",
+        "owner": "government"
+      }
+    ]
+  }')
+
+echo "Policy metadata created"
+
 # Test with consent-required fields
 echo "Testing with consent-required fields (person.nic, person.photo)..."
 PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/api/v1/policy/decide \
@@ -125,6 +163,31 @@ echo ""
 # Step 9: App requests data again from DataCustodian
 echo -e "${PURPLE}Step 9: App requests data again from DataCustodian${NC}"
 echo "App sends getData() request to DataCustodian again"
+
+# First create metadata for additional fields if not already created
+curl -s -X POST http://localhost:8082/api/v1/policy/metadata \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schemaId": "person_schema_v1",
+    "records": [
+      {
+        "fieldName": "person.permanentAddress",
+        "displayName": "Permanent Address",
+        "description": "Person'\''s permanent address",
+        "source": "primary",
+        "isOwner": false,
+        "accessControlType": "public"
+      },
+      {
+        "fieldName": "person.birthDate",
+        "displayName": "Birth Date",
+        "description": "Person'\''s birth date",
+        "source": "primary",
+        "isOwner": false,
+        "accessControlType": "public"
+      }
+    ]
+  }' > /dev/null
 
 # Test the same request again (now with consent)
 PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8082/api/v1/policy/decide \
