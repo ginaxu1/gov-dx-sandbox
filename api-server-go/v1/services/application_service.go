@@ -23,14 +23,13 @@ func NewApplicationService(db *gorm.DB, pdpService *PDPService) *ApplicationServ
 
 // CreateApplication creates a new application
 func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequest) (*models.ApplicationResponse, error) {
-
 	// Create application
 	application := models.Application{
 		ApplicationID:          "app_" + uuid.New().String(),
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
 		SelectedFields:         req.SelectedFields,
-		ConsumerID:             req.ConsumerID,
+		MemberID:               req.MemberID,
 		Version:                models.ActiveVersion,
 	}
 
@@ -67,7 +66,7 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
 		SelectedFields:         application.SelectedFields,
-		ConsumerID:             application.ConsumerID,
+		MemberID:               application.MemberID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
@@ -106,7 +105,7 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
 		SelectedFields:         application.SelectedFields,
-		ConsumerID:             application.ConsumerID,
+		MemberID:               application.MemberID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
@@ -118,7 +117,7 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 // GetApplication retrieves an application by ID
 func (s *ApplicationService) GetApplication(applicationID string) (*models.ApplicationResponse, error) {
 	var application models.Application
-	err := s.db.Preload("Consumer").First(&application, "application_id = ?", applicationID).Error
+	err := s.db.Preload("Member").First(&application, "application_id = ?", applicationID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +127,7 @@ func (s *ApplicationService) GetApplication(applicationID string) (*models.Appli
 		ApplicationName:        application.ApplicationName,
 		ApplicationDescription: application.ApplicationDescription,
 		SelectedFields:         application.SelectedFields,
-		ConsumerID:             application.ConsumerID,
+		MemberID:               application.MemberID,
 		Version:                application.Version,
 		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
@@ -137,12 +136,12 @@ func (s *ApplicationService) GetApplication(applicationID string) (*models.Appli
 	return response, nil
 }
 
-// GetApplications retrieves all applications and filters by consumer ID if provided
-func (s *ApplicationService) GetApplications(consumerID *string) ([]models.ApplicationResponse, error) {
+// GetApplications retrieves all applications and filters by member ID if provided
+func (s *ApplicationService) GetApplications(MemberID *string) ([]models.ApplicationResponse, error) {
 	var applications []models.Application
-	query := s.db.Preload("Consumer")
-	if consumerID != nil && *consumerID != "" {
-		query = query.Where("consumer_id = ?", *consumerID)
+	query := s.db.Preload("Member")
+	if MemberID != nil && *MemberID != "" {
+		query = query.Where("member_id = ?", *MemberID)
 	}
 
 	// Order by created_at descending
@@ -161,7 +160,7 @@ func (s *ApplicationService) GetApplications(consumerID *string) ([]models.Appli
 			ApplicationName:        application.ApplicationName,
 			ApplicationDescription: application.ApplicationDescription,
 			SelectedFields:         application.SelectedFields,
-			ConsumerID:             application.ConsumerID,
+			MemberID:               application.MemberID,
 			Version:                application.Version,
 			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
@@ -182,9 +181,9 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		}
 	}
 
-	// Validate consumer ID
-	var consumer models.Consumer
-	err := s.db.First(&consumer, "consumer_id = ?", req.ConsumerID).Error
+	// Validate member ID
+	var member models.Member
+	err := s.db.First(&member, "member_id = ?", req.MemberID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +196,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		ApplicationDescription: req.ApplicationDescription,
 		SelectedFields:         req.SelectedFields,
 		Status:                 models.StatusPending,
-		ConsumerID:             req.ConsumerID,
+		MemberID:               req.MemberID,
 	}
 	if err := s.db.Create(&submission).Error; err != nil {
 		return nil, err
@@ -210,7 +209,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		ApplicationDescription: submission.ApplicationDescription,
 		SelectedFields:         submission.SelectedFields,
 		Status:                 submission.Status,
-		ConsumerID:             submission.ConsumerID,
+		MemberID:               submission.MemberID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 	}
@@ -253,7 +252,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 					ApplicationName:        submission.ApplicationName,
 					ApplicationDescription: submission.ApplicationDescription,
 					SelectedFields:         submission.SelectedFields,
-					ConsumerID:             submission.ConsumerID,
+					MemberID:               submission.MemberID,
 					Version:                models.ActiveVersion,
 				}
 				if err := tx.Create(&application).Error; err != nil {
@@ -290,7 +289,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		ApplicationDescription: submission.ApplicationDescription,
 		SelectedFields:         submission.SelectedFields,
 		Status:                 submission.Status,
-		ConsumerID:             submission.ConsumerID,
+		MemberID:               submission.MemberID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 		Review:                 submission.Review,
@@ -302,7 +301,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 // GetApplicationSubmission retrieves an application submission by ID
 func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*models.ApplicationSubmissionResponse, error) {
 	var submission models.ApplicationSubmission
-	err := s.db.Preload("Consumer").Preload("PreviousApplication").First(&submission, "submission_id = ?", submissionID).Error
+	err := s.db.Preload("Member").Preload("PreviousApplication").First(&submission, "submission_id = ?", submissionID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +313,7 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 		ApplicationDescription: submission.ApplicationDescription,
 		SelectedFields:         submission.SelectedFields,
 		Status:                 submission.Status,
-		ConsumerID:             submission.ConsumerID,
+		MemberID:               submission.MemberID,
 		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 		Review:                 submission.Review,
@@ -323,12 +322,12 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 	return response, nil
 }
 
-// GetApplicationSubmissions retrieves all application submissions and filters by consumer ID if provided
-func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statusFilter *[]string) ([]models.ApplicationSubmissionResponse, error) {
+// GetApplicationSubmissions retrieves all application submissions and filters by member ID if provided
+func (s *ApplicationService) GetApplicationSubmissions(MemberID *string, statusFilter *[]string) ([]models.ApplicationSubmissionResponse, error) {
 	var submissions []models.ApplicationSubmission
-	query := s.db.Preload("Consumer").Preload("PreviousApplication")
-	if consumerID != nil && *consumerID != "" {
-		query = query.Where("consumer_id = ?", *consumerID)
+	query := s.db.Preload("Member").Preload("PreviousApplication")
+	if MemberID != nil && *MemberID != "" {
+		query = query.Where("member_id = ?", *MemberID)
 	}
 	if statusFilter != nil && len(*statusFilter) > 0 {
 		query = query.Where("status IN ?", *statusFilter)
@@ -351,7 +350,7 @@ func (s *ApplicationService) GetApplicationSubmissions(consumerID *string, statu
 			ApplicationDescription: submission.ApplicationDescription,
 			SelectedFields:         submission.SelectedFields,
 			Status:                 submission.Status,
-			ConsumerID:             submission.ConsumerID,
+			MemberID:               submission.MemberID,
 			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 			Review:                 submission.Review,

@@ -91,9 +91,7 @@ func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
 	if os.Getenv("RUN_MIGRATION") == "true" {
 		slog.Info("Running GORM auto-migration for V1 models")
 		err = db.AutoMigrate(
-			&models.Entity{},
-			&models.Provider{},
-			&models.Consumer{},
+			&models.Member{},
 			&models.Schema{},
 			&models.SchemaSubmission{},
 			&models.Application{},
