@@ -13,13 +13,6 @@ const (
 	DeprecatedVersion = "deprecated"
 )
 
-// Entity type constants
-const (
-	EntityTypeProvider = "provider"
-	EntityTypeConsumer = "consumer"
-	EntityTypeAdmin    = "admin"
-)
-
 // Common field constraints
 const (
 	MaxNameLength        = 255

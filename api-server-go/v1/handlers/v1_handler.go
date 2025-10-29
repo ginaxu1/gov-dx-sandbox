@@ -8,24 +8,44 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gov-dx-sandbox/api-server-go/idp"
+	"github.com/gov-dx-sandbox/api-server-go/idp/idpfactory"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
+
 	"gorm.io/gorm"
 )
 
 // V1Handler handles all V1 API routes
 type V1Handler struct {
-	providerService    *services.ProviderService
-	consumerService    *services.ConsumerService
-	entityService      *services.EntityService
+	memberService      *services.MemberService
 	applicationService *services.ApplicationService
 	schemaService      *services.SchemaService
 }
 
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
-	entityService := services.NewEntityService(db)
+	// Get scopes from environment variable, fallback to default if not set
+	asgScopesEnv := os.Getenv("ASGARDEO_SCOPES")
+	var scopes []string
+	if asgScopesEnv != "" {
+		// Split by space to handle multiple scopes
+		scopes = strings.Fields(asgScopesEnv)
+	}
+	// Create the NewIdpProvider
+	idpProvider, err := idpfactory.NewIdpAPIProvider(idpfactory.FactoryConfig{
+		ProviderType: idp.ProviderAsgardeo,
+		BaseURL:      os.Getenv("ASGARDEO_BASE_URL"),
+		ClientID:     os.Getenv("ASGARDEO_CLIENT_ID"),
+		ClientSecret: os.Getenv("ASGARDEO_CLIENT_SECRET"),
+		Scopes:       scopes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create IDP provider: %w", err)
+	}
+	memberService := services.NewMemberService(db, &idpProvider)
+
 	pdpServiceURL := os.Getenv("PDP_SERVICE_URL")
 	if pdpServiceURL == "" {
 		return nil, fmt.Errorf("PDP_SERVICE_URL environment variable not set")
@@ -33,9 +53,7 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 	pdpService := services.NewPDPService(pdpServiceURL)
 	slog.Info("PDP Service URL", "url", pdpServiceURL)
 	return &V1Handler{
-		entityService:      entityService,
-		providerService:    services.NewProviderService(db, entityService),
-		consumerService:    services.NewConsumerService(db, entityService),
+		memberService:      memberService,
 		schemaService:      services.NewSchemaService(db, pdpService),
 		applicationService: services.NewApplicationService(db, pdpService),
 	}, nil
@@ -43,10 +61,6 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 
 // SetupV1Routes configures all V1 API routes
 func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
-	// Provider routes
-	mux.Handle("/api/v1/providers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
-	mux.Handle("/api/v1/providers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleProviders)))
-
 	// Schema routes
 	mux.Handle("/api/v1/schemas", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
 	mux.Handle("/api/v1/schemas/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
@@ -54,10 +68,6 @@ func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	// SchemaSubmission routes
 	mux.Handle("/api/v1/schema-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
 	mux.Handle("/api/v1/schema-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
-
-	// Consumer routes
-	mux.Handle("/api/v1/consumers", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
-	mux.Handle("/api/v1/consumers/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleConsumers)))
 
 	// Application routes
 	mux.Handle("/api/v1/applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
@@ -67,23 +77,23 @@ func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	mux.Handle("/api/v1/application-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
 	mux.Handle("/api/v1/application-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
 
-	// Entity routes
-	mux.Handle("/api/v1/entities", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
-	mux.Handle("/api/v1/entities/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleEntities)))
+	// Member routes
+	mux.Handle("/api/v1/members", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleMembers)))
+	mux.Handle("/api/v1/members/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleMembers)))
 }
 
-// handleProviders handles provider-related routes
-func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/providers")
+// handleMembers handles member-related routes
+func (h *V1Handler) handleMembers(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/members")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 
-	// Handle collection endpoint: GET /api/v1/providers and POST /api/v1/providers
+	// Handle collection endpoint: GET /api/v1/members and POST /api/v1/members
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
 		case http.MethodGet:
-			h.getAllProviders(w, r)
+			h.getAllMembers(w, r)
 		case http.MethodPost:
-			h.createProvider(w, r)
+			h.createMember(w, r)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -91,194 +101,19 @@ func (h *V1Handler) handleProviders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Provider ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Member ID is required")
 		return
 	}
 
-	providerID := parts[0]
+	memberID := parts[0]
 
-	// Handle base provider endpoint: GET /api/v1/providers/:providerId and PUT /api/v1/providers/:providerId
+	// Handle base member endpoint: GET /api/v1/members/:memberId and PUT /api/v1/members/:memberId
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			h.getProvider(w, r, providerID)
+			h.getMember(w, r, memberID)
 		case http.MethodPut:
-			h.updateProvider(w, r, providerID)
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle provider schemas: GET /api/v1/providers/:providerId/schemas
-	if len(parts) == 2 && parts[1] == "schemas" {
-		switch r.Method {
-		case http.MethodGet:
-			h.getAllSchemas(w, r, &providerID)
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle provider schema submissions: /api/v1/providers/:providerId/schema-submissions?status=pending&status=rejected
-	if len(parts) == 2 && parts[1] == "schema-submissions" {
-		switch r.Method {
-		case http.MethodGet:
-			status := r.URL.Query()["status"]
-			h.getAllSchemaSubmissions(w, r, &providerID, &status)
-		case http.MethodPost:
-			h.createSchemaSubmission(w, r, &providerID)
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle specific provider schema: PUT /api/v1/providers/:providerId/schemas/:schemaId
-	if len(parts) == 3 && parts[1] == "schemas" {
-		switch r.Method {
-		case http.MethodPut:
-			h.updateSchema(w, r, parts[2])
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle specific provider schema submission: PUT /api/v1/providers/:providerId/schema-submissions/:submissionId
-	if len(parts) == 3 && parts[1] == "schema-submissions" {
-		switch r.Method {
-		case http.MethodPut:
-			h.updateSchemaSubmission(w, r, parts[2])
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
-}
-
-// handleConsumers handles consumer-related routes
-func (h *V1Handler) handleConsumers(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/consumers")
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-
-	// Handle collection endpoint: GET /api/v1/consumers and POST /api/v1/consumers
-	if len(parts) == 1 && parts[0] == "" {
-		switch r.Method {
-		case http.MethodGet:
-			h.getAllConsumers(w, r)
-		case http.MethodPost:
-			h.createConsumer(w, r)
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Consumer ID is required")
-		return
-	}
-
-	consumerID := parts[0]
-
-	// Handle base consumer endpoint: GET /api/v1/consumers/:consumerId and PUT /api/v1/consumers/:consumerId
-	if len(parts) == 1 {
-		switch r.Method {
-		case http.MethodGet:
-			h.getConsumer(w, r, consumerID)
-		case http.MethodPut:
-			h.updateConsumer(w, r, consumerID)
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle consumer applications: GET /api/v1/consumers/:consumerId/applications
-	if len(parts) == 2 && parts[1] == "applications" {
-		if r.Method == http.MethodGet {
-			h.getAllApplications(w, r, &consumerID)
-		} else {
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle consumer application submissions: /api/v1/consumers/:consumerId/application-submissions?status=pending&status=rejected
-	if len(parts) == 2 && parts[1] == "application-submissions" {
-		switch r.Method {
-		case http.MethodGet:
-			status := r.URL.Query()["status"]
-			h.getAllApplicationSubmissions(w, r, &consumerID, &status)
-		case http.MethodPost:
-			h.createApplicationSubmission(w, r, &consumerID)
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle specific consumer application: PUT /api/v1/consumers/:consumerId/applications/:applicationId
-	if len(parts) == 3 && parts[1] == "applications" {
-		switch r.Method {
-		case http.MethodPut:
-			h.updateApplication(w, r, parts[2])
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	// Handle specific consumer application submission: PUT /api/v1/consumers/:consumerId/application-submissions/:submissionId
-	if len(parts) == 3 && parts[1] == "application-submissions" {
-		switch r.Method {
-		case http.MethodPut:
-			h.updateApplicationSubmission(w, r, parts[2])
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
-}
-
-// handleEntities handles entity-related routes
-func (h *V1Handler) handleEntities(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/entities")
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-
-	// Handle collection endpoint: GET /api/v1/entities and POST /api/v1/entities
-	if len(parts) == 1 && parts[0] == "" {
-		switch r.Method {
-		case http.MethodGet:
-			h.getAllEntities(w, r)
-		case http.MethodPost:
-			h.createEntity(w, r)
-		default:
-			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-		return
-	}
-
-	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Entity ID is required")
-		return
-	}
-
-	entityID := parts[0]
-
-	// Handle base entity endpoint: GET /api/v1/entities/:entityId and PUT /api/v1/entities/:entityId
-	if len(parts) == 1 {
-		switch r.Method {
-		case http.MethodGet:
-			h.getEntity(w, r, entityID)
-		case http.MethodPut:
-			h.updateEntity(w, r, entityID)
+			h.updateMember(w, r, memberID)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -297,8 +132,8 @@ func (h *V1Handler) handleSchemas(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
 		case http.MethodGet:
-			providerID := r.URL.Query().Get("providerId")
-			h.getAllSchemas(w, r, &providerID)
+			memberID := r.URL.Query().Get("memberID")
+			h.getAllSchemas(w, r, &memberID)
 		case http.MethodPost:
 			h.createSchema(w, r)
 		default:
@@ -338,8 +173,8 @@ func (h *V1Handler) handleSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 		switch r.Method {
 		case http.MethodGet:
 			status := r.URL.Query()["status"]
-			providerID := r.URL.Query().Get("providerId")
-			h.getAllSchemaSubmissions(w, r, &providerID, &status)
+			memberID := r.URL.Query().Get("memberID")
+			h.getAllSchemaSubmissions(w, r, &memberID, &status)
 		case http.MethodPost:
 			h.createSchemaSubmission(w, r, nil)
 		default:
@@ -377,8 +212,8 @@ func (h *V1Handler) handleApplications(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
 		case http.MethodGet:
-			consumerID := r.URL.Query().Get("consumerId")
-			h.getAllApplications(w, r, &consumerID)
+			memberID := r.URL.Query().Get("memberID")
+			h.getAllApplications(w, r, &memberID)
 		case http.MethodPost:
 			h.createApplication(w, r)
 		default:
@@ -418,8 +253,8 @@ func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.
 		switch r.Method {
 		case http.MethodGet:
 			status := r.URL.Query()["status"]
-			consumerID := r.URL.Query().Get("consumerId")
-			h.getAllApplicationSubmissions(w, r, &consumerID, &status)
+			memberID := r.URL.Query().Get("memberID")
+			h.getAllApplicationSubmissions(w, r, &memberID, &status)
 		case http.MethodPost:
 			h.createApplicationSubmission(w, r, nil)
 		default:
@@ -449,183 +284,67 @@ func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.
 	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
 }
 
-// Provider handlers
-func (h *V1Handler) createProvider(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateProviderRequest
+// Member handlers
+func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateMemberRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	provider, err := h.providerService.CreateProvider(&req)
+	member, err := h.memberService.CreateMember(&req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusCreated, provider)
+	utils.RespondWithSuccess(w, http.StatusCreated, member)
 }
 
-func (h *V1Handler) updateProvider(w http.ResponseWriter, r *http.Request, providerID string) {
-	var req models.UpdateProviderRequest
+func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberID string) {
+	var req models.UpdateMemberRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	provider, err := h.providerService.UpdateProvider(providerID, &req)
+	member, err := h.memberService.UpdateMember(memberID, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusOK, provider)
+	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
 
-func (h *V1Handler) getProvider(w http.ResponseWriter, r *http.Request, providerID string) {
-	provider, err := h.providerService.GetProvider(providerID)
+func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberID string) {
+	member, err := h.memberService.GetMember(memberID)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	utils.RespondWithSuccess(w, http.StatusOK, provider)
+	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
 
-func (h *V1Handler) getAllProviders(w http.ResponseWriter, r *http.Request) {
-	providers, err := h.providerService.GetAllProviders()
+func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request) {
+	members, err := h.memberService.GetAllMembers()
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	response := models.CollectionResponse{
-		Items: providers,
-		Count: len(providers),
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-// Consumer handlers
-func (h *V1Handler) createConsumer(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateConsumerRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	consumer, err := h.consumerService.CreateConsumer(&req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusCreated, consumer)
-}
-
-func (h *V1Handler) updateConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
-	var req models.UpdateConsumerRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	consumer, err := h.consumerService.UpdateConsumer(consumerID, &req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, consumer)
-}
-
-func (h *V1Handler) getConsumer(w http.ResponseWriter, r *http.Request, consumerID string) {
-	consumer, err := h.consumerService.GetConsumer(consumerID)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, consumer)
-}
-
-func (h *V1Handler) getAllConsumers(w http.ResponseWriter, r *http.Request) {
-	consumers, err := h.consumerService.GetAllConsumers()
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := models.CollectionResponse{
-		Items: consumers,
-		Count: len(consumers),
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, response)
-}
-
-// Entity handlers
-func (h *V1Handler) createEntity(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateEntityRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	entity, err := h.entityService.CreateEntity(&req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusCreated, entity)
-}
-
-func (h *V1Handler) updateEntity(w http.ResponseWriter, r *http.Request, entityID string) {
-	var req models.UpdateEntityRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	entity, err := h.entityService.UpdateEntity(entityID, &req)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	utils.RespondWithSuccess(w, http.StatusOK, entity)
-}
-
-func (h *V1Handler) getEntity(w http.ResponseWriter, r *http.Request, entityID string) {
-	entity, err := h.entityService.GetEntity(entityID)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	utils.RespondWithSuccess(w, http.StatusOK, entity)
-}
-
-func (h *V1Handler) getAllEntities(w http.ResponseWriter, r *http.Request) {
-	entities, err := h.entityService.GetAllEntities()
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	response := models.CollectionResponse{
-		Items: entities,
-		Count: len(entities),
+		Items: members,
+		Count: len(members),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
 // Schema handlers
-func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Request, providerID *string, statusFilter *[]string) {
-	submissions, err := h.schemaService.GetSchemaSubmissions(providerID, statusFilter)
+func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Request, memberID *string, statusFilter *[]string) {
+	submissions, err := h.schemaService.GetSchemaSubmissions(memberID, statusFilter)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -647,7 +366,7 @@ func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Request, providerID *string) {
+func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Request, memberID *string) {
 	var req models.CreateSchemaSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -655,8 +374,8 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if providerID != nil {
-		req.ProviderID = *providerID
+	if memberID != nil {
+		req.MemberID = *memberID
 	}
 
 	submission, err := h.schemaService.CreateSchemaSubmission(&req)
@@ -685,8 +404,8 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, providerID *string) {
-	schemas, err := h.schemaService.GetSchemas(providerID)
+func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, memberID *string) {
+	schemas, err := h.schemaService.GetSchemas(memberID)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -743,8 +462,8 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 }
 
 // Application handlers
-func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.Request, consumerID *string, statusFilter *[]string) {
-	submissions, err := h.applicationService.GetApplicationSubmissions(consumerID, statusFilter)
+func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.Request, memberID *string, statusFilter *[]string) {
+	submissions, err := h.applicationService.GetApplicationSubmissions(memberID, statusFilter)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -766,7 +485,7 @@ func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Requ
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.Request, consumerID *string) {
+func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.Request, memberID *string) {
 	var req models.CreateApplicationSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -774,8 +493,8 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if consumerID != nil {
-		req.ConsumerID = *consumerID
+	if memberID != nil {
+		req.MemberID = *memberID
 	}
 
 	submission, err := h.applicationService.CreateApplicationSubmission(&req)
@@ -804,8 +523,8 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, consumerID *string) {
-	applications, err := h.applicationService.GetApplications(consumerID)
+func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, memberID *string) {
+	applications, err := h.applicationService.GetApplications(memberID)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
