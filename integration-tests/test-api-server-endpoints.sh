@@ -2,7 +2,11 @@
 
 # Test all /api/v1 endpoints and clean up created records
 
-API_URL="http://localhost:3000"
+# Source shared utilities (optional - for consistency with other integration tests)
+# source "$(dirname "$0")/test-utils.sh"
+
+# Use API_SERVER_URL to match naming convention in other integration tests
+API_SERVER_URL="${API_SERVER_URL:-http://localhost:3000}"
 TEST_PREFIX="test-$(date +%s)"
 
 echo "=== Testing API Server V1 Endpoints ==="
@@ -16,12 +20,12 @@ SCHEMA_ID=""
 
 # 1. Health Check
 echo -e "\n1. Testing /health"
-curl -s "$API_URL/health" | jq .
+curl -s "$API_SERVER_URL/health" | jq .
 echo ""
 
 # 2. Create Consumer
 echo "2. Creating Consumer"
-CONSUMER_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/consumers" \
+CONSUMER_RESPONSE=$(curl -s -X POST "$API_SERVER_URL/api/v1/consumers" \
   -H "Content-Type: application/json" \
   -d "{
     \"name\": \"$TEST_PREFIX Consumer\",
@@ -38,18 +42,18 @@ echo ""
 # 3. Get Consumer
 if [ ! -z "$CONSUMER_ID" ]; then
   echo "3. Getting Consumer $CONSUMER_ID"
-  curl -s "$API_URL/api/v1/consumers/$CONSUMER_ID" | jq .
+  curl -s "$API_SERVER_URL/api/v1/consumers/$CONSUMER_ID" | jq .
   echo ""
 fi
 
 # 4. List All Consumers
 echo "4. Listing All Consumers"
-curl -s "$API_URL/api/v1/consumers" | jq '.count'
+curl -s "$API_SERVER_URL/api/v1/consumers" | jq '.count'
 echo ""
 
 # 5. Create Provider
 echo "5. Creating Provider"
-PROVIDER_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/providers" \
+PROVIDER_RESPONSE=$(curl -s -X POST "$API_SERVER_URL/api/v1/providers" \
   -H "Content-Type: application/json" \
   -d "{
     \"name\": \"$TEST_PREFIX Provider\",
@@ -65,19 +69,19 @@ echo ""
 # 6. Get Provider
 if [ ! -z "$PROVIDER_ID" ]; then
   echo "6. Getting Provider $PROVIDER_ID"
-  curl -s "$API_URL/api/v1/providers/$PROVIDER_ID" | jq .
+  curl -s "$API_SERVER_URL/api/v1/providers/$PROVIDER_ID" | jq .
   echo ""
 fi
 
 # 7. List All Providers
 echo "7. Listing All Providers"
-curl -s "$API_URL/api/v1/providers" | jq 'length'
+curl -s "$API_SERVER_URL/api/v1/providers" | jq 'length'
 echo ""
 
 # 8. Create Schema (requires provider)
 if [ ! -z "$PROVIDER_ID" ]; then
   echo "8. Creating Schema"
-  SCHEMA_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/schemas" \
+  SCHEMA_RESPONSE=$(curl -s -X POST "$API_SERVER_URL/api/v1/schemas" \
     -H "Content-Type: application/json" \
     -d "{
       \"schemaName\": \"$TEST_PREFIX Schema\",
@@ -94,13 +98,13 @@ fi
 
 # 9. List All Schemas
 echo "9. Listing All Schemas"
-curl -s "$API_URL/api/v1/schemas" | jq '.count'
+curl -s "$API_SERVER_URL/api/v1/schemas" | jq '.count'
 echo ""
 
 # 10. Create Application (requires consumer)
 if [ ! -z "$CONSUMER_ID" ]; then
   echo "10. Creating Application"
-  APP_RESPONSE=$(curl -s -X POST "$API_URL/api/v1/applications" \
+  APP_RESPONSE=$(curl -s -X POST "$API_SERVER_URL/api/v1/applications" \
     -H "Content-Type: application/json" \
     -d "{
       \"applicationName\": \"$TEST_PREFIX Application\",
@@ -121,13 +125,13 @@ fi
 
 # 11. List All Applications
 echo "11. Listing All Applications"
-curl -s "$API_URL/api/v1/applications" | jq '.count'
+curl -s "$API_SERVER_URL/api/v1/applications" | jq '.count'
 echo ""
 
 # 12. Get Entity
 if [ ! -z "$ENTITY_ID" ]; then
   echo "12. Getting Entity $ENTITY_ID"
-  curl -s "$API_URL/api/v1/entities/$ENTITY_ID" | jq .
+  curl -s "$API_SERVER_URL/api/v1/entities/$ENTITY_ID" | jq .
   echo ""
 fi
 
@@ -136,22 +140,22 @@ echo "=== Cleaning Up Test Records ==="
 
 if [ ! -z "$APPLICATION_ID" ]; then
   echo "Deleting Application $APPLICATION_ID"
-  curl -s -X DELETE "$API_URL/api/v1/applications/$APPLICATION_ID" || echo "Failed to delete application"
+  curl -s -X DELETE "$API_SERVER_URL/api/v1/applications/$APPLICATION_ID" || echo "Failed to delete application"
 fi
 
 if [ ! -z "$SCHEMA_ID" ]; then
   echo "Deleting Schema $SCHEMA_ID"
-  curl -s -X DELETE "$API_URL/api/v1/schemas/$SCHEMA_ID" || echo "Failed to delete schema"
+  curl -s -X DELETE "$API_SERVER_URL/api/v1/schemas/$SCHEMA_ID" || echo "Failed to delete schema"
 fi
 
 if [ ! -z "$PROVIDER_ID" ]; then
   echo "Deleting Provider $PROVIDER_ID"
-  curl -s -X DELETE "$API_URL/api/v1/providers/$PROVIDER_ID" || echo "Failed to delete provider"
+  curl -s -X DELETE "$API_SERVER_URL/api/v1/providers/$PROVIDER_ID" || echo "Failed to delete provider"
 fi
 
 if [ ! -z "$CONSUMER_ID" ]; then
   echo "Deleting Consumer $CONSUMER_ID"
-  curl -s -X DELETE "$API_URL/api/v1/consumers/$CONSUMER_ID" || echo "Failed to delete consumer"
+  curl -s -X DELETE "$API_SERVER_URL/api/v1/consumers/$CONSUMER_ID" || echo "Failed to delete consumer"
 fi
 
 echo ""
