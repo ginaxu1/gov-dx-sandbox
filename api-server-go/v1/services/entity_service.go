@@ -4,13 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/api-server-go/idp"
-	"github.com/gov-dx-sandbox/api-server-go/idp/idpfactory"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"gorm.io/gorm"
 )
@@ -22,27 +19,8 @@ type EntityService struct {
 }
 
 // NewEntityService creates a new entity service
-func NewEntityService(db *gorm.DB) *EntityService {
-	// Get scopes from environment variable, fallback to default if not set
-	scopesEnv := os.Getenv("ASGARDEO_SCOPES")
-	var scopes []string
-	if scopesEnv != "" {
-		// Split by space to handle multiple scopes
-		scopes = strings.Fields(scopesEnv)
-	}
-
-	// Create the NewIdpProvider
-	idpProvider, err := idpfactory.NewIdpAPIProvider(idpfactory.FactoryConfig{
-		ProviderType: idp.ProviderAsgardeo,
-		BaseURL:      os.Getenv("ASGARDEO_BASE_URL"),
-		ClientID:     os.Getenv("ASGARDEO_CLIENT_ID"),
-		ClientSecret: os.Getenv("ASGARDEO_CLIENT_SECRET"),
-		Scopes:       scopes,
-	})
-	if err != nil {
-		panic(fmt.Sprintf("failed to create IDP provider: %v", err))
-	}
-	return &EntityService{db: db, idp: &idpProvider}
+func NewEntityService(db *gorm.DB, idp *idp.IdentityProviderAPI) *EntityService {
+	return &EntityService{db: db, idp: idp}
 }
 
 // CreateEntity creates a new entity
@@ -78,6 +56,11 @@ func (s *EntityService) CreateEntity(req *models.CreateEntityRequest) (*models.E
 	}
 
 	if err := s.db.Create(&entity).Error; err != nil {
+		// Rollback IDP user creation if DB operation fails (not implemented here)
+		err := (*s.idp).DeleteUser(ctx, createdUser.Id)
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to create entity: %w", err)
 	}
 
@@ -104,18 +87,16 @@ func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRe
 
 	// Check if we need to update the IDP user
 	needsIdpUpdate := false
-	updatedName := entity.Name
-	updatedPhoneNumber := entity.PhoneNumber
+	beforeUpdateName := entity.Name
+	beforeUpdatePhoneNumber := entity.PhoneNumber
 
 	// Update fields if provided
 	if req.Name != nil {
 		entity.Name = *req.Name
-		updatedName = *req.Name
 		needsIdpUpdate = true
 	}
 	if req.PhoneNumber != nil {
 		entity.PhoneNumber = *req.PhoneNumber
-		updatedPhoneNumber = *req.PhoneNumber
 		needsIdpUpdate = true
 	}
 
@@ -124,9 +105,9 @@ func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRe
 		ctx := context.Background()
 		userInstance := &idp.User{
 			Email:       entity.Email,
-			FirstName:   updatedName,
+			FirstName:   entity.Name,
 			LastName:    "",
-			PhoneNumber: updatedPhoneNumber,
+			PhoneNumber: entity.PhoneNumber,
 		}
 
 		_, err := (*s.idp).UpdateUser(ctx, entity.IdpUserID, userInstance)
@@ -138,6 +119,16 @@ func (s *EntityService) UpdateEntity(entityID string, req *models.UpdateEntityRe
 	}
 
 	if err := s.db.Save(&entity).Error; err != nil {
+		// Rollback IDP user update if DB operation fails (not implemented here)
+		_, err := (*s.idp).UpdateUser(context.Background(), entity.IdpUserID, &idp.User{
+			Email:       entity.Email,
+			FirstName:   beforeUpdateName,
+			LastName:    "",
+			PhoneNumber: beforeUpdatePhoneNumber,
+		})
+		if err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to update entity: %w", err)
 	}
 
