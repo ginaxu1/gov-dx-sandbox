@@ -29,7 +29,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		SchemaDescription: req.SchemaDescription,
 		SDL:               req.SDL,
 		Endpoint:          req.Endpoint,
-		ProviderID:        req.ProviderID,
+		MemberID:          req.MemberID,
 		Version:           models.ActiveVersion,
 	}
 
@@ -62,7 +62,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		SDL:               schema.SDL,
 		Endpoint:          schema.Endpoint,
 		Version:           schema.Version,
-		ProviderID:        schema.ProviderID,
+		MemberID:          schema.MemberID,
 		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 	}
@@ -105,7 +105,7 @@ func (s *SchemaService) UpdateSchema(schemaID string, req *models.UpdateSchemaRe
 		SchemaDescription: schema.SchemaDescription,
 		SDL:               schema.SDL,
 		Endpoint:          schema.Endpoint,
-		ProviderID:        schema.ProviderID,
+		MemberID:          schema.MemberID,
 		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 	}
@@ -128,7 +128,7 @@ func (s *SchemaService) GetSchema(schemaID string) (*models.SchemaResponse, erro
 		SDL:               schema.SDL,
 		Endpoint:          schema.Endpoint,
 		Version:           schema.Version,
-		ProviderID:        schema.ProviderID,
+		MemberID:          schema.MemberID,
 		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 	}
@@ -136,12 +136,12 @@ func (s *SchemaService) GetSchema(schemaID string) (*models.SchemaResponse, erro
 	return response, nil
 }
 
-// GetSchemas Get all schemas and filter by provider ID if given
-func (s *SchemaService) GetSchemas(providerID *string) ([]*models.SchemaResponse, error) {
+// GetSchemas Get all schemas and filter by member ID if given
+func (s *SchemaService) GetSchemas(memberID *string) ([]*models.SchemaResponse, error) {
 	var schemas []models.Schema
 	query := s.db
-	if providerID != nil && *providerID != "" {
-		query = query.Where("provider_id = ?", *providerID)
+	if memberID != nil && *memberID != "" {
+		query = query.Where("member_id = ?", *memberID)
 	}
 
 	// Order by created_at descending
@@ -162,7 +162,7 @@ func (s *SchemaService) GetSchemas(providerID *string) ([]*models.SchemaResponse
 			SDL:               schema.SDL,
 			Endpoint:          schema.Endpoint,
 			Version:           schema.Version,
-			ProviderID:        schema.ProviderID,
+			MemberID:          schema.MemberID,
 			CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 		})
@@ -173,10 +173,10 @@ func (s *SchemaService) GetSchemas(providerID *string) ([]*models.SchemaResponse
 
 // CreateSchemaSubmission creates a new schema
 func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissionRequest) (*models.SchemaSubmissionResponse, error) {
-	// Check if provider exists
-	var provider models.Provider
-	if err := s.db.First(&provider, "provider_id = ?", req.ProviderID).Error; err != nil {
-		return nil, fmt.Errorf("provider not found: %w", err)
+	// Check if member exists
+	var member models.Member
+	if err := s.db.First(&member, "member_id = ?", req.MemberID).Error; err != nil {
+		return nil, fmt.Errorf("member not found: %w", err)
 	}
 
 	// If PreviousSchemaID is provided, check if it exists
@@ -196,7 +196,7 @@ func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissio
 		SDL:               req.SDL,
 		SchemaEndpoint:    req.SchemaEndpoint,
 		Status:            models.StatusPending,
-		ProviderID:        req.ProviderID,
+		MemberID:          req.MemberID,
 	}
 	if err := s.db.Create(&submission).Error; err != nil {
 		return nil, fmt.Errorf("failed to create schema submission: %w", err)
@@ -210,7 +210,7 @@ func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissio
 		SDL:               submission.SDL,
 		SchemaEndpoint:    submission.SchemaEndpoint,
 		Status:            submission.Status,
-		ProviderID:        submission.ProviderID,
+		MemberID:          submission.MemberID,
 		CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
 	}
@@ -252,7 +252,7 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 					SchemaDescription: submission.SchemaDescription,
 					SDL:               submission.SDL,
 					Endpoint:          submission.SchemaEndpoint,
-					ProviderID:        submission.ProviderID,
+					MemberID:          submission.MemberID,
 				}
 				if err := tx.Create(&newSchema).Error; err != nil {
 					return fmt.Errorf("failed to create schema: %w", err)
@@ -291,7 +291,7 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 		SDL:               submission.SDL,
 		SchemaEndpoint:    submission.SchemaEndpoint,
 		Status:            submission.Status,
-		ProviderID:        submission.ProviderID,
+		MemberID:          submission.MemberID,
 		CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
 		Review:            submission.Review,
@@ -316,7 +316,7 @@ func (s *SchemaService) GetSchemaSubmission(submissionID string) (*models.Schema
 		SDL:               submission.SDL,
 		SchemaEndpoint:    submission.SchemaEndpoint,
 		Status:            submission.Status,
-		ProviderID:        submission.ProviderID,
+		MemberID:          submission.MemberID,
 		CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
 		Review:            submission.Review,
@@ -325,12 +325,12 @@ func (s *SchemaService) GetSchemaSubmission(submissionID string) (*models.Schema
 	return response, nil
 }
 
-// GetSchemaSubmissions Get all schema submissions and filter by provider ID OR Status Array if given
-func (s *SchemaService) GetSchemaSubmissions(providerID *string, statusFilter *[]string) ([]*models.SchemaSubmissionResponse, error) {
+// GetSchemaSubmissions Get all schema submissions and filter by member ID OR Status Array if given
+func (s *SchemaService) GetSchemaSubmissions(memberID *string, statusFilter *[]string) ([]*models.SchemaSubmissionResponse, error) {
 	var submissions []models.SchemaSubmission
-	query := s.db.Preload("PreviousSchema").Preload("Provider")
-	if providerID != nil && *providerID != "" {
-		query = query.Where("provider_id = ?", *providerID)
+	query := s.db.Preload("PreviousSchema").Preload("Member")
+	if memberID != nil && *memberID != "" {
+		query = query.Where("member_id = ?", *memberID)
 	}
 
 	// Order by created_at descending
@@ -355,7 +355,7 @@ func (s *SchemaService) GetSchemaSubmissions(providerID *string, statusFilter *[
 			SDL:               submission.SDL,
 			SchemaEndpoint:    submission.SchemaEndpoint,
 			Status:            submission.Status,
-			ProviderID:        submission.ProviderID,
+			MemberID:          submission.MemberID,
 			CreatedAt:         submission.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:         submission.UpdatedAt.Format(time.RFC3339),
 			Review:            submission.Review,
