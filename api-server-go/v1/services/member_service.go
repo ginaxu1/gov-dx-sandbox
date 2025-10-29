@@ -173,9 +173,7 @@ func (s *MemberService) GetMember(memberID string) (*models.MemberResponse, erro
 
 // GetAllMembers retrieves all members
 func (s *MemberService) GetAllMembers() ([]models.MemberResponse, error) {
-	var results []struct {
-		models.Member
-	}
+	var results []models.Member
 
 	err := s.db.Table("members").Find(&results).Error
 	if err != nil {
@@ -185,13 +183,13 @@ func (s *MemberService) GetAllMembers() ([]models.MemberResponse, error) {
 	response := make([]models.MemberResponse, len(results))
 	for i, result := range results {
 		response[i] = models.MemberResponse{
-			MemberID:    result.Member.MemberID,
-			IdpUserID:   result.Member.IdpUserID,
-			Name:        result.Member.Name,
-			Email:       result.Member.Email,
-			PhoneNumber: result.Member.PhoneNumber,
-			CreatedAt:   result.Member.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   result.Member.UpdatedAt.Format(time.RFC3339),
+			MemberID:    result.MemberID,
+			IdpUserID:   result.IdpUserID,
+			Name:        result.Name,
+			Email:       result.Email,
+			PhoneNumber: result.PhoneNumber,
+			CreatedAt:   result.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   result.UpdatedAt.Format(time.RFC3339),
 		}
 	}
 
