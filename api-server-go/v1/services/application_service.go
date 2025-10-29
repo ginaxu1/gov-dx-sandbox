@@ -41,18 +41,6 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 			return fmt.Errorf("failed to create application: %w", err)
 		}
 
-		// Build response within transaction
-		response = &models.ApplicationResponse{
-			ApplicationID:          application.ApplicationID,
-			ApplicationName:        application.ApplicationName,
-			ApplicationDescription: application.ApplicationDescription,
-			SelectedFields:         application.SelectedFields,
-			ConsumerID:             application.ConsumerID,
-			Version:                application.Version,
-			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
-		}
-
 		return nil
 	})
 
@@ -81,6 +69,18 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		}
 		slog.Info("Successfully compensated application creation", "applicationID", application.ApplicationID)
 		return nil, fmt.Errorf("failed to update allow list: %w", err)
+	}
+
+	// Build response outside transaction - just data transformation
+	response = &models.ApplicationResponse{
+		ApplicationID:          application.ApplicationID,
+		ApplicationName:        application.ApplicationName,
+		ApplicationDescription: application.ApplicationDescription,
+		SelectedFields:         application.SelectedFields,
+		ConsumerID:             application.ConsumerID,
+		Version:                application.Version,
+		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -115,23 +115,23 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 			return err
 		}
 
-		// Build response within transaction
-		response = &models.ApplicationResponse{
-			ApplicationID:          application.ApplicationID,
-			ApplicationName:        application.ApplicationName,
-			ApplicationDescription: application.ApplicationDescription,
-			SelectedFields:         application.SelectedFields,
-			ConsumerID:             application.ConsumerID,
-			Version:                application.Version,
-			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
-		}
-
 		return nil
 	})
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Build response outside transaction - just data transformation
+	response = &models.ApplicationResponse{
+		ApplicationID:          application.ApplicationID,
+		ApplicationName:        application.ApplicationName,
+		ApplicationDescription: application.ApplicationDescription,
+		SelectedFields:         application.SelectedFields,
+		ConsumerID:             application.ConsumerID,
+		Version:                application.Version,
+		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -236,24 +236,24 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 			return fmt.Errorf("failed to create application submission: %w", err)
 		}
 
-		// Build response within transaction
-		response = &models.ApplicationSubmissionResponse{
-			SubmissionID:           submission.SubmissionID,
-			PreviousApplicationID:  submission.PreviousApplicationID,
-			ApplicationName:        submission.ApplicationName,
-			ApplicationDescription: submission.ApplicationDescription,
-			SelectedFields:         submission.SelectedFields,
-			Status:                 submission.Status,
-			ConsumerID:             submission.ConsumerID,
-			CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
-		}
-
 		return nil
 	})
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Build response outside transaction - just data transformation
+	response = &models.ApplicationSubmissionResponse{
+		SubmissionID:           submission.SubmissionID,
+		PreviousApplicationID:  submission.PreviousApplicationID,
+		ApplicationName:        submission.ApplicationName,
+		ApplicationDescription: submission.ApplicationDescription,
+		SelectedFields:         submission.SelectedFields,
+		Status:                 submission.Status,
+		ConsumerID:             submission.ConsumerID,
+		CreatedAt:              submission.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:              submission.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
