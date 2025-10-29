@@ -81,14 +81,11 @@ type CreateMemberRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Email       string `json:"email" validate:"required,email"`
 	PhoneNumber string `json:"phoneNumber" validate:"required"`
-	IdpUserID   string `json:"idpUserId" validate:"required"`
 }
 
 type UpdateMemberRequest struct {
 	Name        *string `json:"name,omitempty"`
-	Email       *string `json:"email,omitempty"`
 	PhoneNumber *string `json:"phoneNumber,omitempty"`
-	IdpUserID   *string `json:"idpUserId,omitempty"`
 }
 
 type MemberResponse struct {
