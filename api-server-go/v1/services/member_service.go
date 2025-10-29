@@ -48,7 +48,7 @@ func (s *MemberService) CreateMember(req *models.CreateMemberRequest) (*models.M
 
 	// Create Member in the database
 	Member := models.Member{
-		MemberID:    "ent_" + uuid.New().String(),
+		MemberID:    "mem_" + uuid.New().String(),
 		Name:        req.Name,
 		Email:       req.Email,
 		PhoneNumber: req.PhoneNumber,
