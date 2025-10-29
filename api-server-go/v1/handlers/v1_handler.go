@@ -92,8 +92,8 @@ func (h *V1Handler) handleMembers(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			idpUserId := r.URL.Query().Get("idpUserId")
-			idpEmail := r.URL.Query().Get("idpEmail")
-			h.getAllMembers(w, r, &idpUserId, &idpEmail)
+			email := r.URL.Query().Get("email")
+			h.getAllMembers(w, r, &idpUserId, &email)
 		case http.MethodPost:
 			h.createMember(w, r)
 		default:
@@ -330,8 +330,8 @@ func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberID s
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
 
-func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request, idpUserId *string, idpEmail *string) {
-	members, err := h.memberService.GetAllMembers(idpUserId, idpEmail)
+func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request, idpUserId *string, email *string) {
+	members, err := h.memberService.GetAllMembers(idpUserId, email)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
