@@ -5,8 +5,8 @@
 services:
   policy-decision-point:
     build:
-      context: .
-      dockerfile: policy-decision-point/Dockerfile
+      context: ./policy-decision-point
+      dockerfile: Dockerfile
       args:
         SERVICE_PATH: policy-decision-point
         BUILD_VERSION: ${BUILD_VERSION:-dev}
@@ -20,6 +20,18 @@ services:
       - PORT=8082
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-text}
+      # Database configuration for V1 GORM connection
+      # For Docker: use 'host.docker.internal' (Mac/Windows) or host IP to reach host's PostgreSQL
+      # For same Docker network: use the PostgreSQL service name
+      # For cloud/external: use the full database hostname
+      - CHOREO_OPENDIF_DATABASE_HOSTNAME=${CHOREO_OPENDIF_DATABASE_HOSTNAME:-host.docker.internal}
+      - CHOREO_OPENDIF_DATABASE_PORT=${CHOREO_OPENDIF_DATABASE_PORT:-5432}
+      - CHOREO_OPENDIF_DATABASE_USERNAME=${CHOREO_OPENDIF_DATABASE_USERNAME:-postgres}
+      - CHOREO_OPENDIF_DATABASE_PASSWORD=${CHOREO_OPENDIF_DATABASE_PASSWORD:-password}
+      - CHOREO_OPENDIF_DATABASE_DATABASENAME=${CHOREO_OPENDIF_DATABASE_DATABASENAME:-testdb}
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
+      # Set to "true" to run database migrations on startup
+      - RUN_MIGRATION=${RUN_MIGRATION:-true}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
       interval: 30s
