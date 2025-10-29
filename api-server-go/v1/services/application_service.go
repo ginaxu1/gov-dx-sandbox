@@ -187,7 +187,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		return nil, fmt.Errorf("consumer not found: %w", err)
 	}
 
-	// Create application submission (single write operation - no transaction needed)
+	// Create application submission
 	submission := models.ApplicationSubmission{
 		SubmissionID:           "sub_" + uuid.New().String(),
 		PreviousApplicationID:  req.PreviousApplicationID,

@@ -187,7 +187,7 @@ func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissio
 		}
 	}
 
-	// Create submission (single write operation - no transaction needed)
+	// Create submission
 	submission := models.SchemaSubmission{
 		SubmissionID:      "sub_" + uuid.New().String(),
 		PreviousSchemaID:  req.PreviousSchemaID,
