@@ -22,14 +22,14 @@ import { ApplicationService } from '../services/applicationService';
 interface FilterOptionsApproved {
     searchByName?: string; 
     searchByDescription?: string;
-    searchByConsumerId?: string;
+    searchByMemberId?: string;
     searchByVersion?: string;
 }
 
 interface FilterOptionsSubmissions {
     searchByName?: string;
     searchByDescription?: string;
-    searchByConsumerId?: string;
+    searchByMemberId?: string;
     searchByStatus?: string;
 }
 interface ApplicationsProps {
@@ -55,13 +55,13 @@ export const Applications: React.FC<ApplicationsProps> = () => {
     const [submissionFilters, setSubmissionFilters] = useState<FilterOptionsSubmissions>({
         searchByName: '',
         searchByDescription: '',
-        searchByConsumerId: '',
+        searchByMemberId: '',
         searchByStatus: ''
     });
     const [approvedFilters, setApprovedFilters] = useState<FilterOptionsApproved>({
         searchByName: '',
         searchByDescription: '',
-        searchByConsumerId: '',
+        searchByMemberId: '',
         searchByVersion: ''
     });
     const updateSubmissionFilter = (key: keyof FilterOptionsSubmissions, value: string) => { 
@@ -71,7 +71,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         setSubmissionFilters({
             searchByName: '',
             searchByDescription: '',
-            searchByConsumerId: '',
+            searchByMemberId: '',
             searchByStatus: ''
         });
     };
@@ -82,7 +82,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         setApprovedFilters({
             searchByName: '',
             searchByDescription: '',
-            searchByConsumerId: '',
+            searchByMemberId: '',
             searchByVersion: ''
         });
     };
@@ -137,9 +137,9 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                 app.applicationDescription?.toLowerCase().includes(submissionFilters.searchByDescription!.toLowerCase())
             );
         }
-        if (submissionFilters.searchByConsumerId) {
+        if (submissionFilters.searchByMemberId) {
             filtered = filtered.filter(app =>
-                app.consumerId.toLowerCase().includes(submissionFilters.searchByConsumerId!.toLowerCase())
+                app.memberId.toLowerCase().includes(submissionFilters.searchByMemberId!.toLowerCase())
             );
         }
         if (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all') {
@@ -162,9 +162,9 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                 app.applicationDescription?.toLowerCase().includes(approvedFilters.searchByDescription!.toLowerCase())
             );
         }
-        if (approvedFilters.searchByConsumerId) {
+        if (approvedFilters.searchByMemberId) {
             filtered = filtered.filter(app =>
-                app.consumerId.toLowerCase().includes(approvedFilters.searchByConsumerId!.toLowerCase())
+                app.memberId.toLowerCase().includes(approvedFilters.searchByMemberId!.toLowerCase())
             );
         }
         if (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all') {
@@ -180,12 +180,12 @@ export const Applications: React.FC<ApplicationsProps> = () => {
     };
 
     // Helper function for application type icons (placeholder since we don't have applicationTypes)
-    const getApplicationTypeIcon = (_consumerId: string) => {
+    const getApplicationTypeIcon = (_memberId: string) => {
         return <FileText className="w-5 h-5 text-blue-500" />;
     };
 
     // Helper function for application type border colors (placeholder)
-    const getApplicationTypeBorderColor = (_consumerId: string) => {
+    const getApplicationTypeBorderColor = (_memberId: string) => {
         return 'border-l-blue-500 bg-blue-50';
     };
 
@@ -199,7 +199,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                 submissionId: app.submissionId,
                 applicationName: app.applicationName,
                 applicationDescription: app.applicationDescription || '',
-                consumerId: app.consumerId,
+                memberId: app.memberId,
                 status: app.status,
                 selectedFields: app.selectedFields?.join('; ') || '',
                 fieldCount: app.selectedFields?.length || 0
@@ -213,7 +213,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                     row.submissionId,
                     `"${row.applicationName.replace(/"/g, '""')}"`,
                     `"${row.applicationDescription.replace(/"/g, '""')}"`,
-                    row.consumerId,
+                    row.memberId,
                     row.status,
                     `"${row.selectedFields.replace(/"/g, '""')}"`,
                     row.fieldCount
@@ -240,7 +240,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                 applicationId: app.applicationId,
                 applicationName: app.applicationName,
                 applicationDescription: app.applicationDescription || '',
-                consumerId: app.consumerId,
+                memberId: app.memberId,
                 version: app.version,
                 selectedFields: app.selectedFields?.join('; ') || '',
                 fieldCount: app.selectedFields?.length || 0,
@@ -256,7 +256,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                     row.applicationId,
                     `"${row.applicationName.replace(/"/g, '""')}"`,
                     `"${row.applicationDescription.replace(/"/g, '""')}"`,
-                    row.consumerId,
+                    row.memberId,
                     row.version,
                     `"${row.selectedFields.replace(/"/g, '""')}"`,
                     row.fieldCount,
@@ -319,7 +319,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         console.log('Opening application for editing:', {
             applicationId: application.applicationId,
             applicationName: application.applicationName,
-            consumerId: application.consumerId,
+            memberId: application.memberId,
             version: application.version,
             selectedFields: application.selectedFields,
             fieldCount: application.selectedFields?.length || 0
@@ -389,7 +389,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-700">Consumer ID:</span>
-                                        <span className="ml-2 text-gray-900">{reviewModal.application.consumerId}</span>
+                                        <span className="ml-2 text-gray-900">{reviewModal.application.memberId}</span>
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-700">Selected Fields:</span>
@@ -401,7 +401,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                             <div className="ml-2 mt-1 flex flex-wrap gap-1">
                                                 {reviewModal.application.selectedFields.map((field, index) => (
                                                     <span key={index} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                                                        {field}
+                                                        {field.fieldName}
                                                     </span>
                                                 ))}
                                             </div>
@@ -637,8 +637,8 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                     <input
                                         type="text"
                                         placeholder="Filter by consumer ID"
-                                        value={submissionFilters.searchByConsumerId || ''}
-                                        onChange={(e) => updateSubmissionFilter('searchByConsumerId', e.target.value)}
+                                        value={submissionFilters.searchByMemberId || ''}
+                                        onChange={(e) => updateSubmissionFilter('searchByMemberId', e.target.value)}
                                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                 </div>
@@ -659,7 +659,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                 <div className="text-center py-12">
                                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                     <p className="text-gray-500 text-lg">
-                                        {submissionFilters.searchByName || submissionFilters.searchByDescription || submissionFilters.searchByConsumerId || (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all')
+                                        {submissionFilters.searchByName || submissionFilters.searchByDescription || submissionFilters.searchByMemberId || (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all')
                                             ? 'No submissions match your filters' 
                                             : 'No submissions available'
                                         }
@@ -668,10 +668,10 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             ) : (
                                 <div className="divide-y divide-gray-200">
                                     {filteredSubmissions.map((application) => (
-                                        <div key={application.submissionId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor(application.consumerId)}`}>
+                                        <div key={application.submissionId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor(application.memberId)}`}>
                                             <div className="flex items-start space-x-3">
                                                 <div className="flex-shrink-0 mt-1">
-                                                    {getApplicationTypeIcon(application.consumerId)}
+                                                    {getApplicationTypeIcon(application.memberId)}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between mb-2">
@@ -680,7 +680,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                                         </h3>
                                                         <div className="flex items-center text-xs text-gray-500">
                                                             <Calendar className="w-3 h-3 mr-1" />
-                                                            Consumer: {application.consumerId}
+                                                            Consumer: {application.memberId}
                                                         </div>
                                                     </div>
                                                     
@@ -799,8 +799,8 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                 <input
                                     type="text"
                                     placeholder="Filter by consumer ID"
-                                    value={approvedFilters.searchByConsumerId || ''}
-                                    onChange={(e) => updateApprovedFilter('searchByConsumerId', e.target.value)}
+                                    value={approvedFilters.searchByMemberId || ''}
+                                    onChange={(e) => updateApprovedFilter('searchByMemberId', e.target.value)}
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 />
                             </div>
@@ -821,7 +821,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             <div className="text-center py-12">
                                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {approvedFilters.searchByName || approvedFilters.searchByDescription || approvedFilters.searchByConsumerId || (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all')
+                                    {approvedFilters.searchByName || approvedFilters.searchByDescription || approvedFilters.searchByMemberId || (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all')
                                         ? 'No approved applications match your filters' 
                                         : 'No approved applications available'
                                     }
@@ -830,10 +830,10 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                         ) : (
                             <div className="divide-y divide-gray-200">
                                 {filteredApproved.map((application) => (
-                                    <div key={application.applicationId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor(application.consumerId)}`}>
+                                    <div key={application.applicationId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor(application.memberId)}`}>
                                         <div className="flex items-start space-x-3">
                                             <div className="flex-shrink-0 mt-1">
-                                                {getApplicationTypeIcon(application.consumerId)}
+                                                {getApplicationTypeIcon(application.memberId)}
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between mb-2">
@@ -851,7 +851,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <User className="w-4 h-4 mr-2 text-gray-400" />
-                                                        <span>Consumer: {application.consumerId}</span>
+                                                        <span>Consumer: {application.memberId}</span>
                                                     </div>
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <span className="font-medium">Fields:</span> 

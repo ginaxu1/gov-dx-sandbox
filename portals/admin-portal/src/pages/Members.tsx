@@ -15,7 +15,7 @@ import {
     Plus
 } from 'lucide-react';
 import { MemberService } from '../services/memberService';
-import type { Entity } from '../services/memberService';
+import type { Member } from '../services/memberService';
 
 interface FilterOptions {
     searchByName?: string;
@@ -32,15 +32,15 @@ interface MembersProps {
 }
 
 export const Members: React.FC<MembersProps> = () => {
-    const [entities, setEntities] = useState<Entity[]>([]);
-    const [filteredEntities, setFilteredEntities] = useState<Entity[]>([]);
+    const [members, setMembers] = useState<Member[]>([]);
+    const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
     const [filters, setFilters] = useState<FilterOptions>({
         searchByName: '',
     });
     const [loading, setLoading] = useState(true);
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
     const [showAddForm, setShowAddForm] = useState(false);
-    const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+    const [editingMember, setEditingMember] = useState<Member | null>(null);
     const [formData, setFormData] = useState<MemberFormData>({
         name: '',
         email: '',
@@ -60,38 +60,38 @@ export const Members: React.FC<MembersProps> = () => {
         });
     };
 
-    const fetchEntities = async () => {
+    const fetchMembers = async () => {
         setLoading(true);
         try {
-            const data: Entity[] = await MemberService.fetchEntities();
-            setEntities(data);
-            setFilteredEntities(data);
+            const data: Member[] = await MemberService.fetchMembers();
+            setMembers(data);
+            setFilteredMembers(data);
         } catch (error) {
-            console.error('Error fetching entities:', error);
+            console.error('Error fetching members:', error);
             // Optionally show user-friendly error message
-            setEntities([]);
-            setFilteredEntities([]);
+            setMembers([]);
+            setFilteredMembers([]);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchEntities();
+        fetchMembers();
     }, []);
 
     useEffect(() => {
-        let filtered = entities;
+        let filtered = members;
         
         // Filter by search term (name)
         if (filters.searchByName) {
-            filtered = filtered.filter(entity =>
-                entity.name.toLowerCase().includes(filters.searchByName!.toLowerCase())
+            filtered = filtered.filter(member =>
+                member.name.toLowerCase().includes(filters.searchByName!.toLowerCase())
             );
         }
 
-        setFilteredEntities(filtered);
-    }, [entities, filters]);
+        setFilteredMembers(filtered);
+    }, [members, filters]);
 
     const formatTimestamp = (timestamp: string) => {
         const date = new Date(timestamp);
@@ -105,16 +105,16 @@ export const Members: React.FC<MembersProps> = () => {
     };
 
     const handleRefresh = () => {
-        fetchEntities();
+        fetchMembers();
     };
 
-    const toggleCardExpansion = (entityId: string) => {
+    const toggleCardExpansion = (memberId: string) => {
         setExpandedCards(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(entityId)) {
-                newSet.delete(entityId);
+            if (newSet.has(memberId)) {
+                newSet.delete(memberId);
             } else {
-                newSet.add(entityId);
+                newSet.add(memberId);
             }
             return newSet;
         });
@@ -132,40 +132,40 @@ export const Members: React.FC<MembersProps> = () => {
     const handleAddMember = () => {
         resetForm();
         setShowAddForm(true);
-        setEditingEntity(null);
+        setEditingMember(null);
     };
 
-    const handleEditMember = (entity: Entity) => {
+    const handleEditMember = (member: Member) => {
         setFormData({
-            name: entity.name,
-            email: entity.email,
-            phoneNumber: entity.phoneNumber,
-            idpUserId: entity.idpUserId
+            name: member.name,
+            email: member.email,
+            phoneNumber: member.phoneNumber,
+            idpUserId: member.idpUserId
         });
-        setEditingEntity(entity);
+        setEditingMember(member);
         setShowAddForm(true);
     };
 
     const handleCloseForm = () => {
         setShowAddForm(false);
-        setEditingEntity(null);
+        setEditingMember(null);
         resetForm();
     };
 
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (editingEntity) {
-                // Update existing entity
-                await MemberService.updateEntity(editingEntity.entityId, formData);
+            if (editingMember) {
+                // Update existing member
+                await MemberService.updateMember(editingMember.memberId, formData);
             } else {
-                // Create new entity
-                await MemberService.createEntity(formData);
+                // Create new member
+                await MemberService.createMember(formData);
             }
-            await fetchEntities();
+            await fetchMembers();
             handleCloseForm();
         } catch (error) {
-            console.error('Error saving entity:', error);
+            console.error('Error saving member:', error);
             alert('Error saving member. Please try again.');
         }
     };
@@ -227,14 +227,14 @@ export const Members: React.FC<MembersProps> = () => {
                 {/* Filters */}
                 <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
                     <div className="space-y-4">
-                        {/* Search and Entity Type Row */}
+                        {/* Search and Member Type Row */}
                         <div className="flex flex-col lg:flex-row gap-4">
                             <div className="flex-1">
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                                     <input
                                         type="text"
-                                        placeholder="Search by entity name..."
+                                        placeholder="Search by member name..."
                                         value={filters.searchByName || ''}
                                         onChange={(e) => updateFilter('searchByName', e.target.value)}
                                         className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -262,7 +262,7 @@ export const Members: React.FC<MembersProps> = () => {
                                 <Building2 className="w-6 h-6 text-blue-600" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-gray-900">{entities.length}</p>
+                                <p className="text-2xl font-bold text-gray-900">{members.length}</p>
                                 <p className="text-gray-600">Total Members</p>
                             </div>
                         </div>
@@ -273,7 +273,7 @@ export const Members: React.FC<MembersProps> = () => {
                                 <Search className="w-6 h-6 text-green-600" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-gray-900">{filteredEntities.length}</p>
+                                <p className="text-2xl font-bold text-gray-900">{filteredMembers.length}</p>
                                 <p className="text-gray-600">{filters.searchByName ? 'Search Results' : 'Showing All'}</p>
                             </div>
                         </div>
@@ -299,20 +299,20 @@ export const Members: React.FC<MembersProps> = () => {
                             <User className="w-5 h-5" />
                             <span>Member List</span>
                             <span className="ml-auto bg-blue-500 text-blue-100 px-3 py-1 rounded-full text-sm">
-                                {filteredEntities.length} {filteredEntities.length === 1 ? 'member' : 'members'}
+                                {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
                             </span>
                         </h2>
                     </div>
                     
                     <div className="divide-y divide-gray-100">
-                        {filteredEntities.map((entity) => {
-                            const isExpanded = expandedCards.has(entity.entityId);
+                        {filteredMembers.map((member) => {
+                            const isExpanded = expandedCards.has(member.memberId);
                             return (
-                                <div key={entity.entityId} className="group hover:bg-gray-50 transition-all duration-200">
+                                <div key={member.memberId} className="group hover:bg-gray-50 transition-all duration-200">
                                     {/* Main Card Content - Always Visible */}
                                     <div 
                                         className="p-6 cursor-pointer"
-                                        onClick={() => toggleCardExpansion(entity.entityId)}
+                                        onClick={() => toggleCardExpansion(member.memberId)}
                                     >
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-4 flex-1">
@@ -328,14 +328,14 @@ export const Members: React.FC<MembersProps> = () => {
                                                     <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-2 sm:space-y-0">
                                                         <div className="flex-shrink-0">
                                                             <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
-                                                                {entity.name}
+                                                                {member.name}
                                                             </h3>
                                                         </div>
                                                         <div className="flex items-center space-x-2 text-gray-600">
                                                             <div className="bg-gray-100 rounded-full p-1">
                                                                 <Mail className="w-3 h-3" />
                                                             </div>
-                                                            <span className="text-sm font-medium truncate">{entity.email}</span>
+                                                            <span className="text-sm font-medium truncate">{member.email}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -345,7 +345,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleEditMember(entity);
+                                                        handleEditMember(member);
                                                     }}
                                                     className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
                                                     title="Edit member"
@@ -369,10 +369,10 @@ export const Members: React.FC<MembersProps> = () => {
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                                                        Entity ID
+                                                                        Member ID
                                                                     </p>
                                                                     <p className="text-sm font-semibold text-gray-900 break-all">
-                                                                        {entity.entityId}
+                                                                        {member.memberId}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -388,7 +388,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                                         IDP User ID
                                                                     </p>
                                                                     <p className="text-sm font-semibold text-gray-900 break-all">
-                                                                        {entity.idpUserId}
+                                                                        {member.idpUserId}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -406,7 +406,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                                         Phone Number
                                                                     </p>
                                                                     <p className="text-sm font-semibold text-gray-900">
-                                                                        {entity.phoneNumber}
+                                                                        {member.phoneNumber}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -422,10 +422,10 @@ export const Members: React.FC<MembersProps> = () => {
                                                                         Member Since
                                                                     </p>
                                                                     <p className="text-sm font-semibold text-gray-900">
-                                                                        {formatTimestamp(entity.createdAt)}
+                                                                        {formatTimestamp(member.createdAt)}
                                                                     </p>
                                                                     <p className="text-xs text-gray-500 mt-1">
-                                                                        Updated: {formatTimestamp(entity.updatedAt)}
+                                                                        Updated: {formatTimestamp(member.updatedAt)}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -440,7 +440,7 @@ export const Members: React.FC<MembersProps> = () => {
                         })}
                     </div>
                     
-                    {filteredEntities.length === 0 && (
+                    {filteredMembers.length === 0 && (
                         <div className="text-center py-16 px-6">
                             <div className="max-w-sm mx-auto">
                                 <div className="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
@@ -472,7 +472,7 @@ export const Members: React.FC<MembersProps> = () => {
                             <div className="p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-semibold text-gray-900">
-                                        {editingEntity ? 'Edit Member' : 'Add New Member'}
+                                        {editingMember ? 'Edit Member' : 'Add New Member'}
                                     </h2>
                                     <button
                                         onClick={handleCloseForm}
@@ -556,7 +556,7 @@ export const Members: React.FC<MembersProps> = () => {
                                             className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                                         >
                                             <Save className="w-4 h-4" />
-                                            <span>{editingEntity ? 'Update' : 'Create'} Member</span>
+                                            <span>{editingMember ? 'Update' : 'Create'} Member</span>
                                         </button>
                                     </div>
                                 </form>

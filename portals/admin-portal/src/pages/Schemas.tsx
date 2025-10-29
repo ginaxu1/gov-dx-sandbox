@@ -24,7 +24,7 @@ import { SchemaService } from '../services/schemaService';
 interface FilterOptionsApproved {
     searchByName?: string;
     searchByDescription?: string;
-    searchByProviderId?: string;
+    searchByMemberId?: string;
     searchByVersion: 'active' | 'deprecated' | 'all';
 }
 
@@ -34,7 +34,7 @@ const schemaStatuses = ['pending', 'approved', 'rejected'];
 interface FilterOptionsSubmissions {
     searchByName?: string;
     searchByDescription?: string;
-    searchByProviderId?: string;
+    searchByMemberId?: string;
     searchByStatus: 'pending' | 'approved' | 'rejected' | 'all';
 }
 
@@ -69,14 +69,14 @@ export const Schemas: React.FC<SchemasProps> = () => {
     const [submissionFilters, setSubmissionFilters] = useState<FilterOptionsSubmissions>({
         searchByName: '',
         searchByDescription: '',
-        searchByProviderId: '',
+        searchByMemberId: '',
         searchByStatus: 'all'
     });
 
     const [approvedFilters, setApprovedFilters] = useState<FilterOptionsApproved>({
         searchByName: '',
         searchByDescription: '',
-        searchByProviderId: '',
+        searchByMemberId: '',
         searchByVersion: 'all'
     });
     
@@ -108,7 +108,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
         setSubmissionFilters({
             searchByName: '',
             searchByDescription: '',
-            searchByProviderId: '',
+            searchByMemberId: '',
             searchByStatus: 'all'
         });
     };
@@ -118,7 +118,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
         setApprovedFilters({
             searchByName: '',
             searchByDescription: '',
-            searchByProviderId: '',
+            searchByMemberId: '',
             searchByVersion: 'all'
         });
     };
@@ -195,9 +195,9 @@ export const Schemas: React.FC<SchemasProps> = () => {
                 schema.schemaDescription?.toLowerCase().includes(submissionFilters.searchByDescription!.toLowerCase())
             );
         }
-        if (submissionFilters.searchByProviderId) {
+        if (submissionFilters.searchByMemberId) {
             filtered = filtered.filter(schema =>
-                schema.providerId.toLowerCase().includes(submissionFilters.searchByProviderId!.toLowerCase())
+                schema.memberId.toLowerCase().includes(submissionFilters.searchByMemberId!.toLowerCase())
             );
         }
         if (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all') {
@@ -221,9 +221,9 @@ export const Schemas: React.FC<SchemasProps> = () => {
                 schema.schemaDescription?.toLowerCase().includes(approvedFilters.searchByDescription!.toLowerCase())
             );
         }
-        if (approvedFilters.searchByProviderId) {
+        if (approvedFilters.searchByMemberId) {
             filtered = filtered.filter(schema =>
-                schema.providerId.toLowerCase().includes(approvedFilters.searchByProviderId!.toLowerCase())
+                schema.memberId.toLowerCase().includes(approvedFilters.searchByMemberId!.toLowerCase())
             );
         }
         if (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all') {
@@ -248,7 +248,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                 submissionId: schema.submissionId,
                 schemaName: schema.schemaName,
                 schemaDescription: schema.schemaDescription || '',
-                providerId: schema.providerId,
+                memberId: schema.memberId,
                 status: schema.status,
                 schemaEndpoint: schema.schemaEndpoint,
                 createdAt: schema.createdAt,
@@ -263,7 +263,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                     row.submissionId,
                     `"${row.schemaName.replace(/"/g, '""')}"`,
                     `"${row.schemaDescription.replace(/"/g, '""')}"`,
-                    row.providerId,
+                    row.memberId,
                     row.status,
                     `"${row.schemaEndpoint.replace(/"/g, '""')}"`,
                     row.createdAt,
@@ -291,7 +291,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                 schemaId: schema.schemaId,
                 schemaName: schema.schemaName,
                 schemaDescription: schema.schemaDescription || '',
-                providerId: schema.providerId,
+                memberId: schema.memberId,
                 version: schema.version,
                 schemaEndpoint: schema.schemaEndpoint,
                 createdAt: schema.createdAt,
@@ -306,7 +306,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                     row.schemaId,
                     `"${row.schemaName.replace(/"/g, '""')}"`,
                     `"${row.schemaDescription.replace(/"/g, '""')}"`,
-                    row.providerId,
+                    row.memberId,
                     row.version,
                     `"${row.schemaEndpoint.replace(/"/g, '""')}"`,
                     row.createdAt,
@@ -423,7 +423,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-700">Provider ID:</span>
-                                        <span className="ml-2 text-gray-900">{reviewModal.schema.providerId}</span>
+                                        <span className="ml-2 text-gray-900">{reviewModal.schema.memberId}</span>
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-700">Endpoint:</span>
@@ -665,8 +665,8 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     <input
                                         type="text"
                                         placeholder="Filter by provider ID"
-                                        value={submissionFilters.searchByProviderId || ''}
-                                        onChange={(e) => updateSubmissionFilter('searchByProviderId', e.target.value)}
+                                        value={submissionFilters.searchByMemberId || ''}
+                                        onChange={(e) => updateSubmissionFilter('searchByMemberId', e.target.value)}
                                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                 </div>
@@ -688,7 +688,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 <div className="text-center py-12">
                                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                     <p className="text-gray-500 text-lg">
-                                        {submissionFilters.searchByName || submissionFilters.searchByStatus !== 'all' || submissionFilters.searchByDescription || submissionFilters.searchByProviderId
+                                        {submissionFilters.searchByName || submissionFilters.searchByStatus !== 'all' || submissionFilters.searchByDescription || submissionFilters.searchByMemberId
                                             ? 'No schema submissions match your filters' 
                                             : 'No schema submissions available'
                                         }
@@ -718,7 +718,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                         <div className="flex items-center text-sm text-gray-600">
                                                             <User className="w-4 h-4 mr-2 text-gray-400" />
-                                                            <span>Provider: {schema.providerId}</span>
+                                                            <span>Provider: {schema.memberId}</span>
                                                         </div>
                                                         <div className="flex items-center text-sm text-gray-600">
                                                             <span className="font-medium">Endpoint:</span> 
@@ -824,8 +824,8 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 <input
                                     type="text"
                                     placeholder="Filter by provider ID"
-                                    value={approvedFilters.searchByProviderId || ''}
-                                    onChange={(e) => updateApprovedFilter('searchByProviderId', e.target.value)}
+                                    value={approvedFilters.searchByMemberId || ''}
+                                    onChange={(e) => updateApprovedFilter('searchByMemberId', e.target.value)}
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 />
                             </div>
@@ -846,7 +846,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                             <div className="text-center py-12">
                                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {approvedFilters.searchByName || approvedFilters.searchByVersion !== 'all' || approvedFilters.searchByDescription || approvedFilters.searchByProviderId
+                                    {approvedFilters.searchByName || approvedFilters.searchByVersion !== 'all' || approvedFilters.searchByDescription || approvedFilters.searchByMemberId
                                         ? 'No approved schemas match your filters' 
                                         : 'No approved schemas available'
                                     }
@@ -876,7 +876,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <User className="w-4 h-4 mr-2 text-gray-400" />
-                                                        <span>Provider: {schema.providerId}</span>
+                                                        <span>Provider: {schema.memberId}</span>
                                                     </div>
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <span className="font-medium">Endpoint:</span> 
