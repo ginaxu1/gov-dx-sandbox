@@ -4,6 +4,7 @@ directive @deprecated(
 
 directive @sourceInfo(
     providerKey: String!
+    schemaId: String!
     providerField: String!
 ) on FIELD_DEFINITION
 
@@ -22,32 +23,32 @@ input SourceInfoInput {
 }
 
 type PersonInfo {
-    fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName")
-    name: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name")
-    otherNames: String @sourceInfo(providerKey: "drp", providerField: "person.otherNames")
-    address: String @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress")
-    profession: String @sourceInfo(providerKey: "drp", providerField: "person.profession")
-    dateOfBirth: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthDate")
-    sex: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.sex")
+    fullName: String @sourceInfo(providerKey: "drp",schemaId: "drp-schema-v1", providerField: "person.fullName")
+    name: String @sourceInfo(providerKey: "rgd",schemaId: "abc-212", providerField: "getPersonInfo.name")
+    otherNames: String @sourceInfo(providerKey: "drp",schemaId: "drp-schema-v1", providerField: "person.otherNames")
+    address: String @sourceInfo(providerKey: "drp",schemaId: "drp-schema-v1", providerField: "person.permanentAddress")
+    profession: String @sourceInfo(providerKey: "drp",schemaId: "drp-schema-v1", providerField: "person.profession")
+    dateOfBirth: String @sourceInfo(providerKey: "rgd",schemaId: "abc-212", providerField: "getPersonInfo.birthDate")
+    sex: String @sourceInfo(providerKey: "rgd",schemaId: "abc-212", providerField: "getPersonInfo.sex")
     birthInfo: BirthInfo
-    ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicles")
+    ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicles")
 }
 
 type VehicleInfo {
-    regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.registrationNumber")
-    make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.make")
-    model: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.model")
-    year: Int @sourceInfo(providerKey: "dmt", providerField: "vehicle.yearOfManufacture")
-    class: [VehicleClass] @sourceInfo(providerKey: "dmt", providerField: "vehicle.classes")
+    regNo: String @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicle.registrationNumber")
+    make: String @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicle.make")
+    model: String @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicle.model")
+    year: Int @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicle.yearOfManufacture")
+    class: [VehicleClass] @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicle.classes")
 }
 
 type VehicleClass {
-    className: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.classes.className")
-    classCode: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.classes.classCode")
+    className: String @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicle.classes.className")
+    classCode: String @sourceInfo(providerKey: "dmt",schemaId: "dmt-schema-v1", providerField: "vehicle.classes.classCode")
 }
 
 type BirthInfo {
-    birthRegistrationNumber: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo")
-    birthPlace: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthPlace")
-    district: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.district")
+    birthRegistrationNumber: String @sourceInfo(providerKey: "rgd",schemaId: "abc-212", providerField: "getPersonInfo.brNo")
+    birthPlace: String @sourceInfo(providerKey: "rgd",schemaId: "abc-212", providerField: "getPersonInfo.birthPlace")
+    district: String @sourceInfo(providerKey: "rgd",schemaId: "abc-212", providerField: "getPersonInfo.district")
 }

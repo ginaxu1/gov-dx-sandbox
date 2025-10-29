@@ -9,13 +9,13 @@ import (
 // Handler is the main struct that holds all the provider handling information
 type Handler struct {
 	mu         sync.RWMutex
-	Providers  map[string]*Provider
+	Providers  []*Provider
 	HttpClient *http.Client
 }
 
 // NewProviderHandler creates a new ProviderHandler with the given providers.
 func NewProviderHandler(providers []*Provider) *Handler {
-	providerMap := make(map[string]*Provider)
+	providerMap := make([]*Provider, 0)
 
 	// Create an http client with a 10 seconds timeout
 	httpClient := &http.Client{
@@ -25,7 +25,7 @@ func NewProviderHandler(providers []*Provider) *Handler {
 
 	for _, p := range providers {
 		if p != nil && p.ServiceKey != "" {
-			providerMap[p.ServiceKey] = p
+			providerMap = append(providerMap, p)
 			p.Client = httpClient
 		}
 	}
@@ -37,17 +37,26 @@ func NewProviderHandler(providers []*Provider) *Handler {
 }
 
 // GetProvider retrieves a provider by its service key.
-func (h *Handler) GetProvider(serviceKey string) (*Provider, bool) {
+func (h *Handler) GetProvider(serviceKey, schemaId string) (*Provider, bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	p, exists := h.Providers[serviceKey]
+	// Find provider by service key and schema ID
+	var p *Provider
+	exists := false
+	for _, provider := range h.Providers {
+		if provider.ServiceKey == serviceKey && provider.SchemaID == schemaId {
+			p = provider
+			exists = true
+			break
+		}
+	}
 	return p, exists
 }
 
 // AddProvider adds a new provider to the handler.
-func (h *Handler) AddProvider(serviceKey string, provider *Provider) {
+func (h *Handler) AddProvider(provider *Provider) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.Providers[serviceKey] = provider
+	h.Providers = append(h.Providers, provider)
 	provider.Client = h.HttpClient
 }
