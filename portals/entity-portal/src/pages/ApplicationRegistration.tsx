@@ -17,6 +17,7 @@ const sampleSDL = `directive @deprecated(
 
 directive @sourceInfo(
     providerKey: String!
+    schemaId: String!
     providerField: String!
 ) on FIELD_DEFINITION
 
@@ -24,13 +25,9 @@ directive @sourceInfoArgList(
     providerArgs: [SourceInfoInput!]
 ) on ARGUMENT_DEFINITION
 
-directive @description(
-    text: String!
-) on FIELD_DEFINITION
-
 type Query {
-    personInfo(nic: String!): PersonInfo @description(text: "Retrieve comprehensive personal information using National Identity Card number")
-    vehicle: VehicleInfo @description(text: "Get vehicle information and registration details")
+    personInfo(nic: String!): PersonInfo
+    vehicle: VehicleInfo
 }
 
 input SourceInfoInput {
@@ -39,28 +36,34 @@ input SourceInfoInput {
 }
 
 type PersonInfo {
-    fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName") @description(text: "Complete full name as registered in official documents")
-    name: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name") @description(text: "Primary name used for identification")
-    otherNames: String @sourceInfo(providerKey: "drp", providerField: "person.otherNames") @description(text: "Alternative names or aliases")
-    address: String @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress") @description(text: "Current permanent residential address")
-    profession: String @sourceInfo(providerKey: "drp", providerField: "person.profession")
-    dateOfBirth: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthDate") @description(text: "Date of birth in YYYY-MM-DD format")
-    sex: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.sex") @description(text: "Gender as recorded in birth certificate")
-    birthInfo: BirthInfo @description(text: "Detailed birth registration information")
-    ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data") @description(text: "List of all vehicles registered under this person")
+    fullName: String @sourceInfo(providerKey: "drp", schemaId: "drp-schema-v1", providerField: "person.fullName")
+    name: String @sourceInfo(providerKey: "rgd", schemaId: "abc-212", providerField: "getPersonInfo.name")
+    otherNames: String @sourceInfo(providerKey: "drp", schemaId: "drp-schema-v1", providerField: "person.otherNames")
+    address: String @sourceInfo(providerKey: "drp", schemaId: "drp-schema-v1", providerField: "person.permanentAddress")
+    profession: String @sourceInfo(providerKey: "drp", schemaId: "drp-schema-v1", providerField: "person.profession")
+    dateOfBirth: String @sourceInfo(providerKey: "rgd", schemaId: "abc-212", providerField: "getPersonInfo.birthDate")
+    sex: String @sourceInfo(providerKey: "rgd", schemaId: "abc-212", providerField: "getPersonInfo.sex")
+    birthInfo: BirthInfo
+    ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicles")
 }
 
 type VehicleInfo {
-    regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.registrationNumber") @description(text: "Official vehicle registration number")
-    make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.make") @description(text: "Vehicle manufacturer brand")
-    model: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.model") @description(text: "Specific model name of the vehicle")
-    year: Int @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.yearOfManufacture") @description(text: "Year the vehicle was manufactured")
+    regNo: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.registrationNumber")
+    make: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.make")
+    model: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.model")
+    year: Int @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.yearOfManufacture")
+    class: [VehicleClass] @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.classes")
+}
+
+type VehicleClass {
+    className: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.classes.className")
+    classCode: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.classes.classCode")
 }
 
 type BirthInfo {
-    birthRegistrationNumber: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo") @description(text: "Unique birth certificate registration number")
-    birthPlace: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthPlace") @description(text: "Location where the person was born")
-    district: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.district") @description(text: "Administrative district of birth")
+    birthRegistrationNumber: String @sourceInfo(providerKey: "rgd", schemaId: "abc-212", providerField: "getPersonInfo.brNo")
+    birthPlace: String @sourceInfo(providerKey: "rgd", schemaId: "abc-212", providerField: "getPersonInfo.birthPlace")
+    district: String @sourceInfo(providerKey: "rgd", schemaId: "abc-212", providerField: "getPersonInfo.district")
 }`;
 
 
@@ -181,21 +184,6 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                         </div>
                         <div className="p-6 sm:p-8">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* <div className="lg:col-span-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="consumerId">
-                                        Consumer ID
-                                    </label>
-                                    <input
-                                        type="text"
-                                        id="consumerId"
-                                        value={consumerId}
-                                        readOnly
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed transition-all duration-200"
-                                    />
-                                    <p className="mt-2 text-sm text-gray-500">
-                                        Your unique consumer identifier (automatically assigned)
-                                    </p>
-                                </div> */}
                                 <div className="lg:col-span-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="applicationName">
                                         Application Name *
@@ -249,7 +237,7 @@ export const ApplicationRegistration: React.FC<ApplicationRegistrationProps> = (
                                 </p>
                             </div>
                             <GraphQLSchemaExplorer 
-                                sdl={sampleSDL}
+                                sdl={sampleSDL} // TODO: Replace with actual SDL fetch call from OrchestrationEngine
                                 onSelectionChange={setSelectedFields}
                             />
                             

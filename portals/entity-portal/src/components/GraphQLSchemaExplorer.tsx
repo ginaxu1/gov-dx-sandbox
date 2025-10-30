@@ -1,5 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, Info, HelpCircle } from 'lucide-react';
+import { 
+  buildSchema, 
+  isObjectType,
+  isListType,
+  isNonNullType,
+} from 'graphql';
+import type { 
+  GraphQLSchema, 
+  GraphQLField, 
+  GraphQLType,
+  GraphQLArgument
+} from 'graphql';
 import type { SelectedField } from '../types/applications';
 
 // Types for our schema representation
@@ -10,6 +22,7 @@ interface Field {
   isRequired?: boolean;
   sourceInfo?: {
     providerKey: string;
+    schemaId: string;
     providerField: string;
   };
   description?: string;
@@ -32,128 +45,136 @@ interface Schema {
   types: { [key: string]: Type };
 }
 
-// Improved SDL parser
-const parseSDL = (sdl: string): Schema => {
-  const schema: Schema = { queries: [], types: {} };
-  
-  // Remove comments and normalize whitespace, but preserve structure
-  const cleanSDL = sdl
-    .replace(/#[^\n]*/g, '') // Remove comments
-    .replace(/\n\s*/g, '\n') // Normalize line breaks
-    .trim();
-  
-  // Extract types with improved regex
-  const typeRegex = /type\s+(\w+)\s*\{([^}]+)\}/gs;
-  let typeMatch;
-  
-  while ((typeMatch = typeRegex.exec(cleanSDL)) !== null) {
-    const typeName = typeMatch[1];
-    const fieldsStr = typeMatch[2];
+// Helper function to extract type info from GraphQL type
+const getTypeInfo = (type: GraphQLType): { typeName: string; isArray: boolean; isRequired: boolean } => {
+  let isRequired = false;
+  let isArray = false;
+  let currentType = type;
+
+  // Handle NonNull wrapper
+  if (isNonNullType(currentType)) {
+    isRequired = true;
+    currentType = currentType.ofType;
+  }
+
+  // Handle List wrapper
+  if (isListType(currentType)) {
+    isArray = true;
+    currentType = currentType.ofType;
     
-    if (typeName === 'Query') {
-      schema.queries = parseFields(fieldsStr);
-    } else {
-      schema.types[typeName] = {
-        name: typeName,
-        fields: parseFields(fieldsStr)
-      };
+    // Handle NonNull inside List
+    if (isNonNullType(currentType)) {
+      currentType = currentType.ofType;
     }
   }
-  
-  return schema;
-};
 
-const parseFields = (fieldsStr: string): Field[] => {
-  const fields: Field[] = [];
-  
-  // Split fields by lines and filter out empty lines
-  const lines = fieldsStr
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('directive'));
-  
-  for (const line of lines) {
-    const field = parseField(line);
-    if (field) {
-      fields.push(field);
-    }
-  }
-  
-  return fields;
-};
-
-const parseField = (fieldStr: string): Field | null => {
-  // Improved regex to handle the field format properly
-  const fieldRegex = /^(\w+)(?:\(([^)]*)\))?\s*:\s*(\[?)(\w+)(\]?)(!?)\s*(.*)$/;
-  const match = fieldStr.match(fieldRegex);
-  
-  if (!match) return null;
-  
-  const [, name, argsStr, openBracket, type, closeBracket, required, directivesStr] = match;
-  
-  const field: Field = {
-    name,
-    type,
-    isArray: !!(openBracket && closeBracket),
-    isRequired: !!required
+  return {
+    typeName: (currentType as any).name || 'Unknown',
+    isArray,
+    isRequired
   };
-  
-  // Parse arguments if present
-  if (argsStr && argsStr.trim()) {
-    field.args = parseArguments(argsStr);
-  }
-  
-  // Parse @sourceInfo directive with improved regex
-  const sourceInfoMatch = directivesStr.match(/@sourceInfo\s*\(\s*providerKey:\s*"([^"]+)"\s*,?\s*providerField:\s*"([^"]+)"\s*\)/);
-  if (sourceInfoMatch) {
-    field.sourceInfo = {
-      providerKey: sourceInfoMatch[1],
-      providerField: sourceInfoMatch[2]
-    };
-  }
-  
-  // Parse @description directive
-  const descriptionMatch = directivesStr.match(/@description\s*\(\s*text:\s*"([^"]+)"\s*\)/);
-  if (descriptionMatch) {
-    field.description = descriptionMatch[1];
-  }
-  
-  return field;
 };
 
-const parseArguments = (argsStr: string): Argument[] => {
-  const args: Argument[] = [];
-  // Split by comma but be careful about nested structures
-  const argParts = argsStr.split(',').map(arg => arg.trim());
-  
-  for (const argStr of argParts) {
-    if (!argStr) continue;
-    
-    const argMatch = argStr.match(/^(\w+):\s*(\[?)\s*(\w+)\s*(\]?)(!?)$/);
-    if (argMatch) {
-      const [, name, openBracket, type, closeBracket, required] = argMatch;
-      args.push({
-        name,
-        type: `${openBracket}${type}${closeBracket}`,
-        isRequired: !!required
-      });
+// Helper function to extract source info from directives
+const extractSourceInfo = (field: GraphQLField<any, any>) => {
+  if (!field.astNode?.directives) return undefined;
+
+  const sourceInfoDirective = field.astNode.directives.find(
+    directive => directive.name.value === 'sourceInfo'
+  );
+
+  if (!sourceInfoDirective?.arguments) return undefined;
+
+  const sourceInfo: { providerKey?: string; schemaId?: string; providerField?: string } = {};
+
+  sourceInfoDirective.arguments.forEach(arg => {
+    if (arg.value.kind === 'StringValue') {
+      switch (arg.name.value) {
+        case 'providerKey':
+          sourceInfo.providerKey = arg.value.value;
+          break;
+        case 'schemaId':
+          sourceInfo.schemaId = arg.value.value;
+          break;
+        case 'providerField':
+          sourceInfo.providerField = arg.value.value;
+          break;
+      }
     }
+  });
+
+  if (sourceInfo.providerKey && sourceInfo.schemaId && sourceInfo.providerField) {
+    return sourceInfo as Required<typeof sourceInfo>;
   }
-  
-  return args;
+
+  return undefined;
 };
 
-// Component for rendering individual fields
-interface FieldNodeProps {
-  field: Field;
-  path: string;
-  schema: Schema;
-  selectedFields: Set<string>;
-  expandedNodes: Set<string>;
-  onFieldToggle: (path: string, isSelected: boolean, field: Field) => void;
-  onNodeToggle: (path: string) => void;
-  level: number;
-}
+// Helper function to convert GraphQL arguments to our format
+const convertArguments = (args: readonly GraphQLArgument[]): Argument[] => {
+  return args.map(arg => {
+    const typeInfo = getTypeInfo(arg.type);
+    return {
+      name: arg.name,
+      type: `${typeInfo.isArray ? '[' : ''}${typeInfo.typeName}${typeInfo.isArray ? ']' : ''}`,
+      isRequired: typeInfo.isRequired
+    };
+  });
+};
+
+// Helper function to convert GraphQL field to our format
+const convertField = (field: GraphQLField<any, any>): Field => {
+  const typeInfo = getTypeInfo(field.type);
+  const sourceInfo = extractSourceInfo(field);
+
+  return {
+    name: field.name,
+    type: typeInfo.typeName,
+    isArray: typeInfo.isArray,
+    isRequired: typeInfo.isRequired,
+    sourceInfo,
+    description: field.description || undefined,
+    args: field.args.length > 0 ? convertArguments(field.args) : undefined
+  };
+};
+
+// Main parsing function using graphql.js
+const parseSDL = (sdl: string): Schema => {
+  try {
+    const graphqlSchema: GraphQLSchema = buildSchema(sdl);
+    const schema: Schema = { queries: [], types: {} };
+
+    // Get Query type
+    const queryType = graphqlSchema.getQueryType();
+    if (queryType) {
+      const queryFields = queryType.getFields();
+      schema.queries = Object.values(queryFields).map(convertField);
+    }
+
+    // Get all custom types
+    const typeMap = graphqlSchema.getTypeMap();
+    Object.entries(typeMap).forEach(([typeName, type]) => {
+      // Skip built-in scalar types and introspection types
+      if (typeName.startsWith('__') || ['String', 'Int', 'Float', 'Boolean', 'ID'].includes(typeName)) {
+        return;
+      }
+
+      if (isObjectType(type) && typeName !== 'Query') {
+        const fields = type.getFields();
+        schema.types[typeName] = {
+          name: typeName,
+          fields: Object.values(fields).map(convertField)
+        };
+      }
+    });
+
+    return schema;
+  } catch (error) {
+    console.error('Error parsing SDL:', error);
+    // Return empty schema on error
+    return { queries: [], types: {} };
+  }
+};
 
 // Helper function to get all leaf paths for a given field
 const getAllLeafPaths = (currentPath: string, currentField: Field, schema: Schema): string[] => {
@@ -168,6 +189,18 @@ const getAllLeafPaths = (currentPath: string, currentField: Field, schema: Schem
   });
   return leafPaths;
 };
+
+// Component for rendering individual fields
+interface FieldNodeProps {
+  field: Field;
+  path: string;
+  schema: Schema;
+  selectedFields: Set<string>;
+  expandedNodes: Set<string>;
+  onFieldToggle: (path: string, isSelected: boolean, field: Field) => void;
+  onNodeToggle: (path: string) => void;
+  level: number;
+}
 
 const FieldNode: React.FC<FieldNodeProps> = ({
   field,
@@ -258,6 +291,8 @@ const FieldNode: React.FC<FieldNodeProps> = ({
                 <div className="flex items-center text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded-md">
                   <Info className="w-3 h-3 mr-1 flex-shrink-0" />
                   <span className="font-medium">{field.sourceInfo.providerKey}</span>
+                  <span className="text-blue-500 mx-1">•</span>
+                  <span className="text-blue-600 font-mono text-xs">{field.sourceInfo.schemaId}</span>
                   <span className="text-blue-500 mx-1">→</span>
                   <span className="truncate max-w-32">{field.sourceInfo.providerField}</span>
                 </div>
@@ -274,12 +309,10 @@ const FieldNode: React.FC<FieldNodeProps> = ({
                       }
                     </span>
                   </div>
-                  {/* Custom tooltip */}
                   <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 min-w-72 max-w-sm">
                     <div className="whitespace-normal break-words leading-relaxed">
                       {field.description}
                     </div>
-                    {/* Arrow */}
                     <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                   </div>
                 </div>
@@ -333,33 +366,64 @@ export const GraphQLSchemaExplorer: React.FC<GraphQLSchemaExplorerProps> = ({
     const newSelectedFields = new Set(selectedFields);
     
     if (isSelected) {
-      // If this is a custom type, add all its leaf fields
       const customType = schema.types[field.type];
       if (customType) {
         customType.fields.forEach(childField => {
           addFieldAndChildren(`${path}.${childField.name}`, childField, newSelectedFields);
         });
       } else {
-        // This is a leaf field, add it
         newSelectedFields.add(path);
       }
     } else {
-      // Remove this field and all its children (leaf fields only)
       removeFieldAndChildren(path, newSelectedFields);
     }
     
     setSelectedFields(newSelectedFields);
-    onSelectionChange?.(Array.from(newSelectedFields).map(fieldPath => ({
-      fieldName: fieldPath,
-      schemaId: '' // Schema ID can be set if needed
-    })));
+    
+    // Convert to SelectedField format for callback
+    const selectedFieldsArray: SelectedField[] = Array.from(newSelectedFields).map(fieldPath => {
+      // Find the field to get its schemaId
+      const fieldObj = findFieldByPath(fieldPath, schema);
+      return {
+        fieldName: fieldPath,
+        schemaId: fieldObj?.sourceInfo?.schemaId || 'unknown-schema'
+      };
+    });
+    
+    onSelectionChange?.(selectedFieldsArray);
   };
-  
+
+  const findFieldByPath = (path: string, schema: Schema): Field | undefined => {
+    const pathParts = path.split('.');
+    const queryField = schema.queries.find(q => q.name === pathParts[0]);
+    
+    if (!queryField) return undefined;
+    if (pathParts.length === 1) return queryField;
+    
+    let currentField = queryField;
+    for (let i = 1; i < pathParts.length; i++) {
+      const currentType = schema.types[currentField.type];
+      if (!currentType) return undefined;
+      
+      const foundField = currentType.fields.find(f => f.name === pathParts[i]);
+      if (!foundField) return undefined;
+      currentField = foundField;
+    }
+    
+    return currentField;
+  };
+
   const addFieldAndChildren = (path: string, field: Field, fieldsSet: Set<string>) => {
-    const leafPaths = getAllLeafPaths(path, field, schema);
-    leafPaths.forEach(leafPath => fieldsSet.add(leafPath));
+    const customType = schema.types[field.type];
+    if (!customType) {
+      fieldsSet.add(path);
+    } else {
+      customType.fields.forEach(childField => {
+        addFieldAndChildren(`${path}.${childField.name}`, childField, fieldsSet);
+      });
+    }
   };
-  
+
   const removeFieldAndChildren = (path: string, fieldsSet: Set<string>) => {
     const fieldsToRemove = Array.from(fieldsSet).filter(field => 
       field === path || field.startsWith(`${path}.`)
@@ -419,11 +483,19 @@ export const GraphQLSchemaExplorer: React.FC<GraphQLSchemaExplorerProps> = ({
             </h4>
             <div className="bg-white rounded-md p-3 max-h-32 overflow-y-auto border border-blue-200">
               <div className="text-xs font-mono text-gray-700 space-y-1">
-                {Array.from(selectedFields).sort().map((field) => (
-                  <div key={field} className="py-1 px-2 bg-gray-50 rounded text-gray-800 border-l-2 border-blue-400">
-                    {field}
-                  </div>
-                ))}
+                {Array.from(selectedFields).sort().map((fieldPath) => {
+                  const field = findFieldByPath(fieldPath, schema);
+                  return (
+                    <div key={fieldPath} className="py-1 px-2 bg-gray-50 rounded text-gray-800 border-l-2 border-blue-400 flex justify-between items-center">
+                      <span>{fieldPath}</span>
+                      {field?.sourceInfo?.schemaId && (
+                        <span className="text-blue-600 bg-blue-100 px-1 py-0.5 rounded text-xs">
+                          {field.sourceInfo.schemaId}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
