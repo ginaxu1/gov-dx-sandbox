@@ -36,11 +36,13 @@ type Federator struct {
 
 type FederationServiceAST struct {
 	ServiceKey string
+	SchemaID   string
 	QueryAst   *ast.Document
 }
 
 type federationServiceRequest struct {
 	ServiceKey     string
+	SchemaID       string
 	GraphQLRequest graphql.Request
 }
 
@@ -55,7 +57,7 @@ type ProviderResponse struct {
 }
 
 type FederationResponse struct {
-	ServiceKey string             `json:"serviceKey"`
+	ServiceKey string             `json:"ProviderKey"`
 	Responses  []ProviderResponse `json:"responses"`
 }
 
@@ -96,7 +98,7 @@ func Initialize(providerHandler *provider.Handler, schemaService interface{}) *F
 
 			// print service url
 			logger.Log.Info("Adding Provider from the Config File", "Provider Key", p.ProviderKey, "Provider Url", p.ProviderURL)
-			providerHandler.AddProvider(p.ProviderKey, providerInstance)
+			providerHandler.AddProvider(providerInstance)
 		}
 	} else {
 		logger.Log.Info("No Providers found in the Config File")
@@ -248,12 +250,26 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		// Continue without PDP check - this allows the system to work without PDP
 	} else {
 		var err error
-		pdpResponse, err = pdpClient.MakePdpRequest(&policy.PdpRequest{
-			ConsumerId:     consumerInfo.Subscriber,
-			AppId:          consumerInfo.ApplicationId,
-			RequestId:      "request_123",
-			RequiredFields: schemaCollection.ProviderFieldMap,
-		})
+
+		pdpRequest := &policy.PdpRequest{
+			ConsumerId: consumerInfo.Subscriber,
+			AppId:      consumerInfo.ApplicationId,
+			RequestId:  "request_123",
+		}
+
+		requiredFields := make([]policy.RequiredField, 0)
+
+		for _, field := range *schemaCollection.ProviderFieldMap {
+			requiredFields = append(requiredFields, policy.RequiredField{
+				ProviderKey: field.ServiceKey,
+				SchemaId:    field.SchemaId,
+				FieldName:   field.FieldPath,
+			})
+		}
+
+		pdpRequest.RequiredFields = requiredFields
+
+		pdpResponse, err = pdpClient.MakePdpRequest(pdpRequest)
 
 		if err != nil {
 			logger.Log.Info("PDP request failed", "error", err)
@@ -285,7 +301,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 			}
 		}
 
-		if !pdpResponse.Allowed {
+		if !pdpResponse.AppAuthorized {
 			logger.Log.Info("Request not allowed by PDP")
 			return graphql.Response{
 				Data: nil,
@@ -337,6 +353,11 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 			}
 		}
 
+		fields := make([]string, len(pdpResponse.ConsentRequiredFields))
+		for i, f := range pdpResponse.ConsentRequiredFields {
+			fields[i] = f.FieldName
+		}
+
 		ceRequest := &consent.CERequest{
 			AppId:     consumerInfo.ApplicationId,
 			Purpose:   "testing",
@@ -345,7 +366,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 				{
 					OwnerType: "citizen",
 					OwnerId:   extractedArgs[0].Value.GetValue().(string),
-					Fields:    pdpResponse.ConsentRequiredFields,
+					Fields:    fields,
 				},
 			},
 		}
@@ -444,7 +465,7 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 	var mu sync.Mutex // to safely append to FederationResponse.Responses
 
 	for _, request := range r.FederationServiceRequest {
-		p, exists := f.ProviderHandler.GetProvider(request.ServiceKey)
+		p, exists := f.ProviderHandler.GetProvider(request.ServiceKey, request.SchemaID)
 		if !exists {
 			logger.Log.Info("Provider not found", "Provider Key", request.ServiceKey)
 			continue

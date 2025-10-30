@@ -32,16 +32,16 @@ type ArgSource struct {
 
 // FindRequiredArguments identifies which arguments are required for the provider queries based on the flattened paths
 // from the main query and the argument mapping table.
-func FindRequiredArguments(flattenedPaths []string, argMap []*graphql.ArgMapping) []*graphql.ArgMapping {
+func FindRequiredArguments(flattenedPaths *[]ProviderLevelFieldRecord, argMap []*graphql.ArgMapping) []*graphql.ArgMapping {
 	var requiredArgs []*graphql.ArgMapping
 
-	for _, path := range flattenedPaths {
+	for _, path := range *flattenedPaths {
 		for _, arg := range argMap {
 			if arg == nil {
 				continue
 			}
 
-			if isPathPrefix(path, arg.TargetArgPath) && !containsArg(requiredArgs, arg) {
+			if arg.ProviderKey == path.ServiceKey && arg.SchemaID == path.SchemaId && isPathPrefix(path.FieldPath, arg.TargetArgPath) && !containsArg(requiredArgs, arg) {
 				requiredArgs = append(requiredArgs, arg)
 			}
 		}
@@ -85,8 +85,6 @@ func ExtractRequiredArguments(argMap []*graphql.ArgMapping, arguments []*ast.Arg
 func PushArgumentsToProviderQueryAst(args []*ArgSource, queryAst *FederationServiceAST) {
 
 	var path = make([]string, 0)
-
-	path = append(path, queryAst.ServiceKey)
 
 	visitor.Visit(queryAst.QueryAst, &visitor.VisitorOptions{
 		Enter: func(p visitor.VisitFuncParams) (string, interface{}) {

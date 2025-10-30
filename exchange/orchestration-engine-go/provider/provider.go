@@ -16,11 +16,34 @@ import (
 type Provider struct {
 	Client       *http.Client
 	ServiceUrl   string           `json:"providerUrl,omitempty"`
+	SchemaID     string           `json:"schemaId,omitempty"`
 	ServiceKey   string           `json:"providerKey,omitempty"`
 	Auth         *auth.AuthConfig `json:"auth,omitempty"`
 	OAuth2Config *clientcredentials.Config
 	Headers      map[string]string `json:"headers,omitempty"`
 	tokenMu      sync.RWMutex
+}
+
+func NewProvider(serviceKey, serviceUrl, schemaID string, authConfig *auth.AuthConfig) *Provider {
+	provider := &Provider{
+		Client:     &http.Client{},
+		ServiceUrl: serviceUrl,
+		SchemaID:   schemaID,
+		ServiceKey: serviceKey,
+		Auth:       authConfig,
+		Headers:    make(map[string]string),
+	}
+
+	if authConfig != nil && authConfig.Type == auth.AuthTypeOAuth2 {
+		provider.OAuth2Config = &clientcredentials.Config{
+			ClientID:     authConfig.ClientID,
+			ClientSecret: authConfig.ClientSecret,
+			TokenURL:     authConfig.TokenURL,
+			Scopes:       authConfig.Scopes,
+		}
+	}
+
+	return provider
 }
 
 // PerformRequest performs the HTTP request to the provider with necessary authentication.
