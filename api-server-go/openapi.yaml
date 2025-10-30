@@ -1,24 +1,23 @@
 openapi: 3.0.3
 info:
-  title: OpenDIF API Server V1
+  title: API Server
   description: |
-    OpenDIF (Open Data Interchange Framework) API Server V1 provides endpoints for managing
-    data providers, consumers, applications, and schemas in a federated data ecosystem.
-    
-    This API follows RESTful principles and uses JSON for data exchange.
+    Government Data Exchange API Server for managing consumers, providers, and data access workflows.
+    This service handles consumer applications, provider submissions, schema management, and access control.
   version: 1.0.0
   contact:
     name: OpenDIF Team
-    email: support@opendif.org
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:8080
-    description: Local development server
-  - url: https://api.opendif.org
-    description: Production server
+  - url: https://api-server.choreo.dev
+    description: Choreo Production Environment
+  - url: https://api-server-dev.choreo.dev
+    description: Choreo Development Environment
+  - url: http://localhost:3000
+    description: Local Development Environment
 
 paths:
   /health:
