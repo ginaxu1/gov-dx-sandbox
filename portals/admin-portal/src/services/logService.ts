@@ -46,7 +46,7 @@ export class LogService {
             if (!data || !Array.isArray(data.logs)) {
                 throw new Error('Invalid log data received from API');
             }
-            if (data.total === 0 || data.logs === null) {
+            if (data.total === 0) {
                 return [];
             }
             return data.logs;
