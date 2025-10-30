@@ -45,3 +45,42 @@ configurations:
           # +optional default value is string if not specified
           # Allowed types - string, number, boolean, secret
           type: number
+    - name: CHOREO_DB_AUDIT_HOSTNAME
+      valueFrom:
+        connectionRef:
+          name: DB_AUDIT
+          propertya: host
+    - name: CHOREO_DB_AUDIT_PORT
+      valueFrom:
+        connectionRef:
+          name: DB_AUDIT
+          property: port
+    - name: CHOREO_DB_AUDIT_USERNAME
+      valueFrom:
+        connectionRef:
+          name: DB_AUDIT
+          property: username
+    - name: CHOREO_DB_AUDIT_PASSWORD
+      valueFrom:
+        connectionRef:
+          name: DB_AUDIT
+          property: password
+    - name: CHOREO_DB_AUDIT_DATABASENAME
+      valueFrom:
+        connectionRef:
+          name: DB_AUDIT
+          property: database
+    - name: DB_SSLMODE
+      valueFrom:
+        configForm:
+          displayName: DB SSL Mode
+          required: true
+          type: string
+          default: require
+    - name: ENVIRONMENT
+      valueFrom:
+        configForm:
+          displayName: Environment
+          required: true
+          type: string
+          default: production
