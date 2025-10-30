@@ -5,10 +5,10 @@ import { ApplicationService } from '../services/applicationService';
 import type { ApprovedApplication, ApplicationSubmission } from '../types/applications';
 
 interface ApplicationsPageProps {
-    consumerId?: string;
+    memberId: string;
 }
 
-export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }) => {
+export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ memberId }) => {
     const navigate = useNavigate();
     const [registeredApplications, setRegisteredApplications] = useState<ApprovedApplication[]>([]);
     const [pendingApplications, setPendingApplications] = useState<ApplicationSubmission[]>([]);
@@ -19,26 +19,16 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
 
     useEffect(() => {
         const fetchApplications = async () => {
-            // For now, using a mock consumer ID. In a real app, this would come from auth/context
-            const mockConsumerId = consumerId || 'consumer-123';
-            
-            // Don't fetch if we don't have a valid consumer ID and it's not the mock one
-            if (!mockConsumerId) {
-                console.warn('No consumer ID provided, skipping application fetch');
-                setLoading(false);
-                return;
-            }
-            
             try {
                 setLoading(true);
                 setError(null);
-                
-                console.log('Fetching applications for consumer:', mockConsumerId);
+
+                console.log('Fetching applications for consumer:', memberId);
                 
                 // Try to fetch real data from the API
                 const [approvedApplications, applicationSubmissions] = await Promise.all([
-                    ApplicationService.getApprovedApplications(mockConsumerId),
-                    ApplicationService.getApplicationSubmissions(mockConsumerId)
+                    ApplicationService.getApprovedApplications(memberId),
+                    ApplicationService.getApplicationSubmissions(memberId)
                 ]);
 
                 console.log('Fetched approved applications:', approvedApplications);
@@ -66,10 +56,10 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ consumerId }
         };
 
         fetchApplications();
-    }, [consumerId]);
+    }, [memberId]);
 
     const handleCreateNewApplication = () => {
-        navigate('/consumer/applications/new');
+        navigate('/applications/new');
     };
 
     const getApplicationDisplayName = (app: ApprovedApplication | ApplicationSubmission) => {
