@@ -201,7 +201,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                 applicationDescription: app.applicationDescription || '',
                 memberId: app.memberId,
                 status: app.status,
-                selectedFields: app.selectedFields?.join('; ') || '',
+                selectedFields: app.selectedFields?.map(f => f.fieldName).join('; ') || '',
                 fieldCount: app.selectedFields?.length || 0
             }));
 
