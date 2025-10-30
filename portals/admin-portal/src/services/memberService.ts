@@ -1,5 +1,5 @@
-interface Entity {
-    entityId: string;
+interface Member {
+    memberId: string;
     idpUserId: string;
     name: string;
     email: string;
@@ -8,15 +8,15 @@ interface Entity {
     updatedAt: string;
 }
 
-interface EntityResponse {
-    items: Entity[];
+interface MemberResponse {
+    items: Member[];
     count: number;
 }
 
 export class MemberService {
-    static async createEntity(memberData: Partial<Entity>): Promise<Entity> {
+    static async createMember(memberData: Partial<Member>): Promise<Member> {
         try {
-            const response = await fetch(`${window.configs.apiUrl}/entities`, {
+            const response = await fetch(`${window.configs.apiUrl}/members`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -28,17 +28,17 @@ export class MemberService {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const data: Entity = await response.json();
+            const data: Member = await response.json();
             return data;
         } catch (error) {
-            console.error('Error creating entity:', error);
+            console.error('Error creating member:', error);
             throw error;
         }
     }
 
-    static async updateEntity(entityId: string, memberData: Partial<Entity>): Promise<Entity> {
+    static async updateMember(memberId: string, memberData: Partial<Member>): Promise<Member> {
         try {
-            const response = await fetch(`${window.configs.apiUrl}/entities/${entityId}`, {
+            const response = await fetch(`${window.configs.apiUrl}/members/${memberId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -50,33 +50,33 @@ export class MemberService {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const data: Entity = await response.json();
+            const data: Member = await response.json();
             return data;
         } catch (error) {
-            console.error('Error updating entity:', error);
+            console.error('Error updating member:', error);
             throw error;
         }
     }
 
-    static async fetchEntities(): Promise<Entity[]> {
+    static async fetchMembers(): Promise<Member[]> {
         try {
-            const response = await fetch(`${window.configs.apiUrl}/entities`);
-            
+            const response = await fetch(`${window.configs.apiUrl}/members`);
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const data: EntityResponse = await response.json();
+            const data: MemberResponse = await response.json();
             return data.items;
         } catch (error) {
-            console.error('Error fetching entities:', error);
+            console.error('Error fetching members:', error);
             throw error;
         }
     }
 
-    // static async fetchEntitiesWithParams(params?: Record<string, string>): Promise<EntityResponse> {
+    // static async fetchMembersWithParams(params?: Record<string, string>): Promise<MemberResponse> {
     //     try {
-    //         const url = new URL(`${window.configs.apiUrl}/entities`);         
+    //         const url = new URL(`${window.configs.apiUrl}/members`);
     //         if (params) {
     //             Object.entries(params).forEach(([key, value]) => {
     //                 if (value) {
@@ -88,14 +88,14 @@ export class MemberService {
     //         if (!response.ok) {
     //             throw new Error(`HTTP error! status: ${response.status}`);
     //         }   
-    //         const data: EntityResponse = await response.json();
+    //         const data: MemberResponse = await response.json();
     //         return data;
     //     } catch (error) {
-    //         console.error('Error fetching entities with params:', error);
+    //         console.error('Error fetching members with params:', error);
     //         throw error;
     //     }
     // }
 
 }
 
-export type { Entity, EntityResponse };
+export type { Member, MemberResponse };

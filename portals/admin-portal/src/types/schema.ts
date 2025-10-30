@@ -4,12 +4,12 @@ export interface SchemaRegistration {
   sdl: string;
   previousSchemaId: string | null;
   schemaEndpoint: string;
+  memberId: string;
 }
 
 export interface SchemaSubmission extends SchemaRegistration {
   submissionId: string;
   status: 'pending' | 'approved' | 'rejected';
-  providerId: string;
   createdAt: string;
   updatedAt: string;
   review?: string;
@@ -22,9 +22,9 @@ export interface ApprovedSchema {
   sdl: string;
   schemaEndpoint: string;
   version: "active" | "deprecated";
-  providerId: string;
   createdAt: string;
   updatedAt: string;
+  memberId: string;
 }
 
 // API Response structure
