@@ -44,7 +44,8 @@ export const SchemaExplorer: React.FC<SchemaExplorerProps> = ({
             return false;
           }
         } else {
-          if (!config.accessControlType || !config.source || (config.isOwner === false && !config.owner.trim())) {
+          if (!config.accessControlType || !config.source || (config.isOwner === false && !config.owner)) {
+            console.error(`Invalid configuration for ${type.name}.${field.name}, field config:`, config);
             return false;
           }
         }
