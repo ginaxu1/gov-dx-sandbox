@@ -381,14 +381,20 @@ export const GraphQLSchemaExplorer: React.FC<GraphQLSchemaExplorerProps> = ({
     setSelectedFields(newSelectedFields);
     
     // Convert to SelectedField format for callback
-    const selectedFieldsArray: SelectedField[] = Array.from(newSelectedFields).map(fieldPath => {
-      // Find the field to get its schemaId
-      const fieldObj = findFieldByPath(fieldPath, schema);
-      return {
-        fieldName: fieldPath,
-        schemaId: fieldObj?.sourceInfo?.schemaId || 'unknown-schema'
-      };
-    });
+    const selectedFieldsArray: SelectedField[] = Array.from(newSelectedFields)
+      .map(fieldPath => {
+        // Find the field to get its schemaId
+        const fieldObj = findFieldByPath(fieldPath, schema);
+        if (!fieldObj?.sourceInfo?.schemaId) {
+          console.warn(`Field "${fieldPath}" does not have a schemaId and will be excluded from selection.`);
+          return null;
+        }
+        return {
+          fieldName: fieldPath,
+          schemaId: fieldObj.sourceInfo.schemaId
+        };
+      })
+      .filter((field): field is SelectedField => field !== null);
     
     onSelectionChange?.(selectedFieldsArray);
   };

@@ -147,9 +147,9 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
           {/* Owner Identifier */}
           {(!configuration.isQueryType && !configuration.isUserDefinedTypeField && configuration.isOwner === false) && (
             <div className="bg-gray-50 p-3 rounded-lg border">
-              <label className="block text-sm font-semibold text-gray-800 mb-2">
-              Owner<span className="text-red-600">*</span>
-              </label>
+                <label className="block text-sm font-semibold text-gray-800 mb-2">
+                Owner <span className="text-red-600">*</span>
+                </label>
               <select
               name={`owner-${typeName}-${field.name}`}
               value={configuration.owner}

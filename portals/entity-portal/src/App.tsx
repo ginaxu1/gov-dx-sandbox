@@ -1,4 +1,4 @@
-import {BrowserRouter as Router, Navigate, Route, Routes} from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import {useAuthContext} from "@asgardeo/auth-react";
 import {SideNavbar} from "./components/Navbar";
 import {SchemasPage} from './pages/Schemas';

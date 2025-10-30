@@ -1,5 +1,5 @@
 // components/Navbar.tsx
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from "@asgardeo/auth-react";
 
