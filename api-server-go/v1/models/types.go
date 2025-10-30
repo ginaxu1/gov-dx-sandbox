@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -52,7 +53,15 @@ func (SelectedFieldRecords) GormDataType() string {
 
 // GormValue implements the GormValuerInterface
 func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clause.Expr {
-	data, _ := json.Marshal(sfr)
+	data, err := json.Marshal(sfr)
+	if err != nil {
+		// Log the error and return a safe value
+		slog.Error("Failed to marshal SelectedFieldRecords", "error", err)
+		return clause.Expr{
+			SQL:  "?::jsonb",
+			Vars: []interface{}{"null"},
+		}
+	}
 	return clause.Expr{
 		SQL:  "?::jsonb",
 		Vars: []interface{}{string(data)},
