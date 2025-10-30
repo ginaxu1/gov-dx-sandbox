@@ -59,7 +59,7 @@ func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clau
 		slog.Error("Failed to marshal SelectedFieldRecords", "error", err)
 		return clause.Expr{
 			SQL:  "?::jsonb",
-			Vars: []interface{}{"null"},
+			Vars: []interface{}{nil},
 		}
 	}
 	return clause.Expr{
