@@ -2,26 +2,18 @@ import React, { useState } from "react";
 
 interface MemberInfoProps {
     name: string;
-    entityType: 'gov' | 'business' | '';
     email: string;
     phoneNumber: string;
-    roles: Array<'provider' | 'consumer'>;
     createdAt: string; // ISO date string
     updatedAt: string; // ISO date string
-    onApplyForProvider?: () => void;
-    onApplyForConsumer?: () => void;
 }
 
 const MemberInfo: React.FC<MemberInfoProps> = ({
     name,
-    entityType,
     email,
     phoneNumber,
-    roles,
     createdAt,
-    updatedAt,
-    onApplyForProvider,
-    onApplyForConsumer
+    updatedAt
 }) => {
     const [editMode, setEditMode] = useState({
         name: false,
@@ -56,19 +48,6 @@ const MemberInfo: React.FC<MemberInfoProps> = ({
             [field]: false
         }));
     };
-
-    const handleApplyForRole = (role: 'provider' | 'consumer') => {
-        if (role === 'provider' && onApplyForProvider) {
-            onApplyForProvider();
-        } else if (role === 'consumer' && onApplyForConsumer) {
-            onApplyForConsumer();
-        } else {
-            console.log(`Applying for ${role} role`);
-        }
-    };
-
-    const hasProvider = roles.includes('provider');
-    const hasConsumer = roles.includes('consumer');
 
     return (
         <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
@@ -206,80 +185,6 @@ const MemberInfo: React.FC<MemberInfoProps> = ({
                                         </>
                                     )}
                                 </div>
-                            </div>
-
-                            {/* Entity Type */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                                    {entityType === 'gov' ? 'Government' : 'Business'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Roles and Actions Card */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                                <svg className="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Roles & Permissions
-                            </h3>
-
-                            {/* Current Roles */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Current Roles</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {roles.map((role) => (
-                                        <span
-                                            key={role}
-                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800"
-                                        >
-                                            {role.charAt(0).toUpperCase() + role.slice(1)}
-                                        </span>
-                                    ))}
-                                    {roles.length === 0 && (
-                                        <span className="text-gray-500 text-sm">No roles assigned</span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Apply for Roles */}
-                            <div className="space-y-3">
-                                <label className="block text-sm font-medium text-gray-700">Apply for Additional Roles</label>
-                                
-                                {!hasProvider && (
-                                    <button
-                                        onClick={() => handleApplyForRole('provider')}
-                                        className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-medium flex items-center justify-center gap-2"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Apply for Provider Role
-                                    </button>
-                                )}
-
-                                {!hasConsumer && (
-                                    <button
-                                        onClick={() => handleApplyForRole('consumer')}
-                                        className="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors font-medium flex items-center justify-center gap-2"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Apply for Consumer Role
-                                    </button>
-                                )}
-
-                                {hasProvider && hasConsumer && (
-                                    <div className="text-green-600 text-sm font-medium flex items-center gap-2">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        All roles assigned
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>

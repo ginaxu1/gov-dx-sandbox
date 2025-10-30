@@ -50,9 +50,9 @@ export interface IntrospectionResult {
 
 export interface FieldConfiguration {
   accessControlType: 'public' | 'restricted' | ''; // '' indicates not set
-  source: 'authoritative' | 'fallback' | 'other' | ''; // '' indicates not set
+  source: 'primary' | 'fallback' | ''; // '' indicates not set
   isOwner: boolean | null;
-  owner: string; // Owner Identifier
+  owner: 'citizen' | ''; // Owner Identifier
   description: string;
   isQueryType: boolean; // Is Field Defined Inside a Query Type
   isUserDefinedTypeField: boolean; // Is this field a User Defined Type field
@@ -64,12 +64,12 @@ export interface SchemaRegistration {
   sdl: string;
   previousSchemaId: string | null;
   schemaEndpoint: string;
+  memberId: string;
 }
 
 export interface SchemaSubmission extends SchemaRegistration {
   submissionId: string;
   status: 'pending' | 'approved' | 'rejected';
-  providerId: string;
   createdAt: string; // Note: API uses createdAt, not created_at
   updatedAt: string;
 }
@@ -81,7 +81,7 @@ export interface ApprovedSchema {
   sdl: string;
   schemaEndpoint: string;
   version: "active" | "deprecated";
-  providerId: string;
+  memberId: string;
   createdAt: string;
   updatedAt: string;
 }

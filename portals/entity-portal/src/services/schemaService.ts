@@ -101,10 +101,12 @@ export class SchemaService {
     }
   }
 
-  static async getApprovedSchemas(providerId: string): Promise<ApprovedSchema[]> {
+  static async getApprovedSchemas(memberId: string): Promise<ApprovedSchema[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const response = await fetch(`${baseUrl}/providers/${providerId}/schemas`, {
+      const url = new URL(`${baseUrl}/schemas`);
+      url.searchParams.append('memberId', memberId);
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -130,12 +132,16 @@ export class SchemaService {
     }
   }
 
-  static async getSchemaSubmissions(providerId: string): Promise<SchemaSubmission[]> {
+  static async getSchemaSubmissions(memberId: string): Promise<SchemaSubmission[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const response = await fetch(`${baseUrl}/providers/${providerId}/schema-submissions?status=pending`, {
-      method: 'GET',
-      headers: {
+      const url = new URL(`${baseUrl}/schema-submissions`);
+      url.searchParams.append('memberId', memberId);
+      url.searchParams.append('status', 'pending');
+      url.searchParams.append('status', 'rejected');
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
         'Content-Type': 'application/json',
       },
        
@@ -160,11 +166,11 @@ export class SchemaService {
     }
   }
 
-  static async registerSchema(providerId: string, registration: SchemaRegistration): Promise<void> {
+  static async registerSchema(registration: SchemaRegistration): Promise<void> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
-    console.log('Registering schema at:', `${baseUrl}/providers/${providerId}/schema-submissions`);
     try {
-      const response = await fetch(`${baseUrl}/providers/${providerId}/schema-submissions`, {
+      const url = new URL(`${baseUrl}/schema-submissions`);
+      const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
