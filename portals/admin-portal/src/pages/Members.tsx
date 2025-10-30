@@ -21,11 +21,15 @@ interface FilterOptions {
     searchByName?: string;
 }
 
-interface MemberFormData {
+interface CreateMemberFormData {
     name: string;
     email: string;
     phoneNumber: string;
-    idpUserId: string;
+}
+
+interface UpdateMemberFormData {
+    name: string;
+    phoneNumber: string;
 }
 
 interface MembersProps {
@@ -40,12 +44,16 @@ export const Members: React.FC<MembersProps> = () => {
     const [loading, setLoading] = useState(true);
     const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
     const [showAddForm, setShowAddForm] = useState(false);
+    const [showEditForm, setShowEditForm] = useState(false);
     const [editingMember, setEditingMember] = useState<Member | null>(null);
-    const [formData, setFormData] = useState<MemberFormData>({
+    const [createMemberFormData, setCreateMemberFormData] = useState<CreateMemberFormData>({
         name: '',
         email: '',
-        phoneNumber: '',
-        idpUserId: ''
+        phoneNumber: ''
+    });
+    const [updateMemberFormData, setUpdateMemberFormData] = useState<UpdateMemberFormData>({
+        name: '',
+        phoneNumber: ''
     });
 
     // Helper function to update filters
@@ -121,11 +129,14 @@ export const Members: React.FC<MembersProps> = () => {
     };
 
     const resetForm = () => {
-        setFormData({
+        setCreateMemberFormData({
             name: '',
             email: '',
             phoneNumber: '',
-            idpUserId: ''
+        });
+        setUpdateMemberFormData({
+            name: '',
+            phoneNumber: '',
         });
     };
 
@@ -136,18 +147,17 @@ export const Members: React.FC<MembersProps> = () => {
     };
 
     const handleEditMember = (member: Member) => {
-        setFormData({
+        setUpdateMemberFormData({
             name: member.name,
-            email: member.email,
-            phoneNumber: member.phoneNumber,
-            idpUserId: member.idpUserId
+            phoneNumber: member.phoneNumber
         });
         setEditingMember(member);
-        setShowAddForm(true);
+        setShowEditForm(true);
     };
 
     const handleCloseForm = () => {
         setShowAddForm(false);
+        setShowEditForm(false);
         setEditingMember(null);
         resetForm();
     };
@@ -157,10 +167,10 @@ export const Members: React.FC<MembersProps> = () => {
         try {
             if (editingMember) {
                 // Update existing member
-                await MemberService.updateMember(editingMember.memberId, formData);
+                await MemberService.updateMember(editingMember.memberId, updateMemberFormData);
             } else {
                 // Create new member
-                await MemberService.createMember(formData);
+                await MemberService.createMember(createMemberFormData);
             }
             await fetchMembers();
             handleCloseForm();
@@ -465,7 +475,7 @@ export const Members: React.FC<MembersProps> = () => {
                     )}
                 </div>
 
-                {/* Add/Edit Member Form Modal */}
+                {/* Add Member Form Modal */}
                 {showAddForm && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                         <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -491,8 +501,8 @@ export const Members: React.FC<MembersProps> = () => {
                                             type="text"
                                             id="name"
                                             required
-                                            value={formData.name}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                            value={createMemberFormData.name}
+                                            onChange={(e) => setCreateMemberFormData(prev => ({ ...prev, name: e.target.value }))}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             placeholder="Enter member name"
                                         />
@@ -506,8 +516,8 @@ export const Members: React.FC<MembersProps> = () => {
                                             type="email"
                                             id="email"
                                             required
-                                            value={formData.email}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                                            value={createMemberFormData.email}
+                                            onChange={(e) => setCreateMemberFormData(prev => ({ ...prev, email: e.target.value }))}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             placeholder="Enter email address"
                                         />
@@ -521,28 +531,12 @@ export const Members: React.FC<MembersProps> = () => {
                                             type="tel"
                                             id="phoneNumber"
                                             required
-                                            value={formData.phoneNumber}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                                            value={createMemberFormData.phoneNumber}
+                                            onChange={(e) => setCreateMemberFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             placeholder="Enter phone number"
                                         />
                                     </div>
-
-                                    <div>
-                                        <label htmlFor="idpUserId" className="block text-sm font-medium text-gray-700 mb-1">
-                                            IDP User ID *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            id="idpUserId"
-                                            required
-                                            value={formData.idpUserId}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, idpUserId: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            placeholder="Enter IDP user ID"
-                                        />
-                                    </div>
-
                                     <div className="flex justify-end space-x-3 pt-4">
                                         <button
                                             type="button"
@@ -557,6 +551,75 @@ export const Members: React.FC<MembersProps> = () => {
                                         >
                                             <Save className="w-4 h-4" />
                                             <span>{editingMember ? 'Update' : 'Create'} Member</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Edit Member Form Modal */}
+                {showEditForm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h2 className="text-xl font-semibold text-gray-900">
+                                        Edit Member
+                                    </h2>
+                                    <button
+                                        onClick={handleCloseForm}
+                                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleFormSubmit} className="space-y-4">
+                                    <div>
+                                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="name"
+                                            required
+                                            value={updateMemberFormData.name}
+                                            onChange={(e) => setUpdateMemberFormData(prev => ({ ...prev, name: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter member name"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Phone Number *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            id="phoneNumber"
+                                            required
+                                            value={updateMemberFormData.phoneNumber}
+                                            onChange={(e) => setUpdateMemberFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Enter phone number"
+                                        />
+                                    </div>
+                                    <div className="flex justify-end space-x-3 pt-4">
+                                        <button
+                                            type="button"
+                                            onClick={handleCloseForm}
+                                            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                        >
+                                            <Save className="w-4 h-4" />
+                                            <span>Update Member</span>
                                         </button>
                                     </div>
                                 </form>
