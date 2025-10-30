@@ -43,7 +43,12 @@ export class LogService {
             }
             
             const data: LogResponse = await response.json();
-            
+            if (!data || !Array.isArray(data.logs)) {
+                throw new Error('Invalid log data received from API');
+            }
+            if (data.total === 0) {
+                return [];
+            }
             return data.logs;
         } catch (error) {
             console.error('Error fetching logs with params:', error);

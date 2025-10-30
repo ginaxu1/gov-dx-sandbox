@@ -59,6 +59,9 @@ export const Logs: React.FC<LogsProps> = () => {
         setLoading(true);
         try {
             const logs = await LogService.fetchLogsWithParams();
+            if (!Array.isArray(logs)) {
+                throw new Error('Invalid logs data received from API');
+            }
             setLogs(logs);
             setFilteredLogs(logs);
         } catch (error) {
