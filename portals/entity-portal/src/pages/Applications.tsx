@@ -59,7 +59,7 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ memberId }) 
     }, [memberId]);
 
     const handleCreateNewApplication = () => {
-        navigate('/consumer/applications/new');
+        navigate('/applications/new');
     };
 
     const getApplicationDisplayName = (app: ApprovedApplication | ApplicationSubmission) => {
