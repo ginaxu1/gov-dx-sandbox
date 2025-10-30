@@ -49,27 +49,27 @@ configurations:
       valueFrom:
         connectionRef:
           name: DB_AUDIT
-          propertya: host
+          key: host  # <-- FIX: Was 'property'
     - name: CHOREO_DB_AUDIT_PORT
       valueFrom:
         connectionRef:
           name: DB_AUDIT
-          property: port
+          key: port   # <-- FIX: Was 'property'
     - name: CHOREO_DB_AUDIT_USERNAME
       valueFrom:
         connectionRef:
           name: DB_AUDIT
-          property: username
+          key: username # <-- FIX: Was 'property'
     - name: CHOREO_DB_AUDIT_PASSWORD
       valueFrom:
         connectionRef:
           name: DB_AUDIT
-          property: password
+          key: password # <-- FIX: Was 'property'
     - name: CHOREO_DB_AUDIT_DATABASENAME
       valueFrom:
         connectionRef:
           name: DB_AUDIT
-          property: database
+          key: database # <-- FIX: Was 'property'
     - name: DB_SSLMODE
       valueFrom:
         configForm:
