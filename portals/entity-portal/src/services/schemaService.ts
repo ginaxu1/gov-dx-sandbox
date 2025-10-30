@@ -138,6 +138,7 @@ export class SchemaService {
       const url = new URL(`${baseUrl}/schema-submissions`);
       url.searchParams.append('memberId', memberId);
       url.searchParams.append('status', 'pending');
+      url.searchParams.append('status', 'rejected');
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {

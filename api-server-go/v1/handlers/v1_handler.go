@@ -103,19 +103,19 @@ func (h *V1Handler) handleMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Member ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Member Id is required")
 		return
 	}
 
-	memberID := parts[0]
+	memberId := parts[0]
 
 	// Handle base member endpoint: GET /api/v1/members/:memberId and PUT /api/v1/members/:memberId
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			h.getMember(w, r, memberID)
+			h.getMember(w, r, memberId)
 		case http.MethodPut:
-			h.updateMember(w, r, memberID)
+			h.updateMember(w, r, memberId)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -134,8 +134,8 @@ func (h *V1Handler) handleSchemas(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
 		case http.MethodGet:
-			memberID := r.URL.Query().Get("memberID")
-			h.getAllSchemas(w, r, &memberID)
+			memberId := r.URL.Query().Get("memberId")
+			h.getAllSchemas(w, r, &memberId)
 		case http.MethodPost:
 			h.createSchema(w, r)
 		default:
@@ -144,18 +144,18 @@ func (h *V1Handler) handleSchemas(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Schema ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Schema Id is required")
 		return
 	}
-	schemaID := parts[0]
+	schemaId := parts[0]
 
 	// Handle specific schema endpoint: GET /api/v1/schemas/:schemaId and PUT /api/v1/schemas/:schemaId
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			h.getSchema(w, r, schemaID)
+			h.getSchema(w, r, schemaId)
 		case http.MethodPut:
-			h.updateSchema(w, r, schemaID)
+			h.updateSchema(w, r, schemaId)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -175,8 +175,8 @@ func (h *V1Handler) handleSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 		switch r.Method {
 		case http.MethodGet:
 			status := r.URL.Query()["status"]
-			memberID := r.URL.Query().Get("memberID")
-			h.getAllSchemaSubmissions(w, r, &memberID, &status)
+			memberId := r.URL.Query().Get("memberId")
+			h.getAllSchemaSubmissions(w, r, &memberId, &status)
 		case http.MethodPost:
 			h.createSchemaSubmission(w, r, nil)
 		default:
@@ -185,17 +185,17 @@ func (h *V1Handler) handleSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Submission Id is required")
 		return
 	}
-	submissionID := parts[0]
+	submissionId := parts[0]
 	// Handle specific schema submission endpoint: GET /api/v1/schema-submissions/:submissionId and PUT /api/v1/schema-submissions/:submissionId
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			h.getSchemaSubmission(w, r, submissionID)
+			h.getSchemaSubmission(w, r, submissionId)
 		case http.MethodPut:
-			h.updateSchemaSubmission(w, r, submissionID)
+			h.updateSchemaSubmission(w, r, submissionId)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -214,8 +214,8 @@ func (h *V1Handler) handleApplications(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 1 && parts[0] == "" {
 		switch r.Method {
 		case http.MethodGet:
-			memberID := r.URL.Query().Get("memberID")
-			h.getAllApplications(w, r, &memberID)
+			memberId := r.URL.Query().Get("memberId")
+			h.getAllApplications(w, r, &memberId)
 		case http.MethodPost:
 			h.createApplication(w, r)
 		default:
@@ -224,18 +224,18 @@ func (h *V1Handler) handleApplications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Application ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Application Id is required")
 		return
 	}
 
-	applicationID := parts[0]
+	applicationId := parts[0]
 	// Handle specific application endpoint: GET /api/v1/applications/:applicationId and PUT /api/v1/applications/:applicationId
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			h.getApplication(w, r, applicationID)
+			h.getApplication(w, r, applicationId)
 		case http.MethodPut:
-			h.updateApplication(w, r, applicationID)
+			h.updateApplication(w, r, applicationId)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -255,8 +255,8 @@ func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.
 		switch r.Method {
 		case http.MethodGet:
 			status := r.URL.Query()["status"]
-			memberID := r.URL.Query().Get("memberID")
-			h.getAllApplicationSubmissions(w, r, &memberID, &status)
+			memberId := r.URL.Query().Get("memberId")
+			h.getAllApplicationSubmissions(w, r, &memberId, &status)
 		case http.MethodPost:
 			h.createApplicationSubmission(w, r, nil)
 		default:
@@ -266,18 +266,18 @@ func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.
 	}
 
 	if len(parts) < 1 || parts[0] == "" {
-		utils.RespondWithError(w, http.StatusBadRequest, "Submission ID is required")
+		utils.RespondWithError(w, http.StatusBadRequest, "Submission Id is required")
 		return
 	}
 
-	submissionID := parts[0]
+	submissionId := parts[0]
 	// Handle specific application submission endpoint: GET /api/v1/application-submissions/:submissionId and PUT /api/v1/application-submissions/:submissionId
 	if len(parts) == 1 {
 		switch r.Method {
 		case http.MethodGet:
-			h.getApplicationSubmission(w, r, submissionID)
+			h.getApplicationSubmission(w, r, submissionId)
 		case http.MethodPut:
-			h.updateApplicationSubmission(w, r, submissionID)
+			h.updateApplicationSubmission(w, r, submissionId)
 		default:
 			utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		}
@@ -304,7 +304,7 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithSuccess(w, http.StatusCreated, member)
 }
 
-func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberID string) {
+func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberId string) {
 	var req models.UpdateMemberRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -312,7 +312,7 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 		return
 	}
 
-	member, err := h.memberService.UpdateMember(memberID, &req)
+	member, err := h.memberService.UpdateMember(memberId, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -321,8 +321,8 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
 
-func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberID string) {
-	member, err := h.memberService.GetMember(memberID)
+func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberId string) {
+	member, err := h.memberService.GetMember(memberId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -345,8 +345,8 @@ func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request, idpUse
 }
 
 // Schema handlers
-func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Request, memberID *string, statusFilter *[]string) {
-	submissions, err := h.schemaService.GetSchemaSubmissions(memberID, statusFilter)
+func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Request, memberId *string, statusFilter *[]string) {
+	submissions, err := h.schemaService.GetSchemaSubmissions(memberId, statusFilter)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -359,8 +359,8 @@ func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
-	submission, err := h.schemaService.GetSchemaSubmission(submissionID)
+func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionId string) {
+	submission, err := h.schemaService.GetSchemaSubmission(submissionId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -368,7 +368,7 @@ func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Request, memberID *string) {
+func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Request, memberId *string) {
 	var req models.CreateSchemaSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -376,8 +376,8 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if memberID != nil {
-		req.MemberID = *memberID
+	if memberId != nil {
+		req.MemberID = *memberId
 	}
 
 	submission, err := h.schemaService.CreateSchemaSubmission(&req)
@@ -389,7 +389,7 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
-func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
+func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Request, submissionId string) {
 	var req models.UpdateSchemaSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -397,7 +397,7 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	submission, err := h.schemaService.UpdateSchemaSubmission(submissionID, &req)
+	submission, err := h.schemaService.UpdateSchemaSubmission(submissionId, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -406,8 +406,8 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, memberID *string) {
-	schemas, err := h.schemaService.GetSchemas(memberID)
+func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, memberId *string) {
+	schemas, err := h.schemaService.GetSchemas(memberId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -420,8 +420,8 @@ func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, member
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-func (h *V1Handler) getSchema(w http.ResponseWriter, r *http.Request, submissionID string) {
-	schema, err := h.schemaService.GetSchema(submissionID)
+func (h *V1Handler) getSchema(w http.ResponseWriter, r *http.Request, submissionId string) {
+	schema, err := h.schemaService.GetSchema(submissionId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -446,7 +446,7 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
 
-func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaID string) {
+func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaId string) {
 	var req models.UpdateSchemaRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -454,7 +454,7 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 		return
 	}
 
-	schema, err := h.schemaService.UpdateSchema(schemaID, &req)
+	schema, err := h.schemaService.UpdateSchema(schemaId, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -464,8 +464,8 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 }
 
 // Application handlers
-func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.Request, memberID *string, statusFilter *[]string) {
-	submissions, err := h.applicationService.GetApplicationSubmissions(memberID, statusFilter)
+func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.Request, memberId *string, statusFilter *[]string) {
+	submissions, err := h.applicationService.GetApplicationSubmissions(memberId, statusFilter)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -478,8 +478,8 @@ func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
-	submission, err := h.applicationService.GetApplicationSubmission(submissionID)
+func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionId string) {
+	submission, err := h.applicationService.GetApplicationSubmission(submissionId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -487,7 +487,7 @@ func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Requ
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.Request, memberID *string) {
+func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.Request, memberId *string) {
 	var req models.CreateApplicationSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -495,8 +495,8 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if memberID != nil {
-		req.MemberID = *memberID
+	if memberId != nil {
+		req.MemberID = *memberId
 	}
 
 	submission, err := h.applicationService.CreateApplicationSubmission(&req)
@@ -508,7 +508,7 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
-func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionID string) {
+func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.Request, submissionId string) {
 	var req models.UpdateApplicationSubmissionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -516,7 +516,7 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	submission, err := h.applicationService.UpdateApplicationSubmission(submissionID, &req)
+	submission, err := h.applicationService.UpdateApplicationSubmission(submissionId, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -525,8 +525,8 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
 
-func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, memberID *string) {
-	applications, err := h.applicationService.GetApplications(memberID)
+func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, memberId *string) {
+	applications, err := h.applicationService.GetApplications(memberId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -539,8 +539,8 @@ func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, m
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-func (h *V1Handler) getApplication(w http.ResponseWriter, r *http.Request, submissionID string) {
-	application, err := h.applicationService.GetApplication(submissionID)
+func (h *V1Handler) getApplication(w http.ResponseWriter, r *http.Request, submissionId string) {
+	application, err := h.applicationService.GetApplication(submissionId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -565,7 +565,7 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
 
-func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationID string) {
+func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationId string) {
 	var req models.UpdateApplicationRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -573,7 +573,7 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 		return
 	}
 
-	application, err := h.applicationService.UpdateApplication(applicationID, &req)
+	application, err := h.applicationService.UpdateApplication(applicationId, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return

@@ -61,7 +61,10 @@ function App() {
         throw new Error('Failed to fetch member info');
       }
       const data = await response.json();
-      return data;
+      if (data.count === 0 || !data.items || data.items.length === 0) {
+        throw new Error('Member not found');
+      }
+      return data.items[0];
     } catch (error) {
       console.error('Error fetching member info:', error);
       return null;
@@ -89,12 +92,12 @@ function App() {
         const userBasicInfo = await getBasicUserInfo();
         console.log('Fetching member info from user attributes:', userBasicInfo);
 
-        const memberId = userBasicInfo.memberId;
-        if (!memberId) {
-          throw new Error('User does not have a memberId attribute');
+        const idpUserId = userBasicInfo.sub;
+        if (!idpUserId) {
+          throw new Error('User does not have an idpUserId attribute');
         }
 
-        const fetchedMemberInfoFromDB = await fetchMemberInfoFromDB(memberId);
+        const fetchedMemberInfoFromDB = await fetchMemberInfoFromDB(idpUserId);
         if (fetchedMemberInfoFromDB) {
           const memberInfo: MemberProps = {
             memberId: fetchedMemberInfoFromDB.memberId || '',
@@ -195,9 +198,7 @@ function App() {
     <Router>
       <div className="App">
         <div className="App h-screen flex">
-          <SideNavbar
-            onSignOut={handleSignOut}
-          />
+          <SideNavbar onSignOut={handleSignOut} />
           <main className="flex-1 overflow-auto pt-16">
             <Routes>
               <Route path="/" element={<MemberInfo
@@ -217,7 +218,7 @@ function App() {
                   />
                 }
               />
-              <Route path="/provider/logs"
+              <Route path="/schemas/logs"
                      element={<Logs role="provider" memberId={memberData?.memberId || ''}/>}/>
               <Route path="/applications"
                      element={<Applications memberId={memberData?.memberId || ''}/>}/>
@@ -229,7 +230,7 @@ function App() {
                   />
                 }
               />
-              <Route path="/consumer/logs"
+              <Route path="/applications/logs"
                      element={<Logs role="consumer" memberId={memberData?.memberId || ''}/>}/>
               <Route path="*" element={<Navigate to="/" replace/>}/>
             </Routes>
