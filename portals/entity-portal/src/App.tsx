@@ -61,8 +61,9 @@ function App() {
         throw new Error('Failed to fetch member info');
       }
       const data = await response.json();
-      if (data.count === 0 || !data.items || data.items.length === 0) {
-        throw new Error('Member not found');
+      if (data.count !== 1 ){
+        console.error('Member info not found or multiple entries returned');
+        return null;
       }
       return data.items[0];
     } catch (error) {

@@ -153,7 +153,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
               <select
               name={`owner-${typeName}-${field.name}`}
               value={configuration.owner}
-              onChange={(e) => handleOwnerChange(e.target.value as 'citizen')}
+              onChange={(e) => handleOwnerChange(e.target.value as 'citizen' | '')}
               className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
               required
               >
