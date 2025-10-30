@@ -3,6 +3,7 @@ package graphql
 type ArgMapping struct {
 	TargetArgName string `json:"targetArgName"`
 	ProviderKey   string `json:"providerKey"`
+	SchemaID      string `json:"schemaId"`
 	SourceArgPath string `json:"sourceArgPath"`
 	TargetArgPath string `json:"targetArgPath"`
 }

@@ -1,12 +1,15 @@
+export interface SelectedField {
+  fieldName: string;
+  schemaId: string;}
 export interface ApplicationRegistration {
   applicationName: string;
   applicationDescription?: string;
-  selectedFields: string[];
+  selectedFields: SelectedField[];
+  memberId: string;
 }
 
 export interface ApplicationSubmission extends ApplicationRegistration {
   submissionId: string;
-  consumerId: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   updatedAt: string;
@@ -17,8 +20,8 @@ export interface ApprovedApplication {
   applicationId: string;
   applicationName: string;
   applicationDescription?: string;
-  selectedFields: string[];
-  consumerId: string;
+  selectedFields: SelectedField[];
+  memberId: string;
   version: "active" | "deprecated";
   createdAt: string;
   updatedAt: string;

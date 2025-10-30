@@ -13,17 +13,31 @@ type PdpConfig struct {
 	ClientUrl string `json:"pdpUrl,omitempty"`
 }
 
+type RequiredField struct {
+	ProviderKey string `json:"providerKey"`
+	SchemaId    string `json:"schemaId"`
+	FieldName   string `json:"fieldName"`
+}
+
 type PdpRequest struct {
-	ConsumerId     string   `json:"consumer_id"`
-	AppId          string   `json:"app_id"`
-	RequestId      string   `json:"request_id"`
-	RequiredFields []string `json:"required_fields"`
+	ConsumerId     string          `json:"consumerId"`
+	AppId          string          `json:"applicationId"`
+	RequestId      string          `json:"requestId"`
+	RequiredFields []RequiredField `json:"requiredFields"`
+}
+
+type ConsentRequiredField struct {
+	FieldName   string  `json:"fieldName"`
+	SchemaID    string  `json:"schemaId"`
+	DisplayName *string `json:"displayName,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Owner       *string `json:"owner,omitempty"`
 }
 
 type PdpResponse struct {
-	Allowed               bool     `json:"allow"`
-	ConsentRequired       bool     `json:"consent_required"`
-	ConsentRequiredFields []string `json:"consent_required_fields"`
+	AppAuthorized         bool                   `json:"appAuthorized"`
+	ConsentRequired       bool                   `json:"appRequiresOwnerConsent"`
+	ConsentRequiredFields []ConsentRequiredField `json:"consentRequiredFields"`
 }
 
 type PdpClient struct {
@@ -52,7 +66,7 @@ func (p *PdpClient) MakePdpRequest(request *PdpRequest) (*PdpResponse, error) {
 	// log the json request body
 	logger.Log.Info("PDP Request Body", "body", string(requestBody))
 
-	response, err := p.httpClient.Post(p.baseUrl+"/decide", "application/json", bytes.NewReader(requestBody))
+	response, err := p.httpClient.Post(p.baseUrl+"/api/v1/policy/decide", "application/json", bytes.NewReader(requestBody))
 
 	if err != nil {
 		// handle error

@@ -3,7 +3,6 @@ package configs
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
@@ -38,6 +37,7 @@ type ProviderConfig struct {
 	ProviderKey string           `json:"providerKey"`
 	ProviderURL string           `json:"providerUrl"`
 	Auth        *auth.AuthConfig `json:"auth,omitempty"`
+	SchemaID    string           `json:"schemaId"`
 }
 
 // ServerConfig holds the server-specific configuration.
@@ -115,12 +115,12 @@ func LoadConfig() (*Config, error) {
 func (c *Config) GetProviders() []*provider.Provider {
 	providers := make([]*provider.Provider, len(c.Providers))
 	for i, pConfig := range c.Providers {
-		providers[i] = &provider.Provider{
-			Client:     &http.Client{},
-			ServiceUrl: pConfig.ProviderURL,
-			ServiceKey: pConfig.ProviderKey,
-			Auth:       pConfig.Auth,
-		}
+		providers[i] = provider.NewProvider(
+			pConfig.ProviderKey,
+			pConfig.ProviderURL,
+			pConfig.SchemaID,
+			pConfig.Auth,
+		)
 	}
 	return providers
 }
