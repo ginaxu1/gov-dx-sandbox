@@ -153,7 +153,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   };
 
   const handleSuccessRedirect = () => {
-    navigate('/provider/schemas');
+    navigate('/schemas');
   };
 
   // Show success page after successful registration

@@ -22,12 +22,12 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
     onChange(typeName, field.name, { ...configuration, accessControlType });
   };
 
-  const handleSourceChange = (source: 'authoritative' | 'fallback' | 'other') => {
+  const handleSourceChange = (source: 'primary' | 'fallback') => {
     const newConfig = { ...configuration, source };
     
-    if (source === 'authoritative') {
+    if (source === 'primary') {
       newConfig.isOwner = configuration.isOwner ?? false;
-      newConfig.owner = 'Default Owner';
+      newConfig.owner = 'citizen';
     } else {
       newConfig.isOwner = null;
       newConfig.owner = '';
@@ -38,7 +38,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
   const handleIsOwnerChange = (isOwner: boolean | null) => {
     const newConfig = { ...configuration, isOwner };
     if (isOwner === false) {
-      newConfig.owner = 'Default Owner';
+      newConfig.owner = 'citizen';
     } else {
       newConfig.owner = '';
     }
@@ -46,7 +46,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
     onChange(typeName, field.name, newConfig);
   };
 
-  const handleOwnerChange = (owner: string) => {
+  const handleOwnerChange = (owner: 'citizen' | '') => {
     onChange(typeName, field.name, { ...configuration, owner });
   };
 
@@ -110,7 +110,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
                 Source <span className="text-red-600">*</span>
               </label>
               <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0">
-                {(['authoritative', 'fallback', 'other'] as const).map((option) => (
+                {(['primary', 'fallback'] as const).map((option) => (
                   <label key={option} className="flex items-center cursor-pointer hover:bg-white p-2 rounded transition-colors">
                     <input
                       type="radio"
@@ -129,7 +129,7 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
           )}
 
           {/* Is Owner Configuration */}
-          {(!configuration.isQueryType && !configuration.isUserDefinedTypeField && configuration.source === "authoritative") && (
+          {(!configuration.isQueryType && !configuration.isUserDefinedTypeField && configuration.source === "primary") && (
             <div className="bg-gray-50 p-3 rounded-lg border">
               <label className="flex items-center cursor-pointer hover:bg-white p-2 rounded transition-colors">
                 <input
@@ -148,17 +148,17 @@ export const FieldConfiguration: React.FC<FieldConfigurationProps> = ({
           {(!configuration.isQueryType && !configuration.isUserDefinedTypeField && configuration.isOwner === false) && (
             <div className="bg-gray-50 p-3 rounded-lg border">
               <label className="block text-sm font-semibold text-gray-800 mb-2">
-                Owner Identifier <span className="text-red-600">*</span>
+              Owner<span className="text-red-600">*</span>
               </label>
-              <input
-                type="text"
-                name={`owner-${typeName}-${field.name}`}
-                value={configuration.owner}
-                onChange={(e) => handleOwnerChange(e.target.value)}
-                className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                placeholder="Enter owner identifier..."
-                required
-              />
+              <select
+              name={`owner-${typeName}-${field.name}`}
+              value={configuration.owner}
+              onChange={(e) => handleOwnerChange(e.target.value as 'citizen')}
+              className="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              required
+              >
+              <option value="citizen">Citizen</option>
+              </select>
             </div>
           )}
 
