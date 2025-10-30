@@ -28,7 +28,7 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		ApplicationID:          "app_" + uuid.New().String(),
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         req.SelectedFields,
+		SelectedFields:         models.SelectedFieldRecords(req.SelectedFields),
 		MemberID:               req.MemberID,
 		Version:                models.ActiveVersion,
 	}
@@ -194,7 +194,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		PreviousApplicationID:  req.PreviousApplicationID,
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         req.SelectedFields,
+		SelectedFields:         models.SelectedFieldRecords(req.SelectedFields),
 		Status:                 models.StatusPending,
 		MemberID:               req.MemberID,
 	}
@@ -241,7 +241,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		// field validation (min 1 field enforced by DTO), while approved applications
 		// should have immutable field selections for security and audit purposes.
 		// Minimum 1 field is validated by the DTO
-		submission.SelectedFields = req.SelectedFields
+		submission.SelectedFields = models.SelectedFieldRecords(req.SelectedFields)
 
 		if req.Status != nil {
 			submission.Status = *req.Status
