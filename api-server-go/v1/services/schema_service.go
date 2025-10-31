@@ -222,64 +222,75 @@ func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissio
 func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.UpdateSchemaSubmissionRequest) (*models.SchemaSubmissionResponse, error) {
 	var submission models.SchemaSubmission
 
-	// Start transaction
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// Find the submission
-		if err := tx.First(&submission, "submission_id = ?", submissionID).Error; err != nil {
-			return fmt.Errorf("schema submission not found: %w", err)
-		}
+	// Find the submission
+	if err := s.db.First(&submission, "submission_id = ?", submissionID).Error; err != nil {
+		return nil, fmt.Errorf("schema submission not found: %w", err)
+	}
 
-		// Update fields if provided
-		if req.SchemaName != nil {
-			submission.SchemaName = *req.SchemaName
+	// Update fields if provided
+	if req.SchemaName != nil {
+		submission.SchemaName = *req.SchemaName
+	}
+	if req.SchemaDescription != nil {
+		submission.SchemaDescription = req.SchemaDescription
+	}
+	if req.SDL != nil {
+		submission.SDL = *req.SDL
+	}
+	if req.SchemaEndpoint != nil {
+		submission.SchemaEndpoint = *req.SchemaEndpoint
+	}
+
+	var shouldCreateSchema bool
+	if req.Status != nil {
+		submission.Status = *req.Status
+		// Mark that we need to create a schema after saving
+		if *req.Status == string(models.StatusApproved) {
+			shouldCreateSchema = true
 		}
-		if req.SchemaDescription != nil {
-			submission.SchemaDescription = req.SchemaDescription
+	}
+
+	if req.PreviousSchemaID != nil {
+		// Check if the new PreviousSchemaID exists
+		var previousSchema models.Schema
+		if err := s.db.First(&previousSchema, "schema_id = ?", *req.PreviousSchemaID).Error; err != nil {
+			return nil, fmt.Errorf("previous schema not found: %w", err)
 		}
-		if req.SDL != nil {
-			submission.SDL = *req.SDL
-		}
-		if req.SchemaEndpoint != nil {
-			submission.SchemaEndpoint = *req.SchemaEndpoint
-		}
-		// If status is provided and is approved, create a new schema
-		if req.Status != nil {
-			submission.Status = *req.Status
-			if *req.Status == string(models.StatusApproved) {
-				var createSchemaRequest models.CreateSchemaRequest
-				createSchemaRequest.SchemaName = submission.SchemaName
-				createSchemaRequest.SchemaDescription = submission.SchemaDescription
-				createSchemaRequest.SDL = submission.SDL
-				createSchemaRequest.Endpoint = submission.SchemaEndpoint
-				createSchemaRequest.MemberID = submission.MemberID
-				_, err := s.CreateSchema(&createSchemaRequest)
-				if err != nil {
-					return fmt.Errorf("failed to create schema from approved submission: %w", err)
-				}
+		submission.PreviousSchemaID = req.PreviousSchemaID
+	}
+
+	if req.Review != nil {
+		submission.Review = req.Review
+	}
+
+	// Save the updated submission
+	if err := s.db.Save(&submission).Error; err != nil {
+		return nil, fmt.Errorf("failed to update schema submission: %w", err)
+	}
+
+	// Create schema outside of transaction if approval was successful
+	if shouldCreateSchema {
+		var createSchemaRequest models.CreateSchemaRequest
+		createSchemaRequest.SchemaName = submission.SchemaName
+		createSchemaRequest.SchemaDescription = submission.SchemaDescription
+		createSchemaRequest.SDL = submission.SDL
+		createSchemaRequest.Endpoint = submission.SchemaEndpoint
+		createSchemaRequest.MemberID = submission.MemberID
+
+		_, err := s.CreateSchema(&createSchemaRequest)
+		if err != nil {
+			// Compensation: Update submission status back to pending
+			submission.Status = string(models.StatusPending)
+			if updateErr := s.db.Save(&submission).Error; updateErr != nil {
+				slog.Error("Failed to compensate submission status after schema creation failure",
+					"submissionID", submission.SubmissionID,
+					"originalError", err,
+					"compensationError", updateErr)
+				return nil, fmt.Errorf("failed to create schema from approved submission: %w, and failed to compensate submission status: %w", err, updateErr)
 			}
+			slog.Info("Successfully compensated submission status after schema creation failure", "submissionID", submission.SubmissionID)
+			return nil, fmt.Errorf("failed to create schema from approved submission: %w", err)
 		}
-		if req.PreviousSchemaID != nil {
-			// Check if the new PreviousSchemaID exists
-			var previousSchema models.Schema
-			if err := tx.First(&previousSchema, "schema_id = ?", *req.PreviousSchemaID).Error; err != nil {
-				return fmt.Errorf("previous schema not found: %w", err)
-			}
-			submission.PreviousSchemaID = req.PreviousSchemaID
-		}
-		if req.Review != nil {
-			submission.Review = req.Review
-		}
-
-		// Save the updated submission
-		if err := tx.Save(&submission).Error; err != nil {
-			return fmt.Errorf("failed to update schema submission: %w", err)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
 	}
 
 	response := &models.SchemaSubmissionResponse{
