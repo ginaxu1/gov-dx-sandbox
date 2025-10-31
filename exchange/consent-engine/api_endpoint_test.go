@@ -5,9 +5,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+// contains checks if a string contains a substring
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
 
 // TestPOSTConsentsEndpoint tests the POST /consents endpoint
 func TestPOSTConsentsEndpoint(t *testing.T) {
@@ -16,16 +22,20 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 	server := &apiServer{engine: engine}
 
 	t.Run("CreateNewConsent_Success", func(t *testing.T) {
-		reqBody := ConsentRequest{
-			AppID: "passport-app",
-			DataFields: []DataField{
+		reqBody := map[string]interface{}{
+			"app_id": "acde070d-8c4c-4f0d-9d8a-162843c10333",
+			"consent_requirements": []map[string]interface{}{
 				{
-					OwnerID:    "199512345678",
-					OwnerEmail: "199512345678@example.com",
-					Fields:     []string{"person.permanentAddress", "person.birthDate"},
+					"owner":    "CITIZEN",
+					"owner_id": "mohamed@opensource.lk",
+					"fields": []map[string]string{
+						{
+							"fieldName": "personInfo.name",
+							"schemaId":  "acde070d-8c4c-4f0d-9d8a-162843c10333",
+						},
+					},
 				},
 			},
-			SessionID: "session_123",
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -37,7 +47,7 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 
 		// Verify response
 		if w.Code != http.StatusCreated {
-			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
+			t.Errorf("Expected status %d, got %d. Response: %s", http.StatusCreated, w.Code, w.Body.String())
 		}
 
 		var response map[string]interface{}
@@ -45,24 +55,32 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 			t.Fatalf("Failed to unmarshal response: %v", err)
 		}
 
-		// Validate response fields
+		// Validate response fields - new format: only consent_id, status, consent_portal_url
+		if _, exists := response["consent_id"]; !exists {
+			t.Error("Expected 'consent_id' field in response")
+		}
 		if response["status"] != "pending" {
 			t.Errorf("Expected status 'pending', got '%s'", response["status"])
 		}
-		if response["owner_email"] != "regina@opensource.lk" {
-			t.Errorf("Expected owner_email 'regina@opensource.lk', got '%s'", response["owner_email"])
+		if _, exists := response["consent_portal_url"]; !exists {
+			t.Error("Expected 'consent_portal_url' field in response")
 		}
-		if response["redirect_url"] == "" {
-			t.Error("Expected non-empty redirect_url")
+		consentPortalURL, ok := response["consent_portal_url"].(string)
+		if !ok || consentPortalURL == "" {
+			t.Error("Expected non-empty consent_portal_url")
+		}
+		// Verify URL format includes consent_id
+		consentID, ok := response["consent_id"].(string)
+		if ok && !contains(consentPortalURL, consentID) {
+			t.Errorf("Expected consent_portal_url to contain consent_id '%s', got '%s'", consentID, consentPortalURL)
 		}
 	})
 
 	t.Run("CreateConsent_InvalidRequest", func(t *testing.T) {
-		// Test with empty data fields
-		reqBody := ConsentRequest{
-			AppID:      "passport-app",
-			DataFields: []DataField{},
-			SessionID:  "session_123",
+		// Test with empty consent_requirements
+		reqBody := map[string]interface{}{
+			"app_id":               "acde070d-8c4c-4f0d-9d8a-162843c10333",
+			"consent_requirements": []interface{}{},
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -77,18 +95,22 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateConsent_DifferentEmailsSameOwnerID", func(t *testing.T) {
-		// First request with owner_id: "199512345678" (will be mapped to email)
-		req1 := ConsentRequest{
-			AppID: "passport-app",
-			DataFields: []DataField{
+	t.Run("CreateConsent_DifferentOwners", func(t *testing.T) {
+		// First request with owner_id: "mohamed@opensource.lk"
+		req1 := map[string]interface{}{
+			"app_id": "acde070d-8c4c-4f0d-9d8a-162843c10333",
+			"consent_requirements": []map[string]interface{}{
 				{
-					OwnerID:    "199512345678",
-					OwnerEmail: "199512345678@example.com",
-					Fields:     []string{"personInfo.permanentAddress"},
+					"owner":    "CITIZEN",
+					"owner_id": "mohamed@opensource.lk",
+					"fields": []map[string]string{
+						{
+							"fieldName": "personInfo.name",
+							"schemaId":  "acde070d-8c4c-4f0d-9d8a-162843c10333",
+						},
+					},
 				},
 			},
-			SessionID: "session_123",
 		}
 
 		jsonBody1, _ := json.Marshal(req1)
@@ -108,19 +130,22 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		}
 
 		firstConsentID := response1["consent_id"].(string)
-		firstOwnerEmail := response1["owner_email"].(string)
 
-		// Second request with different owner_id: "198712345678" (will be mapped to different email)
-		req2 := ConsentRequest{
-			AppID: "passport-app",
-			DataFields: []DataField{
+		// Second request with different owner_id
+		req2 := map[string]interface{}{
+			"app_id": "acde070d-8c4c-4f0d-9d8a-162843c10333",
+			"consent_requirements": []map[string]interface{}{
 				{
-					OwnerID:    "198712345678", // Different owner_id
-					OwnerEmail: "198712345678@example.com",
-					Fields:     []string{"personInfo.permanentAddress"},
+					"owner":    "CITIZEN",
+					"owner_id": "regina@opensource.lk",
+					"fields": []map[string]string{
+						{
+							"fieldName": "personInfo.name",
+							"schemaId":  "acde070d-8c4c-4f0d-9d8a-162843c10333",
+						},
+					},
 				},
 			},
-			SessionID: "session_123",
 		}
 
 		jsonBody2, _ := json.Marshal(req2)
@@ -140,25 +165,11 @@ func TestPOSTConsentsEndpoint(t *testing.T) {
 		}
 
 		secondConsentID := response2["consent_id"].(string)
-		secondOwnerEmail := response2["owner_email"].(string)
 
-		// BUG: Currently both responses return the same consent record
-		t.Logf("First request - ConsentID: %s, OwnerEmail: %s", firstConsentID, firstOwnerEmail)
-		t.Logf("Second request - ConsentID: %s, OwnerEmail: %s", secondConsentID, secondOwnerEmail)
-
-		// This test will fail with the current buggy behavior
+		// Verify different consent IDs
 		if firstConsentID == secondConsentID {
-			t.Errorf("BUG: Both requests returned the same consent ID (%s), but they should be different", firstConsentID)
+			t.Errorf("Expected different consent IDs, but both returned '%s'", firstConsentID)
 		}
-
-		if firstOwnerEmail == secondOwnerEmail {
-			t.Errorf("BUG: Both requests returned the same owner email (%s), but they should be different", firstOwnerEmail)
-		}
-
-		// The correct behavior should be:
-		// - Different consent IDs
-		// - Different owner emails
-		// - Both records should be stored separately
 	})
 }
 
@@ -293,14 +304,18 @@ func TestPOSTAdminExpiryCheckEndpoint(t *testing.T) {
 		// Create a consent with a very short grant duration
 		req := ConsentRequest{
 			AppID: "passport-app",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-					OwnerID:    "user123",
-					OwnerEmail: "user123@example.com",
-					Fields:     []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user123@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
-			SessionID:     "session_123",
 			GrantDuration: "1s", // Very short duration
 		}
 
@@ -394,16 +409,18 @@ func TestPUTConsentsWithGrantDuration(t *testing.T) {
 	// First create a consent
 	createReq := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID: "200012345678",
-				// OwnerEmail will be populated from mapping
-				Fields: []string{"personInfo.permanentAddress"},
+				Owner:   "CITIZEN",
+				OwnerID: "mohamed@opensource.lk",
+				Fields: []ConsentField{
+					{
+						FieldName: "personInfo.permanentAddress",
+						SchemaID:  "schema_123",
+					},
+				},
 			},
 		},
-
-		SessionID: "session_123",
 	}
 
 	jsonBody, _ := json.Marshal(createReq)

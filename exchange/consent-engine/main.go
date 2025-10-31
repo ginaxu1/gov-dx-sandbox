@@ -265,55 +265,56 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "app_id is required and cannot be empty"})
 		return
 	}
-	if req.SessionID == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
-		return
-	}
-	if len(req.DataFields) == 0 {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "data_fields is required and cannot be empty"})
+	if len(req.ConsentRequirements) == 0 {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "consent_requirements is required and cannot be empty"})
 		return
 	}
 
-	// Validate each data field and set owner_email to owner_id (they are the same value)
-	for i, dataField := range req.DataFields {
-		if dataField.OwnerID == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
+	// Validate each consent requirement
+	for i, requirement := range req.ConsentRequirements {
+		if requirement.OwnerID == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].owner_id is required and cannot be empty", i)})
 			return
 		}
-		if len(dataField.Fields) == 0 {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields is required and cannot be empty", i)})
+		if len(requirement.Fields) == 0 {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].fields is required and cannot be empty", i)})
 			return
 		}
-		// Validate that no field is empty
-		for j, field := range dataField.Fields {
-			if field == "" {
-				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields[%d] cannot be empty", i, j)})
+		// Validate each field has fieldName and schemaId
+		for j, field := range requirement.Fields {
+			if field.FieldName == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].fields[%d].fieldName is required and cannot be empty", i, j)})
+				return
+			}
+			if field.SchemaID == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].fields[%d].schemaId is required and cannot be empty", i, j)})
 				return
 			}
 		}
-
-		// Set owner_email to owner_id (they are the same value)
-		ownerEmail, err := getOwnerEmailByID(dataField.OwnerID)
-		if err != nil {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id '%s' is invalid: %v", i, dataField.OwnerID, err)})
-			return
-		}
-
-		// Set the owner_email in the data field
-		req.DataFields[i].OwnerEmail = ownerEmail
 	}
 
 	// Process consent request using the engine
-	response, err := s.engine.ProcessConsentRequest(req)
+	record, err := s.engine.ProcessConsentRequest(req)
 	if err != nil {
 		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to process consent request: " + err.Error()})
 		return
 	}
 
 	// Log the operation
-	slog.Info("Operation successful", "operation", "create consent", "id", response.ConsentID, "owner", response.OwnerID, "existing", false)
+	slog.Info("Operation successful", "operation", "create consent", "id", record.ConsentID, "owner", record.OwnerID)
 
-	// Return the ConsentRecord
+	// Return simplified response format
+	response := ConsentResponse{
+		ConsentID:        record.ConsentID,
+		Status:           record.Status,
+		ConsentPortalURL: record.ConsentPortalURL, // Only present when status is pending
+	}
+
+	// If status is not pending, don't include consent_portal_url
+	if record.Status != string(StatusPending) {
+		response.ConsentPortalURL = ""
+	}
+
 	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
@@ -333,8 +334,18 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentUpdateFailed+": %w", err)
 		}
 
-		// Return the ConsentRecord directly
-		return record, http.StatusOK, nil
+		// Return simplified response format
+		response := ConsentResponse{
+			ConsentID: record.ConsentID,
+			Status:    record.Status,
+		}
+
+		// Only include consent_portal_url if status is pending
+		if record.Status == string(StatusPending) {
+			response.ConsentPortalURL = record.ConsentPortalURL
+		}
+
+		return response, http.StatusOK, nil
 	})
 }
 

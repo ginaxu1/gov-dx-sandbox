@@ -113,13 +113,32 @@ func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
 
 // ConsentRequest defines the structure for creating a consent record
 type ConsentRequest struct {
-	AppID         string      `json:"app_id"`
-	DataFields    []DataField `json:"data_fields"`
-	SessionID     string      `json:"session_id"`
-	GrantDuration string      `json:"grant_duration,omitempty"`
+	AppID               string               `json:"app_id"`
+	ConsentRequirements []ConsentRequirement `json:"consent_requirements"`
+	GrantDuration       string               `json:"grant_duration,omitempty"`
 }
 
-// DataField represents a data field that requires consent
+// ConsentRequirement represents a consent requirement for a specific owner
+type ConsentRequirement struct {
+	Owner   string         `json:"owner"`
+	OwnerID string         `json:"owner_id"`
+	Fields  []ConsentField `json:"fields"`
+}
+
+// ConsentField represents a field that requires consent
+type ConsentField struct {
+	FieldName string `json:"fieldName"`
+	SchemaID  string `json:"schemaId"`
+}
+
+// ConsentResponse represents the simplified response for consent operations
+type ConsentResponse struct {
+	ConsentID        string `json:"consent_id"`
+	Status           string `json:"status"`
+	ConsentPortalURL string `json:"consent_portal_url,omitempty"` // Only present when status is pending
+}
+
+// Legacy structures for backwards compatibility (deprecated)
 type DataField struct {
 	OwnerType  string   `json:"owner_type,omitempty"`
 	OwnerID    string   `json:"owner_id"`

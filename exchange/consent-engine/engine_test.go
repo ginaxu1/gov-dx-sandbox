@@ -11,14 +11,16 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 
 		req := ConsentRequest{
 			AppID: "passport-app",
-
-			SessionID: "session_123",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-
-					OwnerID:    "user123",
-					OwnerEmail: "user123@example.com",
-					Fields:     []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user123@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 		}
@@ -40,12 +42,12 @@ func TestConsentEngine_CreateConsent(t *testing.T) {
 			t.Errorf("Expected AppID=%s, got %s", req.AppID, record.AppID)
 		}
 
-		if record.OwnerID != req.DataFields[0].OwnerID {
-			t.Errorf("Expected OwnerID=%s, got %s", req.DataFields[0].OwnerID, record.OwnerID)
+		if record.OwnerID != req.ConsentRequirements[0].OwnerID {
+			t.Errorf("Expected OwnerID=%s, got %s", req.ConsentRequirements[0].OwnerID, record.OwnerID)
 		}
 
-		if record.OwnerEmail != req.DataFields[0].OwnerEmail {
-			t.Errorf("Expected OwnerEmail=%s, got %s", req.DataFields[0].OwnerEmail, record.OwnerEmail)
+		if record.OwnerEmail != req.ConsentRequirements[0].OwnerID {
+			t.Errorf("Expected OwnerEmail=%s, got %s", req.ConsentRequirements[0].OwnerID, record.OwnerEmail)
 		}
 	})
 }
@@ -57,14 +59,16 @@ func TestConsentEngine_GetConsentStatus(t *testing.T) {
 		// Create a consent record first
 		req := ConsentRequest{
 			AppID: "passport-app",
-
-			SessionID: "session_123",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-
-					OwnerID:    "user123",
-					OwnerEmail: "user123@example.com",
-					Fields:     []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user123@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 		}
@@ -99,14 +103,16 @@ func TestConsentEngine_UpdateConsent(t *testing.T) {
 		// Create a consent record first
 		req := ConsentRequest{
 			AppID: "passport-app",
-
-			SessionID: "session_123",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-
-					OwnerID:    "user123",
-					OwnerEmail: "user123@example.com",
-					Fields:     []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user123@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 		}
@@ -153,14 +159,16 @@ func TestConsentEngine_FindExistingConsent(t *testing.T) {
 		// Create a consent record first
 		req := ConsentRequest{
 			AppID: "passport-app",
-
-			SessionID: "session_123",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-
-					OwnerID:    "user123",
-					OwnerEmail: "user123@example.com",
-					Fields:     []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user123@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 		}
@@ -238,13 +246,16 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		// Create a consent that won't expire soon
 		req := ConsentRequest{
 			AppID: "passport-app",
-
-			SessionID: "session_123",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-
-					OwnerID: "user123",
-					Fields:  []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user123@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 		}
@@ -283,14 +294,16 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		// Create a consent
 		req := ConsentRequest{
 			AppID: "passport-app",
-
-			SessionID: "session_456",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-
-					OwnerID:    "user456",
-					OwnerEmail: "user456@example.com",
-					Fields:     []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user456@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 		}
@@ -315,15 +328,19 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		// and then wait for it to expire
 		expiredRecord := ConsentRequest{
 			AppID: "test-app-2",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-					OwnerID:    "test-owner-2",
-					OwnerEmail: "test2@example.com",
-					Fields:     []string{"email"},
+					Owner:   "CITIZEN",
+					OwnerID: "test2@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "email",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 			GrantDuration: "1s", // Very short duration to ensure expiry
-			SessionID:     "test-session-2",
 		}
 
 		expiredConsent, err := engine.CreateConsent(expiredRecord)
@@ -371,14 +388,16 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		// Create a consent
 		req := ConsentRequest{
 			AppID: "passport-app",
-
-			SessionID: "session_789",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-
-					OwnerID:    "user789",
-					OwnerEmail: "user789@example.com",
-					Fields:     []string{"person.permanentAddress"},
+					Owner:   "CITIZEN",
+					OwnerID: "user789@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "person.permanentAddress",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 		}
@@ -403,15 +422,19 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		// since we can't directly modify the database timestamp
 		expiredRecord2 := ConsentRequest{
 			AppID: "test-app-3",
-			DataFields: []DataField{
+			ConsentRequirements: []ConsentRequirement{
 				{
-					OwnerID:    "test-owner-3",
-					OwnerEmail: "test3@example.com",
-					Fields:     []string{"phone"},
+					Owner:   "CITIZEN",
+					OwnerID: "test3@example.com",
+					Fields: []ConsentField{
+						{
+							FieldName: "phone",
+							SchemaID:  "schema_123",
+						},
+					},
 				},
 			},
 			GrantDuration: "1h",
-			SessionID:     "test-session-3",
 		}
 
 		expiredConsent2, err := engine.CreateConsent(expiredRecord2)
@@ -448,15 +471,19 @@ func TestConsentEngine_CheckConsentExpiry(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			req := ConsentRequest{
 				AppID: "passport-app",
-				DataFields: []DataField{
+				ConsentRequirements: []ConsentRequirement{
 					{
-						OwnerID:    "user" + string(rune('0'+i)),
-						OwnerEmail: "user" + string(rune('0'+i)) + "@example.com",
-						Fields:     []string{"person.permanentAddress"},
+						Owner:   "CITIZEN",
+						OwnerID: "user" + string(rune('0'+i)) + "@example.com",
+						Fields: []ConsentField{
+							{
+								FieldName: "person.permanentAddress",
+								SchemaID:  "schema_123",
+							},
+						},
 					},
 				},
 				GrantDuration: "1s", // Very short duration to ensure expiry
-				SessionID:     "session_" + string(rune('0'+i)),
 			}
 
 			record, err := engine.CreateConsent(req)
@@ -508,14 +535,16 @@ func TestConsentEngine_UpdateConsentWithGrantDuration(t *testing.T) {
 	// Create a consent
 	req := ConsentRequest{
 		AppID: "passport-app",
-
-		SessionID: "session_123",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID:    "user123",
-				OwnerEmail: "user123@example.com",
-				Fields:     []string{"person.permanentAddress"},
+				Owner:   "CITIZEN",
+				OwnerID: "user123@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "person.permanentAddress",
+						SchemaID:  "schema_123",
+					},
+				},
 			},
 		},
 	}
@@ -563,16 +592,22 @@ func TestRejectedConsentReuseIssue(t *testing.T) {
 
 	// Create initial consent request
 	req1 := ConsentRequest{
-		AppID: "test-app",
-
-		SessionID:     "session123",
+		AppID:         "test-app",
 		GrantDuration: "1h",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID:    "user123",
-				OwnerEmail: "user@example.com",
-				Fields:     []string{"name", "email"}, // 2 fields
+				Owner:   "CITIZEN",
+				OwnerID: "user@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "name",
+						SchemaID:  "schema_test",
+					},
+					{
+						FieldName: "email",
+						SchemaID:  "schema_test",
+					},
+				},
 			},
 		},
 	}
@@ -605,16 +640,26 @@ func TestRejectedConsentReuseIssue(t *testing.T) {
 
 	// Now send the same request but with different number of fields
 	req2 := ConsentRequest{
-		AppID: "test-app",
-
-		SessionID:     "session456", // Different session
+		AppID:         "test-app",
 		GrantDuration: "1h",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID:    "user123",
-				OwnerEmail: "user@example.com",
-				Fields:     []string{"name", "email", "phone"}, // 3 fields instead of 2
+				Owner:   "CITIZEN",
+				OwnerID: "user@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "name",
+						SchemaID:  "schema_test",
+					},
+					{
+						FieldName: "email",
+						SchemaID:  "schema_test",
+					},
+					{
+						FieldName: "phone",
+						SchemaID:  "schema_test",
+					},
+				},
 			},
 		},
 	}
@@ -656,16 +701,22 @@ func TestConsentReuseLogic(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
 
 	baseReq := ConsentRequest{
-		AppID: "test-app",
-
-		SessionID:     "session123",
+		AppID:         "test-app",
 		GrantDuration: "1h",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID:    "user123",
-				OwnerEmail: "user@example.com",
-				Fields:     []string{"name", "email"},
+				Owner:   "CITIZEN",
+				OwnerID: "user@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "name",
+						SchemaID:  "schema_test",
+					},
+					{
+						FieldName: "email",
+						SchemaID:  "schema_test",
+					},
+				},
 			},
 		},
 	}
@@ -679,7 +730,6 @@ func TestConsentReuseLogic(t *testing.T) {
 	t.Logf("First consent: ID=%s, Status=%s", record1.ConsentID, record1.Status)
 
 	// Send same request - should reuse pending record
-	baseReq.SessionID = "session456" // Different session
 	record2, err := engine.ProcessConsentRequest(baseReq)
 	if err != nil {
 		t.Fatalf("Failed to process second request: %v", err)
@@ -707,7 +757,6 @@ func TestConsentReuseLogic(t *testing.T) {
 	t.Logf("Consent rejected: ID=%s, Status=%s", rejectedRecord.ConsentID, rejectedRecord.Status)
 
 	// Send same request after rejection - should reuse and update the rejected record
-	baseReq.SessionID = "session789"
 	record3, err := engine.ProcessConsentRequest(baseReq)
 	if err != nil {
 		t.Fatalf("Failed to process third request: %v", err)
@@ -730,15 +779,23 @@ func TestConsentReuseLogic(t *testing.T) {
 	// Create a new consent record with different owner to avoid conflicts
 	approveReq := ConsentRequest{
 		AppID: "test-app",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-				OwnerID:    "user456", // Different owner to create new record
-				OwnerEmail: "user456@example.com",
-				Fields:     []string{"name", "email"},
+				Owner:   "CITIZEN",
+				OwnerID: "user456@example.com", // Different owner to create new record
+				Fields: []ConsentField{
+					{
+						FieldName: "name",
+						SchemaID:  "schema_456",
+					},
+					{
+						FieldName: "email",
+						SchemaID:  "schema_456",
+					},
+				},
 			},
 		},
 		GrantDuration: "1h",
-		SessionID:     "session999",
 	}
 
 	record4, err := engine.ProcessConsentRequest(approveReq)
@@ -761,7 +818,6 @@ func TestConsentReuseLogic(t *testing.T) {
 	t.Logf("Consent approved: ID=%s, Status=%s", approvedRecord.ConsentID, approvedRecord.Status)
 
 	// Send same request after approval - should reuse and update the approved record
-	approveReq.SessionID = "session1000"
 	record5, err := engine.ProcessConsentRequest(approveReq)
 	if err != nil {
 		t.Fatalf("Failed to process fifth request: %v", err)
@@ -782,7 +838,6 @@ func TestConsentReuseLogic(t *testing.T) {
 	// Test 4: Only ONE pending record per (appId, ownerId, ownerEmail) tuple
 	t.Log("\n=== Test 4: Only ONE pending record per tuple ===")
 	// Send another request - should reuse the approved record from Test 3
-	approveReq.SessionID = "session1001"
 	record6, err := engine.ProcessConsentRequest(approveReq)
 	if err != nil {
 		t.Fatalf("Failed to process sixth request: %v", err)

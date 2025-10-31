@@ -31,25 +31,18 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 		return nil, fmt.Errorf("app_id is required")
 	}
 
-	if len(req.DataFields) == 0 {
-		return nil, fmt.Errorf("data_fields is required")
+	if len(req.ConsentRequirements) == 0 {
+		return nil, fmt.Errorf("consent_requirements is required")
 	}
 
-	// Validate each data field
-	for i, dataField := range req.DataFields {
-		if dataField.OwnerID == "" {
-			return nil, fmt.Errorf("data_fields[%d].owner_id is required", i)
-		}
-		if len(dataField.Fields) == 0 {
-			return nil, fmt.Errorf("data_fields[%d].fields is required", i)
-		}
-	}
-
-	// Use the first data field for owner information
-	firstDataField := req.DataFields[0]
+	// Use the first consent requirement for owner information
+	// In the new format, owner_id is the email address
+	firstRequirement := req.ConsentRequirements[0]
+	ownerID := firstRequirement.OwnerID
+	ownerEmail := firstRequirement.OwnerID // In new format, owner_id is the email
 
 	// First, check for existing pending consent - only one pending record allowed per (appId, ownerId)
-	existingPendingConsent, err := pce.findExistingPendingConsentByOwnerID(firstDataField.OwnerID, req.AppID)
+	existingPendingConsent, err := pce.findExistingPendingConsentByOwnerID(ownerID, req.AppID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing pending consent: %w", err)
 	}
@@ -61,8 +54,8 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 			"owner_id", existingPendingConsent.OwnerID,
 			"app_id", existingPendingConsent.AppID)
 
-		// Update the existing pending consent record with new fields and session info
-		updatedConsent, err := pce.updateExistingConsent(existingPendingConsent, req)
+		// Update the existing pending consent record with new fields
+		updatedConsent, err := pce.updateExistingConsentNewFormat(existingPendingConsent, req)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update existing pending consent: %w", err)
 		}
@@ -71,7 +64,7 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	}
 
 	// Check for existing non-pending consent (approved, rejected) for the same owner and app
-	existingConsent, err := pce.findExistingConsentByOwnerID(firstDataField.OwnerID, req.AppID)
+	existingConsent, err := pce.findExistingConsentByOwnerID(ownerID, req.AppID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing consent: %w", err)
 	}
@@ -84,8 +77,8 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 			"app_id", existingConsent.AppID,
 			"current_status", existingConsent.Status)
 
-		// Update the existing consent record with new fields and session info
-		updatedConsent, err := pce.updateExistingConsent(existingConsent, req)
+		// Update the existing consent record with new fields
+		updatedConsent, err := pce.updateExistingConsentNewFormat(existingConsent, req)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update existing consent: %w", err)
 		}
@@ -97,10 +90,13 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	consentID := generateConsentID()
 	now := time.Now()
 
-	// Combine all fields from all data fields
+	// Convert ConsentFields to string array for storage (fieldName format)
 	var allFields []string
-	for _, dataField := range req.DataFields {
-		allFields = append(allFields, dataField.Fields...)
+	for _, requirement := range req.ConsentRequirements {
+		for _, field := range requirement.Fields {
+			// Store as "fieldName" format
+			allFields = append(allFields, field.FieldName)
+		}
 	}
 
 	// Use default grant duration if not provided
@@ -115,7 +111,7 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	// Generate consent portal URL using the configured base URL
 	consentPortalURL := fmt.Sprintf("%s/?consent_id=%s", pce.consentPortalURL, consentID)
 
-	// Insert new consent record
+	// Insert new consent record (session_id is optional, use empty string)
 	insertSQL := `
 		INSERT INTO consent_records (
 			consent_id, owner_id, owner_email, app_id, status, type, 
@@ -125,9 +121,9 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	`
 
 	_, err = pce.db.Exec(insertSQL,
-		consentID, firstDataField.OwnerID, firstDataField.OwnerEmail, req.AppID, string(StatusPending), "realtime",
+		consentID, ownerID, ownerEmail, req.AppID, string(StatusPending), "realtime",
 		now, now, expiresAt, grantDuration, pq.Array(allFields),
-		req.SessionID, consentPortalURL, firstDataField.OwnerID)
+		"", consentPortalURL, ownerID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consent record: %w", err)
@@ -135,8 +131,8 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 
 	record := &ConsentRecord{
 		ConsentID:        consentID,
-		OwnerID:          firstDataField.OwnerID,
-		OwnerEmail:       firstDataField.OwnerEmail,
+		OwnerID:          ownerID,
+		OwnerEmail:       ownerEmail,
 		AppID:            req.AppID,
 		Status:           string(StatusPending),
 		Type:             "realtime",
@@ -145,9 +141,9 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 		ExpiresAt:        expiresAt,
 		GrantDuration:    grantDuration,
 		Fields:           allFields,
-		SessionID:        req.SessionID,
+		SessionID:        "",
 		ConsentPortalURL: consentPortalURL,
-		UpdatedBy:        firstDataField.OwnerID,
+		UpdatedBy:        ownerID,
 	}
 
 	slog.Info("Consent record created",
@@ -423,12 +419,15 @@ func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 	return &record, nil
 }
 
-// updateExistingConsent updates an existing consent record with new fields, grant_duration, expires_at, and session_id
-func (pce *postgresConsentEngine) updateExistingConsent(existingConsent *ConsentRecord, req ConsentRequest) (*ConsentRecord, error) {
-	// Combine all fields from all data fields
+// updateExistingConsentNewFormat updates an existing consent record with new format (consent_requirements)
+func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent *ConsentRecord, req ConsentRequest) (*ConsentRecord, error) {
+	// Convert ConsentFields to string array for storage (fieldName format)
 	var allFields []string
-	for _, dataField := range req.DataFields {
-		allFields = append(allFields, dataField.Fields...)
+	for _, requirement := range req.ConsentRequirements {
+		for _, field := range requirement.Fields {
+			// Store as "fieldName" format
+			allFields = append(allFields, field.FieldName)
+		}
 	}
 
 	// Use default grant duration if not provided
@@ -441,37 +440,41 @@ func (pce *postgresConsentEngine) updateExistingConsent(existingConsent *Consent
 		return nil, fmt.Errorf("failed to calculate expiry time: %w", err)
 	}
 
-	// Update the existing consent record
+	// Update the existing consent record (session_id is not in new format, keep existing or empty)
 	updateSQL := `
 		UPDATE consent_records 
-		SET fields = $1, updated_at = $2, grant_duration = $3, expires_at = $4, session_id = $5, updated_by = $6
-		WHERE consent_id = $7
+		SET fields = $1, updated_at = $2, grant_duration = $3, expires_at = $4, updated_by = $5
+		WHERE consent_id = $6
 	`
 
 	_, err = pce.db.Exec(updateSQL,
-		pq.Array(allFields), now, grantDuration, expiresAt, req.SessionID, existingConsent.OwnerID, existingConsent.ConsentID)
+		pq.Array(allFields), now, grantDuration, expiresAt, existingConsent.OwnerID, existingConsent.ConsentID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update existing consent record: %w", err)
 	}
 
-	// Update the record object with new values
+	// Return updated consent record
 	updatedRecord := *existingConsent
 	updatedRecord.Fields = allFields
-	updatedRecord.UpdatedAt = now
 	updatedRecord.GrantDuration = grantDuration
 	updatedRecord.ExpiresAt = expiresAt
-	updatedRecord.SessionID = req.SessionID
-	updatedRecord.UpdatedBy = existingConsent.OwnerID
-
-	slog.Info("Existing consent record updated",
-		"consent_id", updatedRecord.ConsentID,
-		"owner_id", updatedRecord.OwnerID,
-		"app_id", updatedRecord.AppID,
-		"status", updatedRecord.Status,
-		"updated_fields", allFields)
+	updatedRecord.UpdatedAt = now
 
 	return &updatedRecord, nil
+}
+
+// updateExistingConsent updates an existing consent record with new fields, grant_duration, expires_at, and session_id (legacy format - deprecated)
+// This function is kept for backwards compatibility but should not be used with new format requests
+func (pce *postgresConsentEngine) updateExistingConsent(existingConsent *ConsentRecord, req ConsentRequest) (*ConsentRecord, error) {
+	// For legacy format, check if we have DataFields (old format)
+	// If not, assume new format and delegate to updateExistingConsentNewFormat
+	if len(req.ConsentRequirements) > 0 {
+		return pce.updateExistingConsentNewFormat(existingConsent, req)
+	}
+
+	// Legacy path - this should not be reached with new API
+	return nil, fmt.Errorf("legacy DataFields format is no longer supported, use consent_requirements")
 }
 
 // FindExistingConsent finds an existing consent record by consumer app ID and owner ID
