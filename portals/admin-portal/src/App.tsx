@@ -41,7 +41,7 @@ function App() {
         if (!userBasicInfo || !userBasicInfo.roles) {
           setError('Failed to fetch valid entity info from user attributes');
         }
-        else if (userBasicInfo.roles !== 'Admin') {
+        else if (!userBasicInfo.roles.includes(window.configs.VITE_IDP_ADMIN_ROLE)) {
           setError('Failed to fetch valid entity info from DB or user is not an admin');
         }
       } catch (error) {

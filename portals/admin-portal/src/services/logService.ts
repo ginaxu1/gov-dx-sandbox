@@ -26,7 +26,7 @@ interface LogQueryParams {
 export class LogService {
     static async fetchLogsWithParams(params?: LogQueryParams): Promise<LogEntry[]> {
         try {
-            const url = new URL(`${window.configs.logsUrl}/logs`);
+            const url = new URL(`${window.configs.VITE_LOGS_URL}/logs`);
             
             if (params) {
                 Object.entries(params).forEach(([key, value]) => {
@@ -58,7 +58,7 @@ export class LogService {
 
     static async exportLogs(params?: LogQueryParams, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
         try {
-            const url = new URL(`${window.configs.logsUrl}/logs/export`);
+            const url = new URL(`${window.configs.VITE_LOGS_URL}/logs/export`);
             url.searchParams.append('format', format);
             
             if (params) {

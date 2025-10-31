@@ -50,7 +50,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         application: null
     });
     const [reviewComment, setReviewComment] = useState('');
-    const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);
+    const [reviewAction, setReviewAction] = useState<'approved' | 'rejected' | null>(null);
     const [submittingReview, setSubmittingReview] = useState(false);
     const [submissionFilters, setSubmissionFilters] = useState<FilterOptionsSubmissions>({
         searchByName: '',
@@ -111,14 +111,14 @@ export const Applications: React.FC<ApplicationsProps> = () => {
     };
 
     useEffect(() => {
-        fetchApplications();
+        fetchApplications().then().catch(() => {});
     }, []);
 
     // Auto-refresh functionality
     useEffect(() => {
         if (autoRefresh) {
             const interval = setInterval(() => {
-                fetchApplications();
+                fetchApplications().then().catch(() => {});
             }, 30000); // Refresh every 30 seconds
 
             return () => clearInterval(interval);
@@ -190,7 +190,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
     };
 
     const handleRefresh = () => {
-        fetchApplications();
+        fetchApplications().then().catch(() => {});
     };
 
     const handleExportSubmissions = async () => {
@@ -419,9 +419,9 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Review Action</h3>
                                 <div className="flex gap-4 mb-4">
                                     <button
-                                        onClick={() => setReviewAction('approve')}
+                                        onClick={() => setReviewAction('approved')}
                                         className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'approve'
+                                            reviewAction === 'approved'
                                                 ? 'bg-green-600 text-white'
                                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
                                         }`}
@@ -430,9 +430,9 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                         <span>Approve</span>
                                     </button>
                                     <button
-                                        onClick={() => setReviewAction('reject')}
+                                        onClick={() => setReviewAction('rejected')}
                                         className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'reject'
+                                            reviewAction === 'rejected'
                                                 ? 'bg-red-600 text-white'
                                                 : 'bg-red-100 text-red-700 hover:bg-red-200'
                                         }`}
@@ -472,12 +472,12 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                     className={`px-6 py-2 rounded-lg transition-colors ${
                                         !reviewAction || submittingReview
                                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : reviewAction === 'approve'
+                                            : reviewAction === 'approved'
                                             ? 'bg-green-600 text-white hover:bg-green-700'
                                             : 'bg-red-600 text-white hover:bg-red-700'
                                     }`}
                                 >
-                                    {submittingReview ? 'Submitting...' : reviewAction === 'approve' ? 'Approve Application' : 'Reject Application'}
+                                    {submittingReview ? 'Submitting...' : reviewAction === 'approved' ? 'Approve Application' : 'Reject Application'}
                                 </button>
                             </div>
                         </div>
