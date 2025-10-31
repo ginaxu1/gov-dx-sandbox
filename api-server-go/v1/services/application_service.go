@@ -30,7 +30,7 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		ApplicationDescription: req.ApplicationDescription,
 		SelectedFields:         models.SelectedFieldRecords(req.SelectedFields),
 		MemberID:               req.MemberID,
-		Version:                string(models.StatusPending),
+		Version:                string(models.ActiveVersion),
 	}
 
 	// Step 1: Create application in database first
