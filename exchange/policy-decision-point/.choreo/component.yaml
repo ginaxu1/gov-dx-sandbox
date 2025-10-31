@@ -24,8 +24,8 @@ endpoints:
 
 dependencies:
   connectionReferences:
-  - name: DB-PDP
-    resourceRef: database:opendif-db/defaultdb
+    - name: OpenDIF Database
+      resourceRef: database:opendif-db/testdb
 
 configurations:
   # +optional List of environment variables to be injected into the component.
