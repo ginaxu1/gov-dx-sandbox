@@ -52,12 +52,12 @@ type CreateApplicationSubmissionRequest struct {
 
 // UpdateApplicationSubmissionRequest updates the status of a consumer application submission
 type UpdateApplicationSubmissionRequest struct {
-	ApplicationName        *string               `json:"applicationName,omitempty"`
-	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
-	SelectedFields         []SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
-	Status                 *string               `json:"status,omitempty"`
-	PreviousApplicationID  *string               `json:"previousApplicationId,omitempty"`
-	Review                 *string               `json:"review,omitempty"`
+	ApplicationName        *string                `json:"applicationName,omitempty"`
+	ApplicationDescription *string                `json:"applicationDescription,omitempty"`
+	SelectedFields         *[]SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
+	Status                 *string                `json:"status,omitempty"`
+	PreviousApplicationID  *string                `json:"previousApplicationId,omitempty"`
+	Review                 *string                `json:"review,omitempty"`
 }
 
 // CreateApplicationRequest creates a new consumer application

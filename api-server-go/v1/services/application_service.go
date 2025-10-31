@@ -30,7 +30,7 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		ApplicationDescription: req.ApplicationDescription,
 		SelectedFields:         models.SelectedFieldRecords(req.SelectedFields),
 		MemberID:               req.MemberID,
-		Version:                models.ActiveVersion,
+		Version:                string(models.StatusPending),
 	}
 
 	// Step 1: Create application in database first
@@ -195,7 +195,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
 		SelectedFields:         models.SelectedFieldRecords(req.SelectedFields),
-		Status:                 models.StatusPending,
+		Status:                 string(models.StatusPending),
 		MemberID:               req.MemberID,
 	}
 	if err := s.db.Create(&submission).Error; err != nil {
@@ -228,39 +228,33 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		}
 
 		// Update fields if provided
-		if req.ApplicationName != nil {
+		if req.ApplicationName != nil && *req.ApplicationName != "" {
 			submission.ApplicationName = *req.ApplicationName
 		}
-		if req.ApplicationDescription != nil {
+		if req.ApplicationDescription != nil && *req.ApplicationDescription != "" {
 			submission.ApplicationDescription = req.ApplicationDescription
 		}
 
-		// Always update SelectedFields to maintain integrity for submissions
-		// This differs from UpdateApplication which intentionally omits SelectedFields updates.
-		// Rationale: Application submissions are mutable during review process and require
-		// field validation (min 1 field enforced by DTO), while approved applications
-		// should have immutable field selections for security and audit purposes.
-		// Minimum 1 field is validated by the DTO
-		submission.SelectedFields = models.SelectedFieldRecords(req.SelectedFields)
+		if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
+			submission.SelectedFields = *req.SelectedFields
+		}
 
 		if req.Status != nil {
 			submission.Status = *req.Status
 			// If status is approved, create a new application
-			if *req.Status == models.StatusApproved {
-				application := models.Application{
-					ApplicationID:          "app_" + uuid.New().String(),
-					ApplicationName:        submission.ApplicationName,
-					ApplicationDescription: submission.ApplicationDescription,
-					SelectedFields:         submission.SelectedFields,
-					MemberID:               submission.MemberID,
-					Version:                models.ActiveVersion,
-				}
-				if err := tx.Create(&application).Error; err != nil {
-					return fmt.Errorf("failed to create application: %w", err)
+			if *req.Status == string(models.StatusApproved) {
+				var createApplicationRequest models.CreateApplicationRequest
+				createApplicationRequest.ApplicationName = submission.ApplicationName
+				createApplicationRequest.ApplicationDescription = submission.ApplicationDescription
+				createApplicationRequest.SelectedFields = submission.SelectedFields
+				createApplicationRequest.MemberID = submission.MemberID
+				_, err := s.CreateApplication(&createApplicationRequest)
+				if err != nil {
+					return fmt.Errorf("failed to create application from approved submission: %w", err)
 				}
 			}
 		}
-		if req.PreviousApplicationID != nil {
+		if req.PreviousApplicationID != nil && *req.PreviousApplicationID != "" {
 			// Validate previous application ID
 			var prevApp models.Application
 			if err := tx.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
@@ -268,7 +262,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 			}
 			submission.PreviousApplicationID = req.PreviousApplicationID
 		}
-		if req.Review != nil {
+		if req.Review != nil && *req.Review != "" {
 			submission.Review = req.Review
 		}
 

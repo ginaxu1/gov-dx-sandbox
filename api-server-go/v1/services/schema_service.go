@@ -30,7 +30,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		SDL:               req.SDL,
 		Endpoint:          req.Endpoint,
 		MemberID:          req.MemberID,
-		Version:           models.ActiveVersion,
+		Version:           string(models.ActiveVersion),
 	}
 
 	// Step 1: Create schema in database first
@@ -195,7 +195,7 @@ func (s *SchemaService) CreateSchemaSubmission(req *models.CreateSchemaSubmissio
 		SchemaDescription: req.SchemaDescription,
 		SDL:               req.SDL,
 		SchemaEndpoint:    req.SchemaEndpoint,
-		Status:            models.StatusPending,
+		Status:            string(models.StatusPending),
 		MemberID:          req.MemberID,
 	}
 	if err := s.db.Create(&submission).Error; err != nil {
@@ -245,17 +245,16 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 		// If status is provided and is approved, create a new schema
 		if req.Status != nil {
 			submission.Status = *req.Status
-			if *req.Status == models.StatusApproved {
-				newSchema := models.Schema{
-					SchemaID:          "sch_" + uuid.New().String(),
-					SchemaName:        submission.SchemaName,
-					SchemaDescription: submission.SchemaDescription,
-					SDL:               submission.SDL,
-					Endpoint:          submission.SchemaEndpoint,
-					MemberID:          submission.MemberID,
-				}
-				if err := tx.Create(&newSchema).Error; err != nil {
-					return fmt.Errorf("failed to create schema: %w", err)
+			if *req.Status == string(models.StatusApproved) {
+				var createSchemaRequest models.CreateSchemaRequest
+				createSchemaRequest.SchemaName = submission.SchemaName
+				createSchemaRequest.SchemaDescription = submission.SchemaDescription
+				createSchemaRequest.SDL = submission.SDL
+				createSchemaRequest.Endpoint = submission.SchemaEndpoint
+				createSchemaRequest.MemberID = submission.MemberID
+				_, err := s.CreateSchema(&createSchemaRequest)
+				if err != nil {
+					return fmt.Errorf("failed to create schema from approved submission: %w", err)
 				}
 			}
 		}
