@@ -227,18 +227,31 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 		return nil, fmt.Errorf("schema submission not found: %w", err)
 	}
 
+	// Validate PreviousSchemaID first before making any updates
+	if req.PreviousSchemaID != nil && *req.PreviousSchemaID != "" {
+		// Check if the new PreviousSchemaID exists
+		var previousSchema models.Schema
+		if err := s.db.First(&previousSchema, "schema_id = ?", *req.PreviousSchemaID).Error; err != nil {
+			return nil, fmt.Errorf("previous schema not found: %w", err)
+		}
+	}
+
 	// Update fields if provided
-	if req.SchemaName != nil {
+	if req.SchemaName != nil && *req.SchemaName != "" {
 		submission.SchemaName = *req.SchemaName
 	}
-	if req.SchemaDescription != nil {
+	if req.SchemaDescription != nil && *req.SchemaDescription != "" {
 		submission.SchemaDescription = req.SchemaDescription
 	}
-	if req.SDL != nil {
+	if req.SDL != nil && *req.SDL != "" {
 		submission.SDL = *req.SDL
 	}
-	if req.SchemaEndpoint != nil {
+	if req.SchemaEndpoint != nil && *req.SchemaEndpoint != "" {
 		submission.SchemaEndpoint = *req.SchemaEndpoint
+	}
+
+	if req.PreviousSchemaID != nil && *req.PreviousSchemaID != "" {
+		submission.PreviousSchemaID = req.PreviousSchemaID
 	}
 
 	var shouldCreateSchema bool
@@ -250,16 +263,7 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 		}
 	}
 
-	if req.PreviousSchemaID != nil {
-		// Check if the new PreviousSchemaID exists
-		var previousSchema models.Schema
-		if err := s.db.First(&previousSchema, "schema_id = ?", *req.PreviousSchemaID).Error; err != nil {
-			return nil, fmt.Errorf("previous schema not found: %w", err)
-		}
-		submission.PreviousSchemaID = req.PreviousSchemaID
-	}
-
-	if req.Review != nil {
+	if req.Review != nil && *req.Review != "" {
 		submission.Review = req.Review
 	}
 

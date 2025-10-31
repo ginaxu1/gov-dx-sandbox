@@ -226,6 +226,15 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		return nil, fmt.Errorf("application submission not found: %w", err)
 	}
 
+	// Validate PreviousApplicationID first before making any updates
+	if req.PreviousApplicationID != nil && *req.PreviousApplicationID != "" {
+		// Validate previous application ID
+		var prevApp models.Application
+		if err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
+			return nil, fmt.Errorf("previous application not found: %w", err)
+		}
+	}
+
 	// Update fields if provided
 	if req.ApplicationName != nil && *req.ApplicationName != "" {
 		submission.ApplicationName = *req.ApplicationName
@@ -238,6 +247,10 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		submission.SelectedFields = *req.SelectedFields
 	}
 
+	if req.PreviousApplicationID != nil && *req.PreviousApplicationID != "" {
+		submission.PreviousApplicationID = req.PreviousApplicationID
+	}
+
 	var shouldCreateApplication bool
 	if req.Status != nil {
 		submission.Status = *req.Status
@@ -245,15 +258,6 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		if *req.Status == string(models.StatusApproved) {
 			shouldCreateApplication = true
 		}
-	}
-
-	if req.PreviousApplicationID != nil && *req.PreviousApplicationID != "" {
-		// Validate previous application ID
-		var prevApp models.Application
-		if err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
-			return nil, fmt.Errorf("previous application not found: %w", err)
-		}
-		submission.PreviousApplicationID = req.PreviousApplicationID
 	}
 
 	if req.Review != nil && *req.Review != "" {
