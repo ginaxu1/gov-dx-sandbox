@@ -16,7 +16,7 @@ interface MemberResponse {
 export class MemberService {
     static async createMember(memberData: Partial<Member>): Promise<Member> {
         try {
-            const response = await fetch(`${window.configs.apiUrl}/members`, {
+            const response = await fetch(`${window.configs.VITE_API_URL}/members`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -38,7 +38,7 @@ export class MemberService {
 
     static async updateMember(memberId: string, memberData: Partial<Member>): Promise<Member> {
         try {
-            const response = await fetch(`${window.configs.apiUrl}/members/${memberId}`, {
+            const response = await fetch(`${window.configs.VITE_API_URL}/members/${memberId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -60,7 +60,7 @@ export class MemberService {
 
     static async fetchMembers(): Promise<Member[]> {
         try {
-            const response = await fetch(`${window.configs.apiUrl}/members`);
+            const response = await fetch(`${window.configs.VITE_API_URL}/members`);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -76,7 +76,7 @@ export class MemberService {
 
     // static async fetchMembersWithParams(params?: Record<string, string>): Promise<MemberResponse> {
     //     try {
-    //         const url = new URL(`${window.configs.apiUrl}/members`);
+    //         const url = new URL(`${window.configs.VITE_API_URL}/members`);
     //         if (params) {
     //             Object.entries(params).forEach(([key, value]) => {
     //                 if (value) {
