@@ -14,10 +14,6 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: https://policy-decision-point.choreo.dev
-    description: Choreo Production Environment
-  - url: https://policy-decision-point-dev.choreo.dev
-    description: Choreo Development Environment
   - url: http://localhost:8082
     description: Local Development Environment
 
@@ -43,14 +39,10 @@ paths:
                   status:
                     type: string
                     example: healthy
-
-  /decide:
+  /api/v1/policy/decide:
     post:
-      summary: Make Policy Decision
-      description: |
-        Evaluate a data access request against policies and determine if access should be allowed
-        and whether consent is required. This is the main endpoint for authorization decisions.
-      operationId: makePolicyDecision
+      summary: Return Required Policy Decisions
+      description: Returns the policy decisions evaluated.
       tags:
         - Policy Decision
       requestBody:
@@ -60,8 +52,8 @@ paths:
             schema:
               $ref: '#/components/schemas/PolicyDecisionRequest'
       responses:
-        '200':
-          description: Policy decision made successfully
+        200:
+          description: Policy Decision Retrieved Successfully
           content:
             application/json:
               schema:
@@ -78,7 +70,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
+  /api/v1/policy/update-allowlist:
+    post:
+        summary: Update Allow List for Data Fields
+        description: Update the allow list for data fields to grant application access.
+        tags:
+            - Policy Metadata Management
+        requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/AllowListUpdateRequest'
+        responses:
+            '200':
+              description: Allow list updated successfully
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/AllowListUpdateResponse'
+            '400':
+              description: Bad request - invalid input data
+              content:
+                application/json:
+                  schema:
+                      $ref: '#/components/schemas/ErrorResponse'
+            '404':
+              description: Field not found
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/policy/metadata:
+    post:
+        summary: Create or Update Policy Metadata
+        description: Create or update policy metadata for data fields.
+        tags:
+            - Policy Metadata Management
+        requestBody:
+            required: true
+            content:
+              application/json:
+                  schema:
+                    $ref: '#/components/schemas/PolicyMetadataCreateRequest'
+        responses:
+            '201':
+              description: Policy metadata created or updated successfully
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/PolicyMetadataCreateResponse'
+            '400':
+              description: Bad request - invalid input data
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
   /debug:
     get:
       summary: Debug Information
@@ -182,94 +241,91 @@ components:
     PolicyDecisionRequest:
       type: object
       required:
-        - consumer_id
-        - app_id
-        - request_id
-        - required_fields
+        - consumerId
+        - appId
+        - requestId
+        - requiredFields
       properties:
-        consumer_id:
+        consumerId:
           type: string
           description: ID of the consumer that owns the application
           example: passport-app
-        app_id:
+        appId:
           type: string
           description: ID of the application making the request
           example: passport-app
-        request_id:
+        requestId:
           type: string
           description: Unique identifier for this request
           example: request_123
-        required_fields:
+        requiredFields:
           type: array
           description: List of data fields being requested
           items:
-            type: string
-          example: ["person.fullName", "person.birthDate", "person.permanentAddress"]
-        context:
-          type: object
-          description: Additional context for the decision
-          properties:
-            purpose:
-              type: string
-              description: Purpose of the data access
-              example: passport_application
-            data_owner:
-              type: string
-              description: ID of the data owner
-              example: test-owner-123
-            session_id:
-              type: string
-              description: Session identifier
-              example: session_456
-
+            type: object
+            properties:
+              providerKey:
+                type: string
+                description: Unique identifier of the provider
+              schemaId:
+                type: string
+                description: Identifier of the data schema
+              fieldName:
+                type: string
+                description: Raw Schema Mapping of the data field being requested
     PolicyDecisionResponse:
       type: object
       properties:
-        allow:
+        appAuthorized:
           type: boolean
           description: Whether the request is allowed
           example: true
-        consent_required:
-          type: boolean
-          description: Whether consent is required for this request
-          example: true
-        consent_required_fields:
+        unAuthorizedFields:
           type: array
-          description: List of fields that require consent
+          description: List of fields that are not authorized
           items:
-            type: string
-          example: ["person.permanentAddress", "person.photo"]
-        reason:
+            $ref: '#/components/schemas/PolicyDecisionResponseRecordInfo'
+        appAccessExpired:
+          type: boolean
+          description: Whether the application's access has expired
+          example: false
+        expiredFields:
+          type: array
+          description: List of fields for which access has expired
+          items:
+            $ref: '#/components/schemas/PolicyDecisionResponseRecordInfo'
+        appRequiresOwnerConsent:
+          type: boolean
+          description: Whether the application requires owner consent
+          example: true
+        consentRequiredFields:
+          type: array
+          description: List of fields that require owner consent
+          items:
+            $ref: '#/components/schemas/PolicyDecisionResponseRecordInfo'
+
+    PolicyDecisionResponseRecordInfo:
+      type: object
+      properties:
+        fieldName:
           type: string
-          description: Reason for the decision
-          example: "Access allowed but consent required for restricted fields"
-        policy_evaluation:
-          type: object
-          description: Details about the policy evaluation
-          properties:
-            evaluated_policies:
-              type: array
-              items:
-                type: string
-              example: ["field_access_policy", "consent_requirement_policy"]
-            decision_factors:
-              type: array
-              items:
-                type: string
-              example: ["consumer_authorized", "fields_restricted"]
-        metadata:
-          type: object
-          description: Additional metadata about the decision
-          properties:
-            evaluation_time:
-              type: string
-              format: date-time
-              description: When the evaluation was performed
-              example: "2025-09-15T09:58:34.05668193Z"
-            policy_version:
-              type: string
-              description: Version of policies used for evaluation
-              example: "1.0.0"
+          description: Name of the data field
+          example: "person.fullName"
+        schemaId:
+          type: string
+          description: Identifier of the data schema
+          example: "schema_001"
+        displayName:
+          type: string
+          description: Human-readable display name for the field
+          example: "Full Name"
+        description:
+          type: string
+          description: Description of the data field
+          example: "Complete name of the person"
+        owner:
+          type: string
+          example: "citizen"
 
     DebugResponse:
       type: object
