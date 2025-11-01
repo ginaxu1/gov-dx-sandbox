@@ -1,10 +1,14 @@
 package models
 
 import (
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SelectedFieldRecord represents a record in the selected_fields array
@@ -39,6 +43,25 @@ func (sfr *SelectedFieldRecords) Scan(value interface{}) error {
 // Value implements the driver.Valuer interface for SelectedFieldRecords
 func (sfr *SelectedFieldRecords) Value() (driver.Value, error) {
 	return json.Marshal(*sfr)
+}
+
+// GormDataType gorm common data type
+func (SelectedFieldRecords) GormDataType() string {
+	return "jsonb"
+}
+
+// GormValue implements the GormValuerInterface
+func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clause.Expr {
+	data, err := json.Marshal(sfr)
+	if err != nil {
+		// Panic on marshaling error to prevent silent data loss
+		// JSON marshaling of SelectedFieldRecords should never fail under normal circumstances
+		panic(fmt.Sprintf("Failed to marshal SelectedFieldRecords to JSON: %v", err))
+	}
+	return clause.Expr{
+		SQL:  "?::jsonb",
+		Vars: []interface{}{string(data)},
+	}
 }
 
 // PDP Data Types

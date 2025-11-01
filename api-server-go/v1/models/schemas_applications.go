@@ -48,7 +48,7 @@ type Application struct {
 	ApplicationID          string               `gorm:"primarykey;column:application_id" json:"applicationId"`
 	ApplicationName        string               `gorm:"column:application_name;not null" json:"applicationName"`
 	ApplicationDescription *string              `gorm:"column:application_description" json:"applicationDescription,omitempty"`
-	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;not null" json:"selectedFields"`
+	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;type:jsonb;not null" json:"selectedFields"`
 	MemberID               string               `gorm:"column:member_id;not null" json:"memberId"`
 	Version                string               `gorm:"column:version;not null" json:"version"`
 	BaseModel
@@ -68,7 +68,7 @@ type ApplicationSubmission struct {
 	PreviousApplicationID  *string              `gorm:"column:previous_application_id" json:"previousApplicationId,omitempty"`
 	ApplicationName        string               `gorm:"column:application_name;not null" json:"applicationName"`
 	ApplicationDescription *string              `gorm:"column:application_description" json:"applicationDescription,omitempty"`
-	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;not null" json:"selectedFields"`
+	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;type:jsonb;not null" json:"selectedFields"`
 	MemberID               string               `gorm:"column:member_id;not null" json:"memberId"`
 	Status                 string               `gorm:"column:status;not null" json:"status"`
 	Review                 *string              `gorm:"column:review" json:"review,omitempty"`
