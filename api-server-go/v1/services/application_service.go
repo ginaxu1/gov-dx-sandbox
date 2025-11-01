@@ -28,9 +28,9 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		ApplicationID:          "app_" + uuid.New().String(),
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         req.SelectedFields,
+		SelectedFields:         models.SelectedFieldRecords(req.SelectedFields),
 		MemberID:               req.MemberID,
-		Version:                models.ActiveVersion,
+		Version:                string(models.ActiveVersion),
 	}
 
 	// Step 1: Create application in database first
@@ -194,8 +194,8 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		PreviousApplicationID:  req.PreviousApplicationID,
 		ApplicationName:        req.ApplicationName,
 		ApplicationDescription: req.ApplicationDescription,
-		SelectedFields:         req.SelectedFields,
-		Status:                 models.StatusPending,
+		SelectedFields:         models.SelectedFieldRecords(req.SelectedFields),
+		Status:                 string(models.StatusPending),
 		MemberID:               req.MemberID,
 	}
 	if err := s.db.Create(&submission).Error; err != nil {
@@ -221,65 +221,76 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, req *models.UpdateApplicationSubmissionRequest) (*models.ApplicationSubmissionResponse, error) {
 	var submission models.ApplicationSubmission
 
-	// Start a transaction
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.First(&submission, "submission_id = ?", submissionID).Error; err != nil {
-			return fmt.Errorf("application submission not found: %w", err)
-		}
+	// Find the submission
+	if err := s.db.First(&submission, "submission_id = ?", submissionID).Error; err != nil {
+		return nil, fmt.Errorf("application submission not found: %w", err)
+	}
 
-		// Update fields if provided
-		if req.ApplicationName != nil {
-			submission.ApplicationName = *req.ApplicationName
+	// Validate PreviousApplicationID first before making any updates
+	if req.PreviousApplicationID != nil {
+		// Validate previous application ID
+		var prevApp models.Application
+		if err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
+			return nil, fmt.Errorf("previous application not found: %w", err)
 		}
-		if req.ApplicationDescription != nil {
-			submission.ApplicationDescription = req.ApplicationDescription
+	}
+
+	// Update fields if provided
+	if req.ApplicationName != nil {
+		submission.ApplicationName = *req.ApplicationName
+	}
+	if req.ApplicationDescription != nil {
+		submission.ApplicationDescription = req.ApplicationDescription
+	}
+
+	if req.SelectedFields != nil && len(*req.SelectedFields) > 0 {
+		submission.SelectedFields = *req.SelectedFields
+	}
+
+	if req.PreviousApplicationID != nil {
+		submission.PreviousApplicationID = req.PreviousApplicationID
+	}
+
+	var shouldCreateApplication bool
+	if req.Status != nil {
+		submission.Status = *req.Status
+		// Mark that we need to create an application after saving
+		if *req.Status == string(models.StatusApproved) {
+			shouldCreateApplication = true
 		}
+	}
 
-		// Always update SelectedFields to maintain integrity for submissions
-		// This differs from UpdateApplication which intentionally omits SelectedFields updates.
-		// Rationale: Application submissions are mutable during review process and require
-		// field validation (min 1 field enforced by DTO), while approved applications
-		// should have immutable field selections for security and audit purposes.
-		// Minimum 1 field is validated by the DTO
-		submission.SelectedFields = req.SelectedFields
+	if req.Review != nil {
+		submission.Review = req.Review
+	}
 
-		if req.Status != nil {
-			submission.Status = *req.Status
-			// If status is approved, create a new application
-			if *req.Status == models.StatusApproved {
-				application := models.Application{
-					ApplicationID:          "app_" + uuid.New().String(),
-					ApplicationName:        submission.ApplicationName,
-					ApplicationDescription: submission.ApplicationDescription,
-					SelectedFields:         submission.SelectedFields,
-					MemberID:               submission.MemberID,
-					Version:                models.ActiveVersion,
-				}
-				if err := tx.Create(&application).Error; err != nil {
-					return fmt.Errorf("failed to create application: %w", err)
-				}
+	// Save the updated submission
+	if err := s.db.Save(&submission).Error; err != nil {
+		return nil, fmt.Errorf("failed to update application submission: %w", err)
+	}
+
+	// Create application outside of transaction if approval was successful
+	if shouldCreateApplication {
+		var createApplicationRequest models.CreateApplicationRequest
+		createApplicationRequest.ApplicationName = submission.ApplicationName
+		createApplicationRequest.ApplicationDescription = submission.ApplicationDescription
+		createApplicationRequest.SelectedFields = models.SelectedFieldRecords(submission.SelectedFields)
+		createApplicationRequest.MemberID = submission.MemberID
+
+		_, err := s.CreateApplication(&createApplicationRequest)
+		if err != nil {
+			// Compensation: Update submission status back to pending
+			submission.Status = string(models.StatusPending)
+			if updateErr := s.db.Save(&submission).Error; updateErr != nil {
+				slog.Error("Failed to compensate submission status after application creation failure",
+					"submissionID", submission.SubmissionID,
+					"originalError", err,
+					"compensationError", updateErr)
+				return nil, fmt.Errorf("failed to create application from approved submission: %w, and failed to compensate submission status: %w", err, updateErr)
 			}
+			slog.Info("Successfully compensated submission status after application creation failure", "submissionID", submission.SubmissionID)
+			return nil, fmt.Errorf("failed to create application from approved submission: %w", err)
 		}
-		if req.PreviousApplicationID != nil {
-			// Validate previous application ID
-			var prevApp models.Application
-			if err := tx.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
-				return fmt.Errorf("previous application not found: %w", err)
-			}
-			submission.PreviousApplicationID = req.PreviousApplicationID
-		}
-		if req.Review != nil {
-			submission.Review = req.Review
-		}
-
-		// Save the updated submission
-		if err := tx.Save(&submission).Error; err != nil {
-			return fmt.Errorf("failed to update application submission: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	response := &models.ApplicationSubmissionResponse{
