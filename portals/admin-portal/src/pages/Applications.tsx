@@ -111,14 +111,18 @@ export const Applications: React.FC<ApplicationsProps> = () => {
     };
 
     useEffect(() => {
-        fetchApplications().then().catch(() => {});
+        fetchApplications().catch((error) => {
+            console.error('Failed to fetch applications on component mount:', error);
+        });
     }, []);
 
     // Auto-refresh functionality
     useEffect(() => {
         if (autoRefresh) {
             const interval = setInterval(() => {
-                fetchApplications().then().catch(() => {});
+                fetchApplications().catch((error) => {
+                    console.error('Failed to auto-refresh applications:', error);
+                });
             }, 30000); // Refresh every 30 seconds
 
             return () => clearInterval(interval);
@@ -190,7 +194,9 @@ export const Applications: React.FC<ApplicationsProps> = () => {
     };
 
     const handleRefresh = () => {
-        fetchApplications().then().catch(() => {});
+        fetchApplications().catch((error) => {
+            console.error('Failed to refresh applications:', error);
+        });
     };
 
     const handleExportSubmissions = async () => {

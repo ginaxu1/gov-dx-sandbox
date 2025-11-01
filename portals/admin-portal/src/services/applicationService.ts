@@ -14,7 +14,7 @@ export class ApplicationService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ review, status  }),
+        body: JSON.stringify({ review, status }),
       });
 
       if (!response.ok) {
