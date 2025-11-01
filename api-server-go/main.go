@@ -42,12 +42,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Setup routes
-	mux := http.NewServeMux()
-	v1Handler.SetupV1Routes(mux) // V1 routes
+	// Create a mux for API routes that need auditing
+	apiMux := http.NewServeMux()
+	v1Handler.SetupV1Routes(apiMux) // All /api/v1/... routes go here
 
-	// Health check endpoint
-	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Setup CORS middleware
+	corsMiddleware := v1middleware.NewCORSMiddleware()
+
+	// Setup Audit middleware, reading the connection variable
+	auditServiceURL := os.Getenv("CHOREO_AUDIT_CONNECTION_SERVICEURL")
+	if auditServiceURL == "" {
+		slog.Warn("CHOREO_AUDIT_CONNECTION_SERVICEURL not set, falling back to localhost:3001 for local dev")
+		auditServiceURL = "http://localhost:3001"
+	}
+	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
+
+	// Apply middleware chain (CORS -> Audit) to the API mux ONLY
+	auditedAPIHandler := corsMiddleware(auditMiddleware.AuditLoggingMiddleware(apiMux))
+
+	// Create the MAIN (top-level) mux for all incoming traffic
+	topLevelMux := http.NewServeMux()
+
+	// Register public routes directly on the top-level mux
+	topLevelMux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		type DBHealth struct {
 			Status   string `json:"status"`
 			Error    string `json:"error,omitempty"`
@@ -95,13 +112,11 @@ func main() {
 		utils.RespondWithJSON(w, statusCode, status)
 	})))
 
-	// Debug endpoint
-	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	topLevelMux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusOK, map[string]string{"path": r.URL.Path, "method": r.Method})
 	})))
 
-	// Database debug endpoint
-	mux.Handle("/debug/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	topLevelMux.Handle("/debug/db", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -133,10 +148,10 @@ func main() {
 				// Check if entities table exists in V1 DB
 				var entitiesExists bool
 				checkEntitiesQuery := `SELECT EXISTS (
-				       SELECT FROM information_schema.tables 
-				       WHERE table_schema = 'public' 
-				       AND table_name = 'entities'
-			       )`
+                       SELECT FROM information_schema.tables 
+                       WHERE table_schema = 'public' 
+                       AND table_name = 'entities'
+                   )`
 
 				if err := sqlDB.QueryRowContext(ctx, checkEntitiesQuery).Scan(&entitiesExists); err != nil {
 					v1Info["table_check_error"] = fmt.Sprintf("failed to check entities table: %v", err)
@@ -159,15 +174,9 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
-	// Setup CORS middleware
-	corsMiddleware := v1middleware.NewCORSMiddleware()
-
-	// Use Choreo audit connection environment variables
-	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
-	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
-
-	// Apply middleware chain: CORS -> Audit
-	handler := corsMiddleware(auditMiddleware.AuditLoggingMiddleware(mux))
+	// Register the audited API routes to the top-level mux
+	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware
+	topLevelMux.Handle("/api/v1/", auditedAPIHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
@@ -178,7 +187,7 @@ func main() {
 	addr := ":" + port
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      handler,
+		Handler:      topLevelMux, // <-- Use the new top-level mux
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
