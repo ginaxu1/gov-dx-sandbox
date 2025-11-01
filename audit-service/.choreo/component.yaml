@@ -26,8 +26,8 @@ endpoints:
 # +optional Dependencies for the component
 dependencies:
   connectionReferences:
-  - name: DB_AUDIT
-    resourceRef: database:opendif-db/testdb
+    - name: OpenDIF Database
+      resourceRef: database:opendif-db/testdb
 
 configurations:
   # +optional List of environment variables to be injected into the component.
