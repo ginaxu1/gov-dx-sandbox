@@ -90,7 +90,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
         schema: null
     });
     const [reviewComment, setReviewComment] = useState('');
-    const [reviewAction, setReviewAction] = useState<'approve' | 'reject' | null>(null);
+    const [reviewAction, setReviewAction] = useState<'approved' | 'rejected' | null>(null);
     const [submittingReview, setSubmittingReview] = useState(false);
 
     // Helper function to update submission filters
@@ -445,9 +445,9 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Review Action</h3>
                                 <div className="flex gap-4 mb-4">
                                     <button
-                                        onClick={() => setReviewAction('approve')}
+                                        onClick={() => setReviewAction('approved')}
                                         className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'approve'
+                                            reviewAction === 'approved'
                                                 ? 'bg-green-600 text-white'
                                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
                                         }`}
@@ -456,9 +456,9 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                         <span>Approve</span>
                                     </button>
                                     <button
-                                        onClick={() => setReviewAction('reject')}
+                                        onClick={() => setReviewAction('rejected')}
                                         className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'reject'
+                                            reviewAction === 'rejected'
                                                 ? 'bg-red-600 text-white'
                                                 : 'bg-red-100 text-red-700 hover:bg-red-200'
                                         }`}
@@ -498,12 +498,12 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     className={`px-6 py-2 rounded-lg transition-colors ${
                                         !reviewAction || submittingReview
                                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : reviewAction === 'approve'
+                                            : reviewAction === 'approved'
                                             ? 'bg-green-600 text-white hover:bg-green-700'
                                             : 'bg-red-600 text-white hover:bg-red-700'
                                     }`}
                                 >
-                                    {submittingReview ? 'Submitting...' : reviewAction === 'approve' ? 'Approve Schema' : 'Reject Schema'}
+                                    {submittingReview ? 'Submitting...' : reviewAction === 'approved' ? 'Approve Schema' : 'Reject Schema'}
                                 </button>
                             </div>
                         </div>

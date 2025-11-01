@@ -1,8 +1,8 @@
 import type { SchemaSubmission, ApprovedSchema, ApprovedSchemaApiResponse, SchemaSubmissionApiResponse } from '../types/schema';
 
 export class SchemaService {
-  static async addReviewToSchemaSubmission(submissionId: string, review: string, status: string): Promise<SchemaSubmission> {
-    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
+  static async addReviewToSchemaSubmission(submissionId: string, review: string, status: "approved" | "rejected"): Promise<SchemaSubmission> {
+    const baseUrl = window.configs.VITE_API_URL || import.meta.env.VITE_BASE_PATH || '';
     try {
       const response = await fetch(`${baseUrl}/schema-submissions/${submissionId}`, {
         method: 'PUT',
@@ -27,7 +27,7 @@ export class SchemaService {
   }
 
   static async getApprovedSchemas(): Promise<ApprovedSchema[]> {
-    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
+    const baseUrl = window.configs.VITE_API_URL || import.meta.env.VITE_BASE_PATH || '';
     try {
       const response = await fetch(`${baseUrl}/schemas`, {
         method: 'GET',
@@ -56,7 +56,7 @@ export class SchemaService {
   }
 
   static async getSchemaSubmissions(): Promise<SchemaSubmission[]> {
-    const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
+    const baseUrl = window.configs.VITE_API_URL || import.meta.env.VITE_BASE_PATH || '';
     try {
       const url: URL = new URL(`${baseUrl}/schema-submissions`);
       url.searchParams.append('status', 'pending');
