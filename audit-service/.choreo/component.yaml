@@ -26,9 +26,9 @@ endpoints:
 # +optional Dependencies for the component
 dependencies:
   connectionReferences:
-  - name: DB_AUDIT
-    resourceRef: database:opendif-db/testdb
-
+    - name: OpenDif DB
+      resourceRef: database:opendif-db/testdb2
+    
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
@@ -45,3 +45,42 @@ configurations:
           # +optional default value is string if not specified
           # Allowed types - string, number, boolean, secret
           type: number
+    - name: CHOREO_OPENDIF_DB_HOSTNAME
+      valueFrom:
+        connectionRef:
+          name: OpenDif DB
+          key: host  
+    - name: CHOREO_OPENDIF_DB_PORT
+      valueFrom:
+        connectionRef:
+          name: OpenDif DB
+          key: port   
+    - name: CHOREO_OPENDIF_DB_USERNAME
+      valueFrom:
+        connectionRef:
+          name: OpenDif DB
+          key: username 
+    - name: CHOREO_OPENDIF_DB_PASSWORD
+      valueFrom:
+        connectionRef:
+          name: OpenDif DB
+          key: password 
+    - name: CHOREO_OPENDIF_DB_DATABASENAME
+      valueFrom:
+        connectionRef:
+          name: OpenDif DB
+          key: database 
+    - name: DB_SSLMODE
+      valueFrom:
+        configForm:
+          displayName: DB SSL Mode
+          required: true
+          type: string
+          default: require
+    - name: ENVIRONMENT
+      valueFrom:
+        configForm:
+          displayName: Environment
+          required: true
+          type: string
+          default: production
