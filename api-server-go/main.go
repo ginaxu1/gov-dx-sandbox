@@ -59,7 +59,6 @@ func main() {
 			Databases map[string]DBHealth `json:"databases"`
 		}
 
-		// --- Simplified Health Check ---
 		status := HealthStatus{
 			Status:  "healthy",
 			Service: "api-server",
@@ -71,32 +70,29 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		// Test V1 GORM database connection ONLY
+		// Test V1 GORM database connection
 		if gormDB == nil {
-			status.Status = "unhealthy"
 			status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: "GORM connection is nil"}
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, status)
-			return
-		}
-
-		sqlDB, err := gormDB.DB()
-		if err != nil {
 			status.Status = "unhealthy"
-			status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: fmt.Sprintf("failed to get sql.DB: %v", err)}
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, status)
-			return
+		} else {
+			sqlDB, err := gormDB.DB()
+			if err != nil {
+				status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: fmt.Sprintf("failed to get sql.DB: %v", err)}
+				status.Status = "unhealthy"
+			} else if err := sqlDB.PingContext(ctx); err != nil {
+				status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: err.Error()}
+				status.Status = "unhealthy"
+			} else {
+				status.Databases["v1"] = DBHealth{Status: "healthy", Database: v1DbConfig.Database}
+			}
 		}
 
-		if err := sqlDB.PingContext(ctx); err != nil {
-			status.Status = "unhealthy"
-			status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: err.Error()}
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, status)
-			return
+		statusCode := http.StatusOK
+		if status.Status != "healthy" {
+			statusCode = http.StatusServiceUnavailable
 		}
 
-		// If we get here, the V1 DB is healthy
-		status.Databases["v1"] = DBHealth{Status: "healthy", Database: v1DbConfig.Database}
-		utils.RespondWithJSON(w, http.StatusOK, status)
+		utils.RespondWithJSON(w, statusCode, status)
 	})))
 
 	// Debug endpoint
