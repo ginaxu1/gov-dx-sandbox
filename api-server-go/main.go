@@ -42,19 +42,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create a mux for API routes that need auditing
+	// Create a mux just for API routes that need auditing
 	apiMux := http.NewServeMux()
 	v1Handler.SetupV1Routes(apiMux) // All /api/v1/... routes go here
 
 	// Setup CORS middleware
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
-	// Setup Audit middleware, reading the connection variable
-	auditServiceURL := os.Getenv("CHOREO_AUDIT_CONNECTION_SERVICEURL")
-	if auditServiceURL == "" {
-		slog.Warn("CHOREO_AUDIT_CONNECTION_SERVICEURL not set, falling back to localhost:3001 for local dev")
-		auditServiceURL = "http://localhost:3001"
-	}
+	// Setup Audit middleware, reading the correct connection variable
+	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
 	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
 
 	// Apply middleware chain (CORS -> Audit) to the API mux ONLY
@@ -64,6 +60,7 @@ func main() {
 	topLevelMux := http.NewServeMux()
 
 	// Register public routes directly on the top-level mux
+	// These routes will bypass the audit middleware
 	topLevelMux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		type DBHealth struct {
 			Status   string `json:"status"`
@@ -187,7 +184,7 @@ func main() {
 	addr := ":" + port
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      topLevelMux, // <-- Use the new top-level mux
+		Handler:      topLevelMux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
