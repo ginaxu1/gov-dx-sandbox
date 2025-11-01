@@ -5,7 +5,6 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"gorm.io/gorm"
@@ -55,12 +54,9 @@ func (SelectedFieldRecords) GormDataType() string {
 func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clause.Expr {
 	data, err := json.Marshal(sfr)
 	if err != nil {
-		// Log the error and return a safe value
-		slog.Error("Failed to marshal SelectedFieldRecords", "error", err)
-		return clause.Expr{
-			SQL:  "?::jsonb",
-			Vars: []interface{}{nil},
-		}
+		// Panic on marshaling error to prevent silent data loss
+		// JSON marshaling of SelectedFieldRecords should never fail under normal circumstances
+		panic(fmt.Sprintf("Failed to marshal SelectedFieldRecords to JSON: %v", err))
 	}
 	return clause.Expr{
 		SQL:  "?::jsonb",
