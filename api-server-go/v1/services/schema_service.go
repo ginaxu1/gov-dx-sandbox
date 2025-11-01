@@ -228,7 +228,7 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 	}
 
 	// Validate PreviousSchemaID first before making any updates
-	if req.PreviousSchemaID != nil && *req.PreviousSchemaID != "" {
+	if req.PreviousSchemaID != nil {
 		// Check if the new PreviousSchemaID exists
 		var previousSchema models.Schema
 		if err := s.db.First(&previousSchema, "schema_id = ?", *req.PreviousSchemaID).Error; err != nil {
@@ -237,20 +237,23 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 	}
 
 	// Update fields if provided
-	if req.SchemaName != nil && *req.SchemaName != "" {
+	if req.SchemaName != nil {
 		submission.SchemaName = *req.SchemaName
 	}
-	if req.SchemaDescription != nil && *req.SchemaDescription != "" {
+	if req.SchemaDescription != nil {
 		submission.SchemaDescription = req.SchemaDescription
 	}
-	if req.SDL != nil && *req.SDL != "" {
+	if req.SDL != nil {
+		if *req.SDL == "" {
+			return nil, fmt.Errorf("SDL field cannot be empty")
+		}
 		submission.SDL = *req.SDL
 	}
-	if req.SchemaEndpoint != nil && *req.SchemaEndpoint != "" {
+	if req.SchemaEndpoint != nil {
 		submission.SchemaEndpoint = *req.SchemaEndpoint
 	}
 
-	if req.PreviousSchemaID != nil && *req.PreviousSchemaID != "" {
+	if req.PreviousSchemaID != nil {
 		submission.PreviousSchemaID = req.PreviousSchemaID
 	}
 
@@ -263,7 +266,7 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 		}
 	}
 
-	if req.Review != nil && *req.Review != "" {
+	if req.Review != nil {
 		submission.Review = req.Review
 	}
 

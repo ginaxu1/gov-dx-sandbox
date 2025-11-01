@@ -227,7 +227,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 	}
 
 	// Validate PreviousApplicationID first before making any updates
-	if req.PreviousApplicationID != nil && *req.PreviousApplicationID != "" {
+	if req.PreviousApplicationID != nil {
 		// Validate previous application ID
 		var prevApp models.Application
 		if err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
@@ -236,10 +236,10 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 	}
 
 	// Update fields if provided
-	if req.ApplicationName != nil && *req.ApplicationName != "" {
+	if req.ApplicationName != nil {
 		submission.ApplicationName = *req.ApplicationName
 	}
-	if req.ApplicationDescription != nil && *req.ApplicationDescription != "" {
+	if req.ApplicationDescription != nil {
 		submission.ApplicationDescription = req.ApplicationDescription
 	}
 
@@ -247,7 +247,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		submission.SelectedFields = *req.SelectedFields
 	}
 
-	if req.PreviousApplicationID != nil && *req.PreviousApplicationID != "" {
+	if req.PreviousApplicationID != nil {
 		submission.PreviousApplicationID = req.PreviousApplicationID
 	}
 
@@ -260,7 +260,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		}
 	}
 
-	if req.Review != nil && *req.Review != "" {
+	if req.Review != nil {
 		submission.Review = req.Review
 	}
 
@@ -274,7 +274,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 		var createApplicationRequest models.CreateApplicationRequest
 		createApplicationRequest.ApplicationName = submission.ApplicationName
 		createApplicationRequest.ApplicationDescription = submission.ApplicationDescription
-		createApplicationRequest.SelectedFields = submission.SelectedFields
+		createApplicationRequest.SelectedFields = models.SelectedFieldRecords(submission.SelectedFields)
 		createApplicationRequest.MemberID = submission.MemberID
 
 		_, err := s.CreateApplication(&createApplicationRequest)
