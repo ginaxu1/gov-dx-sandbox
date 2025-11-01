@@ -1,19 +1,23 @@
 package models
 
-// Status constants for submissions and applications
+// Status represents the status of submissions and applications
+type Status string
+
 const (
-	StatusPending  = "pending"
-	StatusApproved = "approved"
-	StatusRejected = "rejected"
+	StatusPending  Status = "pending"
+	StatusApproved Status = "approved"
+	StatusRejected Status = "rejected"
 )
 
-// Application versioning constants
+// Version represents application versioning states
+type Version string
+
 const (
-	ActiveVersion     = "active"
-	DeprecatedVersion = "deprecated"
+	ActiveVersion     Version = "active"
+	DeprecatedVersion Version = "deprecated"
 )
 
-// Common field constraints
+// Field length constraints remain as regular constants
 const (
 	MaxNameLength        = 255
 	MaxDescriptionLength = 1000
