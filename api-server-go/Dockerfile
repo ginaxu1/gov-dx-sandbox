@@ -16,9 +16,6 @@ RUN apk add --no-cache git ca-certificates tzdata
 COPY go.mod go.sum ./
 COPY . ./
 
-# Copy shared packages
-COPY shared/ /app/shared/
-
 # Download dependencies
 RUN go mod download
 
