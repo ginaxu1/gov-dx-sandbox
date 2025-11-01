@@ -78,7 +78,7 @@ func NewTestV1HandlerWithMockPDP(t *testing.T, db *gorm.DB) *V1Handler {
 
 	// For testing, we'll use a real PDPService but skip actual HTTP calls
 	// In a real test, you'd use a test HTTP server
-	mockPDP := services.NewPDPService("http://localhost:8082")
+	mockPDP := services.NewPDPService("http://localhost:8082", "test-api-key")
 
 	// Note: In a real scenario, you'd set up a test HTTP server to handle PDP requests
 	// For now, the tests will need to handle PDP failures gracefully or skip PDP-dependent operations
