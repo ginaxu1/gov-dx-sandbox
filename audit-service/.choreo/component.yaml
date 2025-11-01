@@ -29,7 +29,6 @@ dependencies:
     - name: OpenDif DB
       resourceRef: database:opendif-db/testdb
     
-
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
@@ -50,27 +49,27 @@ configurations:
       valueFrom:
         connectionRef:
           name: OpenDif DB
-          property: host
+          key: host  
     - name: CHOREO_OPENDIF_DB_PORT
       valueFrom:
         connectionRef:
           name: OpenDif DB
-          property: port
+          key: port   
     - name: CHOREO_OPENDIF_DB_USERNAME
       valueFrom:
         connectionRef:
           name: OpenDif DB
-          property: username
+          key: username 
     - name: CHOREO_OPENDIF_DB_PASSWORD
       valueFrom:
         connectionRef:
           name: OpenDif DB
-          property: password
+          key: password 
     - name: CHOREO_OPENDIF_DB_DATABASENAME
       valueFrom:
         connectionRef:
           name: OpenDif DB
-          property: database
+          key: database 
     - name: DB_SSLMODE
       valueFrom:
         configForm:
