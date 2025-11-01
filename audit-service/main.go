@@ -121,7 +121,7 @@ func main() {
 		"host", dbConfig.Host,
 		"port", dbConfig.Port,
 		"database", dbConfig.Database,
-		"choreoHost", os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"),
+		"choreoHost", os.Getenv("CHOREO_OPENDIF_DB_HOSTNAME"),
 		"fallbackHost", os.Getenv("DB_HOST"))
 
 	// Setup CORS middleware
@@ -150,7 +150,7 @@ func main() {
 			"host", dbConfig.Host,
 			"port", dbConfig.Port,
 			"database", dbConfig.Database,
-			"choreoHost", os.Getenv("CHOREO_DB_AUDIT_HOSTNAME"),
+			"choreoHost", os.Getenv("CHOREO_OPENDIF_DB_HOSTNAME"),
 		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
