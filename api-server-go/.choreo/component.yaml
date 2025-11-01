@@ -39,8 +39,8 @@ configurations:
           # Allowed types - string, number, boolean, secret
           type: number
 
-# +optional Dependencies for the component
 dependencies:
-  connectionReferences:
-  - name: DB-API-Server
-    resourceRef: database:opendif-db/defaultdb
+    connectionReferences:
+    - name: OpenDIF_DB
+      resourceRef: database:opendif-db/testdb2
+    

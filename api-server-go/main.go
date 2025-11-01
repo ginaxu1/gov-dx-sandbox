@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/handlers"
 	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
@@ -28,25 +27,6 @@ func main() {
 
 	slog.Info("Starting API Server initialization")
 
-	// Initialize database connection (legacy)
-	dbConfig := NewDatabaseConfig()
-	db, err := ConnectDB(dbConfig)
-	if err != nil {
-		slog.Error("Failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := GracefulShutdown(db); err != nil {
-			slog.Error("Error during database graceful shutdown", "error", err)
-		}
-	}()
-
-	// Initialize database tables (legacy)
-	if err := InitDatabase(db); err != nil {
-		slog.Error("Failed to initialize database tables", "error", err)
-		os.Exit(1)
-	}
-
 	// Initialize GORM database connection for V1
 	v1DbConfig := v1.NewDatabaseConfig()
 	gormDB, err := v1.ConnectGormDB(v1DbConfig)
@@ -54,11 +34,6 @@ func main() {
 		slog.Error("Failed to connect to GORM database", "error", err)
 		os.Exit(1)
 	}
-
-	// GORM database connection handles migration based on RUN_MIGRATION env var
-
-	// Initialize API server with database (legacy)
-	apiServer := handlers.NewAPIServerWithDB(db)
 
 	// Initialize V1 handlers
 	v1Handler, err := v1handlers.NewV1Handler(gormDB)
@@ -69,72 +44,55 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
-	apiServer.SetupRoutes(mux)   // Legacy routes
 	v1Handler.SetupV1Routes(mux) // V1 routes
 
-	// Health check endpoint (matching consent-engine approach)
-	// --- Structured types for health status ---
-	type DBHealth struct {
-		Status   string `json:"status"`
-		Error    string `json:"error,omitempty"`
-		Database string `json:"database,omitempty"`
-	}
-	type HealthStatus struct {
-		Status    string              `json:"status"`
-		Service   string              `json:"service"`
-		Databases map[string]DBHealth `json:"databases"`
-	}
-
+	// Health check endpoint
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		type DBHealth struct {
+			Status   string `json:"status"`
+			Error    string `json:"error,omitempty"`
+			Database string `json:"database,omitempty"`
+		}
+		type HealthStatus struct {
+			Status    string              `json:"status"`
+			Service   string              `json:"service"`
+			Databases map[string]DBHealth `json:"databases"`
+		}
+
 		status := HealthStatus{
 			Status:  "healthy",
 			Service: "api-server",
 			Databases: map[string]DBHealth{
-				"legacy": {Status: "unknown"},
-				"v1":     {Status: "unknown"},
+				"v1": {Status: "unknown"},
 			},
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		allHealthy := true
-
-		// Test legacy database connection
-		if db == nil {
-			status.Databases["legacy"] = DBHealth{Status: "unhealthy", Error: "connection is nil"}
-			allHealthy = false
-		} else if err := db.PingContext(ctx); err != nil {
-			status.Databases["legacy"] = DBHealth{Status: "unhealthy", Error: err.Error()}
-			allHealthy = false
-		} else {
-			status.Databases["legacy"] = DBHealth{Status: "healthy", Database: dbConfig.Database}
-		}
-
 		// Test V1 GORM database connection
 		if gormDB == nil {
 			status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: "GORM connection is nil"}
-			allHealthy = false
+			status.Status = "unhealthy"
 		} else {
 			sqlDB, err := gormDB.DB()
 			if err != nil {
 				status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: fmt.Sprintf("failed to get sql.DB: %v", err)}
-				allHealthy = false
+				status.Status = "unhealthy"
 			} else if err := sqlDB.PingContext(ctx); err != nil {
 				status.Databases["v1"] = DBHealth{Status: "unhealthy", Error: err.Error()}
-				allHealthy = false
+				status.Status = "unhealthy"
 			} else {
 				status.Databases["v1"] = DBHealth{Status: "healthy", Database: v1DbConfig.Database}
 			}
 		}
 
-		if !allHealthy {
-			status.Status = "unhealthy"
-			utils.RespondWithJSON(w, http.StatusServiceUnavailable, status)
-			return
+		statusCode := http.StatusOK
+		if status.Status != "healthy" {
+			statusCode = http.StatusServiceUnavailable
 		}
 
-		utils.RespondWithJSON(w, http.StatusOK, status)
+		utils.RespondWithJSON(w, statusCode, status)
 	})))
 
 	// Debug endpoint
@@ -148,48 +106,7 @@ func main() {
 		defer cancel()
 
 		debugInfo := map[string]interface{}{
-			"legacy": map[string]interface{}{},
-			"v1":     map[string]interface{}{},
-		}
-
-		// Test legacy database connection
-		if db == nil {
-			debugInfo["legacy"] = map[string]interface{}{
-				"error": "database connection is nil",
-			}
-		} else if err := db.PingContext(ctx); err != nil {
-			debugInfo["legacy"] = map[string]interface{}{
-				"error": fmt.Sprintf("database ping failed: %v", err),
-			}
-		} else {
-			// Check if consumers table exists in legacy DB
-			var tableExists bool
-			checkTableQuery := `SELECT EXISTS (
-			       SELECT FROM information_schema.tables 
-			       WHERE table_schema = 'public' 
-			       AND table_name = 'consumers'
-		       )`
-
-			legacyInfo := map[string]interface{}{
-				"status":   "connected",
-				"database": dbConfig.Database,
-			}
-
-			if err := db.QueryRowContext(ctx, checkTableQuery).Scan(&tableExists); err != nil {
-				legacyInfo["table_check_error"] = fmt.Sprintf("failed to check table existence: %v", err)
-			} else {
-				legacyInfo["consumers_table_exists"] = tableExists
-				if tableExists {
-					var count int
-					countQuery := `SELECT COUNT(*) FROM consumers`
-					if err := db.QueryRowContext(ctx, countQuery).Scan(&count); err != nil {
-						legacyInfo["count_error"] = fmt.Sprintf("failed to count consumers: %v", err)
-					} else {
-						legacyInfo["consumers_count"] = count
-					}
-				}
-			}
-			debugInfo["legacy"] = legacyInfo
+			"v1": map[string]interface{}{},
 		}
 
 		// Test V1 GORM database connection
@@ -246,7 +163,7 @@ func main() {
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
 	// Setup audit middleware
-	auditServiceURL := getEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
+	auditServiceURL := utils.GetEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
 	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
 
 	// Apply middleware chain: CORS -> Audit
@@ -291,6 +208,15 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		slog.Error("Server forced to shutdown", "error", err)
 		os.Exit(1)
+	}
+
+	// Gracefully close database connection
+	if gormDB != nil {
+		if sqlDB, err := gormDB.DB(); err == nil {
+			if err := sqlDB.Close(); err != nil {
+				slog.Error("Failed to close database connection", "error", err)
+			}
+		}
 	}
 
 	slog.Info("API Server exited")
