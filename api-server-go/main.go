@@ -162,8 +162,8 @@ func main() {
 	// Setup CORS middleware
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
-	// Setup audit middleware
-	auditServiceURL := utils.GetEnvOrDefault("AUDIT_SERVICE_URL", "http://localhost:3001")
+	// Use Choreo audit connection environment variables
+	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
 	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
 
 	// Apply middleware chain: CORS -> Audit

@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
-	"github.com/gov-dx-sandbox/api-server-go/pkg/errors"
-	"github.com/gov-dx-sandbox/api-server-go/shared/database"
 )
 
 type GrantsService struct {
@@ -30,7 +28,10 @@ func (s *GrantsService) GetAllConsumerGrants() (*models.ConsumerGrantsData, erro
 	slog.Info("Starting retrieval of all consumer grants")
 
 	// Validate database connection
-	if err := database.ValidateDBConnection(s.db); err != nil {
+	if s.db == nil {
+		return nil, fmt.Errorf("database connection is nil")
+	}
+	if err := s.db.PingContext(context.Background()); err != nil {
 		slog.Error("Database connection validation failed", "error", err)
 		return nil, fmt.Errorf("database connection validation failed: %w", err)
 	}
@@ -143,7 +144,7 @@ func (s *GrantsService) CreateConsumerGrant(req models.CreateConsumerGrantReques
 	_, err = s.db.Exec(query, grant.ConsumerID, approvedFieldsJSON, now, now)
 	if err != nil {
 		slog.Error("Failed to insert consumer grant", "error", err, "consumerId", grant.ConsumerID, "query", query)
-		return nil, errors.HandleDatabaseError(err, "create consumer grant")
+		return nil, fmt.Errorf("failed to create consumer grant: %w", err)
 	}
 
 	slog.Info("Created consumer grant", "consumerId", req.ConsumerID, "fields", req.ApprovedFields)
@@ -174,7 +175,7 @@ func (s *GrantsService) UpdateConsumerGrant(consumerID string, req models.Update
 	_, err = s.db.Exec(query, approvedFieldsJSON, now, consumerID)
 	if err != nil {
 		slog.Error("Failed to update consumer grant", "error", err, "consumerId", consumerID, "query", query)
-		return nil, errors.HandleDatabaseError(err, "update consumer grant")
+		return nil, fmt.Errorf("failed to update consumer grant: %w", err)
 	}
 
 	slog.Info("Updated consumer grant", "consumerId", consumerID, "fields", req.ApprovedFields)
@@ -347,7 +348,7 @@ func (s *GrantsService) CreateProviderField(req models.CreateProviderFieldReques
 	_, err = s.db.Exec(query, field.FieldName, field.Owner, field.Provider, field.ConsentRequired, field.AccessControlType, allowListJSON, field.Description, field.ExpiryTime, metadataJSON, now, now)
 	if err != nil {
 		slog.Error("Failed to insert provider field", "error", err, "fieldName", field.FieldName, "query", query)
-		return nil, errors.HandleDatabaseError(err, "create provider field")
+		return nil, fmt.Errorf("failed to create provider field: %w", err)
 	}
 
 	slog.Info("Created provider field", "fieldName", req.FieldName, "owner", req.Owner, "provider", req.Provider)
@@ -408,7 +409,7 @@ func (s *GrantsService) UpdateProviderField(fieldName string, req models.UpdateP
 	_, err = s.db.Exec(query, field.Owner, field.Provider, field.ConsentRequired, field.AccessControlType, allowListJSON, field.Description, field.ExpiryTime, metadataJSON, now, fieldName)
 	if err != nil {
 		slog.Error("Failed to update provider field", "error", err, "fieldName", fieldName, "query", query)
-		return nil, errors.HandleDatabaseError(err, "update provider field")
+		return nil, fmt.Errorf("failed to update provider field: %w", err)
 	}
 
 	slog.Info("Updated provider field", "fieldName", fieldName)
