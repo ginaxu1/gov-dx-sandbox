@@ -73,7 +73,7 @@ paths:
   /api/v1/policy/update-allowlist:
     post:
       summary: Update Allow List for Data Fields
-      description: Update the allow list for data fields to grant application access.
+      description: Update the allow list for data fields to grant application access. This endpoint should be called when a consumer application is approved for access to specific data fields.
       tags:
         - Policy Metadata Management
       requestBody:
