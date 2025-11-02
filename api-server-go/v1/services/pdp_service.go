@@ -17,21 +17,40 @@ import (
 type PDPService struct {
 	// baseURL is the endpoint of the PDP
 	baseURL string
+	// apiKey is the Choreo API key for internal auth
+	apiKey string
 	// HTTPClient is used to make requests to the PDP
 	HTTPClient *http.Client
 }
 
 // NewPDPService creates a new instance of PDPService
-func NewPDPService(baseURL string) *PDPService {
+func NewPDPService(baseURL string, apiKey string) *PDPService {
 	return &PDPService{
 		baseURL:    baseURL,
+		apiKey:     apiKey,
 		HTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
+// setAuthHeader is a helper function to add the Choreo API key
+func (s *PDPService) setAuthHeader(req *http.Request) {
+	req.Header.Set("apikey", s.apiKey)
+}
+
 // HealthCheck checks the health of the PDP service
 func (s *PDPService) HealthCheck() error {
-	resp, err := s.HTTPClient.Get(s.baseURL + "/health")
+	// Create request
+	url := s.baseURL + "/health"
+	httpReq, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create health check request: %w", err)
+	}
+
+	// Set auth header
+	s.setAuthHeader(httpReq)
+
+	// Send request
+	resp, err := s.HTTPClient.Do(httpReq)
 	if err != nil {
 		return err
 	}
@@ -72,6 +91,7 @@ func (s *PDPService) CreatePolicyMetadata(schemaId string, sdl string) (*models.
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	s.setAuthHeader(httpReq)
 
 	// Send request to PDP
 	resp, err := s.HTTPClient.Do(httpReq)
@@ -123,6 +143,7 @@ func (s *PDPService) UpdateAllowList(request models.AllowListUpdateRequest) (*mo
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	s.setAuthHeader(httpReq)
 
 	// Send request
 	slog.Debug("Sending allow list update request to PDP", "url", url, "applicationId", request.ApplicationID)
