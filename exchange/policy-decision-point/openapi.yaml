@@ -433,9 +433,9 @@ components:
                 description: ID of the application granted access
                 example: "passport-app"
               expiresAt:
-                type: integer
-                description: Expiration timestamp as Unix timestamp
-                example: 1704067199
+                type: string
+                description: Expiration timestamp as a string (e.g., Unix timestamp or ISO 8601)
+                example: "1704067199"
 
 tags:
   - name: Health
