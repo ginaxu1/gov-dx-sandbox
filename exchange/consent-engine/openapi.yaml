@@ -27,6 +27,7 @@ paths:
       operationId: healthCheck
       tags:
         - Health
+      # Make health check public
       security: []
       responses:
         '200':
@@ -47,6 +48,7 @@ paths:
       operationId: createConsent
       tags:
         - Consents
+      # Make internal endpoint public
       security: []
       requestBody:
         required: true
@@ -72,22 +74,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
-              example:
-                consent_id: "consent_8d255282"
-                owner_id: "199512345678"
-                owner_email: "test@opensource.lk"
-                app_id: "passport-app"
-                status: "pending"
-                type: "data_sharing"
-                created_at: "2025-09-21T10:30:00Z"
-                updated_at: "2025-09-21T10:30:00Z"
-                expires_at: "2025-09-22T10:30:00Z"
-                grant_duration: "P30D"
-                fields: ["personInfo.permanentAddress", "personInfo.photo"]
-                session_id: "session_123"
-                consent_portal_url: "https://consent-portal.example.com/?consent_id=consent_8d255282"
-                purpose: "passport_application"
-                message: "Consent created successfully"
         '400':
           description: Bad request.
           content:
@@ -191,12 +177,13 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
     patch:
-      summary: Partially Update Consent (Internal)
-      description: Partially updates a consent record. Internal endpoint - no authentication required.
+      summary: Partially Update Consent (User)
+      description: Partially updates a consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
       operationId: patchConsentById
       tags:
         - Consents
-      security: []
+      security:
+        - UserJWTAuth: []
       parameters:
         - name: consentId
           in: path
@@ -229,6 +216,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - JWT token invalid or does not match consent owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Consent not found.
           content:
@@ -243,12 +236,13 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
     delete:
-      summary: Revoke Consent (Internal)
-      description: Revokes an active consent record. Internal endpoint - no authentication required.
+      summary: Revoke Consent (User)
+      description: Revokes an active consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
       operationId: revokeConsent
       tags:
         - Consents
-      security: []
+      security:
+        - UserJWTAuth: []
       parameters:
         - name: consentId
           in: path
@@ -269,7 +263,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
+        '403':
+          description: Forbidden - JWT token invalid or does not match consent owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '4Remember to use markdown headings (##) to create distinct sections if the response is more than a few paragraphs or covers different points, topics, or steps.4':
           description: Consent not found.
           content:
             application/json:
@@ -289,6 +289,7 @@ paths:
       operationId: getConsentsByDataOwner
       tags:
         - Data Owner
+      # Make internal endpoint public
       security: []
       parameters:
         - name: ownerId
@@ -300,109 +301,8 @@ paths:
       responses:
         '200':
           description: Consents found and returned.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  owner_id:
-                    type: string
-                  consents:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ConsentResponse'
-                  count:
-                    type: integer
         '500':
           description: Internal server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /consumer/{consumerId}:
-    get:
-      summary: Get Consents by Consumer (Internal)
-      description: Retrieves all consents for a specific consumer application. Internal use only.
-      operationId: getConsentsByConsumer
-      tags:
-        - Consumer
-      security: []
-      parameters:
-        - name: consumerId
-          in: path
-          required: true
-          description: Unique identifier for the consumer application.
-          schema:
-            type: string
-          example: passport-app
-      responses:
-        '200':
-          description: Consents found and returned.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  consumer:
-                    type: string
-                  consents:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ConsentResponse'
-                  count:
-                    type: integer
-        '500':
-          description: Internal server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /data-info/{consentId}:
-    get:
-      summary: Get Data Owner Info by Consent ID (Internal)
-      description: Retrieves data owner information (owner_id and owner_email) for a specific consent. Internal use only.
-      operationId: getDataInfoByConsentId
-      tags:
-        - Data Owner
-      security: []
-      parameters:
-        - name: consentId
-          in: path
-          required: true
-          description: Unique identifier for the consent.
-          schema:
-            type: string
-          example: consent_8d255282
-      responses:
-        '200':
-          description: Data owner information found and returned.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  owner_id:
-                    type: string
-                    description: Unique identifier of the data owner
-                    example: test@opensource.lk
-                  owner_email:
-                    type: string
-                    description: Email address of the data owner
-                    example: test@opensource.lk
-        '404':
-          description: Consent not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /admin/expiry-check:
     post:
@@ -411,33 +311,13 @@ paths:
       operationId: checkConsentExpiry
       tags:
         - Admin
+      # Make internal endpoint public
       security: []
       responses:
         '200':
           description: Expiry check completed successfully.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  expired_records:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ConsentResponse'
-                  count:
-                    type: integer
-                    description: Number of expired consents found
-                    example: 5
-                  checked_at:
-                    type: string
-                    format: date-time
-                    description: Timestamp when the check was performed
         '500':
           description: Internal server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   schemas:
@@ -629,6 +509,28 @@ components:
           type: string
           description: Status message
           example: "Consent created successfully"
+
+    ConsentPortalUpdateRequest:
+      type: object
+      required:
+        - status
+        - updated_by
+      properties:
+        status:
+          type: string
+          enum:
+            - approved
+            - rejected
+          description: New status of the consent
+          example: approved
+        updated_by:
+          type: string
+          description: ID of the data owner
+          example: citizen_199512345678
+        reason:
+          type: string
+          description: Reason for the status update
+          example: User approved consent via portal
     ConsentPortalView:
       type: object
       properties:
@@ -692,7 +594,5 @@ tags:
     description: Core consent management operations
   - name: Data Owner
     description: Operations related to data owners
-  - name: Consumer
-    description: Operations related to consumer applications
   - name: Admin
     description: Protected administrative operations
