@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
   title: Policy Decision Point API
   description: |
@@ -35,13 +35,13 @@ paths:
                 properties:
                   service:
                     type: string
-                    example: policy-decision-point
+                    example: "policy-decision-point"
                   status:
                     type: string
                     example: healthy
   /api/v1/policy/decide:
     post:
-      summary: Return Required Policy Decisions
+      summary: Return Required Policy Decisions, Consent Requirements
       description: Returns the policy decisions evaluated.
       tags:
         - Policy Decision
@@ -52,7 +52,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PolicyDecisionRequest'
       responses:
-        200:
+        '200':
           description: Policy Decision Retrieved Successfully
           content:
             application/json:
@@ -159,98 +159,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /policy-metadata:
-    post:
-      summary: Create Policy Metadata
-      description: |
-        Create field metadata records when Provider schema is approved. This endpoint
-        allows creating new policy metadata entries for data fields with their access
-        control settings and display information.
-      operationId: createPolicyMetadata
-      tags:
-        - Policy Metadata Management
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PolicyMetadataCreateRequest'
-      responses:
-        '201':
-          description: Policy metadata created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PolicyMetadataCreateResponse'
-        '400':
-          description: Bad request - invalid input data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /allow-list:
-    post:
-      summary: Update Allow List
-      description: |
-        Update allow_list when ConsumerApp is approved. This endpoint allows adding
-        or updating application access permissions for specific data fields.
-      operationId: updateAllowList
-      tags:
-        - Policy Metadata Management
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AllowListUpdateRequest'
-      responses:
-        '200':
-          description: Allow list updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AllowListUpdateResponse'
-        '400':
-          description: Bad request - invalid input data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Field not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
 components:
   schemas:
     PolicyDecisionRequest:
       type: object
       required:
         - consumerId
-        - appId
+        - applicationId
         - requestId
         - requiredFields
       properties:
         consumerId:
           type: string
           description: ID of the consumer that owns the application
-          example: passport-app
-        appId:
+          example: die
+        applicationId:
           type: string
           description: ID of the application making the request
           example: passport-app
@@ -393,16 +316,34 @@ components:
     PolicyMetadataCreateRequest:
       type: object
       required:
-        - field_name
-        - display_name
-        - source
-        - access_control_type
+        - schemaId
+        - records
       properties:
-        field_name:
+        schemaId:
+          type: string
+          description: Identifier of the data schema
+          example: "schema_001"
+        records:
+          type: array
+          description: List of policy metadata records to create
+          items:
+            $ref: '#/components/schemas/PolicyMetadataCreateRequestRecord'
+
+    PolicyMetadataCreateRequestRecord:
+      type: object
+      required:
+        - fieldName
+        - displayName
+        - description
+        - source
+        - isOwner
+        - accessControlType
+      properties:
+        fieldName:
           type: string
           description: Name of the field being created
           example: "person.fullName"
-        display_name:
+        displayName:
           type: string
           description: Human-readable display name for the field
           example: "Full Name"
@@ -413,23 +354,18 @@ components:
         source:
           type: string
           description: Source system for this field
-          enum: ["primary", "fallback"]
+          enum: [ "primary", "fallback" ]
           example: "primary"
-        is_owner:
+        isOwner:
           type: boolean
           description: Whether the field owner is the data owner
           example: true
-        access_control_type:
+        accessControlType:
           type: string
           description: Access control type for the field
-          enum: ["public", "restricted"]
+          enum: [ "public", "restricted" ]
           example: "restricted"
-        allow_list:
-          type: array
-          description: Initial allow list entries
-          items:
-            $ref: '#/components/schemas/AllowListEntry'
-          example: []
+
 
     PolicyMetadataCreateResponse:
       type: object
@@ -450,47 +386,61 @@ components:
     AllowListUpdateRequest:
       type: object
       required:
-        - field_name
-        - application_id
-        - expires_at
+        - applicationId
+        - grantDuration
+        - records
       properties:
-        field_name:
+        applicationId:
           type: string
-          description: Name of the field to update
-          example: "person.fullName"
-        application_id:
+          description: App that is being granted access
+          example: "passport-app"
+        grantDuration:
           type: string
           description: ID of the application to add to allow list
-          example: "passport-app"
-        expires_at:
-          type: string
-          format: date-time
-          description: Expiration timestamp for the access grant
-          example: "2024-12-31T23:59:59Z"
+          example: "30d"
+        records:
+          type: array
+          description: List of field records to update the allow list for
+          items:
+            type: object
+            required:
+              - fieldName
+              - schemaId
+            properties:
+              fieldName:
+                type: string
+                description: Name of the field to update
+                example: "person.fullName"
+              schemaId:
+                type: string
+                description: Identifier of the data schema
+                example: "schema_001"
 
     AllowListUpdateResponse:
       type: object
       properties:
-        success:
-          type: boolean
-          description: Whether the update was successful
-          example: true
-        message:
-          type: string
-          description: Human-readable message about the update
-          example: "Updated allow list for field person.fullName with application passport-app"
-
-    AllowListEntry:
-      type: object
-      properties:
-        application_id:
-          type: string
-          description: ID of the application
-          example: "passport-app"
-        expires_at:
-          type: integer
-          description: Expiration timestamp as Unix timestamp
-          example: 1704067199
+        records:
+            type: array
+            description: List of updated field records
+            items:
+              type: object
+              properties:
+                fieldName:
+                  type: string
+                  description: Name of the field updated
+                  example: "person.fullName"
+                schemaId:
+                  type: string
+                  description: Identifier of the data schema
+                  example: "schema_001"
+                applicationId:
+                  type: string
+                  description: ID of the application granted access
+                  example: "passport-app"
+                expiresAt:
+                  type: integer
+                  description: Expiration timestamp as Unix timestamp
+                  example: 1704067199
 
   securitySchemes:
     BearerAuth:
