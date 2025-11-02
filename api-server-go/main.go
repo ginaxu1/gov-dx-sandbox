@@ -142,25 +142,25 @@ func main() {
 					"database": v1DbConfig.Database,
 				}
 
-				// Check if entities table exists in V1 DB
-				var entitiesExists bool
-				checkEntitiesQuery := `SELECT EXISTS (
+				// Check if members table exists in V1 DB
+				var membersExists bool
+				checkMembersQuery := `SELECT EXISTS (
                        SELECT FROM information_schema.tables 
                        WHERE table_schema = 'public' 
-                       AND table_name = 'entities'
+                       AND table_name = 'members'
                    )`
 
-				if err := sqlDB.QueryRowContext(ctx, checkEntitiesQuery).Scan(&entitiesExists); err != nil {
-					v1Info["table_check_error"] = fmt.Sprintf("failed to check entities table: %v", err)
+				if err := sqlDB.QueryRowContext(ctx, checkMembersQuery).Scan(&membersExists); err != nil {
+					v1Info["table_check_error"] = fmt.Sprintf("failed to check members table: %v", err)
 				} else {
-					v1Info["entities_table_exists"] = entitiesExists
-					if entitiesExists {
-						var entityCount int
-						countEntitiesQuery := `SELECT COUNT(*) FROM entities`
-						if err := sqlDB.QueryRowContext(ctx, countEntitiesQuery).Scan(&entityCount); err != nil {
-							v1Info["count_error"] = fmt.Sprintf("failed to count entities: %v", err)
+					v1Info["members_table_exists"] = membersExists
+					if membersExists {
+						var memberCount int
+						countMembersQuery := `SELECT COUNT(*) FROM members`
+						if err := sqlDB.QueryRowContext(ctx, countMembersQuery).Scan(&memberCount); err != nil {
+							v1Info["count_error"] = fmt.Sprintf("failed to count members: %v", err)
 						} else {
-							v1Info["entities_count"] = entityCount
+							v1Info["members_count"] = memberCount
 						}
 					}
 				}
