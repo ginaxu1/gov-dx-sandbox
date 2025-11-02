@@ -48,7 +48,7 @@ configurations:
           name: audit-connection
           key: serviceUrl
     
-    # --- Database Connection Variables (FIXED) ---
+    # --- Database Connection Variables ---
     - name: CHOREO_OPENDIF_DB_HOSTNAME
       valueFrom:
         connectionRef:
