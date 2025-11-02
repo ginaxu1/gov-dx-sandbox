@@ -12,7 +12,7 @@ require (
 	golang.org/x/oauth2 v0.32.0
 )
 
-require github.com/go-chi/chi/v5 v5.2.3 // indirect
+require github.com/go-chi/chi/v5 v5.2.3
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
