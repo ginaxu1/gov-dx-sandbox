@@ -1,26 +1,141 @@
 openapi: 3.0.3
 info:
-  title: OpenDIF API Server V1
+  title: API Server
   description: |
-    OpenDIF (Open Data Interchange Framework) API Server V1 provides endpoints for managing
-    data providers, consumers, applications, and schemas in a federated data ecosystem.
-    
-    This API follows RESTful principles and uses JSON for data exchange.
+    Government Data Exchange API Server for managing consumers, providers, and data access workflows.
+    This service handles consumer applications, provider submissions, schema management, and access control.
   version: 1.0.0
   contact:
     name: OpenDIF Team
-    email: support@opendif.org
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:8080
-    description: Local development server
-  - url: https://api.opendif.org
-    description: Production server
+  - url: https://api-server.choreo.dev
+    description: Choreo Production Environment
+  - url: https://api-server-dev.choreo.dev
+    description: Choreo Development Environment
+  - url: http://localhost:3000
+    description: Local Development Environment
 
 paths:
+  /api/v1/members:
+    get:
+      summary: List members
+      description: Retrieve members with optional filters
+      operationId: getAllMembers
+      tags:
+        - Members
+      parameters:
+        - name: idpUserId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by IDP user ID
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+            format: email
+          description: Filter by email address
+      responses:
+        '200':
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Member'
+                  count:
+                    type: integer
+                    example: 10
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create member
+      operationId: createMember
+      tags:
+        - Members
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMemberRequest'
+      responses:
+        '201':
+          description: Member created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/members/{memberId}:
+    get:
+      summary: Get member
+      operationId: getMember
+      tags:
+        - Members
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      summary: Update member
+      operationId: updateMember
+      tags:
+        - Members
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRequest'
+      responses:
+        '200':
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /health:
     get:
       summary: Health check endpoint
@@ -28,6 +143,7 @@ paths:
       operationId: getHealth
       tags:
         - Health
+      security: []
       responses:
         '200':
           description: Service is healthy
@@ -53,6 +169,7 @@ paths:
       operationId: getDebug
       tags:
         - Debug
+      security: []
       responses:
         '200':
           description: Debug information
@@ -71,312 +188,6 @@ paths:
                     type: string
                     format: date-time
 
-  /api/v1/entities:
-    get:
-      summary: List all entities
-      description: Retrieve a list of all entities in the system
-      operationId: getAllEntities
-      tags:
-        - Entities
-      responses:
-        '200':
-          description: List of entities
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Entity'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    
-    post:
-      summary: Create a new entity
-      description: Create a new entity in the system
-      operationId: createEntity
-      tags:
-        - Entities
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateEntityRequest'
-      responses:
-        '201':
-          description: Entity created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Entity'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/entities/{entityId}:
-    get:
-      summary: Get entity by ID
-      description: Retrieve a specific entity by its ID
-      operationId: getEntity
-      tags:
-        - Entities
-      parameters:
-        - name: entityId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The entity ID
-      responses:
-        '200':
-          description: Entity details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Entity'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    
-    put:
-      summary: Update entity
-      description: Update an existing entity
-      operationId: updateEntity
-      tags:
-        - Entities
-      parameters:
-        - name: entityId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The entity ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateEntityRequest'
-      responses:
-        '200':
-          description: Entity updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Entity'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/providers:
-    get:
-      summary: List all providers
-      description: Retrieve a list of all providers in the system
-      operationId: getAllProviders
-      tags:
-        - Providers
-      responses:
-        '200':
-          description: List of providers
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Provider'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    
-    post:
-      summary: Create a new provider
-      description: Create a new provider in the system
-      operationId: createProvider
-      tags:
-        - Providers
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateProviderRequest'
-      responses:
-        '201':
-          description: Provider created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Provider'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/providers/{providerId}:
-    get:
-      summary: Get provider by ID
-      description: Retrieve a specific provider by its ID
-      operationId: getProvider
-      tags:
-        - Providers
-      parameters:
-        - name: providerId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The provider ID
-      responses:
-        '200':
-          description: Provider details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Provider'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    
-    put:
-      summary: Update provider
-      description: Update an existing provider
-      operationId: updateProvider
-      tags:
-        - Providers
-      parameters:
-        - name: providerId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The provider ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateProviderRequest'
-      responses:
-        '200':
-          description: Provider updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Provider'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/consumers:
-    get:
-      summary: List all consumers
-      description: Retrieve a list of all consumers in the system
-      operationId: getAllConsumers
-      tags:
-        - Consumers
-      responses:
-        '200':
-          description: List of consumers
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Consumer'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    
-    post:
-      summary: Create a new consumer
-      description: Create a new consumer in the system
-      operationId: createConsumer
-      tags:
-        - Consumers
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateConsumerRequest'
-      responses:
-        '201':
-          description: Consumer created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Consumer'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/consumers/{consumerId}:
-    get:
-      summary: Get consumer by ID
-      description: Retrieve a specific consumer by its ID
-      operationId: getConsumer
-      tags:
-        - Consumers
-      parameters:
-        - name: consumerId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The consumer ID
-      responses:
-        '200':
-          description: Consumer details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Consumer'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    
-    put:
-      summary: Update consumer
-      description: Update an existing consumer
-      operationId: updateConsumer
-      tags:
-        - Consumers
-      parameters:
-        - name: consumerId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The consumer ID
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateConsumerRequest'
-      responses:
-        '200':
-          description: Consumer updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Consumer'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
   /api/v1/schemas:
     get:
       summary: List all schemas
@@ -384,15 +195,28 @@ paths:
       operationId: getAllSchemas
       tags:
         - Schemas
+      parameters:
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter schemas by owning member ID
       responses:
         '200':
           description: List of schemas
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Schema'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Schema'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
@@ -486,15 +310,39 @@ paths:
       operationId: getAllSchemaSubmissions
       tags:
         - Schema Submissions
+      parameters:
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter schema submissions by member ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [pending, approved, rejected]
+          style: form
+          explode: true
+          description: Filter by one or more statuses (repeat the parameter)
       responses:
         '200':
           description: List of schema submissions
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SchemaSubmission'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SchemaSubmission'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
@@ -588,15 +436,28 @@ paths:
       operationId: getAllApplications
       tags:
         - Applications
+      parameters:
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter applications by member ID
       responses:
         '200':
           description: List of applications
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Application'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
@@ -690,15 +551,39 @@ paths:
       operationId: getAllApplicationSubmissions
       tags:
         - Application Submissions
+      parameters:
+        - name: memberId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter application submissions by member ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [pending, approved, rejected]
+          style: form
+          explode: true
+          description: Filter by one or more statuses (repeat the parameter)
       responses:
         '200':
           description: List of application submissions
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ApplicationSubmission'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationSubmission'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
@@ -787,6 +672,42 @@ paths:
 
 components:
   schemas:
+    Member:
+      allOf:
+        - $ref: '#/components/schemas/BaseModel'
+        - type: object
+          properties:
+            memberId:
+              type: string
+            name:
+              type: string
+            email:
+              type: string
+              format: email
+            phoneNumber:
+              type: string
+            idpUserId:
+              type: string
+
+    CreateMemberRequest:
+      type: object
+      required: [name, email, phoneNumber]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+
+    UpdateMemberRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phoneNumber:
+          type: string
     BaseModel:
       type: object
       properties:
@@ -823,33 +744,7 @@ components:
               type: string
               description: Identity provider user ID
 
-    Provider:
-      allOf:
-        - $ref: '#/components/schemas/BaseModel'
-        - type: object
-          properties:
-            providerId:
-              type: string
-              description: Unique identifier for the provider
-            entityId:
-              type: string
-              description: Reference to the associated entity
-            entity:
-              $ref: '#/components/schemas/Entity'
-
-    Consumer:
-      allOf:
-        - $ref: '#/components/schemas/BaseModel'
-        - type: object
-          properties:
-            consumerId:
-              type: string
-              description: Unique identifier for the consumer
-            entityId:
-              type: string
-              description: Reference to the associated entity
-            entity:
-              $ref: '#/components/schemas/Entity'
+    
 
     Schema:
       allOf:
@@ -875,9 +770,9 @@ components:
             version:
               type: string
               description: Schema version
-            providerId:
+            memberId:
               type: string
-              description: Reference to the provider
+              description: Reference to the owning member
 
     SchemaSubmission:
       allOf:
@@ -912,9 +807,9 @@ components:
               type: string
               nullable: true
               description: Reference to previous schema version
-            providerId:
+            memberId:
               type: string
-              description: Reference to the provider
+              description: Reference to the owning member
 
     Application:
       allOf:
@@ -935,9 +830,9 @@ components:
               type: string
               enum: [pending, approved, rejected]
               description: Application status
-            consumerId:
+            memberId:
               type: string
-              description: Reference to the consumer
+              description: Reference to the owning member
 
     ApplicationSubmission:
       allOf:
@@ -971,9 +866,9 @@ components:
               type: string
               nullable: true
               description: Reference to previous application version
-            consumerId:
+            memberId:
               type: string
-              description: Reference to the consumer
+              description: Reference to the owning member
 
     SelectedFieldRecord:
       type: object
@@ -1069,7 +964,7 @@ components:
         - schemaName
         - sdl
         - endpoint
-        - providerId
+        - memberId
       properties:
         schemaName:
           type: string
@@ -1084,9 +979,9 @@ components:
         endpoint:
           type: string
           description: GraphQL endpoint URL
-        providerId:
+        memberId:
           type: string
-          description: Reference to the provider
+          description: Reference to the owning member
 
     UpdateSchemaRequest:
       type: object
@@ -1114,7 +1009,7 @@ components:
         - schemaName
         - sdl
         - schemaEndpoint
-        - providerId
+        - memberId
       properties:
         schemaName:
           type: string
@@ -1133,9 +1028,9 @@ components:
           type: string
           nullable: true
           description: Reference to previous schema version
-        providerId:
+        memberId:
           type: string
-          description: Reference to the provider
+          description: Reference to the owning member
 
     UpdateSchemaSubmissionRequest:
       type: object
@@ -1170,7 +1065,7 @@ components:
       type: object
       required:
         - applicationName
-        - consumerId
+        - memberId
       properties:
         applicationName:
           type: string
@@ -1179,9 +1074,9 @@ components:
           type: string
           nullable: true
           description: Description of the application
-        consumerId:
+        memberId:
           type: string
-          description: Reference to the consumer
+          description: Reference to the owning member
 
     UpdateApplicationRequest:
       type: object
@@ -1203,7 +1098,7 @@ components:
       required:
         - applicationName
         - selectedFields
-        - consumerId
+        - memberId
       properties:
         applicationName:
           type: string
@@ -1222,9 +1117,9 @@ components:
           type: string
           nullable: true
           description: Reference to previous application version
-        consumerId:
+        memberId:
           type: string
-          description: Reference to the consumer
+          description: Reference to the owning member
 
     UpdateApplicationSubmissionRequest:
       type: object
