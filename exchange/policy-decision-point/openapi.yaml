@@ -72,72 +72,72 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
   /api/v1/policy/update-allowlist:
     post:
-        summary: Update Allow List for Data Fields
-        description: Update the allow list for data fields to grant application access.
-        tags:
-            - Policy Metadata Management
-        requestBody:
-            required: true
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/AllowListUpdateRequest'
-        responses:
-            '200':
-              description: Allow list updated successfully
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/AllowListUpdateResponse'
-            '400':
-              description: Bad request - invalid input data
-              content:
-                application/json:
-                  schema:
-                      $ref: '#/components/schemas/ErrorResponse'
-            '404':
-              description: Field not found
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/ErrorResponse'
-            '500':
-              description: Internal server error
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/ErrorResponse'
+      summary: Update Allow List for Data Fields
+      description: Update the allow list for data fields to grant application access.
+      tags:
+        - Policy Metadata Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllowListUpdateRequest'
+      responses:
+        '200':
+          description: Allow list updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowListUpdateResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Field not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/policy/metadata:
     post:
-        summary: Create or Update Policy Metadata
-        description: Create or update policy metadata for data fields.
-        tags:
-            - Policy Metadata Management
-        requestBody:
-            required: true
-            content:
-              application/json:
-                  schema:
-                    $ref: '#/components/schemas/PolicyMetadataCreateRequest'
-        responses:
-            '201':
-              description: Policy metadata created or updated successfully
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/PolicyMetadataCreateResponse'
-            '400':
-              description: Bad request - invalid input data
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/ErrorResponse'
-            '500':
-              description: Internal server error
-              content:
-                application/json:
-                  schema:
-                    $ref: '#/components/schemas/ErrorResponse'
+      summary: Create or Update Policy Metadata
+      description: Create or update policy metadata for data fields.
+      tags:
+        - Policy Metadata Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyMetadataCreateRequest'
+      responses:
+        '201':
+          description: Policy metadata created or updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyMetadataCreateResponse'
+        '400':
+          description: Bad request - invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /debug:
     get:
       summary: Debug Information
@@ -274,7 +274,7 @@ components:
           description: List of loaded policy files
           items:
             type: string
-          example: ["main.rego", "field_access.rego"]
+          example: [ "main.rego", "field_access.rego" ]
         configuration:
           type: object
           description: Service configuration
@@ -420,27 +420,27 @@ components:
       type: object
       properties:
         records:
-            type: array
-            description: List of updated field records
-            items:
-              type: object
-              properties:
-                fieldName:
-                  type: string
-                  description: Name of the field updated
-                  example: "person.fullName"
-                schemaId:
-                  type: string
-                  description: Identifier of the data schema
-                  example: "schema_001"
-                applicationId:
-                  type: string
-                  description: ID of the application granted access
-                  example: "passport-app"
-                expiresAt:
-                  type: integer
-                  description: Expiration timestamp as Unix timestamp
-                  example: 1704067199
+          type: array
+          description: List of updated field records
+          items:
+            type: object
+            properties:
+              fieldName:
+                type: string
+                description: Name of the field updated
+                example: "person.fullName"
+              schemaId:
+                type: string
+                description: Identifier of the data schema
+                example: "schema_001"
+              applicationId:
+                type: string
+                description: ID of the application granted access
+                example: "passport-app"
+              expiresAt:
+                type: integer
+                description: Expiration timestamp as Unix timestamp
+                example: 1704067199
 
   securitySchemes:
     BearerAuth:
@@ -449,7 +449,7 @@ components:
       bearerFormat: JWT
 
 security:
-  - BearerAuth: []
+  - BearerAuth: [ ]
 
 tags:
   - name: Health
