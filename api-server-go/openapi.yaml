@@ -55,6 +55,7 @@ paths:
                       $ref: '#/components/schemas/Member'
                   count:
                     type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -142,6 +143,7 @@ paths:
       operationId: getHealth
       tags:
         - Health
+      security: []
       responses:
         '200':
           description: Service is healthy
@@ -167,6 +169,7 @@ paths:
       operationId: getDebug
       tags:
         - Debug
+      security: []
       responses:
         '200':
           description: Debug information
@@ -205,9 +208,15 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Schema'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Schema'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
@@ -325,9 +334,15 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SchemaSubmission'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SchemaSubmission'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
@@ -434,9 +449,15 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Application'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
@@ -554,9 +575,15 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ApplicationSubmission'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicationSubmission'
+                  count:
+                    type: integer
+                    example: 10
         '500':
           $ref: '#/components/responses/InternalServerError'
     
