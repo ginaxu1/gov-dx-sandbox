@@ -110,7 +110,7 @@ paths:
   /api/v1/policy/metadata:
     post:
       summary: Create or Update Policy Metadata
-      description: Create or update policy metadata for data fields.
+      description: Create or update policy metadata records for data fields when the Provider schema is approved.
       tags:
         - Policy Metadata Management
       requestBody:
