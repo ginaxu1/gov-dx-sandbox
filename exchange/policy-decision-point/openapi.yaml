@@ -437,15 +437,6 @@ components:
                 description: Expiration timestamp as Unix timestamp
                 example: 1704067199
 
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-security:
-  - BearerAuth: [ ]
-
 tags:
   - name: Health
     description: Health check endpoints
