@@ -41,8 +41,8 @@ paths:
                     example: healthy
   /api/v1/policy/decide:
     post:
-      summary: Return Required Policy Decisions, Consent Requirements
-      description: Returns the policy decisions evaluated.
+      summary: Make Policy Decision
+      description: Evaluate data access request against policies and return authorization decision with consent requirements.
       tags:
         - Policy Decision
       requestBody:
