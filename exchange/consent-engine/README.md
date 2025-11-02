@@ -56,13 +56,9 @@ docker build -t ce . && docker run -p 8081:8081 ce
 | `/consents` | POST | Create new consent (Internal - Service-to-Service) | None |
 | `/consents/{id}` | GET | Get consent information | **User JWT Auth** |
 | `/consents/{id}` | PUT | Update consent status | **User JWT Auth** |
-| `/consents/{id}` | POST | Update consent status (alternative) | **User JWT Auth** |
-| `/consents/{id}` | DELETE | Revoke consent | **User JWT Auth** |
+| `/consents/{id}` | PATCH | Partially update consent (Internal) | None |
+| `/consents/{id}` | DELETE | Revoke consent (Internal) | None |
 | `/data-info/{id}` | GET | Get data owner information | None |
-| `/consent-portal` | POST | Create consent via portal | None |
-| `/consent-portal` | PUT | Update consent via portal | None |
-| `/consent-portal` | GET | Get consent portal info | None |
-| `/consent-website` | GET | Serve consent portal website | None |
 | `/data-owner/{id}` | GET | Get consents by data owner | None |
 | `/consumer/{id}` | GET | Get consents by consumer | None |
 | `/admin/expiry-check` | POST | Check expired consents | None |
