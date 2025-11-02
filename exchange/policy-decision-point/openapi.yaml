@@ -396,7 +396,7 @@ components:
           example: "passport-app"
         grantDuration:
           type: string
-          description: ID of the application to add to allow list
+          description: Duration of access grant in format like 30d, 1h, etc.
           example: "30d"
         records:
           type: array
