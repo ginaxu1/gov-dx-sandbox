@@ -121,7 +121,7 @@ paths:
               $ref: '#/components/schemas/PolicyMetadataCreateRequest'
       responses:
         '201':
-          description: Policy metadata created or updated successfully
+          description: Policy metadata created successfully
           content:
             application/json:
               schema:
