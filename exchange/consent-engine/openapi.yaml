@@ -27,6 +27,7 @@ paths:
       operationId: healthCheck
       tags:
         - Health
+      security: []
       responses:
         '200':
           description: Service is healthy
@@ -46,6 +47,7 @@ paths:
       operationId: createConsent
       tags:
         - Consents
+      security: []
       requestBody:
         required: true
         content:
@@ -234,7 +236,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '404':
+        '4404':
           description: Consent not found.
           content:
             application/json:
@@ -301,6 +303,7 @@ paths:
       operationId: getConsentsByDataOwner
       tags:
         - Data Owner
+      security: []
       parameters:
         - name: ownerId
           in: path
@@ -321,6 +324,7 @@ paths:
       operationId: checkConsentExpiry
       tags:
         - Admin
+      security: []
       responses:
         '200':
           description: Expiry check completed successfully.
