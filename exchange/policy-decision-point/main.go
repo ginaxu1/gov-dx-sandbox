@@ -129,7 +129,7 @@ func main() {
 	})))
 
 	// Create server using utils
-	port := getEnvOrDefault("PORT", "8081")
+	port := getEnvOrDefault("PORT", "8082")
 	serverConfig := &utils.ServerConfig{
 		Port:         port,
 		ReadTimeout:  15 * time.Second,
