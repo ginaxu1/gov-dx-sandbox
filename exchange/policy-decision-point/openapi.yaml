@@ -187,9 +187,6 @@ components:
           items:
             type: object
             properties:
-              providerKey:
-                type: string
-                description: Unique identifier of the provider
               schemaId:
                 type: string
                 description: Identifier of the data schema
