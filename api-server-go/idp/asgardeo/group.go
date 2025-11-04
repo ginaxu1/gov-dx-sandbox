@@ -273,7 +273,6 @@ func (a *Client) AddMemberToGroup(ctx context.Context, groupId string, memberInf
 
 	payload, err := json.Marshal(body)
 
-	// print the json payload for debugging
 	if err != nil {
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
