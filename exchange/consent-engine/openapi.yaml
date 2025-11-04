@@ -537,6 +537,7 @@ components:
           example: "acde070d-8c4c-4f0d-9d8a-000000a111111"
     DataField:
       type: object
+      deprecated: true
       description: Legacy data field format (deprecated - use ConsentRequirement instead)
       properties:
         owner_type:

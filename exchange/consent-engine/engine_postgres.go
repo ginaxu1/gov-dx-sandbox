@@ -123,7 +123,8 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	_, err = pce.db.Exec(insertSQL,
 		consentID, ownerID, ownerEmail, req.AppID, string(StatusPending), "realtime",
 		now, now, expiresAt, grantDuration, pq.Array(allFields),
-		"", consentPortalURL, ownerID)
+		"", // Intentionally passing empty string for session_id in the new format (session information not required)
+		consentPortalURL, ownerID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consent record: %w", err)
@@ -462,19 +463,6 @@ func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 	updatedRecord.UpdatedAt = now
 
 	return &updatedRecord, nil
-}
-
-// updateExistingConsent updates an existing consent record with new fields, grant_duration, expires_at, and session_id (legacy format - deprecated)
-// This function is kept for backwards compatibility but should not be used with new format requests
-func (pce *postgresConsentEngine) updateExistingConsent(existingConsent *ConsentRecord, req ConsentRequest) (*ConsentRecord, error) {
-	// For legacy format, check if we have DataFields (old format)
-	// If not, assume new format and delegate to updateExistingConsentNewFormat
-	if len(req.ConsentRequirements) > 0 {
-		return pce.updateExistingConsentNewFormat(existingConsent, req)
-	}
-
-	// Legacy path - this should not be reached with new API
-	return nil, fmt.Errorf("legacy DataFields format is no longer supported, use consent_requirements")
 }
 
 // FindExistingConsent finds an existing consent record by consumer app ID and owner ID
