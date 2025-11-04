@@ -57,13 +57,13 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateConsentRequest'
             example:
-              app_id: "acde070d-8c4c-4f0d-9d8a-162843c10333"
+              app_id: "acde070d-8c4c-4f0d-9d8a-000000a111111"
               consent_requirements:
                 - owner: "CITIZEN"
                   owner_id: "mohamed@opensource.lk"
                   fields:
                     - fieldName: "personInfo.name"
-                      schemaId: "acde070d-8c4c-4f0d-9d8a-162843c10333"
+                      schemaId: "acde070d-8c4c-4f0d-9d8a-000000a111111"
               grant_duration: "PT1H"
       responses:
         '201':
@@ -78,7 +78,7 @@ paths:
                   value:
                     consent_id: "consent_079ef78b"
                     status: "pending"
-                    consent_portal_url: "https://64de011b-df46-423d-8e33-814b5cc60339.e1-us-east-azure.choreoapps.dev/?consent_id=consent_079ef78b"
+                    consent_portal_url: "https://localhost:8081/?consent_id=consent_079ef78b"
                 approved:
                   summary: Approved consent response
                   value:
@@ -167,7 +167,7 @@ paths:
                   value:
                     consent_id: "consent_079ef78b"
                     status: "pending"
-                    consent_portal_url: "https://64de011b-df46-423d-8e33-814b5cc60339.e1-us-east-azure.choreoapps.dev/?consent_id=consent_079ef78b"
+                    consent_portal_url: "https://localhost:8081/?consent_id=consent_079ef78b"
                 approved:
                   summary: Approved consent response
                   value:
@@ -238,7 +238,7 @@ paths:
                   value:
                     consent_id: "consent_079ef78b"
                     status: "pending"
-                    consent_portal_url: "https://64de011b-df46-423d-8e33-814b5cc60339.e1-us-east-azure.choreoapps.dev/?consent_id=consent_079ef78b"
+                    consent_portal_url: "https://localhost:8081/?consent_id=consent_079ef78b"
                 approved:
                   summary: Approved consent response
                   value:
@@ -487,7 +487,7 @@ components:
         app_id:
           type: string
           description: ID of the consumer application requesting consent
-          example: "acde070d-8c4c-4f0d-9d8a-162843c10333"
+          example: "acde070d-8c4c-4f0d-9d8a-000000a111111"
         consent_requirements:
           type: array
           description: List of consent requirements for different owners
@@ -534,7 +534,7 @@ components:
         schemaId:
           type: string
           description: ID of the schema this field belongs to
-          example: "acde070d-8c4c-4f0d-9d8a-162843c10333"
+          example: "acde070d-8c4c-4f0d-9d8a-000000a111111"
     DataField:
       type: object
       description: Legacy data field format (deprecated - use ConsentRequirement instead)
@@ -640,7 +640,7 @@ components:
         consent_portal_url:
           type: string
           description: URL to redirect user to consent portal (only present when status is pending)
-          example: "https://64de011b-df46-423d-8e33-814b5cc60339.e1-us-east-azure.choreoapps.dev/?consent_id=consent_079ef78b"
+          example: "https://localhost:8081/?consent_id=consent_079ef78b"
 
     ConsentPortalUpdateRequest:
       type: object

@@ -304,17 +304,7 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 	slog.Info("Operation successful", "operation", "create consent", "id", record.ConsentID, "owner", record.OwnerID)
 
 	// Return simplified response format
-	response := ConsentResponse{
-		ConsentID:        record.ConsentID,
-		Status:           record.Status,
-		ConsentPortalURL: record.ConsentPortalURL, // Only present when status is pending
-	}
-
-	// If status is not pending, don't include consent_portal_url
-	if record.Status != string(StatusPending) {
-		response.ConsentPortalURL = ""
-	}
-
+	response := record.ToConsentResponse()
 	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
@@ -335,16 +325,7 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Return simplified response format
-		response := ConsentResponse{
-			ConsentID: record.ConsentID,
-			Status:    record.Status,
-		}
-
-		// Only include consent_portal_url if status is pending
-		if record.Status == string(StatusPending) {
-			response.ConsentPortalURL = record.ConsentPortalURL
-		}
-
+		response := record.ToConsentResponse()
 		return response, http.StatusOK, nil
 	})
 }
@@ -387,7 +368,9 @@ func (s *apiServer) revokeConsentByID(w http.ResponseWriter, r *http.Request, co
 		return
 	}
 
-	utils.RespondWithJSON(w, http.StatusOK, record)
+	// Return simplified response format
+	response := record.ToConsentResponse()
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 // patchConsentByID handles PATCH /consents/{id} - partial update of consent resource
@@ -451,7 +434,10 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 		return
 	}
 	slog.Info("Consent record updated", "consent_id", updatedRecord.ConsentID, "owner_id", updatedRecord.OwnerID, "owner_email", updatedRecord.OwnerEmail, "app_id", updatedRecord.AppID, "status", updatedRecord.Status, "type", updatedRecord.Type, "created_at", updatedRecord.CreatedAt, "updated_at", updatedRecord.UpdatedAt, "expires_at", updatedRecord.ExpiresAt, "grant_duration", updatedRecord.GrantDuration, "fields", updatedRecord.Fields, "session_id", updatedRecord.SessionID, "consent_portal_url", updatedRecord.ConsentPortalURL)
-	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
+
+	// Return simplified response format
+	response := updatedRecord.ToConsentResponse()
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Request) {
@@ -678,7 +664,9 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	// Log the operation
 	slog.Info("Consent updated via PUT", "consentId", consentID, "status", string(newStatus), "ownerId", existingRecord.OwnerID, "grantDuration", req.GrantDuration)
 
-	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
+	// Return simplified response format
+	response := updatedRecord.ToConsentResponse()
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (s *apiServer) dataInfoHandler(w http.ResponseWriter, r *http.Request) {

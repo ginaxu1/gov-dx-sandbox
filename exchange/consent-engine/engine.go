@@ -133,9 +133,26 @@ type ConsentField struct {
 
 // ConsentResponse represents the simplified response for consent operations
 type ConsentResponse struct {
-	ConsentID        string `json:"consent_id"`
-	Status           string `json:"status"`
-	ConsentPortalURL string `json:"consent_portal_url,omitempty"` // Only present when status is pending
+	ConsentID        string  `json:"consent_id"`
+	Status           string  `json:"status"`
+	ConsentPortalURL *string `json:"consent_portal_url,omitempty"` // Only present when status is pending
+}
+
+// ToConsentResponse converts a ConsentRecord to a simplified ConsentResponse
+// Only includes consent_portal_url when status is pending
+func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
+	response := ConsentResponse{
+		ConsentID: cr.ConsentID,
+		Status:    cr.Status,
+	}
+
+	// Only include consent_portal_url when status is pending
+	if cr.Status == string(StatusPending) {
+		portalURL := cr.ConsentPortalURL
+		response.ConsentPortalURL = &portalURL
+	}
+
+	return response
 }
 
 // Legacy structures for backwards compatibility (deprecated)
