@@ -32,8 +32,8 @@ type AuditContext struct {
 	EventID       uuid.UUID
 	ConsumerID    string
 	ProviderID    string
-	ApplicationID string // Extracted from request path or body
-	SchemaID      string // Extracted from request path or body
+	ApplicationID string
+	SchemaID      string
 	RequestData   json.RawMessage
 	ResponseData  json.RawMessage
 	Status        string
