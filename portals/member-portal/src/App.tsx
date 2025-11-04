@@ -9,6 +9,7 @@ import {useEffect, useState} from "react";
 import {ApplicationRegistration} from './pages/ApplicationRegistration';
 import {Shield} from 'lucide-react';
 import MemberInfo from './pages/MemberInfo';
+import { URLBuilder } from './utils';
 
 interface MemberProps {
   memberId: string;
@@ -53,10 +54,9 @@ function App() {
     try {
       const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
       // fetch member info from API
-      const url = new URL(`${baseUrl}/members`);
-      url.searchParams.append('idpUserId', idpUserId);
+      const url = URLBuilder.build(baseUrl, '/members', { idpUserId });
 
-      const response = await fetch(url.toString());
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch member info');
       }

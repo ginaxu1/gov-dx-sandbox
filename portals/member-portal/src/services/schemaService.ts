@@ -2,6 +2,7 @@
 import { getIntrospectionQuery, buildClientSchema, buildSchema, printSchema, parse, print, visit, Kind, graphql } from "graphql";
 import type { ObjectTypeDefinitionNode, ObjectTypeExtensionNode } from "graphql";
 import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType, SchemaSubmission, ApprovedSchema, ApprovedSchemaApiResponse, PendingSchemaApiResponse} from '../types/graphql';
+import { URLBuilder } from '../utils';
 
 export class SchemaService {
   private static readonly INTROSPECTION_QUERY = getIntrospectionQuery();
@@ -104,9 +105,8 @@ export class SchemaService {
   static async getApprovedSchemas(memberId: string): Promise<ApprovedSchema[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url = new URL(`${baseUrl}/schemas`);
-      url.searchParams.append('memberId', memberId);
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.build(baseUrl, '/schemas', { memberId });
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -135,11 +135,13 @@ export class SchemaService {
   static async getSchemaSubmissions(memberId: string): Promise<SchemaSubmission[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url = new URL(`${baseUrl}/schema-submissions`);
-      url.searchParams.append('memberId', memberId);
-      url.searchParams.append('status', 'pending');
-      url.searchParams.append('status', 'rejected');
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.from(baseUrl)
+        .path('/schema-submissions')
+        .param('memberId', memberId)
+        .param('status', 'pending')
+        .param('status', 'rejected')
+        .build();
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
         'Content-Type': 'application/json',
@@ -169,8 +171,8 @@ export class SchemaService {
   static async registerSchema(registration: SchemaRegistration): Promise<void> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url = new URL(`${baseUrl}/schema-submissions`);
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.build(baseUrl, '/schema-submissions');
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

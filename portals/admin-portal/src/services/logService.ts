@@ -1,3 +1,5 @@
+import { URLBuilder } from '../utils';
+
 interface LogEntry {
     id: string;
     timestamp: string;
@@ -26,17 +28,13 @@ interface LogQueryParams {
 export class LogService {
     static async fetchLogsWithParams(params?: LogQueryParams): Promise<LogEntry[]> {
         try {
-            const url = new URL(`${window.configs.VITE_LOGS_URL}/logs`);
+            const url = URLBuilder.build(
+                window.configs.VITE_LOGS_URL, 
+                '/logs', 
+                params as Record<string, string | number | boolean | undefined | null>
+            );
             
-            if (params) {
-                Object.entries(params).forEach(([key, value]) => {
-                    if (value !== undefined && value !== null && value !== '') {
-                        url.searchParams.append(key, value.toString());
-                    }
-                });
-            }
-            
-            const response = await fetch(url.toString());
+            const response = await fetch(url);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -58,18 +56,15 @@ export class LogService {
 
     static async exportLogs(params?: LogQueryParams, format: 'csv' | 'json' = 'csv'): Promise<Blob> {
         try {
-            const url = new URL(`${window.configs.VITE_LOGS_URL}/logs/export`);
-            url.searchParams.append('format', format);
+            const urlBuilder = URLBuilder.from(window.configs.VITE_LOGS_URL)
+                .path('/logs/export')
+                .param('format', format);
             
             if (params) {
-                Object.entries(params).forEach(([key, value]) => {
-                    if (value !== undefined && value !== null && value !== '') {
-                        url.searchParams.append(key, value.toString());
-                    }
-                });
+                urlBuilder.params(params as Record<string, string | number | boolean | undefined | null>);
             }
             
-            const response = await fetch(url.toString());
+            const response = await fetch(urlBuilder.build());
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

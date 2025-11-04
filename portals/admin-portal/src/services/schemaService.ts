@@ -1,4 +1,5 @@
 import type { SchemaSubmission, ApprovedSchema, ApprovedSchemaApiResponse, SchemaSubmissionApiResponse } from '../types/schema';
+import { URLBuilder } from '../utils';
 
 export class SchemaService {
   static async addReviewToSchemaSubmission(submissionId: string, review: string, status: "approved" | "rejected"): Promise<SchemaSubmission> {
@@ -58,10 +59,12 @@ export class SchemaService {
   static async getSchemaSubmissions(): Promise<SchemaSubmission[]> {
     const baseUrl = window.configs.VITE_API_URL || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url: URL = new URL(`${baseUrl}/schema-submissions`);
-      url.searchParams.append('status', 'pending');
-      url.searchParams.append('status', 'rejected');
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.from(baseUrl)
+        .path('/schema-submissions')
+        .param('status', 'pending')
+        .param('status', 'rejected')
+        .build();
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

@@ -6,15 +6,15 @@ import type {
   PendingApplicationApiResponse,
   ApprovedApplicationApiResponse
 } from '../types/applications';
+import { URLBuilder } from '../utils';
 
 export class ApplicationService {
   
   static async getApprovedApplications(memberId: string): Promise<ApprovedApplication[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url = new URL(`${baseUrl}/applications`);
-      url.searchParams.append('memberId', memberId);
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.build(baseUrl, '/applications', { memberId });
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -42,11 +42,13 @@ export class ApplicationService {
   static async getApplicationSubmissions(memberId: string): Promise<ApplicationSubmission[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url = new URL(`${baseUrl}/application-submissions`);
-      url.searchParams.append('memberId', memberId);
-      url.searchParams.append('status', 'pending');
-      url.searchParams.append('status', 'rejected');
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.from(baseUrl)
+        .path('/application-submissions')
+        .param('memberId', memberId)
+        .param('status', 'pending')
+        .param('status', 'rejected')
+        .build();
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -74,8 +76,8 @@ export class ApplicationService {
   static async registerApplication(registration: ApplicationRegistration): Promise<void> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url = new URL(`${baseUrl}/application-submissions`);
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.build(baseUrl, '/application-submissions');
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

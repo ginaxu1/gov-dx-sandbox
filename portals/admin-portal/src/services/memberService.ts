@@ -1,3 +1,5 @@
+import { URLBuilder } from '../utils';
+
 interface Member {
     memberId: string;
     idpUserId: string;
@@ -74,27 +76,20 @@ export class MemberService {
         }
     }
 
-    // static async fetchMembersWithParams(params?: Record<string, string>): Promise<MemberResponse> {
-    //     try {
-    //         const url = new URL(`${window.configs.VITE_API_URL}/members`);
-    //         if (params) {
-    //             Object.entries(params).forEach(([key, value]) => {
-    //                 if (value) {
-    //                     url.searchParams.append(key, value);
-    //                 }
-    //             });
-    //         }        
-    //         const response = await fetch(url.toString());      
-    //         if (!response.ok) {
-    //             throw new Error(`HTTP error! status: ${response.status}`);
-    //         }   
-    //         const data: MemberResponse = await response.json();
-    //         return data;
-    //     } catch (error) {
-    //         console.error('Error fetching members with params:', error);
-    //         throw error;
-    //     }
-    // }
+    static async fetchMembersWithParams(params?: Record<string, string>): Promise<MemberResponse> {
+        try {
+            const url = URLBuilder.build(window.configs.VITE_API_URL, '/members', params);
+            const response = await fetch(url);      
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }   
+            const data: MemberResponse = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error fetching members with params:', error);
+            throw error;
+        }
+    }
 
 }
 

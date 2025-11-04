@@ -4,6 +4,7 @@ import type {
     ApprovedApplication,
     ApprovedApplicationApiResponse
 } from '../types/applications';
+import { URLBuilder } from '../utils';
 
 export class ApplicationService {
   static async addReviewToApplicationSubmission(submissionId: string, review: string, status: "approved" | "rejected"): Promise<ApplicationSubmission> {
@@ -58,10 +59,12 @@ export class ApplicationService {
   static async getApplicationSubmissions(): Promise<ApplicationSubmission[]> {
     const baseUrl = window.configs.VITE_API_URL || import.meta.env.VITE_BASE_PATH || '';
     try {
-      const url: URL = new URL(`${baseUrl}/application-submissions`);
-      url.searchParams.append('status', 'pending');
-      url.searchParams.append('status', 'rejected');
-      const response = await fetch(url.toString(), {
+      const url = URLBuilder.from(baseUrl)
+        .path('/application-submissions')
+        .param('status', 'pending')
+        .param('status', 'rejected')
+        .build();
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
