@@ -11,6 +11,7 @@ import (
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
 	"github.com/gov-dx-sandbox/api-server-go/services"
+	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 )
 
 // AuditMiddleware wraps HTTP handlers to capture and send audit logs
@@ -263,46 +264,10 @@ func (m *AuditMiddleware) extractSchemaIDFromPath(path string) string {
 
 // extractApplicationIDFromBody extracts applicationId from request body
 func (m *AuditMiddleware) extractApplicationIDFromBody(body []byte) string {
-	if len(body) == 0 {
-		return ""
-	}
-
-	var data map[string]interface{}
-	if err := json.Unmarshal(body, &data); err != nil {
-		return ""
-	}
-
-	fields := []string{"applicationId", "application_id", "appId", "app_id"}
-	for _, field := range fields {
-		if value, exists := data[field]; exists {
-			if str, ok := value.(string); ok && str != "" {
-				return str
-			}
-		}
-	}
-
-	return ""
+	return utils.ExtractApplicationIDFromJSON(body)
 }
 
 // extractSchemaIDFromBody extracts schemaId from request body
 func (m *AuditMiddleware) extractSchemaIDFromBody(body []byte) string {
-	if len(body) == 0 {
-		return ""
-	}
-
-	var data map[string]interface{}
-	if err := json.Unmarshal(body, &data); err != nil {
-		return ""
-	}
-
-	fields := []string{"schemaId", "schema_id", "schemaID"}
-	for _, field := range fields {
-		if value, exists := data[field]; exists {
-			if str, ok := value.(string); ok && str != "" {
-				return str
-			}
-		}
-	}
-
-	return ""
+	return utils.ExtractSchemaIDFromJSON(body)
 }
