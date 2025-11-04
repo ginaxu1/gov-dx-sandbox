@@ -138,14 +138,14 @@ func TestPDPWorker_ProcessJob_MaxRetriesExceeded(t *testing.T) {
 	}
 	worker := NewPDPWorker(db, mockPDP)
 
-	// Create a pending job with retry count near max
+	// Create a pending job with retry count at max (next attempt will exceed)
 	job := models.PDPJob{
 		JobID:      "job_max_retries",
 		JobType:    models.PDPJobTypeCreatePolicyMetadata,
 		SchemaID:   stringPtr("schema_123"),
 		SDL:        stringPtr("type Person { name: String }"),
 		Status:     models.PDPJobStatusPending,
-		RetryCount: 4, // One less than max
+		RetryCount: 5, // At max retries (5 attempts made), next will exceed
 		MaxRetries: 5,
 	}
 	require.NoError(t, db.Create(&job).Error)
@@ -153,11 +153,11 @@ func TestPDPWorker_ProcessJob_MaxRetriesExceeded(t *testing.T) {
 	// Process the job (should exceed max retries)
 	worker.processJob(&job)
 
-	// Verify job was marked as failed
+	// Verify job was marked as failed (6th attempt exceeded MaxRetries=5)
 	var updatedJob models.PDPJob
 	require.NoError(t, db.First(&updatedJob, "job_id = ?", job.JobID).Error)
 	assert.Equal(t, models.PDPJobStatusFailed, updatedJob.Status)
-	assert.Equal(t, 5, updatedJob.RetryCount)
+	assert.Equal(t, 6, updatedJob.RetryCount) // 6 attempts made (exceeded MaxRetries=5)
 	assert.NotNil(t, updatedJob.Error)
 }
 
