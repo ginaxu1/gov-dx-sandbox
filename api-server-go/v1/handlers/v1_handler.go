@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -25,7 +24,7 @@ type V1Handler struct {
 }
 
 // NewV1Handler creates a new V1 handler
-func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
+func NewV1Handler(db *gorm.DB, pdpService services.PDPClient) (*V1Handler, error) {
 	// Get scopes from environment variable, fallback to default if not set
 	asgScopesEnv := os.Getenv("ASGARDEO_SCOPES")
 	var scopes []string
@@ -46,18 +45,6 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 	}
 	memberService := services.NewMemberService(db, idpProvider)
 
-	pdpServiceURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-	if pdpServiceURL == "" {
-		return nil, fmt.Errorf("CHOREO_PDP_CONNECTION_SERVICEURL environment variable not set")
-	}
-
-	pdpServiceAPIKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-	if pdpServiceAPIKey == "" {
-		return nil, fmt.Errorf("CHOREO_PDP_CONNECTION_CHOREOAPIKEY environment variable not set")
-	}
-
-	pdpService := services.NewPDPService(pdpServiceURL, pdpServiceAPIKey)
-	slog.Info("PDP Service URL", "url", pdpServiceURL)
 	return &V1Handler{
 		memberService:      memberService,
 		schemaService:      services.NewSchemaService(db, pdpService),
