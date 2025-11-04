@@ -18,9 +18,10 @@ const (
 type PDPJobStatus string
 
 const (
-	PDPJobStatusPending   PDPJobStatus = "pending"
-	PDPJobStatusCompleted PDPJobStatus = "completed"
-	PDPJobStatusFailed    PDPJobStatus = "failed"
+	PDPJobStatusPending    PDPJobStatus = "pending"
+	PDPJobStatusProcessing PDPJobStatus = "processing" // Job is currently being processed by a worker
+	PDPJobStatusCompleted  PDPJobStatus = "completed"
+	PDPJobStatusFailed     PDPJobStatus = "failed"
 )
 
 // PDPJob represents a job to be processed by the PDP worker
@@ -36,6 +37,7 @@ type PDPJob struct {
 	RetryCount     int            `gorm:"not null;default:0" json:"retry_count"`
 	MaxRetries     int            `gorm:"not null;default:5" json:"max_retries"`
 	Error          *string        `gorm:"type:text" json:"error,omitempty"`
+	NextRetryAt    *time.Time     `gorm:"type:timestamp" json:"next_retry_at,omitempty"` // When to retry (for exponential backoff)
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	ProcessedAt    *time.Time     `json:"processed_at,omitempty"`

@@ -22,7 +22,7 @@ func NewApplicationService(db *gorm.DB, pdpService PDPClient) *ApplicationServic
 	return &ApplicationService{db: db, policyService: pdpService}
 }
 
-// CreateApplication creates a new application using transactional outbox pattern
+// CreateApplication creates a new application
 func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequest) (*models.ApplicationResponse, error) {
 	// Create application
 	application := models.Application{

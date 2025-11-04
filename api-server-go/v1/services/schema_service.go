@@ -21,7 +21,7 @@ func NewSchemaService(db *gorm.DB, policyService PDPClient) *SchemaService {
 	return &SchemaService{db: db, policyService: policyService}
 }
 
-// CreateSchema creates a new schema using transactional outbox pattern
+// CreateSchema creates a new schema
 func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.SchemaResponse, error) {
 	schema := models.Schema{
 		SchemaID:   "sch_" + uuid.New().String(),
@@ -49,13 +49,13 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		}
 	}()
 
-	// Step 1: Create the schema record (using the transaction)
+	// Create the schema record (using the transaction)
 	if err := tx.Create(&schema).Error; err != nil {
 		tx.Rollback()
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
-	// Step 2: Create the PDP job in the same transaction
+	// Create the PDP job in the same transaction
 	job := models.PDPJob{
 		JobID:      "job_" + uuid.New().String(),
 		JobType:    models.PDPJobTypeCreatePolicyMetadata,
@@ -71,7 +71,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		return nil, fmt.Errorf("failed to create PDP job: %w", err)
 	}
 
-	// Step 3: Commit the transaction - both schema and job are now saved atomically
+	// Commit the transaction - both schema and job are now saved atomically
 	if err := tx.Commit().Error; err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
