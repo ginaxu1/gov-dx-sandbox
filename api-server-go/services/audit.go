@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 
 	"github.com/gov-dx-sandbox/api-server-go/models"
 )
@@ -463,50 +466,12 @@ func (s *AuditService) extractGraphQLQuery(requestData json.RawMessage) string {
 
 // extractApplicationIDFromRequestData extracts applicationId from request data
 func (s *AuditService) extractApplicationIDFromRequestData(requestData json.RawMessage) string {
-	if len(requestData) == 0 {
-		return ""
-	}
-
-	// Try to parse as JSON
-	var data map[string]interface{}
-	if err := json.Unmarshal(requestData, &data); err != nil {
-		return ""
-	}
-
-	// Look for applicationId in various formats
-	applicationIDFields := []string{"applicationId", "application_id", "appId", "app_id"}
-	for _, field := range applicationIDFields {
-		if value, exists := data[field]; exists {
-			if str, ok := value.(string); ok && str != "" {
-				return str
-			}
-		}
-	}
-
-	return ""
+	// json.RawMessage is []byte, so we can use the shared utility function
+	return utils.ExtractApplicationIDFromJSON(requestData)
 }
 
 // extractSchemaIDFromRequestData extracts schemaId from request data
 func (s *AuditService) extractSchemaIDFromRequestData(requestData json.RawMessage) string {
-	if len(requestData) == 0 {
-		return ""
-	}
-
-	// Try to parse as JSON
-	var data map[string]interface{}
-	if err := json.Unmarshal(requestData, &data); err != nil {
-		return ""
-	}
-
-	// Look for schemaId in various formats
-	schemaIDFields := []string{"schemaId", "schema_id", "schemaID"}
-	for _, field := range schemaIDFields {
-		if value, exists := data[field]; exists {
-			if str, ok := value.(string); ok && str != "" {
-				return str
-			}
-		}
-	}
-
-	return ""
+	// json.RawMessage is []byte, so we can use the shared utility function
+	return utils.ExtractSchemaIDFromJSON(requestData)
 }
