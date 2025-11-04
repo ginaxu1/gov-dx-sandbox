@@ -138,7 +138,7 @@ func TestCreateGroupWithMembersIntegration(t *testing.T) {
 	}
 
 	if len(getCreatedGroup.Members) != 1 {
-		t.Errorf("Expected 1 member, got %d", len(createdGroup.Members))
+		t.Errorf("Expected 1 member, got %d", len(getCreatedGroup.Members))
 	}
 
 	if len(createdGroup.Members) > 0 && createdGroup.Members[0].Value != createdUser.Id {
