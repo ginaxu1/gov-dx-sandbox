@@ -557,7 +557,7 @@ func TestGroupWithMembersLifecycleIntegration(t *testing.T) {
 
 	// Step 3: Verify group has one member
 	if len(getCreatedGroup.Members) != 1 {
-		t.Errorf("Expected 1 member, got %d", len(createdGroup.Members))
+		t.Errorf("Expected 1 member, got %d", len(getCreatedGroup.Members))
 	}
 
 	patchMember2 := &idp.GroupMember{
