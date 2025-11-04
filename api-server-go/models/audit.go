@@ -12,6 +12,8 @@ type AuditLogRequest struct {
 	EventID           uuid.UUID       `json:"event_id"`
 	ConsumerID        string          `json:"consumer_id"`
 	ProviderID        string          `json:"provider_id"`
+	ApplicationID     string          `json:"application_id,omitempty"`
+	SchemaID          string          `json:"schema_id,omitempty"`
 	RequestedData     json.RawMessage `json:"requested_data"`
 	ResponseData      json.RawMessage `json:"response_data,omitempty"`
 	TransactionStatus string          `json:"transaction_status"` // SUCCESS or FAILURE
@@ -27,16 +29,18 @@ type AuditLogResponse struct {
 
 // AuditContext holds audit information for a request
 type AuditContext struct {
-	EventID      uuid.UUID
-	ConsumerID   string
-	ProviderID   string
-	RequestData  json.RawMessage
-	ResponseData json.RawMessage
-	Status       string
-	StartTime    time.Time
-	EndTime      time.Time
-	UserAgent    string
-	IPAddress    string
+	EventID       uuid.UUID
+	ConsumerID    string
+	ProviderID    string
+	ApplicationID string // Extracted from request path or body
+	SchemaID      string // Extracted from request path or body
+	RequestData   json.RawMessage
+	ResponseData  json.RawMessage
+	Status        string
+	StartTime     time.Time
+	EndTime       time.Time
+	UserAgent     string
+	IPAddress     string
 }
 
 // NewAuditContext creates a new audit context for a request
@@ -53,6 +57,8 @@ func (ac *AuditContext) ToAuditLogRequest() *AuditLogRequest {
 		EventID:           ac.EventID,
 		ConsumerID:        ac.ConsumerID,
 		ProviderID:        ac.ProviderID,
+		ApplicationID:     ac.ApplicationID,
+		SchemaID:          ac.SchemaID,
 		RequestedData:     ac.RequestData,
 		ResponseData:      ac.ResponseData,
 		TransactionStatus: ac.Status,
@@ -75,6 +81,6 @@ type Log struct {
 type LogRequest struct {
 	Status        string `json:"status"`
 	RequestedData string `json:"requestedData"`
-	ConsumerID    string `json:"consumerId"`
-	ProviderID    string `json:"providerId"`
+	ApplicationID string `json:"applicationId"`
+	SchemaID      string `json:"schemaId"`
 }

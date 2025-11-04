@@ -32,12 +32,34 @@ func NewAuditService(auditServiceURL string) *AuditService {
 
 // SendAuditLog sends an audit log to the audit-service
 func (s *AuditService) SendAuditLog(ctx context.Context, auditReq *models.AuditLogRequest) error {
+	// Use ApplicationID and SchemaID from audit request (extracted in middleware from path/body)
+	// If not provided, try to extract from request data as fallback
+	applicationID := auditReq.ApplicationID
+	schemaID := auditReq.SchemaID
+
+	// Fallback: try to extract from request data if not already set
+	if applicationID == "" {
+		applicationID = s.extractApplicationIDFromRequestData(auditReq.RequestedData)
+	}
+	if schemaID == "" {
+		schemaID = s.extractSchemaIDFromRequestData(auditReq.RequestedData)
+	}
+
 	// Convert to new simplified log structure
 	logReq := models.LogRequest{
 		Status:        s.mapTransactionStatus(auditReq.TransactionStatus),
 		RequestedData: s.extractGraphQLQuery(auditReq.RequestedData),
-		ConsumerID:    auditReq.ConsumerID,
-		ProviderID:    auditReq.ProviderID,
+		ApplicationID: applicationID,
+		SchemaID:      schemaID,
+	}
+
+	// Validate required fields before sending
+	if logReq.ApplicationID == "" || logReq.SchemaID == "" {
+		slog.Warn("Missing required fields for audit log",
+			"applicationId", logReq.ApplicationID,
+			"schemaId", logReq.SchemaID,
+			"event_id", auditReq.EventID)
+		// Continue anyway - audit service will return 400, but we log it
 	}
 
 	// Serialize the request
@@ -342,29 +364,6 @@ func (s *AuditService) extractProviderIDFromBodyData(body []byte) string {
 	return ""
 }
 
-// ExtractGraphQLQueryFromRequest extracts GraphQL query from request headers, body, or query params
-func (s *AuditService) ExtractGraphQLQueryFromRequest(r *http.Request) string {
-	// 1. Try to extract from headers
-	if query := r.Header.Get("X-GraphQL-Query"); query != "" {
-		return query
-	}
-
-	// 2. Try to extract from query parameters
-	if query := r.URL.Query().Get("query"); query != "" {
-		return query
-	}
-
-	// 3. Try to extract from request body (using shared body reader)
-	body, err := s.readRequestBodyOnce(r)
-	if err == nil && len(body) > 0 {
-		if query := s.extractGraphQLQueryFromBodyData(body); query != "" {
-			return query
-		}
-	}
-
-	return ""
-}
-
 // ExtractGraphQLQueryFromRequestWithBody extracts GraphQL query from request using pre-read body data
 func (s *AuditService) ExtractGraphQLQueryFromRequestWithBody(r *http.Request, body []byte) string {
 	// 1. Try to extract from headers
@@ -460,4 +459,54 @@ func (s *AuditService) extractGraphQLQuery(requestData json.RawMessage) string {
 
 	// If no query field found, return the raw data as string
 	return string(requestData)
+}
+
+// extractApplicationIDFromRequestData extracts applicationId from request data
+func (s *AuditService) extractApplicationIDFromRequestData(requestData json.RawMessage) string {
+	if len(requestData) == 0 {
+		return ""
+	}
+
+	// Try to parse as JSON
+	var data map[string]interface{}
+	if err := json.Unmarshal(requestData, &data); err != nil {
+		return ""
+	}
+
+	// Look for applicationId in various formats
+	applicationIDFields := []string{"applicationId", "application_id", "appId", "app_id"}
+	for _, field := range applicationIDFields {
+		if value, exists := data[field]; exists {
+			if str, ok := value.(string); ok && str != "" {
+				return str
+			}
+		}
+	}
+
+	return ""
+}
+
+// extractSchemaIDFromRequestData extracts schemaId from request data
+func (s *AuditService) extractSchemaIDFromRequestData(requestData json.RawMessage) string {
+	if len(requestData) == 0 {
+		return ""
+	}
+
+	// Try to parse as JSON
+	var data map[string]interface{}
+	if err := json.Unmarshal(requestData, &data); err != nil {
+		return ""
+	}
+
+	// Look for schemaId in various formats
+	schemaIDFields := []string{"schemaId", "schema_id", "schemaID"}
+	for _, field := range schemaIDFields {
+		if value, exists := data[field]; exists {
+			if str, ok := value.(string); ok && str != "" {
+				return str
+			}
+		}
+	}
+
+	return ""
 }
