@@ -1,0 +1,7 @@
+# +required The configuration file schema version
+schemaVersion: 1.2
+
+dependencies:
+    connectionReferences:
+    - name: admin-portal-audit-service-conn
+      resourceRef: service:/opendif-ndx/audit-service/v1/194ae/ORGANIZATION
