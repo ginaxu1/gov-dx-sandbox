@@ -2,26 +2,26 @@
  * URLBuilder Usage Examples
  * 
  * This file demonstrates how to use the URLBuilder class for different scenarios,
- * especially when working with Choreo service URLs that don't have protocol prefixes.
+ * especially when working with Choreo service URLs that are relative paths.
  */
 
 import { URLBuilder } from './urlBuilder';
 
-// Example 1: Basic usage with Choreo service URL (no protocol)
-const choreoServiceUrl = 'api-12345.choreoapis.dev';
-const simpleUrl = URLBuilder.build(choreoServiceUrl, '/users');
+// Example 1: Basic usage with Choreo service URL (relative path)
+const choreoServiceUrl = '/choreo-apis/opendif-ndx/audit-service/v1';
+const simpleUrl = URLBuilder.build(choreoServiceUrl, '/logs');
 console.log('Simple URL:', simpleUrl);
-// Output: https://api-12345.choreoapis.dev/users
+// Output: /choreo-apis/opendif-ndx/audit-service/v1/logs
 
-// Example 2: Using method chaining
-const complexUrl = URLBuilder.from('my-service.choreoapis.dev')
-    .path('/api/v1/logs')
+// Example 2: Using method chaining with Choreo paths
+const complexUrl = URLBuilder.from('/choreo-apis/opendif-ndx/api-server/v1')
+    .path('/members')
     .param('limit', 50)
-    .param('status', 'success')
+    .param('status', 'active')
     .param('startDate', '2023-01-01')
     .build();
 console.log('Complex URL:', complexUrl);
-// Output: https://my-service.choreoapis.dev/api/v1/logs?limit=50&status=success&startDate=2023-01-01
+// Output: /choreo-apis/opendif-ndx/api-server/v1/members?limit=50&status=active&startDate=2023-01-01
 
 // Example 3: Using with parameters object (like in your logService)
 const params = {
@@ -33,12 +33,12 @@ const params = {
     offset: 0
 };
 
-const urlWithParams = URLBuilder.build('logs-service.choreoapis.dev', '/logs', params);
+const urlWithParams = URLBuilder.build('/choreo-apis/opendif-ndx/audit-service/v1', '/logs', params);
 console.log('URL with params:', urlWithParams);
-// Output: https://logs-service.choreoapis.dev/logs?consumerId=consumer-123&providerId=provider-456&startDate=2023-01-01&endDate=2023-12-31&limit=100&offset=0
+// Output: /choreo-apis/opendif-ndx/audit-service/v1/logs?consumerId=consumer-123&providerId=provider-456&startDate=2023-01-01&endDate=2023-12-31&limit=100&offset=0
 
-// Example 4: Handling localhost (will use http instead of https)
-const localUrl = URLBuilder.build('localhost:3000', '/api/logs');
+// Example 4: Handling localhost for development
+const localUrl = URLBuilder.build('http://localhost:3000', '/api/logs');
 console.log('Local URL:', localUrl);
 // Output: http://localhost:3000/api/logs
 
@@ -56,8 +56,18 @@ const paramsWithEmpty = {
     limit: 50
 };
 
-const filteredUrl = URLBuilder.build('api.choreoapis.dev', '/logs', paramsWithEmpty);
+const filteredUrl = URLBuilder.build('/choreo-apis/opendif-ndx/audit-service/v1', '/logs', paramsWithEmpty);
 console.log('Filtered URL:', filteredUrl);
-// Output: https://api.choreoapis.dev/logs?consumerId=consumer-123&limit=50
+// Output: /choreo-apis/opendif-ndx/audit-service/v1/logs?consumerId=consumer-123&limit=50
+
+// Example 7: Real-world usage in your services
+const apiUrl = '/choreo-apis/opendif-ndx/api-server/v1';
+const membersUrl = URLBuilder.build(apiUrl, '/members', { idpUserId: 'user-123' });
+console.log('Members URL:', membersUrl);
+// Output: /choreo-apis/opendif-ndx/api-server/v1/members?idpUserId=user-123
+
+const schemasUrl = URLBuilder.build(apiUrl, '/schemas', { memberId: 'member-456', status: 'approved' });
+console.log('Schemas URL:', schemasUrl);
+// Output: /choreo-apis/opendif-ndx/api-server/v1/schemas?memberId=member-456&status=approved
 
 export {};

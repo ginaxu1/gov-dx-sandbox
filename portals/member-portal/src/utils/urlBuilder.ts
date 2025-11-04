@@ -1,38 +1,15 @@
 /**
- * Custom URL Builder that handles URLs without protocol prefixes
- * Useful for Choreo service URLs that don't include http/https
+ * Simple URL Builder that helps construct URLs with query parameters
+ * Works with any base URL (with or without protocol) - doesn't modify the base URL
  */
 export class URLBuilder {
     private baseUrl: string;
     private searchParams: URLSearchParams;
 
     constructor(baseUrl: string) {
-        // Normalize the base URL - add https:// if no protocol is present
-        this.baseUrl = this.normalizeBaseUrl(baseUrl);
+        // Use the base URL as-is, just remove trailing slash if present
+        this.baseUrl = baseUrl.replace(/\/$/, '');
         this.searchParams = new URLSearchParams();
-    }
-
-    /**
-     * Normalizes the base URL by adding protocol if missing
-     * @param url - The base URL which may or may not have a protocol
-     * @returns Normalized URL with protocol
-     */
-    private normalizeBaseUrl(url: string): string {
-        // Remove trailing slash if present
-        const cleanUrl = url.replace(/\/$/, '');
-        
-        // Check if URL already has a protocol
-        if (cleanUrl.match(/^https?:\/\//)) {
-            return cleanUrl;
-        }
-        
-        // Check if it's a localhost or development URL
-        if (cleanUrl.includes('localhost') || cleanUrl.includes('127.0.0.1')) {
-            return `http://${cleanUrl}`;
-        }
-        
-        // For production URLs (including Choreo service URLs), default to https
-        return `https://${cleanUrl}`;
     }
 
     /**
