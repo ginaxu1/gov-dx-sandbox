@@ -15,6 +15,7 @@ import (
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
 	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
+	v1services "github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"github.com/joho/godotenv"
 )
 
@@ -35,8 +36,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize PDP service (used by handlers and worker)
+	pdpServiceURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
+	if pdpServiceURL == "" {
+		slog.Error("CHOREO_PDP_CONNECTION_SERVICEURL environment variable not set")
+		os.Exit(1)
+	}
+
+	pdpServiceAPIKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
+	if pdpServiceAPIKey == "" {
+		slog.Error("CHOREO_PDP_CONNECTION_CHOREOAPIKEY environment variable not set")
+		os.Exit(1)
+	}
+
+	pdpService := v1services.NewPDPService(pdpServiceURL, pdpServiceAPIKey)
+	slog.Info("PDP Service initialized", "url", pdpServiceURL)
+
 	// Initialize V1 handlers
-	v1Handler, err := v1handlers.NewV1Handler(gormDB)
+	v1Handler, err := v1handlers.NewV1Handler(gormDB, pdpService)
 	if err != nil {
 		slog.Error("Failed to initialize V1 handler", "error", err)
 		os.Exit(1)
@@ -190,6 +207,14 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Create and start PDP worker
+	pdpWorker := v1services.NewPDPWorker(gormDB, pdpService)
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+
+	go pdpWorker.Start(workerCtx)
+	slog.Info("PDP worker started in background")
+
 	// Start server in a goroutine
 	go func() {
 		slog.Info("API Server starting", "port", port, "addr", addr)
@@ -205,6 +230,10 @@ func main() {
 	<-quit
 
 	slog.Info("Shutting down API Server...")
+
+	// Stop the PDP worker
+	workerCancel()
+	slog.Info("PDP worker stopped")
 
 	// Create a deadline to wait for
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
