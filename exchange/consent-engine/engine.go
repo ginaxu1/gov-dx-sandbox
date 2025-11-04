@@ -139,15 +139,15 @@ type ConsentResponse struct {
 }
 
 // ToConsentResponse converts a ConsentRecord to a simplified ConsentResponse
-// Only includes consent_portal_url when status is pending
+// Only includes consent_portal_url when status is pending and the URL is not empty
 func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
 	response := ConsentResponse{
 		ConsentID: cr.ConsentID,
 		Status:    cr.Status,
 	}
 
-	// Only include consent_portal_url when status is pending
-	if cr.Status == string(StatusPending) {
+	// Only include consent_portal_url when status is pending and URL is not empty
+	if cr.Status == string(StatusPending) && cr.ConsentPortalURL != "" {
 		portalURL := cr.ConsentPortalURL
 		response.ConsentPortalURL = &portalURL
 	}
