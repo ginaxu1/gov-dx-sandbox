@@ -50,6 +50,18 @@ func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler
 			auditCtx.ProviderID = providerID
 		}
 
+		// Extract applicationId and schemaId from request path (required by audit service)
+		auditCtx.ApplicationID = m.extractApplicationIDFromPath(r.URL.Path)
+		auditCtx.SchemaID = m.extractSchemaIDFromPath(r.URL.Path)
+
+		// If not found in path, try to extract from request body
+		if auditCtx.ApplicationID == "" && len(requestBody) > 0 {
+			auditCtx.ApplicationID = m.extractApplicationIDFromBody(requestBody)
+		}
+		if auditCtx.SchemaID == "" && len(requestBody) > 0 {
+			auditCtx.SchemaID = m.extractSchemaIDFromBody(requestBody)
+		}
+
 		// If no specific entity ID found, use a default based on the endpoint
 		if auditCtx.ConsumerID == "" && auditCtx.ProviderID == "" {
 			auditCtx.ConsumerID = m.determineDefaultEntityID(r.URL.Path)
@@ -209,4 +221,88 @@ func (m *AuditMiddleware) ensureValidJSON(data []byte) []byte {
 	}
 
 	return jsonData
+}
+
+// extractApplicationIDFromPath extracts applicationId from request path
+func (m *AuditMiddleware) extractApplicationIDFromPath(path string) string {
+	// Extract application ID from paths like /api/v1/applications/{applicationId}
+	if strings.Contains(path, "/api/v1/applications/") {
+		parts := strings.Split(path, "/")
+		for i, part := range parts {
+			if part == "applications" && i+1 < len(parts) {
+				appID := parts[i+1]
+				// Remove any trailing path segments (e.g., /api/v1/applications/{id}/submissions)
+				if idx := strings.Index(appID, "/"); idx != -1 {
+					appID = appID[:idx]
+				}
+				return appID
+			}
+		}
+	}
+	return ""
+}
+
+// extractSchemaIDFromPath extracts schemaId from request path
+func (m *AuditMiddleware) extractSchemaIDFromPath(path string) string {
+	// Extract schema ID from paths like /api/v1/schemas/{schemaId}
+	if strings.Contains(path, "/api/v1/schemas/") {
+		parts := strings.Split(path, "/")
+		for i, part := range parts {
+			if part == "schemas" && i+1 < len(parts) {
+				schemaID := parts[i+1]
+				// Remove any trailing path segments
+				if idx := strings.Index(schemaID, "/"); idx != -1 {
+					schemaID = schemaID[:idx]
+				}
+				return schemaID
+			}
+		}
+	}
+	return ""
+}
+
+// extractApplicationIDFromBody extracts applicationId from request body
+func (m *AuditMiddleware) extractApplicationIDFromBody(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return ""
+	}
+
+	fields := []string{"applicationId", "application_id", "appId", "app_id"}
+	for _, field := range fields {
+		if value, exists := data[field]; exists {
+			if str, ok := value.(string); ok && str != "" {
+				return str
+			}
+		}
+	}
+
+	return ""
+}
+
+// extractSchemaIDFromBody extracts schemaId from request body
+func (m *AuditMiddleware) extractSchemaIDFromBody(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return ""
+	}
+
+	fields := []string{"schemaId", "schema_id", "schemaID"}
+	for _, field := range fields {
+		if value, exists := data[field]; exists {
+			if str, ok := value.(string); ok && str != "" {
+				return str
+			}
+		}
+	}
+
+	return ""
 }
