@@ -9,6 +9,10 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 )
 
+func init() {
+	logger.Init()
+}
+
 func TestNewPdpClient(t *testing.T) {
 	baseUrl := "http://localhost:8080"
 	client := NewPdpClient(baseUrl)
@@ -32,9 +36,6 @@ func TestNewPdpClient(t *testing.T) {
 
 func TestMakePdpRequest_Success(t *testing.T) {
 	// Create a mock server
-
-	logger.Init()
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify request method and path
 		if r.Method != http.MethodPost {
@@ -111,8 +112,6 @@ func TestMakePdpRequest_ConsentRequired(t *testing.T) {
 	displayName := "Test Field"
 	description := "Test Description"
 	owner := "Test Owner"
-
-	logger.Init()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := PdpResponse{
@@ -197,8 +196,6 @@ func TestMakePdpRequest_ServerError(t *testing.T) {
 		w.Write([]byte("Internal Server Error"))
 	}))
 	defer server.Close()
-
-	logger.Init()
 
 	client := NewPdpClient(server.URL)
 
