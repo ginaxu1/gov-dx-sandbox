@@ -9,16 +9,18 @@ func TestConsentWorkflowRequest(t *testing.T) {
 	// Test ConsentWorkflowRequest model structure
 	req := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID:    "199512345678",
-				OwnerEmail: "199512345678@example.com",
-				Fields:     []string{"person.permanentAddress"},
+				Owner:   "CITIZEN",
+				OwnerID: "199512345678@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "person.permanentAddress",
+						SchemaID:  "schema_123",
+					},
+				},
 			},
 		},
-
-		SessionID: "session_123",
 	}
 
 	// Verify the request structure
@@ -26,28 +28,20 @@ func TestConsentWorkflowRequest(t *testing.T) {
 		t.Errorf("Expected AppID to be 'passport-app', got '%s'", req.AppID)
 	}
 
-	if len(req.DataFields) != 1 {
-		t.Errorf("Expected 1 data field, got %d", len(req.DataFields))
+	if len(req.ConsentRequirements) != 1 {
+		t.Errorf("Expected 1 consent requirement, got %d", len(req.ConsentRequirements))
 	}
 
-	if req.DataFields[0].OwnerID != "199512345678" {
-		t.Errorf("Expected OwnerID to be '199512345678', got '%s'", req.DataFields[0].OwnerID)
+	if req.ConsentRequirements[0].OwnerID != "199512345678@example.com" {
+		t.Errorf("Expected OwnerID to be '199512345678@example.com', got '%s'", req.ConsentRequirements[0].OwnerID)
 	}
 
-	if req.DataFields[0].OwnerEmail != "199512345678@example.com" {
-		t.Errorf("Expected OwnerEmail to be '199512345678@example.com', got '%s'", req.DataFields[0].OwnerEmail)
+	if len(req.ConsentRequirements[0].Fields) != 1 {
+		t.Errorf("Expected 1 field, got %d", len(req.ConsentRequirements[0].Fields))
 	}
 
-	if len(req.DataFields[0].Fields) != 1 {
-		t.Errorf("Expected 1 field, got %d", len(req.DataFields[0].Fields))
-	}
-
-	if req.DataFields[0].Fields[0] != "person.permanentAddress" {
-		t.Errorf("Expected field to be 'person.permanentAddress', got '%s'", req.DataFields[0].Fields[0])
-	}
-
-	if req.SessionID != "session_123" {
-		t.Errorf("Expected SessionID to be 'session_123', got '%s'", req.SessionID)
+	if req.ConsentRequirements[0].Fields[0].FieldName != "person.permanentAddress" {
+		t.Errorf("Expected fieldName to be 'person.permanentAddress', got '%s'", req.ConsentRequirements[0].Fields[0].FieldName)
 	}
 
 }
@@ -87,16 +81,18 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 	// Test JSON serialization/deserialization
 	req := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID:    "199512345678",
-				OwnerEmail: "199512345678@example.com",
-				Fields:     []string{"person.permanentAddress"},
+				Owner:   "CITIZEN",
+				OwnerID: "199512345678@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "person.permanentAddress",
+						SchemaID:  "schema_123",
+					},
+				},
 			},
 		},
-
-		SessionID: "session_123",
 	}
 
 	// Test JSON marshaling
@@ -117,12 +113,8 @@ func TestConsentWorkflowJSONSerialization(t *testing.T) {
 		t.Errorf("Expected AppID to be '%s', got '%s'", req.AppID, unmarshaledReq.AppID)
 	}
 
-	if len(unmarshaledReq.DataFields) != len(req.DataFields) {
-		t.Errorf("Expected %d data fields, got %d", len(req.DataFields), len(unmarshaledReq.DataFields))
-	}
-
-	if unmarshaledReq.SessionID != req.SessionID {
-		t.Errorf("Expected SessionID to be '%s', got '%s'", req.SessionID, unmarshaledReq.SessionID)
+	if len(unmarshaledReq.ConsentRequirements) != len(req.ConsentRequirements) {
+		t.Errorf("Expected %d consent requirements, got %d", len(req.ConsentRequirements), len(unmarshaledReq.ConsentRequirements))
 	}
 
 }
@@ -137,15 +129,18 @@ func TestConsentWorkflowValidation(t *testing.T) {
 			name: "valid request",
 			req: ConsentRequest{
 				AppID: "passport-app",
-				DataFields: []DataField{
+				ConsentRequirements: []ConsentRequirement{
 					{
-
-						OwnerID: "199512345678",
-						Fields:  []string{"person.permanentAddress"},
+						Owner:   "CITIZEN",
+						OwnerID: "199512345678@example.com",
+						Fields: []ConsentField{
+							{
+								FieldName: "person.permanentAddress",
+								SchemaID:  "schema_123",
+							},
+						},
 					},
 				},
-
-				SessionID: "session_123",
 			},
 			wantErr: false,
 		},
@@ -153,25 +148,26 @@ func TestConsentWorkflowValidation(t *testing.T) {
 			name: "empty app_id",
 			req: ConsentRequest{
 				AppID: "",
-				DataFields: []DataField{
+				ConsentRequirements: []ConsentRequirement{
 					{
-
-						OwnerID: "199512345678",
-						Fields:  []string{"person.permanentAddress"},
+						Owner:   "CITIZEN",
+						OwnerID: "199512345678@example.com",
+						Fields: []ConsentField{
+							{
+								FieldName: "person.permanentAddress",
+								SchemaID:  "schema_123",
+							},
+						},
 					},
 				},
-
-				SessionID: "session_123",
 			},
 			wantErr: true,
 		},
 		{
-			name: "empty data_fields",
+			name: "empty consent_requirements",
 			req: ConsentRequest{
-				AppID:      "passport-app",
-				DataFields: []DataField{},
-
-				SessionID: "session_123",
+				AppID:               "passport-app",
+				ConsentRequirements: []ConsentRequirement{},
 			},
 			wantErr: true,
 		},
@@ -186,7 +182,7 @@ func TestConsentWorkflowValidation(t *testing.T) {
 				hasError = true
 			}
 
-			if len(tt.req.DataFields) == 0 {
+			if len(tt.req.ConsentRequirements) == 0 {
 				hasError = true
 			}
 
@@ -198,44 +194,63 @@ func TestConsentWorkflowValidation(t *testing.T) {
 }
 
 func TestConsentWorkflowEdgeCases(t *testing.T) {
-	// Test with multiple data fields
+	// Test with multiple consent requirements
 	req := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID: "199512345678",
-				Fields:  []string{"person.permanentAddress"},
+				Owner:   "CITIZEN",
+				OwnerID: "199512345678@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "person.permanentAddress",
+						SchemaID:  "schema_123",
+					},
+				},
 			},
 			{
-
-				OwnerID: "199512345679",
-				Fields:  []string{"person.fullName"},
+				Owner:   "CITIZEN",
+				OwnerID: "199512345679@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "person.fullName",
+						SchemaID:  "schema_123",
+					},
+				},
 			},
 		},
-
-		SessionID: "session_123",
 	}
 
-	if len(req.DataFields) != 2 {
-		t.Errorf("Expected 2 data fields, got %d", len(req.DataFields))
+	if len(req.ConsentRequirements) != 2 {
+		t.Errorf("Expected 2 consent requirements, got %d", len(req.ConsentRequirements))
 	}
 
-	// Test with multiple fields per data owner
+	// Test with multiple fields per consent requirement
 	multiFieldReq := ConsentRequest{
 		AppID: "passport-app",
-		DataFields: []DataField{
+		ConsentRequirements: []ConsentRequirement{
 			{
-
-				OwnerID: "199512345678",
-				Fields:  []string{"person.permanentAddress", "person.fullName", "person.email"},
+				Owner:   "CITIZEN",
+				OwnerID: "199512345678@example.com",
+				Fields: []ConsentField{
+					{
+						FieldName: "person.permanentAddress",
+						SchemaID:  "schema_123",
+					},
+					{
+						FieldName: "person.fullName",
+						SchemaID:  "schema_123",
+					},
+					{
+						FieldName: "person.email",
+						SchemaID:  "schema_123",
+					},
+				},
 			},
 		},
-
-		SessionID: "session_123",
 	}
 
-	if len(multiFieldReq.DataFields[0].Fields) != 3 {
-		t.Errorf("Expected 3 fields, got %d", len(multiFieldReq.DataFields[0].Fields))
+	if len(multiFieldReq.ConsentRequirements[0].Fields) != 3 {
+		t.Errorf("Expected 3 fields, got %d", len(multiFieldReq.ConsentRequirements[0].Fields))
 	}
 }

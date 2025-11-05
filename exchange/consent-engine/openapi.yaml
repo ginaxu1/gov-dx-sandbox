@@ -57,15 +57,13 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateConsentRequest'
             example:
-              app_id: "passport-app"
-              data_fields:
-                - owner_type: "citizen"
-                  owner_id: "test@opensource.lk"
+              app_id: "acde070d-8c4c-4f0d-9d8a-000000a111111"
+              consent_requirements:
+                - owner: "CITIZEN"
+                  owner_id: "mohamed@opensource.lk"
                   fields:
-                    - "personInfo.permanentAddress"
-                    - "personInfo.fullName"
-                    - "personInfo.nic"
-              session_id: "session_123"
+                    - fieldName: "personInfo.name"
+                      schemaId: "acde070d-8c4c-4f0d-9d8a-000000a111111"
               grant_duration: "PT1H"
       responses:
         '201':
@@ -74,6 +72,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
+              examples:
+                pending:
+                  summary: Pending consent response
+                  value:
+                    consent_id: "consent_079ef78b"
+                    status: "pending"
+                    consent_portal_url: "https://localhost:8081/?consent_id=consent_079ef78b"
+                approved:
+                  summary: Approved consent response
+                  value:
+                    consent_id: "consent_079ef78b"
+                    status: "approved"
         '400':
           description: Bad request.
           content:
@@ -151,6 +161,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
+              examples:
+                pending:
+                  summary: Pending consent response
+                  value:
+                    consent_id: "consent_079ef78b"
+                    status: "pending"
+                    consent_portal_url: "https://localhost:8081/?consent_id=consent_079ef78b"
+                approved:
+                  summary: Approved consent response
+                  value:
+                    consent_id: "consent_079ef78b"
+                    status: "approved"
         '400':
           description: Bad request.
           content:
@@ -210,6 +232,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
+              examples:
+                pending:
+                  summary: Pending consent response
+                  value:
+                    consent_id: "consent_079ef78b"
+                    status: "pending"
+                    consent_portal_url: "https://localhost:8081/?consent_id=consent_079ef78b"
+                approved:
+                  summary: Approved consent response
+                  value:
+                    consent_id: "consent_079ef78b"
+                    status: "approved"
         '400':
           description: Bad request.
           content:
@@ -257,6 +291,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsentResponse'
+              example:
+                consent_id: "consent_079ef78b"
+                status: "revoked"
         '400':
           description: Bad request.
           content:
@@ -269,7 +306,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '4Remember to use markdown headings (##) to create distinct sections if the response is more than a few paragraphs or covers different points, topics, or steps.4':
+        '404':
           description: Consent not found.
           content:
             application/json:
@@ -289,7 +326,6 @@ paths:
       operationId: getConsentsByDataOwner
       tags:
         - Data Owner
-      # Make internal endpoint public
       security: []
       parameters:
         - name: ownerId
@@ -301,8 +337,109 @@ paths:
       responses:
         '200':
           description: Consents found and returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  owner_id:
+                    type: string
+                  consents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsentResponse'
+                  count:
+                    type: integer
         '500':
           description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /consumer/{consumerId}:
+    get:
+      summary: Get Consents by Consumer (Internal)
+      description: Retrieves all consents for a specific consumer application. Internal use only.
+      operationId: getConsentsByConsumer
+      tags:
+        - Consumer
+      security: []
+      parameters:
+        - name: consumerId
+          in: path
+          required: true
+          description: Unique identifier for the consumer application.
+          schema:
+            type: string
+          example: passport-app
+      responses:
+        '200':
+          description: Consents found and returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consumer:
+                    type: string
+                  consents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsentResponse'
+                  count:
+                    type: integer
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /data-info/{consentId}:
+    get:
+      summary: Get Data Owner Info by Consent ID (Internal)
+      description: Retrieves data owner information (owner_id and owner_email) for a specific consent. Internal use only.
+      operationId: getDataInfoByConsentId
+      tags:
+        - Data Owner
+      security: []
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: Unique identifier for the consent.
+          schema:
+            type: string
+          example: consent_8d255282
+      responses:
+        '200':
+          description: Data owner information found and returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  owner_id:
+                    type: string
+                    description: Unique identifier of the data owner
+                    example: test@opensource.lk
+                  owner_email:
+                    type: string
+                    description: Email address of the data owner
+                    example: test@opensource.lk
+        '404':
+          description: Consent not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /admin/expiry-check:
     post:
@@ -311,13 +448,33 @@ paths:
       operationId: checkConsentExpiry
       tags:
         - Admin
-      # Make internal endpoint public
       security: []
       responses:
         '200':
           description: Expiry check completed successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expired_records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConsentResponse'
+                  count:
+                    type: integer
+                    description: Number of expired consents found
+                    example: 5
+                  checked_at:
+                    type: string
+                    format: date-time
+                    description: Timestamp when the check was performed
         '500':
           description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   schemas:
@@ -325,33 +482,63 @@ components:
       type: object
       required:
         - app_id
-        - data_fields
-        - session_id
+        - consent_requirements
       properties:
         app_id:
           type: string
           description: ID of the consumer application requesting consent
-          example: passport-app
-        data_fields:
+          example: "acde070d-8c4c-4f0d-9d8a-000000a111111"
+        consent_requirements:
           type: array
-          description: List of data fields that require consent
+          description: List of consent requirements for different owners
+          minItems: 1
           items:
-            $ref: '#/components/schemas/DataField'
-        session_id:
-          type: string
-          description: Unique session identifier for tracking the consent request
-          example: session_123
+            $ref: '#/components/schemas/ConsentRequirement'
         grant_duration:
           type: string
           description: Duration for which the consent is valid in ISO 8601 format (optional)
           example: PT1H
           default: PT1H
           pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
-    DataField:
+    ConsentRequirement:
       type: object
       required:
+        - owner
         - owner_id
         - fields
+      properties:
+        owner:
+          type: string
+          description: Type of data owner (e.g., CITIZEN, GOVERNMENT)
+          example: "CITIZEN"
+        owner_id:
+          type: string
+          description: Unique identifier of the data owner (email address)
+          example: "mohamed@opensource.lk"
+        fields:
+          type: array
+          description: List of fields that require consent
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ConsentField'
+    ConsentField:
+      type: object
+      required:
+        - fieldName
+        - schemaId
+      properties:
+        fieldName:
+          type: string
+          description: Name of the data field
+          example: "personInfo.name"
+        schemaId:
+          type: string
+          description: ID of the schema this field belongs to
+          example: "acde070d-8c4c-4f0d-9d8a-000000a111111"
+    DataField:
+      type: object
+      deprecated: true
+      description: Legacy data field format (deprecated - use ConsentRequirement instead)
       properties:
         owner_type:
           type: string
@@ -433,23 +620,14 @@ components:
           example: ["personInfo.permanentAddress", "personInfo.fullName"]
     ConsentResponse:
       type: object
+      required:
+        - consent_id
+        - status
       properties:
         consent_id:
           type: string
           description: Unique identifier for the consent
-          example: consent_8d255282
-        owner_id:
-          type: string
-          description: ID of the data owner
-          example: test-owner-123
-        owner_email:
-          type: string
-          description: Email address of the data owner
-          example: owner@example.com
-        app_id:
-          type: string
-          description: ID of the consumer application
-          example: passport-app
+          example: "consent_079ef78b"
         status:
           type: string
           enum:
@@ -459,56 +637,11 @@ components:
             - expired
             - revoked
           description: Current status of the consent
-          example: pending
-        type:
-          type: string
-          enum:
-            - realtime
-            - offline
-          description: Type of consent workflow
-          example: realtime
-        created_at:
-          type: string
-          format: date-time
-          description: When the consent was created
-          example: "2025-09-15T09:58:34.05668193Z"
-        updated_at:
-          type: string
-          format: date-time
-          description: When the consent was last updated
-          example: "2025-09-15T09:58:34.056682055Z"
-        expires_at:
-          type: string
-          format: date-time
-          description: When the consent expires
-          example: "2025-10-15T09:58:34.056536639Z"
-        grant_duration:
-          type: string
-          description: Duration of the granted access
-          example: P30D
-          pattern: "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?)?$"
-        fields:
-          type: array
-          description: List of data fields covered by this consent
-          items:
-            type: string
-          example: ["person.permanentAddress", "person.photo"]
-        session_id:
-          type: string
-          description: Session identifier for tracking
-          example: test-session-123
+          example: "pending"
         consent_portal_url:
           type: string
-          description: URL to redirect after consent approval/denial
-          example: "https://consent-portal.example.com/?consent_id=consent_8d255282"
-        purpose:
-          type: string
-          description: Purpose for data access
-          example: passport_application
-        message:
-          type: string
-          description: Status message
-          example: "Consent created successfully"
+          description: URL to redirect user to consent portal (only present when status is pending)
+          example: "https://localhost:8081/?consent_id=consent_079ef78b"
 
     ConsentPortalUpdateRequest:
       type: object
@@ -594,5 +727,7 @@ tags:
     description: Core consent management operations
   - name: Data Owner
     description: Operations related to data owners
+  - name: Consumer
+    description: Operations related to consumer applications
   - name: Admin
     description: Protected administrative operations
