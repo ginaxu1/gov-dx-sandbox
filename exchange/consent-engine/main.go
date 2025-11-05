@@ -265,55 +265,46 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "app_id is required and cannot be empty"})
 		return
 	}
-	if req.SessionID == "" {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "session_id is required and cannot be empty"})
-		return
-	}
-	if len(req.DataFields) == 0 {
-		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "data_fields is required and cannot be empty"})
+	if len(req.ConsentRequirements) == 0 {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "consent_requirements is required and cannot be empty"})
 		return
 	}
 
-	// Validate each data field and set owner_email to owner_id (they are the same value)
-	for i, dataField := range req.DataFields {
-		if dataField.OwnerID == "" {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id is required and cannot be empty", i)})
+	// Validate each consent requirement
+	for i, requirement := range req.ConsentRequirements {
+		if requirement.OwnerID == "" {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].owner_id is required and cannot be empty", i)})
 			return
 		}
-		if len(dataField.Fields) == 0 {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields is required and cannot be empty", i)})
+		if len(requirement.Fields) == 0 {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].fields is required and cannot be empty", i)})
 			return
 		}
-		// Validate that no field is empty
-		for j, field := range dataField.Fields {
-			if field == "" {
-				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].fields[%d] cannot be empty", i, j)})
+		// Validate each field has fieldName and schemaId
+		for j, field := range requirement.Fields {
+			if field.FieldName == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].fields[%d].fieldName is required and cannot be empty", i, j)})
+				return
+			}
+			if field.SchemaID == "" {
+				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("consent_requirements[%d].fields[%d].schemaId is required and cannot be empty", i, j)})
 				return
 			}
 		}
-
-		// Set owner_email to owner_id (they are the same value)
-		ownerEmail, err := getOwnerEmailByID(dataField.OwnerID)
-		if err != nil {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: fmt.Sprintf("data_fields[%d].owner_id '%s' is invalid: %v", i, dataField.OwnerID, err)})
-			return
-		}
-
-		// Set the owner_email in the data field
-		req.DataFields[i].OwnerEmail = ownerEmail
 	}
 
 	// Process consent request using the engine
-	response, err := s.engine.ProcessConsentRequest(req)
+	record, err := s.engine.ProcessConsentRequest(req)
 	if err != nil {
 		utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to process consent request: " + err.Error()})
 		return
 	}
 
 	// Log the operation
-	slog.Info("Operation successful", "operation", "create consent", "id", response.ConsentID, "owner", response.OwnerID, "existing", false)
+	slog.Info("Operation successful", "operation", "create consent", "id", record.ConsentID, "owner", record.OwnerID)
 
-	// Return the ConsentRecord
+	// Return simplified response format
+	response := record.ToConsentResponse()
 	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
@@ -333,8 +324,9 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentUpdateFailed+": %w", err)
 		}
 
-		// Return the ConsentRecord directly
-		return record, http.StatusOK, nil
+		// Return simplified response format
+		response := record.ToConsentResponse()
+		return response, http.StatusOK, nil
 	})
 }
 
@@ -376,7 +368,9 @@ func (s *apiServer) revokeConsentByID(w http.ResponseWriter, r *http.Request, co
 		return
 	}
 
-	utils.RespondWithJSON(w, http.StatusOK, record)
+	// Return simplified response format
+	response := record.ToConsentResponse()
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 // patchConsentByID handles PATCH /consents/{id} - partial update of consent resource
@@ -440,7 +434,10 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 		return
 	}
 	slog.Info("Consent record updated", "consent_id", updatedRecord.ConsentID, "owner_id", updatedRecord.OwnerID, "owner_email", updatedRecord.OwnerEmail, "app_id", updatedRecord.AppID, "status", updatedRecord.Status, "type", updatedRecord.Type, "created_at", updatedRecord.CreatedAt, "updated_at", updatedRecord.UpdatedAt, "expires_at", updatedRecord.ExpiresAt, "grant_duration", updatedRecord.GrantDuration, "fields", updatedRecord.Fields, "session_id", updatedRecord.SessionID, "consent_portal_url", updatedRecord.ConsentPortalURL)
-	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
+
+	// Return simplified response format
+	response := updatedRecord.ToConsentResponse()
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Request) {
@@ -667,7 +664,9 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	// Log the operation
 	slog.Info("Consent updated via PUT", "consentId", consentID, "status", string(newStatus), "ownerId", existingRecord.OwnerID, "grantDuration", req.GrantDuration)
 
-	utils.RespondWithJSON(w, http.StatusOK, updatedRecord)
+	// Return simplified response format
+	response := updatedRecord.ToConsentResponse()
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (s *apiServer) dataInfoHandler(w http.ResponseWriter, r *http.Request) {
