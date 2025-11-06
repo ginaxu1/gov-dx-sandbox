@@ -1,6 +1,6 @@
 package models
 
-// DataExchangeEvent represents a data exchange audit event (Case 1)
+// DataExchangeEvent represents a data exchange audit event
 // This is the event structure sent by the Orchestration Engine
 type DataExchangeEvent struct {
 	EventID           string   `json:"eventId"`           // UUID
