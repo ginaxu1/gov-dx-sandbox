@@ -9,6 +9,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 // DatabaseConfig holds database connection configuration
@@ -163,7 +165,72 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 		return db, nil
 	}
 
-	return nil, fmt.Errorf("unexpected error: should not reach here")
+	return nil, fmt.Errorf("failed to establish database connection after %d attempts", config.RetryAttempts)
+}
+
+// ConnectGORM establishes a GORM connection to the PostgreSQL database
+func ConnectGORM(config *DatabaseConfig) (*gorm.DB, error) {
+	// Build DSN string
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
+		config.Host, config.Username, config.Password, config.Database, config.Port, config.SSLMode)
+
+	var gormDB *gorm.DB
+	var err error
+
+	// Retry connection attempts
+	for attempt := 1; attempt <= config.RetryAttempts; attempt++ {
+		slog.Info("Attempting GORM database connection", "attempt", attempt, "max_attempts", config.RetryAttempts)
+
+		// Open GORM connection
+		gormDB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err != nil {
+			slog.Warn("Failed to open GORM database connection", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to open GORM database connection after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		// Get underlying sql.DB to configure connection pool
+		sqlDB, err := gormDB.DB()
+		if err != nil {
+			slog.Warn("Failed to get underlying sql.DB", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		}
+
+		// Configure connection pool
+		sqlDB.SetMaxOpenConns(config.MaxOpenConns)
+		sqlDB.SetMaxIdleConns(config.MaxIdleConns)
+		sqlDB.SetConnMaxLifetime(config.ConnMaxLifetime)
+		sqlDB.SetConnMaxIdleTime(config.ConnMaxIdleTime)
+
+		// Test connection with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
+		err = sqlDB.PingContext(ctx)
+		cancel()
+
+		if err != nil {
+			slog.Warn("Failed to ping database via GORM", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to ping database via GORM after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		slog.Info("GORM database connection established successfully",
+			"host", config.Host,
+			"port", config.Port,
+			"database", config.Database)
+		return gormDB, nil
+	}
+
+	return nil, fmt.Errorf("failed to establish GORM database connection after %d attempts", config.RetryAttempts)
 }
 
 // InitDatabase creates the necessary tables if they don't exist
@@ -275,6 +342,45 @@ func InitDatabase(db *sql.DB) error {
 		}
 	} else {
 		slog.Info("Created view with joins to consumer_applications and provider_schemas")
+	}
+
+	// Create management_events table for Case 2 (Admin/Member Portal events)
+	createManagementEventsTableSQL := `
+	CREATE TABLE IF NOT EXISTS management_events (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		event_id UUID NOT NULL UNIQUE,
+		event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')),
+		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		
+		-- Actor information
+		actor_type VARCHAR(10) NOT NULL CHECK (actor_type IN ('USER', 'SERVICE')),
+		actor_id VARCHAR(255), -- NULL if SERVICE type
+		actor_role VARCHAR(10) CHECK (actor_role IN ('MEMBER', 'ADMIN')), -- NULL if SERVICE type
+		
+		-- Target resource
+		target_resource VARCHAR(50) NOT NULL CHECK (target_resource IN (
+			'MEMBERS', 'SCHEMAS', 'SCHEMA-SUBMISSIONS', 
+			'APPLICATIONS', 'APPLICATION-SUBMISSIONS', 'POLICY-METADATA'
+		)),
+		target_resource_id VARCHAR(255) NOT NULL,
+		
+		-- Additional metadata
+		metadata JSONB,
+		
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+
+	-- Create indexes for better performance
+	CREATE INDEX IF NOT EXISTS idx_management_events_event_id ON management_events(event_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_timestamp ON management_events(timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_management_events_actor ON management_events(actor_type, actor_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_target ON management_events(target_resource, target_resource_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_actor_target_time ON management_events(actor_type, actor_id, timestamp DESC);
+	`
+
+	_, err = db.Exec(createManagementEventsTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create management_events table: %w", err)
 	}
 
 	slog.Info("Database tables and view initialized successfully")
