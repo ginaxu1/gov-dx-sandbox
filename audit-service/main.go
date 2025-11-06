@@ -119,10 +119,10 @@ func main() {
 		}
 	})
 
-	// API endpoint for data exchange events (Case 1) from Orchestration Engine
+	// API endpoint for data exchange events from Orchestration Engine
 	mux.HandleFunc("/v1/audit/exchange", auditHandler.CreateDataExchangeEvent)
 
-	// API endpoints for management events (Case 2) from API Server
+	// API endpoints for management events from API Server
 	mux.HandleFunc("/api/events", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:

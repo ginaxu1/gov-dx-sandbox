@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// ManagementEventRequest represents the request structure for management events (Case 2)
+// ManagementEventRequest represents the request structure for management events
 type ManagementEventRequest struct {
 	EventID string `json:"eventId"` // UUID
 	// Timestamp is optional - if not provided, will use current time

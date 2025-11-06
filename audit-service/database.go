@@ -344,7 +344,7 @@ func InitDatabase(db *sql.DB) error {
 		slog.Info("Created view with joins to consumer_applications and provider_schemas")
 	}
 
-	// Create management_events table for Case 2 (Admin/Member Portal events)
+	// Create management_events table for Admin/Member Portal events
 	createManagementEventsTableSQL := `
 	CREATE TABLE IF NOT EXISTS management_events (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
