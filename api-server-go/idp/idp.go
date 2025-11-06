@@ -5,6 +5,7 @@ import "context"
 type IdentityProviderAPI interface {
 	UserManager
 	ApplicationManager
+	GroupManager
 }
 
 type UserManager interface {
@@ -53,4 +54,29 @@ type ApplicationInfo struct {
 type ApplicationOIDCInfo struct {
 	ClientId     string
 	ClientSecret string
+}
+
+type GroupManager interface {
+	CreateGroup(ctx context.Context, group *Group) (*GroupInfo, error)
+	GetGroup(ctx context.Context, groupId string) (*GroupInfo, error)
+	UpdateGroup(ctx context.Context, groupId string, group *Group) (*GroupInfo, error)
+	DeleteGroup(ctx context.Context, groupId string) error
+	AddMemberToGroup(ctx context.Context, groupId string, userId *GroupMember) error
+	RemoveMemberFromGroup(ctx context.Context, groupId string, userId string) error
+}
+
+type Group struct {
+	DisplayName string
+	Members     []*GroupMember
+}
+
+type GroupMember struct {
+	Value   string
+	Display string
+}
+
+type GroupInfo struct {
+	Id          string
+	DisplayName string
+	Members     []GroupMember
 }
