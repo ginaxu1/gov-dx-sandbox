@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
-	"strings"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
@@ -15,6 +14,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/go-chi/chi/v5"
 )
 
 type Response struct {
@@ -25,7 +25,7 @@ const DefaultPort = "4000"
 
 // RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
-	mux := http.NewServeMux()
+	mux := chi.NewRouter()
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
@@ -51,7 +51,7 @@ func RunServer(f *federator.Federator) {
 	// Set the schema service in the federator
 	f.SchemaService = schemaService
 	// /health route
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -65,35 +65,17 @@ func RunServer(f *federator.Federator) {
 	})
 
 	// Schema management routes
-	mux.HandleFunc("/sdl", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			schemaHandler.GetActiveSchema(w, r)
-		} else if r.Method == http.MethodPost {
-			schemaHandler.CreateSchema(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-	mux.HandleFunc("/sdl/versions", schemaHandler.GetSchemas)
-	mux.HandleFunc("/sdl/validate", schemaHandler.ValidateSDL)
-	mux.HandleFunc("/sdl/check-compatibility", schemaHandler.CheckCompatibility)
+	mux.Get("/sdl", schemaHandler.GetActiveSchema)
+	mux.Post("/sdl", schemaHandler.CreateSchema)
+	mux.Get("/sdl/versions", schemaHandler.GetSchemas)
+	mux.Post("/sdl/validate", schemaHandler.ValidateSDL)
+	mux.Post("/sdl/check-compatibility", schemaHandler.CheckCompatibility)
 
 	// Handle activation endpoint with proper path matching
-	mux.HandleFunc("/sdl/versions/", func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is an activation request
-		if strings.HasSuffix(r.URL.Path, "/activate") && r.Method == http.MethodPost {
-			schemaHandler.ActivateSchema(w, r)
-		} else {
-			http.NotFound(w, r)
-		}
-	})
+	mux.Post("/sdl/versions/{version}/activate", schemaHandler.ActivateSchema)
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
+	// Publicly accessible Endpoints
+	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {
 		// Parse request body
 		var req graphql.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
