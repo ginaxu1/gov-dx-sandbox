@@ -9,32 +9,32 @@ endpoints:
     # +required Service section has the user service endpoint details
     service:
       # Base path for the REST API endpoint
-      basePath: /
-      port: 4000
-    # +required Type of traffic that the endpoint is accepting.
-    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
-    type: REST
-    # Network visibility: Public for external API access
-    networkVisibilities:
-      - Organization
-    # +optional Path to the schema definition file. Defaults to wild card route if not provided
-    # This is only applicable to REST or WS endpoint types.
-    # The path should be relative to the docker context.
-    schemaFilePath: openapi.yaml
-  - name: public-endpoints
-    displayName: Publicly Accessible Endpoints
-    service:
-      # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
-      # Ballerina GraphQL services usually listen on '/' by default.
       basePath: /public/graphql
       port: 4000
     # +required Type of traffic that the endpoint is accepting.
     # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
     type: GraphQL
+    # Network visibility: Public for external API access
+    networkVisibilities:
+      - Public
+    # +optional Path to the schema definition file. Defaults to wild card route if not provided
+    # This is only applicable to REST or WS endpoint types.
+    # The path should be relative to the docker context.
+  - name: management-endpoints
+    displayName: Management Endpoints
+    service:
+      # Base path for the GraphQL endpoint. Typically '/', but could be /graphql if explicitly designed.
+      # Ballerina GraphQL services usually listen on '/' by default.
+      basePath: /
+      port: 4000
+    # +required Type of traffic that the endpoint is accepting.
+    # Allowed values: REST, GraphQL, WS, GRPC, TCP, UDP.
+    type: REST
     # Network visibility: Organization is generally recommended for backend services
     # that are consumed internally by your supergraph.
     networkVisibilities:
-      - Public # Can also be 'Project' for more restricted internal visibility
+      - Organization # Can also be 'Project' for more restricted internal visibility
+    schemaFilePath: openapi.yaml
 configurations:
   # +optional List of environment variables to be injected into the component.
   env:
@@ -58,4 +58,4 @@ configurations:
 dependencies:
   connectionReferences:
   - name: DB_OE
-    resourceRef: database:opendif-db/defaultdb
+    resourceRef: database:opendif-db/testdb2
