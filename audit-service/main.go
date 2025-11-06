@@ -110,6 +110,9 @@ func main() {
 		}
 	})
 
+	// API endpoint for data exchange events (Case 1) from Orchestration Engine
+	mux.HandleFunc("/v1/audit/exchange", auditHandler.CreateDataExchangeEvent)
+
 	// Start server
 	slog.Info("Audit Service starting",
 		"environment", *env,
