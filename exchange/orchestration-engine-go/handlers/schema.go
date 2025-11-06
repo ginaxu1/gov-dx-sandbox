@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/go-chi/chi/v5"
 )
 
 // SchemaHandler handles HTTP requests for schema management
@@ -33,10 +34,6 @@ type ValidateSDLRequest struct {
 
 // CreateSchema handles POST /sdl - create a new schema version
 func (h *SchemaHandler) CreateSchema(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
@@ -70,10 +67,6 @@ func (h *SchemaHandler) CreateSchema(w http.ResponseWriter, r *http.Request) {
 
 // GetSchemas handles GET /sdl/versions - get all schema versions
 func (h *SchemaHandler) GetSchemas(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
@@ -92,11 +85,6 @@ func (h *SchemaHandler) GetSchemas(w http.ResponseWriter, r *http.Request) {
 
 // GetActiveSchema handles GET /sdl - get the active schema
 func (h *SchemaHandler) GetActiveSchema(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
 		return
@@ -120,10 +108,6 @@ func (h *SchemaHandler) GetActiveSchema(w http.ResponseWriter, r *http.Request) 
 
 // ActivateSchema handles POST /sdl/versions/{version}/activate - activate a schema version
 func (h *SchemaHandler) ActivateSchema(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
@@ -131,8 +115,7 @@ func (h *SchemaHandler) ActivateSchema(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract version from URL path (simplified)
-	version := r.URL.Path[len("/sdl/versions/"):]
-	version = version[:len(version)-len("/activate")]
+	version := chi.URLParam(r, "version")
 
 	err := h.schemaService.ActivateSchema(version)
 	if err != nil {
@@ -146,10 +129,6 @@ func (h *SchemaHandler) ActivateSchema(w http.ResponseWriter, r *http.Request) {
 
 // ValidateSDL handles POST /sdl/validate - validate SDL syntax
 func (h *SchemaHandler) ValidateSDL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
@@ -171,10 +150,6 @@ func (h *SchemaHandler) ValidateSDL(w http.ResponseWriter, r *http.Request) {
 
 // CheckCompatibility handles POST /sdl/check-compatibility - check backward compatibility
 func (h *SchemaHandler) CheckCompatibility(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
