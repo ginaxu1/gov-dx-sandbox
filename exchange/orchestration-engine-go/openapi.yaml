@@ -6,121 +6,6 @@ info:
     The Orchestration Engine provides GraphQL federation and unified schema management capabilities.
     It supports multiple schema versions, schema activation/deactivation, and GraphQL query routing.
 paths:
-  /:
-    post:
-      summary: Execute GraphQL query
-      description: |
-        Executes a GraphQL query against the orchestration engine. This endpoint supports
-        federated queries that can retrieve data from multiple providers.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                query:
-                  type: string
-                  description: The GraphQL query string
-                  example: |
-                    query GetData {
-                      personInfo(nic: "199512345678") {
-                        ownedVehicles {
-                          regNo
-                          make
-                          model
-                          year
-                        }
-                      }
-                    }
-                variables:
-                  type: object
-                  description: Variables for the GraphQL query
-                  additionalProperties: true
-                  example:
-                    nic: "199512345678"
-                operationName:
-                  type: string
-                  description: Name of the operation to execute (for queries with multiple operations)
-                  example: "GetData"
-              required:
-                - query
-      responses:
-        '200':
-          description: Successful GraphQL response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    description: The result of the GraphQL query execution
-                    additionalProperties: true
-                  errors:
-                    type: array
-                    description: List of errors that occurred during query execution
-                    items:
-                      type: object
-                      properties:
-                        message:
-                          type: string
-                        locations:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              line:
-                                type: integer
-                              column:
-                                type: integer
-                        path:
-                          type: array
-                          items:
-                            type: string
-                example:
-                  data:
-                    personInfo:
-                      ownedVehicles:
-                        - regNo: "ABC-1234"
-                          make: "Toyota"
-                          model: "Camry"
-                          year: 2020
-        '400':
-          description: Bad request - invalid GraphQL query or request format
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "bad request: invalid JSON"
-        '401':
-          description: Unauthorized - invalid or missing authentication token
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Unauthorized: invalid token"
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Internal server error"
-      security:
-        - bearerAuth: []
-      tags:
-        - GraphQL
-
   /health:
     get:
       summary: Health check
@@ -139,7 +24,6 @@ paths:
                     type: string
                 example:
                   message: "OpenDIF Server is Healthy!"
-
   /sdl:
     get:
       summary: Get active GraphQL SDL
@@ -356,8 +240,6 @@ security:
   - bearerAuth: []
 
 tags:
-  - name: GraphQL
-    description: GraphQL query execution endpoints
   - name: Schema Management
     description: Schema versioning and management endpoints
   - name: Health
