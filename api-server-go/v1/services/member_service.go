@@ -55,6 +55,19 @@ func (s *MemberService) CreateMember(req *models.CreateMemberRequest) (*models.M
 		IdpUserID:   createdUser.Id,
 	}
 
+	patchGroupMember := &idp.GroupMember{
+		Value:   createdUser.Id,
+		Display: createdUser.Email,
+	}
+	// Add user to UserGroupMember in the IDP
+	if err := (*s.idp).AddMemberToGroup(ctx, string(models.UserGroupMember), patchGroupMember); err != nil {
+		err := (*s.idp).DeleteUser(ctx, createdUser.Id)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to add user to group in IDP: %w", err)
+	}
+
 	if err := s.db.Create(&member).Error; err != nil {
 		// Rollback IDP user creation if DB operation fails (not implemented here)
 		err := (*s.idp).DeleteUser(ctx, createdUser.Id)
