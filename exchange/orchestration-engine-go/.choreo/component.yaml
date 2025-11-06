@@ -57,5 +57,5 @@ configurations:
 # +optional Dependencies for the component
 dependencies:
   connectionReferences:
-  - name: DB_OE
-    resourceRef: database:opendif-db/testdb2
+    - name: DB_OE
+      resourceRef: database:opendif-db/testdb2
