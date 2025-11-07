@@ -7,8 +7,10 @@ type DataExchangeEvent struct {
 	Timestamp         string   `json:"timestamp"`         // ISO 8601 timestamp
 	ActorUserID       string   `json:"actorUserId"`       // User who is requesting (consumer subscriber)
 	ConsumerAppID     string   `json:"consumerAppId"`     // Consumer application ID (e.g., "passport-app")
+	ConsumerID        string   `json:"consumerId"`        // Member ID who owns the consumer application (REQUIRED)
 	OnBehalfOfOwnerID string   `json:"onBehalfOfOwnerId"` // Citizen ID (data owner)
 	ProviderSchemaID  string   `json:"providerSchemaId"`  // Provider schema ID
+	ProviderID        string   `json:"providerId"`        // Member ID who owns the provider schema (REQUIRED)
 	RequestedFields   []string `json:"requestedFields"`   // List of requested fields
 	Status            string   `json:"status"`            // "SUCCESS" or "FAILURE"
 }
