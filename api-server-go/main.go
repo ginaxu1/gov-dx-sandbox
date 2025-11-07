@@ -45,12 +45,18 @@ func main() {
 	apiMux := http.NewServeMux()
 	v1Handler.SetupV1Routes(apiMux) // All /api/v1/... routes go here
 
-	// Setup CORS middleware
+	// Setup middleware chain
 	corsMiddleware := v1middleware.NewCORSMiddleware()
+	requestContextMiddleware := v1middleware.RequestContextMiddleware
 
-	// Apply CORS middleware to the API mux
-	// Note: Audit logging is now done directly in handlers, no middleware needed
-	apiHandler := corsMiddleware(apiMux)
+	// Setup Audit middleware
+	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
+	auditMiddleware := v1middleware.NewAuditMiddleware(auditServiceURL)
+
+	// Apply middleware chain: CORS -> RequestContext -> Audit
+	// RequestContext extracts IDs from path and sets in context
+	// Audit reads from context (no brute force extraction!)
+	apiHandler := corsMiddleware(requestContextMiddleware(auditMiddleware.AuditLoggingMiddleware(apiMux)))
 
 	// Create the MAIN (top-level) mux for all incoming traffic
 	topLevelMux := http.NewServeMux()

@@ -92,7 +92,7 @@ func (c *httpClient) LogDataExchange(ctx context.Context, event DataExchangeEven
 
 // LogManagementEvent logs a management event to the audit service
 // This is called asynchronously (fire-and-forget) to avoid blocking
-func (c *httpClient) LogManagementEvent(ctx context.Context, event ManagementEvent) error {
+func (c *httpClient) LogManagementEvent(ctx context.Context, event ManagementEventRequest) error {
 	// Generate event ID if not provided
 	if event.EventID == "" {
 		event.EventID = uuid.New().String()
@@ -119,7 +119,7 @@ func (c *httpClient) LogManagementEvent(ctx context.Context, event ManagementEve
 		}
 	}
 
-	// Marshal request
+	// Marshal request (event is already ManagementEventRequest type via type alias)
 	reqBody, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal management event: %w", err)
