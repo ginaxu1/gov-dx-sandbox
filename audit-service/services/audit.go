@@ -120,14 +120,29 @@ func (s *AuditService) GetLogs(ctx context.Context, filter *models.LogFilter) (*
 // CreateLog creates a new log entry
 func (s *AuditService) CreateLog(ctx context.Context, logReq *models.LogRequest) (*models.Log, error) {
 	// First insert the log entry
-	insertQuery := `
-		INSERT INTO audit_logs (status, requested_data, application_id, schema_id)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id
-	`
-
+	// Include consumer_id and provider_id if provided (for data exchange events)
+	var insertQuery string
+	var err error
 	var logID string
-	err := s.db.QueryRowContext(ctx, insertQuery, logReq.Status, logReq.RequestedData, logReq.ApplicationID, logReq.SchemaID).Scan(&logID)
+
+	if logReq.ConsumerID != "" && logReq.ProviderID != "" {
+		// Data exchange event with member IDs
+		insertQuery = `
+			INSERT INTO audit_logs (status, requested_data, application_id, schema_id, consumer_id, provider_id)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id
+		`
+		err = s.db.QueryRowContext(ctx, insertQuery, logReq.Status, logReq.RequestedData, logReq.ApplicationID, logReq.SchemaID, logReq.ConsumerID, logReq.ProviderID).Scan(&logID)
+	} else {
+		// Legacy log entry without member IDs (consumer_id and provider_id will be NULL)
+		insertQuery = `
+			INSERT INTO audit_logs (status, requested_data, application_id, schema_id)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id
+		`
+		err = s.db.QueryRowContext(ctx, insertQuery, logReq.Status, logReq.RequestedData, logReq.ApplicationID, logReq.SchemaID).Scan(&logID)
+	}
+
 	if err != nil {
 		slog.Error("Failed to create log", "error", err)
 		return nil, fmt.Errorf("failed to create log: %w", err)

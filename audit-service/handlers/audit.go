@@ -122,6 +122,16 @@ func (h *AuditHandler) CreateDataExchangeEvent(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	if req.ConsumerID == "" {
+		http.Error(w, "Missing required field: consumerId (member ID who owns the consumer application)", http.StatusBadRequest)
+		return
+	}
+
+	if req.ProviderID == "" {
+		http.Error(w, "Missing required field: providerId (member ID who owns the provider schema)", http.StatusBadRequest)
+		return
+	}
+
 	if req.Status == "" {
 		http.Error(w, "Missing required field: status", http.StatusBadRequest)
 		return
@@ -146,6 +156,8 @@ func (h *AuditHandler) CreateDataExchangeEvent(w http.ResponseWriter, r *http.Re
 		RequestedData: string(requestedDataJSON),
 		ApplicationID: req.ConsumerAppID,    // Map consumerAppId to applicationId
 		SchemaID:      req.ProviderSchemaID, // Map providerSchemaId to schemaId
+		ConsumerID:    req.ConsumerID,       // Member ID who owns the consumer application
+		ProviderID:    req.ProviderID,       // Member ID who owns the provider schema
 	}
 
 	// Create log

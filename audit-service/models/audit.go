@@ -41,4 +41,6 @@ type LogRequest struct {
 	RequestedData string `json:"requestedData" validate:"required"`
 	ApplicationID string `json:"applicationId" validate:"required"`
 	SchemaID      string `json:"schemaId" validate:"required"`
+	ConsumerID    string `json:"consumerId,omitempty"` // Member ID who owns the consumer application (optional, required for data exchange events)
+	ProviderID    string `json:"providerId,omitempty"` // Member ID who owns the provider schema (optional, required for data exchange events)
 }
