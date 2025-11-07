@@ -107,16 +107,13 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	// API endpoints for log access
+	// API endpoint for log access (GET only - for Admin Portal and Entity Portals)
 	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			auditHandler.GetLogs(w, r)
-		case http.MethodPost:
-			auditHandler.CreateLog(w, r)
-		default:
+		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
+		auditHandler.GetLogs(w, r)
 	})
 
 	// API endpoint for data exchange events from Orchestration Engine
@@ -164,19 +161,6 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		slog.Info("Audit Service starting",
-			"environment", *env,
-			"port", serverPort,
-			"version", Version,
-			"buildTime", BuildTime,
-			"gitCommit", GitCommit)
-		slog.Info("Database configuration",
-			"host", dbConfig.Host,
-			"port", dbConfig.Port,
-			"database", dbConfig.Database,
-			"choreoHost", os.Getenv("CHOREO_OPENDIF_DB_HOSTNAME"),
-		)
-
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server failed to start", "error", err)
 			os.Exit(1)
