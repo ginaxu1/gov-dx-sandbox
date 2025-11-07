@@ -30,14 +30,14 @@ type TestServer struct {
 
 // TestServerWithGORM represents a test server with GORM support for management events
 type TestServerWithGORM struct {
-	DB                    *sql.DB
-	GormDB                *gorm.DB
-	AuditService          *services.AuditService
+	DB                     *sql.DB
+	GormDB                 *gorm.DB
+	AuditService           *services.AuditService
 	ManagementEventService *services.ManagementEventService
-	Handler               *handlers.AuditHandler
-	DataExchangeHandler   *handlers.AuditHandler
+	Handler                *handlers.AuditHandler
+	DataExchangeHandler    *handlers.AuditHandler
 	ManagementEventHandler *handlers.ManagementEventHandler
-	Context               context.Context
+	Context                context.Context
 }
 
 // SetupTestServer creates a test server using PostgreSQL (only option currently supported)

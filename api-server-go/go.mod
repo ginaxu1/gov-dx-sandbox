@@ -6,12 +6,15 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
 	github.com/gov-dx-sandbox/api-server-go/shared/utils v0.0.0
+	github.com/gov-dx-sandbox/audit-service v0.0.0
 	github.com/stretchr/testify v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.30
 	golang.org/x/oauth2 v0.32.0
 	gorm.io/driver/postgres v1.6.0
-	gorm.io/gorm v1.31.0
+	gorm.io/gorm v1.31.1
 )
+
+replace github.com/gov-dx-sandbox/audit-service => ../audit-service
 
 require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect

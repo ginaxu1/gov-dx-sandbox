@@ -21,8 +21,10 @@ func TestDataExchangeEndpoint(t *testing.T) {
 			Timestamp:         "2024-01-15T10:30:00Z",
 			ActorUserID:       "user-123",
 			ConsumerAppID:     "passport-app",
+			ConsumerID:        "member-consumer-123",
 			OnBehalfOfOwnerID: "citizen-abc",
 			ProviderSchemaID:  "hospital-schema-v1",
+			ProviderID:        "member-provider-456",
 			RequestedFields:   []string{"personInfo.name", "personInfo.address"},
 			Status:            "SUCCESS",
 		}
@@ -58,6 +60,14 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		if response.Status != "success" {
 			t.Errorf("Expected status 'success', got %s", response.Status)
 		}
+
+		if response.ConsumerID != reqBody.ConsumerID {
+			t.Errorf("Expected consumerId %s, got %s", reqBody.ConsumerID, response.ConsumerID)
+		}
+
+		if response.ProviderID != reqBody.ProviderID {
+			t.Errorf("Expected providerId %s, got %s", reqBody.ProviderID, response.ProviderID)
+		}
 	})
 
 	t.Run("CreateDataExchangeEvent_Failure", func(t *testing.T) {
@@ -66,8 +76,10 @@ func TestDataExchangeEndpoint(t *testing.T) {
 			Timestamp:         "2024-01-15T10:30:00Z",
 			ActorUserID:       "user-123",
 			ConsumerAppID:     "passport-app",
+			ConsumerID:        "member-consumer-123",
 			OnBehalfOfOwnerID: "citizen-abc",
 			ProviderSchemaID:  "hospital-schema-v1",
+			ProviderID:        "member-provider-456",
 			RequestedFields:   []string{"personInfo.name"},
 			Status:            "FAILURE",
 		}
@@ -101,6 +113,57 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		reqBody := models.DataExchangeEvent{
 			EventID:          "550e8400-e29b-41d4-a716-446655440002",
 			ProviderSchemaID: "hospital-schema-v1",
+			ProviderID:       "member-provider-456",
+			Status:           "SUCCESS",
+		}
+
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+
+		req := httptest.NewRequest("POST", "/v1/audit/exchange", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		server.DataExchangeHandler.CreateDataExchangeEvent(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusBadRequest, w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CreateDataExchangeEvent_MissingConsumerID", func(t *testing.T) {
+		reqBody := models.DataExchangeEvent{
+			EventID:          "550e8400-e29b-41d4-a716-446655440006",
+			ConsumerAppID:    "passport-app",
+			ProviderSchemaID: "hospital-schema-v1",
+			ProviderID:       "member-provider-456",
+			Status:           "SUCCESS",
+		}
+
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+
+		req := httptest.NewRequest("POST", "/v1/audit/exchange", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		server.DataExchangeHandler.CreateDataExchangeEvent(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusBadRequest, w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CreateDataExchangeEvent_MissingProviderID", func(t *testing.T) {
+		reqBody := models.DataExchangeEvent{
+			EventID:          "550e8400-e29b-41d4-a716-446655440007",
+			ConsumerAppID:    "passport-app",
+			ConsumerID:       "member-consumer-123",
+			ProviderSchemaID: "hospital-schema-v1",
 			Status:           "SUCCESS",
 		}
 
@@ -124,6 +187,8 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		reqBody := models.DataExchangeEvent{
 			EventID:       "550e8400-e29b-41d4-a716-446655440003",
 			ConsumerAppID: "passport-app",
+			ConsumerID:    "member-consumer-123",
+			ProviderID:    "member-provider-456",
 			Status:        "SUCCESS",
 		}
 
@@ -147,7 +212,9 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		reqBody := models.DataExchangeEvent{
 			EventID:          "550e8400-e29b-41d4-a716-446655440004",
 			ConsumerAppID:    "passport-app",
+			ConsumerID:       "member-consumer-123",
 			ProviderSchemaID: "hospital-schema-v1",
+			ProviderID:       "member-provider-456",
 			Status:           "INVALID",
 		}
 
@@ -183,7 +250,9 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		reqBody := models.DataExchangeEvent{
 			EventID:          "550e8400-e29b-41d4-a716-446655440005",
 			ConsumerAppID:    "passport-app",
+			ConsumerID:       "member-consumer-123",
 			ProviderSchemaID: "hospital-schema-v1",
+			ProviderID:       "member-provider-456",
 			RequestedFields:  []string{},
 			Status:           "SUCCESS",
 		}
