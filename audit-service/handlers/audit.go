@@ -51,64 +51,6 @@ func (h *AuditHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// CreateLog handles POST /api/logs (for creating new log entries)
-func (h *AuditHandler) CreateLog(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req models.LogRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if req.Status == "" {
-		http.Error(w, "Missing required field: status", http.StatusBadRequest)
-		return
-	}
-
-	if req.RequestedData == "" {
-		http.Error(w, "Missing required field: requestedData", http.StatusBadRequest)
-		return
-	}
-
-	if req.ApplicationID == "" {
-		http.Error(w, "Missing required field: applicationId", http.StatusBadRequest)
-		return
-	}
-
-	if req.SchemaID == "" {
-		http.Error(w, "Missing required field: schemaId", http.StatusBadRequest)
-		return
-	}
-
-	// Validate status
-	if req.Status != "success" && req.Status != "failure" {
-		http.Error(w, "Invalid status. Must be 'success' or 'failure'", http.StatusBadRequest)
-		return
-	}
-
-	// Create log
-	log, err := h.auditService.CreateLog(r.Context(), &req)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create log: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Set response headers
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-
-	// Return the created log
-	if err := json.NewEncoder(w).Encode(log); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
-}
-
 // parseLogFilterParams parses filter parameters from query string for logs
 func (h *AuditHandler) parseLogFilterParams(r *http.Request) *models.LogFilter {
 	filter := &models.LogFilter{}
