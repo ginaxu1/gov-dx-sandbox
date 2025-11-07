@@ -963,9 +963,10 @@ components:
       required:
         - schemaName
         - sdl
-        - endpoint
-        - memberId
       properties:
+        schemaId:
+          type: string
+          description: Optional schema ID (for unified schemas from Orchestration Engine). If not provided, auto-generated.
         schemaName:
           type: string
           description: Name of the schema
@@ -978,10 +979,13 @@ components:
           description: Schema Definition Language content
         endpoint:
           type: string
-          description: GraphQL endpoint URL
+          description: GraphQL endpoint URL (optional for unified schemas, defaults to "unified-schema")
         memberId:
           type: string
-          description: Reference to the owning member
+          description: Reference to the owning member (optional for unified schemas, defaults to "system-unified-schema")
+        version:
+          type: string
+          description: Schema version (optional, defaults to active version)
 
     UpdateSchemaRequest:
       type: object
