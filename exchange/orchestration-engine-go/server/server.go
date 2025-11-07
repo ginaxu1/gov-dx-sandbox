@@ -84,7 +84,7 @@ func RunServer(f *federator.Federator) {
 		}
 
 		// decode the token
-		consumerAssertion, err := auth.GetConsumerJwtFromToken(r)
+		consumerAssertion, err := auth.GetConsumerJwtFromToken(f.Configs.Environment, r)
 
 		if err != nil {
 			logger.Log.Error("Failed to get consumer JWT from token", "error", err)
