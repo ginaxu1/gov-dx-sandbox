@@ -28,6 +28,7 @@ import (
 
 // Federator struct that includes all the context needed for federation.
 type Federator struct {
+	Configs         *configs.Config
 	ProviderHandler *provider.Handler
 	Client          *http.Client
 	Schema          *ast.Document
@@ -72,15 +73,16 @@ func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderRe
 }
 
 // Initialize sets up the Federator with providers and an HTTP client.
-func Initialize(providerHandler *provider.Handler, schemaService interface{}) *Federator {
+func Initialize(configs *configs.Config, providerHandler *provider.Handler, schemaService interface{}) *Federator {
 	federator := &Federator{
 		ProviderHandler: providerHandler,
 		SchemaService:   schemaService,
+		Configs:         configs,
 	}
 
 	// Initialize with providers from config if available
-	if configs.AppConfig != nil && configs.AppConfig.Providers != nil {
-		for _, p := range configs.AppConfig.Providers {
+	if configs.Providers != nil {
+		for _, p := range configs.Providers {
 			// Convert ProviderConfig to Provider
 			providerInstance := &provider.Provider{
 				ServiceUrl: p.ProviderURL,
@@ -176,8 +178,8 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	}
 
 	// Fallback to config if no schema from database
-	if schema == nil && configs.AppConfig != nil && configs.AppConfig.Schema != nil {
-		schema, err = configs.AppConfig.GetSchemaDocument()
+	if schema == nil && f.Configs.Schema != nil {
+		schema, err = f.Configs.GetSchemaDocument()
 		if err != nil {
 			logger.Log.Warn("Failed to get schema from config", "Error", err)
 			schema = nil
@@ -216,8 +218,8 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// Safely get argument mapping with nil check
 	var argMapping []*graphql.ArgMapping
-	if configs.AppConfig != nil && configs.AppConfig.ArgMapping != nil {
-		argMapping = configs.AppConfig.ArgMapping
+	if f.Configs.ArgMapping != nil {
+		argMapping = f.Configs.ArgMapping
 	}
 
 	var requiredArguments = FindRequiredArguments(schemaCollection.ProviderFieldMap, argMapping)
@@ -234,13 +236,11 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	var pdpClient *policy.PdpClient
 	var ceClient *consent.CEClient
 
-	if configs.AppConfig != nil {
-		if configs.AppConfig.PdpConfig.ClientURL != "" {
-			pdpClient = policy.NewPdpClient(configs.AppConfig.PdpConfig.ClientURL)
-		}
-		if configs.AppConfig.CeConfig.ClientURL != "" {
-			ceClient = consent.NewCEClient(configs.AppConfig.CeConfig.ClientURL)
-		}
+	if f.Configs.PdpConfig.ClientURL != "" {
+		pdpClient = policy.NewPdpClient(f.Configs.PdpConfig.ClientURL)
+	}
+	if f.Configs.CeConfig.ClientURL != "" {
+		ceClient = consent.NewCEClient(f.Configs.CeConfig.ClientURL)
 	}
 
 	// Check if PDP client is available before making request

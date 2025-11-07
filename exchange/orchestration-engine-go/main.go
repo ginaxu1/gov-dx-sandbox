@@ -14,19 +14,14 @@ func main() {
 	logger.Init()
 
 	// Load configuration with proper error handling
-	_, err := configs.LoadConfig()
+	config, err := configs.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Check if AppConfig is properly initialized
-	if configs.AppConfig == nil {
-		log.Fatal("Configuration not properly initialized")
-	}
+	var providerHandler = provider.NewProviderHandler(config.GetProviders())
 
-	var providerHandler = provider.NewProviderHandler(configs.AppConfig.GetProviders())
-
-	var federationObject = federator.Initialize(providerHandler, nil)
+	var federationObject = federator.Initialize(config, providerHandler, nil)
 
 	server.RunServer(federationObject)
 }

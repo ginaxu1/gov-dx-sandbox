@@ -65,9 +65,6 @@ type CeConfig struct {
 	ClientURL string `json:"clientUrl"`
 }
 
-// Global configuration instance
-var AppConfig *Config
-
 // LoadConfig reads the configuration from the given path, unmarshals it,
 // and returns a pointer to the Config struct. It also sets the global AppConfig.
 func LoadConfig() (*Config, error) {
@@ -92,9 +89,6 @@ func LoadConfig() (*Config, error) {
 	if err := json.Unmarshal(bytes, &config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config JSON: %w", err)
 	}
-
-	// Set global config
-	AppConfig = &config
 
 	// Set derived config values
 	if config.PdpConfig.ClientURL == "" && config.PdpURL != "" {
