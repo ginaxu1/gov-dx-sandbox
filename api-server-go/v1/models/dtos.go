@@ -24,12 +24,15 @@ type UpdateSchemaSubmissionRequest struct {
 }
 
 // CreateSchemaRequest creates a new provider schema
+// For unified schemas (from Orchestration Engine), schemaId, endpoint, and memberId are optional
 type CreateSchemaRequest struct {
+	SchemaID          *string `json:"schemaId,omitempty"` // Optional: if provided, used as-is (for unified schemas)
 	SchemaName        string  `json:"schemaName" validate:"required"`
 	SchemaDescription *string `json:"schemaDescription,omitempty"`
 	SDL               string  `json:"sdl" validate:"required"`
-	Endpoint          string  `json:"endpoint" validate:"required"`
-	MemberID          string  `json:"memberId" validate:"required"`
+	Endpoint          *string `json:"endpoint,omitempty"` // Optional for unified schemas
+	MemberID          *string `json:"memberId,omitempty"` // Optional for unified schemas
+	Version           *string `json:"version,omitempty"`  // Optional: version string
 }
 
 // UpdateSchemaRequest updates an existing provider schema

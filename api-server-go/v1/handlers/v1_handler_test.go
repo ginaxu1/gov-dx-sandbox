@@ -264,12 +264,13 @@ func TestSchemaEndpoints(t *testing.T) {
 	testMemberID := "test-member-id"
 
 	t.Run("POST /api/v1/schemas - CreateSchema", func(t *testing.T) {
+		endpoint := "http://example.com/graphql"
 		req := models.CreateSchemaRequest{
 			SchemaName:        "Test Schema",
 			SchemaDescription: stringPtr("Test Description"),
 			SDL:               "type Query { test: String }",
-			Endpoint:          "http://example.com/graphql",
-			MemberID:          testMemberID,
+			Endpoint:          &endpoint,
+			MemberID:          &testMemberID,
 		}
 
 		reqBody, _ := json.Marshal(req)

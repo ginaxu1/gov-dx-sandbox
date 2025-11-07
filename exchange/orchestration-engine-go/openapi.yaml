@@ -5,6 +5,8 @@ info:
   description: |
     The Orchestration Engine provides GraphQL federation and unified schema management capabilities.
     It supports multiple schema versions, schema activation/deactivation, and GraphQL query routing.
+    Schemas can be loaded from API Server, local database, or config file.
+
 paths:
   /health:
     get:
@@ -12,6 +14,7 @@ paths:
       description: Returns a health check message.
       tags:
         - Health
+      security: []
       responses:
         '200':
           description: Successful health response
@@ -22,12 +25,62 @@ paths:
                 properties:
                   message:
                     type: string
-                example:
-                  message: "OpenDIF Server is Healthy!"
+                    example: "OpenDIF Server is Healthy!"
+
+  /public/graphql:
+    post:
+      summary: Execute GraphQL query
+      description: |
+        Executes a federated GraphQL query across multiple provider services.
+        Requires JWT authentication via X-JWT-Assertion header or Authorization header.
+      tags:
+        - GraphQL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: GraphQL query string
+                  example: "query { personInfo { name } }"
+                variables:
+                  type: object
+                  description: GraphQL query variables
+                operationName:
+                  type: string
+                  description: Operation name
+              required:
+                - query
+      responses:
+        '200':
+          description: Successful GraphQL response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                  errors:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Bad request - invalid query
+        '401':
+          description: Unauthorized - missing or invalid JWT token
+        '500':
+          description: Internal server error
+
   /sdl:
     get:
       summary: Get active GraphQL SDL
-      description: Returns the currently active SDL (Schema Definition Language) string of the GraphQL API.
+      description: |
+        Returns the currently active SDL (Schema Definition Language) string from the local database.
+        Note: The unified schema is now primarily loaded from API Server at runtime.
       tags:
         - Schema Management
       responses:
@@ -40,15 +93,15 @@ paths:
                 properties:
                   sdl:
                     type: string
-                example:
-                  sdl: "type Query { hello: String }"
+                    example: "type Query { hello: String }"
         '404':
           description: No active schema found
         '503':
           description: Schema management not available - database not connected
+
     post:
       summary: Create new schema version
-      description: Creates a new version of the GraphQL schema.
+      description: Creates a new version of the GraphQL schema in the local database.
       tags:
         - Schema Management
       requestBody:
@@ -84,8 +137,6 @@ paths:
                     type: string
                   sdl:
                     type: string
-                  status:
-                    type: string
                   is_active:
                     type: boolean
                   created_at:
@@ -103,7 +154,7 @@ paths:
   /sdl/versions:
     get:
       summary: Get all schema versions
-      description: Returns a list of all schema versions.
+      description: Returns a list of all schema versions from the local database.
       tags:
         - Schema Management
       responses:
@@ -199,7 +250,7 @@ paths:
   /sdl/versions/{version}/activate:
     post:
       summary: Activate schema version
-      description: Activates a specific schema version, making it the active schema.
+      description: Activates a specific schema version in the local database, making it the active schema.
       tags:
         - Schema Management
       parameters:
@@ -225,8 +276,66 @@ paths:
           description: Schema version not found
         '503':
           description: Schema management not available - database not connected
-        '500':
-          description: Internal server error
+
+  /schemas/register:
+    post:
+      summary: Register unified schema to API Server
+      description: |
+        Registers a unified GraphQL schema to the API Server at runtime.
+        This enables dynamic schema updates without restarting the Orchestration Engine.
+        The schema will be stored in API Server with the specified schema ID (default: "unified-schema-v1").
+      tags:
+        - Schema Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                schemaId:
+                  type: string
+                  description: Schema ID in API Server (default: "unified-schema-v1")
+                  example: "unified-schema-v1"
+                schemaName:
+                  type: string
+                  description: Schema name (default: "Unified Schema")
+                  example: "Unified Schema"
+                sdl:
+                  type: string
+                  description: GraphQL SDL string
+                  example: "type Query { personInfo { name: String } }"
+                version:
+                  type: string
+                  description: Schema version (default: "1.0.0")
+                  example: "1.0.0"
+              required:
+                - sdl
+      responses:
+        '201':
+          description: Schema registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemaId:
+                    type: string
+                  schemaName:
+                    type: string
+                  sdl:
+                    type: string
+                  version:
+                    type: string
+                  memberId:
+                    type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request or SDL syntax
+        '503':
+          description: API Server client not configured
 
 components:
   securitySchemes:
@@ -234,13 +343,15 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token for authentication
+      description: JWT token for authentication (via X-JWT-Assertion header or Authorization header)
 
 security:
   - bearerAuth: []
 
 tags:
-  - name: Schema Management
-    description: Schema versioning and management endpoints
   - name: Health
     description: Health check endpoints
+  - name: GraphQL
+    description: GraphQL federation endpoints
+  - name: Schema Management
+    description: Schema versioning and management endpoints

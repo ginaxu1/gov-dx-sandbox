@@ -27,7 +27,7 @@ func TestSchemaAPIEndpoints(t *testing.T) {
 	defer db.Close()
 
 	schemaService := services.NewSchemaService(db)
-	schemaHandler := handlers.NewSchemaHandler(schemaService)
+	schemaHandler := handlers.NewSchemaHandler(schemaService, nil)
 
 	// Test 1: Create schema
 	t.Run("CreateSchema", func(t *testing.T) {
@@ -198,7 +198,7 @@ func TestSchemaAPIErrorHandling(t *testing.T) {
 	defer db.Close()
 
 	schemaService := services.NewSchemaService(db)
-	schemaHandler := handlers.NewSchemaHandler(schemaService)
+	schemaHandler := handlers.NewSchemaHandler(schemaService, nil)
 
 	// Test 1: Create schema with invalid JSON
 	t.Run("CreateSchemaInvalidJSON", func(t *testing.T) {
@@ -274,7 +274,7 @@ func TestSchemaAPIErrorHandling(t *testing.T) {
 // TestSchemaAPIWithoutDatabase tests API behavior when database is not available
 func TestSchemaAPIWithoutDatabase(t *testing.T) {
 	// Create handler without database connection
-	schemaHandler := handlers.NewSchemaHandler(nil)
+	schemaHandler := handlers.NewSchemaHandler(nil, nil)
 
 	// Test 1: Create schema without database
 	t.Run("CreateSchemaWithoutDatabase", func(t *testing.T) {

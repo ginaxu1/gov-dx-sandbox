@@ -22,15 +22,52 @@ func NewSchemaService(db *gorm.DB, policyService *PDPService) *SchemaService {
 }
 
 // CreateSchema creates a new schema
+// For unified schemas (from Orchestration Engine), endpoint and memberId are optional
 func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.SchemaResponse, error) {
+	// Determine schema ID
+	var schemaID string
+	if req.SchemaID != nil && *req.SchemaID != "" {
+		// Use provided schema ID (for unified schemas)
+		schemaID = *req.SchemaID
+	} else {
+		// Auto-generate schema ID (for provider schemas)
+		schemaID = "sch_" + uuid.New().String()
+	}
+
+	// Determine endpoint (required for provider schemas, optional for unified schemas)
+	var endpoint string
+	if req.Endpoint != nil {
+		endpoint = *req.Endpoint
+	} else {
+		// Default endpoint for unified schemas
+		endpoint = "unified-schema"
+	}
+
+	// Determine member ID (required for provider schemas, optional for unified schemas)
+	var memberID string
+	if req.MemberID != nil {
+		memberID = *req.MemberID
+	} else {
+		// Default member ID for unified schemas (system member)
+		memberID = "system-unified-schema"
+	}
+
+	// Determine version
+	var version string
+	if req.Version != nil {
+		version = *req.Version
+	} else {
+		version = string(models.ActiveVersion)
+	}
+
 	schema := models.Schema{
-		SchemaID:          "sch_" + uuid.New().String(),
+		SchemaID:          schemaID,
 		SchemaName:        req.SchemaName,
 		SchemaDescription: req.SchemaDescription,
 		SDL:               req.SDL,
-		Endpoint:          req.Endpoint,
-		MemberID:          req.MemberID,
-		Version:           string(models.ActiveVersion),
+		Endpoint:          endpoint,
+		MemberID:          memberID,
+		Version:           version,
 	}
 
 	// Step 1: Create schema in database first
@@ -281,8 +318,10 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 		createSchemaRequest.SchemaName = submission.SchemaName
 		createSchemaRequest.SchemaDescription = submission.SchemaDescription
 		createSchemaRequest.SDL = submission.SDL
-		createSchemaRequest.Endpoint = submission.SchemaEndpoint
-		createSchemaRequest.MemberID = submission.MemberID
+		endpoint := submission.SchemaEndpoint
+		createSchemaRequest.Endpoint = &endpoint
+		memberID := submission.MemberID
+		createSchemaRequest.MemberID = &memberID
 
 		_, err := s.CreateSchema(&createSchemaRequest)
 		if err != nil {
