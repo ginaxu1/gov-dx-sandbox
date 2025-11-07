@@ -14,14 +14,18 @@ import (
 
 // AuditMiddleware handles audit logging for requests
 type AuditMiddleware struct {
+	environment     string
 	auditServiceURL string
 	httpClient      *http.Client
 	schemaService   interface{} // Schema service interface
 }
 
 // NewAuditMiddleware creates a new audit middleware
-func NewAuditMiddleware(auditServiceURL string, schemaService interface{}) *AuditMiddleware {
+func NewAuditMiddleware(
+	environment,
+	auditServiceURL string, schemaService interface{}) *AuditMiddleware {
 	return &AuditMiddleware{
+		environment:     environment,
 		auditServiceURL: auditServiceURL,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -207,7 +211,7 @@ func (am *AuditMiddleware) getActiveSchemaID() string {
 // getApplicationIDFromConsumer extracts application_id from consumer_applications table
 func (am *AuditMiddleware) getApplicationIDFromConsumer(r *http.Request) string {
 	// Try to get consumer information from JWT token
-	consumerAssertion, err := auth.GetConsumerJwtFromToken("production", r)
+	consumerAssertion, err := auth.GetConsumerJwtFromToken(am.environment, r)
 	if err != nil || consumerAssertion == nil {
 		logger.Log.Warn("Failed to get consumer assertion from token", "error", err)
 		return "unknown-app"
