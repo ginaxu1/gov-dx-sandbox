@@ -24,7 +24,7 @@ type Response struct {
 const DefaultPort = "4000"
 
 // RunServer starts a simple HTTP server with a health check endpoint.
-func RunServer(f *federator.Federator) {
+func RunServer(f *federator.Federator, apiServerClient *services.APIServerClient) {
 	mux := chi.NewRouter()
 
 	// Initialize database connection
@@ -46,10 +46,11 @@ func RunServer(f *federator.Federator) {
 		logger.Log.Warn("Running without database - schema management disabled")
 	}
 
-	schemaHandler := handlers.NewSchemaHandler(schemaService)
+	schemaHandler := handlers.NewSchemaHandler(schemaService, apiServerClient)
 
 	// Set the schema service in the federator
 	f.SchemaService = schemaService
+	f.APIServerClient = apiServerClient
 	// /health route
 	mux.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -73,6 +74,9 @@ func RunServer(f *federator.Federator) {
 
 	// Handle activation endpoint with proper path matching
 	mux.Post("/sdl/versions/{version}/activate", schemaHandler.ActivateSchema)
+
+	// Runtime schema registration endpoint (registers to API Server)
+	mux.Post("/schemas/register", schemaHandler.RegisterSchema)
 
 	// Publicly accessible Endpoints
 	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {

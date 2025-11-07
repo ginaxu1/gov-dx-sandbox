@@ -2,12 +2,14 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/server"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
 
 func main() {
@@ -26,7 +28,18 @@ func main() {
 
 	var providerHandler = provider.NewProviderHandler(configs.AppConfig.GetProviders())
 
-	var federationObject = federator.Initialize(providerHandler, nil)
+	// Initialize API Server client if URL is configured
+	var apiServerClient *services.APIServerClient
+	apiServerURL := os.Getenv("API_SERVER_URL")
+	if apiServerURL != "" {
+		apiKey := os.Getenv("API_SERVER_API_KEY")
+		apiServerClient = services.NewAPIServerClient(apiServerURL, apiKey)
+		logger.Log.Info("API Server client initialized", "url", apiServerURL)
+	} else {
+		logger.Log.Info("API Server URL not configured, schema loading from API Server disabled")
+	}
 
-	server.RunServer(federationObject)
+	var federationObject = federator.Initialize(providerHandler, nil, apiServerClient)
+
+	server.RunServer(federationObject, apiServerClient)
 }

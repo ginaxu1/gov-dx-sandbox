@@ -32,6 +32,7 @@ type Federator struct {
 	Client          *http.Client
 	Schema          *ast.Document
 	SchemaService   interface{} // Will be *services.SchemaService, using interface{} to avoid circular import
+	APIServerClient interface{} // Will be *services.APIServerClient, using interface{} to avoid circular import
 }
 
 type FederationServiceAST struct {
@@ -72,10 +73,11 @@ func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderRe
 }
 
 // Initialize sets up the Federator with providers and an HTTP client.
-func Initialize(providerHandler *provider.Handler, schemaService interface{}) *Federator {
+func Initialize(providerHandler *provider.Handler, schemaService interface{}, apiServerClient interface{}) *Federator {
 	federator := &Federator{
 		ProviderHandler: providerHandler,
 		SchemaService:   schemaService,
+		APIServerClient: apiServerClient,
 	}
 
 	// Initialize with providers from config if available
@@ -132,11 +134,58 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		logger.Log.Error("Failed to parse query", "Error", err)
 	}
 
-	// Get schema document from database or config
+	// Get schema document from API Server, database, or config
 	var schema *ast.Document
 
-	// First try to get from database if schema service is available
-	if f.SchemaService != nil {
+	// First try to get from API Server if client is available
+	if f.APIServerClient != nil {
+		// Use reflection to call GetSchema method
+		apiClientValue := reflect.ValueOf(f.APIServerClient)
+		if apiClientValue.IsValid() && !apiClientValue.IsNil() {
+			// Get unified schema ID from environment (default: "unified-schema-v1")
+			unifiedSchemaID := os.Getenv("UNIFIED_SCHEMA_ID")
+			if unifiedSchemaID == "" {
+				unifiedSchemaID = "unified-schema-v1"
+			}
+
+			getSchemaMethod := apiClientValue.MethodByName("GetSchema")
+			if getSchemaMethod.IsValid() {
+				results := getSchemaMethod.Call([]reflect.Value{reflect.ValueOf(unifiedSchemaID)})
+				if len(results) >= 2 && results[1].IsNil() {
+					// Success - got schema from API Server
+					if len(results) >= 1 && !results[0].IsNil() {
+						schemaRecord := results[0].Interface()
+						// Extract SDL from schema record using reflection
+						schemaRecordValue := reflect.ValueOf(schemaRecord)
+						if schemaRecordValue.Kind() == reflect.Ptr {
+							schemaRecordValue = schemaRecordValue.Elem()
+						}
+						sdlField := schemaRecordValue.FieldByName("SDL")
+						if sdlField.IsValid() && sdlField.Kind() == reflect.String {
+							sdlString := sdlField.String()
+							src := source.NewSource(&source.Source{
+								Body: []byte(sdlString),
+								Name: "APIServerSchema",
+							})
+							parsedSchema, parseErr := parser.Parse(parser.ParseParams{Source: src})
+							if parseErr == nil {
+								schema = parsedSchema
+								logger.Log.Info("Loaded unified schema from API Server", "schemaId", unifiedSchemaID)
+							} else {
+								logger.Log.Warn("Failed to parse schema from API Server", "Error", parseErr)
+							}
+						}
+					}
+				} else if len(results) >= 2 && !results[1].IsNil() {
+					// Error occurred (schema not found or other error)
+					logger.Log.Debug("Failed to get schema from API Server", "Error", results[1].Interface())
+				}
+			}
+		}
+	}
+
+	// Fallback to database if schema service is available
+	if schema == nil && f.SchemaService != nil {
 		// Use reflection to call GetActiveSchema method
 		schemaServiceValue := reflect.ValueOf(f.SchemaService)
 		if schemaServiceValue.IsValid() && !schemaServiceValue.IsNil() {
@@ -513,29 +562,6 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 
 	wg.Wait()
 	return FederationResponse
-}
-
-func (f *Federator) mergeResponses(responses []ProviderResponse) graphql.Response {
-	merged := graphql.Response{
-		Data:   make(map[string]interface{}),
-		Errors: make([]interface{}, 0),
-	}
-
-	for _, resp := range responses {
-		if resp.Response.Data != nil {
-			for k, v := range resp.Response.Data {
-				// wrap v with service key
-				merged.Data[resp.ServiceKey] = map[string]interface{}{
-					k: v,
-				}
-			}
-		}
-		if resp.Response.Errors != nil {
-			merged.Errors = append(merged.Errors, resp.Response.Errors...)
-		}
-	}
-
-	return merged
 }
 
 // loadSchemaFromFile loads the schema from schema.graphql file as a fallback
