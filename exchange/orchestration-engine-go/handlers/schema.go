@@ -10,13 +10,15 @@ import (
 
 // SchemaHandler handles HTTP requests for schema management
 type SchemaHandler struct {
-	schemaService *services.SchemaService
+	schemaService   *services.SchemaService
+	apiServerClient *services.APIServerClient
 }
 
 // NewSchemaHandler creates a new schema handler
-func NewSchemaHandler(schemaService *services.SchemaService) *SchemaHandler {
+func NewSchemaHandler(schemaService *services.SchemaService, apiServerClient *services.APIServerClient) *SchemaHandler {
 	return &SchemaHandler{
-		schemaService: schemaService,
+		schemaService:   schemaService,
+		apiServerClient: apiServerClient,
 	}
 }
 
@@ -170,4 +172,60 @@ func (h *SchemaHandler) CheckCompatibility(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// RegisterSchemaRequest represents a request to register a schema to API Server
+type RegisterSchemaRequest struct {
+	SchemaID   string `json:"schemaId"`
+	SchemaName string `json:"schemaName"`
+	SDL        string `json:"sdl"`
+	Version    string `json:"version"`
+}
+
+// RegisterSchema handles POST /schemas/register - register unified schema to API Server
+func (h *SchemaHandler) RegisterSchema(w http.ResponseWriter, r *http.Request) {
+	if h.apiServerClient == nil {
+		http.Error(w, "API Server client not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req RegisterSchemaRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.SDL == "" {
+		http.Error(w, "SDL is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.SchemaID == "" {
+		req.SchemaID = "unified-schema-v1"
+	}
+
+	if req.SchemaName == "" {
+		req.SchemaName = "Unified Schema"
+	}
+
+	if req.Version == "" {
+		req.Version = "1.0.0"
+	}
+
+	// Validate SDL syntax
+	if h.schemaService != nil && !h.schemaService.ValidateSDL(req.SDL) {
+		http.Error(w, "Invalid SDL syntax", http.StatusBadRequest)
+		return
+	}
+
+	// Register to API Server
+	schema, err := h.apiServerClient.RegisterSchema(req.SchemaID, req.SchemaName, req.SDL, req.Version)
+	if err != nil {
+		http.Error(w, "Failed to register schema: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(schema)
 }
