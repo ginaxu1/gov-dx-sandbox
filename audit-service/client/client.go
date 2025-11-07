@@ -14,16 +14,16 @@ type AuditClient interface {
 
 	// LogManagementEvent logs a management event (Case 2) from API Server
 	// This is called asynchronously (fire-and-forget) to avoid blocking
-	LogManagementEvent(ctx context.Context, event ManagementEvent) error
+	LogManagementEvent(ctx context.Context, event ManagementEventRequest) error
 }
 
 // NewAuditClient creates a new audit client
-// If auditServiceURL is empty, returns a no-op client that does nothing
-// This allows services to work even when audit service is not configured
+// If auditServiceURL is empty, returns nil
+// Callers should check for nil before using the client
 func NewAuditClient(auditServiceURL string) AuditClient {
 	if auditServiceURL == "" {
-		slog.Info("Audit service URL not provided, using no-op client")
-		return &noOpClient{}
+		slog.Info("Audit service URL not provided, audit client will be nil")
+		return nil
 	}
 	return &httpClient{
 		baseURL:    auditServiceURL,
