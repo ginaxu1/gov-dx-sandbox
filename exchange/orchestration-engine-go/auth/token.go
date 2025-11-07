@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -22,8 +21,7 @@ const (
 	ClaimAppID      = WSO2ClaimPrefix + "applicationid"
 )
 
-func GetConsumerJwtFromToken(r *http.Request) (*ConsumerAssertion, error) {
-	env := configs.AppConfig.Environment
+func GetConsumerJwtFromToken(env string, r *http.Request) (*ConsumerAssertion, error) {
 	if env == "local" {
 		// Return dummy values in local environment
 		return &ConsumerAssertion{

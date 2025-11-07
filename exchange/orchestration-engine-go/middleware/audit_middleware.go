@@ -207,7 +207,7 @@ func (am *AuditMiddleware) getActiveSchemaID() string {
 // getApplicationIDFromConsumer extracts application_id from consumer_applications table
 func (am *AuditMiddleware) getApplicationIDFromConsumer(r *http.Request) string {
 	// Try to get consumer information from JWT token
-	consumerAssertion, err := auth.GetConsumerJwtFromToken(r)
+	consumerAssertion, err := auth.GetConsumerJwtFromToken("production", r)
 	if err != nil || consumerAssertion == nil {
 		logger.Log.Warn("Failed to get consumer assertion from token", "error", err)
 		return "unknown-app"
