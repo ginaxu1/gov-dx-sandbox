@@ -15,8 +15,7 @@ info:
     - Retrieving management event logs (GET /api/events)
     - Logs administrative actions (Member/Admin operations on schemas, applications, members, etc.)
     
-    **Legacy Endpoints (for backward compatibility)**
-    - Creating audit log entries (POST /api/logs)
+    **Query Endpoints**
     - Retrieving audit logs for different portals (GET /api/logs)
     
     The service maintains a comprehensive audit trail of all data access requests
@@ -183,60 +182,6 @@ paths:
                     offset: 0
         '400':
           description: Bad request - invalid query parameters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    post:
-      summary: Create Log Entry
-      description: Create a new audit log entry
-      operationId: createLog
-      tags:
-        - Logs
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LogRequest'
-            examples:
-              success_log:
-                summary: Successful Request Log
-                value:
-                  status: "success"
-                  requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
-                  consumerId: "consumer-123"
-                  providerId: "provider-456"
-              failure_log:
-                summary: Failed Request Log
-                value:
-                  status: "failure"
-                  requestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }"
-                  consumerId: "consumer-789"
-                  providerId: "provider-456"
-      responses:
-        '201':
-          description: Log created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Log'
-              example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
-                timestamp: "2024-01-15T10:30:00Z"
-                status: "success"
-                requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
-                consumerId: "consumer-123"
-                providerId: "provider-456"
-        '400':
-          description: Bad request - invalid log data
           content:
             application/json:
               schema:
