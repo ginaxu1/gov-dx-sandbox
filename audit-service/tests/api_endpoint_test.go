@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -40,162 +39,8 @@ func TestHealthEndpoint(t *testing.T) {
 	})
 }
 
-// TestPOSTLogsEndpoint tests the POST /api/logs endpoint
-func TestPOSTLogsEndpoint(t *testing.T) {
-	server := SetupTestServer(t)
-	defer server.Close()
-
-	t.Run("CreateLog_Success", func(t *testing.T) {
-		reqBody := models.LogRequest{
-			Status:        "success",
-			RequestedData: "query { personInfo(nic: \"199512345678\") { fullName } }",
-			ApplicationID: "app-123",
-			SchemaID:      "schema-456",
-		}
-
-		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/api/logs", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.Handler.CreateLog(w, req)
-
-		// Verify response
-		if w.Code != http.StatusCreated {
-			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
-		}
-
-		var response models.Log
-		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-			t.Fatalf("Failed to unmarshal response: %v", err)
-		}
-
-		// Validate response fields
-		if response.Status != "success" {
-			t.Errorf("Expected status 'success', got '%s'", response.Status)
-		}
-		if response.RequestedData != reqBody.RequestedData {
-			t.Errorf("Expected requestedData '%s', got '%s'", reqBody.RequestedData, response.RequestedData)
-		}
-		if response.ApplicationID != reqBody.ApplicationID {
-			t.Errorf("Expected applicationId '%s', got '%s'", reqBody.ApplicationID, response.ApplicationID)
-		}
-		if response.SchemaID != reqBody.SchemaID {
-			t.Errorf("Expected schemaId '%s', got '%s'", reqBody.SchemaID, response.SchemaID)
-		}
-		if response.ID == "" {
-			t.Error("Expected ID to be generated")
-		}
-		if response.Timestamp.IsZero() {
-			t.Error("Expected timestamp to be set")
-		}
-	})
-
-	t.Run("CreateLog_Failure", func(t *testing.T) {
-		reqBody := models.LogRequest{
-			Status:        "failure",
-			RequestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }",
-			ApplicationID: "app-789",
-			SchemaID:      "schema-456",
-		}
-
-		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/api/logs", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.Handler.CreateLog(w, req)
-
-		// Verify response
-		if w.Code != http.StatusCreated {
-			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
-		}
-
-		var response models.Log
-		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-			t.Fatalf("Failed to unmarshal response: %v", err)
-		}
-
-		// Validate response fields
-		if response.Status != "failure" {
-			t.Errorf("Expected status 'failure', got '%s'", response.Status)
-		}
-	})
-
-	t.Run("CreateLog_InvalidStatus", func(t *testing.T) {
-		reqBody := models.LogRequest{
-			Status:        "invalid",
-			RequestedData: "query { test }",
-			ApplicationID: "app-123",
-			SchemaID:      "schema-456",
-		}
-
-		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/api/logs", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.Handler.CreateLog(w, req)
-
-		// Verify response
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
-		}
-	})
-
-	t.Run("CreateLog_MissingStatus", func(t *testing.T) {
-		reqBody := models.LogRequest{
-			RequestedData: "query { test }",
-			ApplicationID: "app-123",
-			SchemaID:      "schema-456",
-		}
-
-		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/api/logs", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.Handler.CreateLog(w, req)
-
-		// Verify response
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
-		}
-	})
-
-	t.Run("CreateLog_MissingRequestedData", func(t *testing.T) {
-		reqBody := models.LogRequest{
-			Status:        "success",
-			ApplicationID: "app-123",
-			SchemaID:      "schema-456",
-		}
-
-		jsonBody, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest("POST", "/api/logs", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.Handler.CreateLog(w, req)
-
-		// Verify response
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
-		}
-	})
-
-	t.Run("CreateLog_InvalidJSON", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/api/logs", bytes.NewBufferString("invalid json"))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.Handler.CreateLog(w, req)
-
-		// Verify response
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d, got %d", http.StatusBadRequest, w.Code)
-		}
-	})
-}
+// Note: POST /api/logs endpoint was removed. Use POST /v1/audit/exchange for data exchange events.
+// See data_exchange_test.go for tests of the new endpoint.
 
 // TestGETLogsEndpoint tests the GET /api/logs endpoint
 func TestGETLogsEndpoint(t *testing.T) {
@@ -464,7 +309,7 @@ func TestLogsEndpointIntegration(t *testing.T) {
 	defer server.Close()
 
 	t.Run("FullWorkflow_AdminPortal", func(t *testing.T) {
-		// 1. Create a log entry
+		// 1. Create a log entry using the service directly (POST /api/logs was removed)
 		createReq := models.LogRequest{
 			Status:        "success",
 			RequestedData: "query { integrationTest }",
@@ -472,25 +317,14 @@ func TestLogsEndpointIntegration(t *testing.T) {
 			SchemaID:      "integration-schema",
 		}
 
-		jsonBody, _ := json.Marshal(createReq)
-		req := httptest.NewRequest("POST", "/api/logs", bytes.NewBuffer(jsonBody))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		server.Handler.CreateLog(w, req)
-
-		if w.Code != http.StatusCreated {
-			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
-		}
-
-		var createdLog models.Log
-		if err := json.Unmarshal(w.Body.Bytes(), &createdLog); err != nil {
-			t.Fatalf("Failed to unmarshal created log: %v", err)
+		createdLog, err := server.AuditService.CreateLog(context.Background(), &createReq)
+		if err != nil {
+			t.Fatalf("Failed to create log: %v", err)
 		}
 
 		// 2. Retrieve all logs (admin portal)
-		req = httptest.NewRequest("GET", "/api/logs", nil)
-		w = httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/api/logs", nil)
+		w := httptest.NewRecorder()
 
 		server.Handler.GetLogs(w, req)
 
