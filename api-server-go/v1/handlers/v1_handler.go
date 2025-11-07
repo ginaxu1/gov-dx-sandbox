@@ -14,6 +14,7 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/v1/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
+	auditclient "github.com/gov-dx-sandbox/audit-service/client"
 
 	"gorm.io/gorm"
 )
@@ -23,6 +24,7 @@ type V1Handler struct {
 	memberService      *services.MemberService
 	applicationService *services.ApplicationService
 	schemaService      *services.SchemaService
+	auditClient        auditclient.AuditClient
 }
 
 // NewV1Handler creates a new V1 handler
@@ -64,6 +66,7 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 		memberService:      memberService,
 		schemaService:      services.NewSchemaService(db, pdpService),
 		applicationService: services.NewApplicationService(db, pdpService),
+		auditClient:        nil,
 	}, nil
 }
 
@@ -309,8 +312,13 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "MEMBERS", member.MemberID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "CREATE", "MEMBERS", member.MemberID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, member)
 }
@@ -329,8 +337,13 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware (path extraction may have missed it)
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "MEMBERS", member.MemberID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "UPDATE", "MEMBERS", member.MemberID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
@@ -356,6 +369,63 @@ func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request, idpUse
 		Count: len(members),
 	}
 	utils.RespondWithSuccess(w, http.StatusOK, response)
+}
+
+// extractUserInfo extracts user information from request headers
+// Returns actorType ("USER" or "SERVICE"), actorID, and actorRole ("MEMBER" or "ADMIN")
+func (h *V1Handler) extractUserInfo(r *http.Request) (actorType string, actorID *string, actorRole *string) {
+	// Try to extract from headers (common patterns)
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		userID = r.Header.Get("X-Auth-User-ID")
+	}
+
+	role := r.Header.Get("X-User-Role")
+	if role == "" {
+		role = r.Header.Get("X-Auth-Role")
+	}
+
+	// If we have user info, use USER type, otherwise use SERVICE
+	if userID != "" {
+		actorType = "USER"
+		actorID = &userID
+		if role != "" && (role == "MEMBER" || role == "ADMIN") {
+			actorRole = &role
+		} else {
+			// Default to MEMBER if role not specified
+			defaultRole := "MEMBER"
+			actorRole = &defaultRole
+		}
+	} else {
+		actorType = "SERVICE"
+		actorID = nil
+		actorRole = nil
+	}
+
+	return actorType, actorID, actorRole
+}
+
+// logManagementEvent logs a management event using the audit client
+func (h *V1Handler) logManagementEvent(r *http.Request, eventType, targetResource, targetResourceID string) {
+	if h.auditClient == nil {
+		return // Audit client disabled
+	}
+
+	actorType, actorID, actorRole := h.extractUserInfo(r)
+
+	// Log asynchronously (fire-and-forget)
+	_ = h.auditClient.LogManagementEvent(r.Context(), auditclient.ManagementEvent{
+		EventType: eventType,
+		Actor: auditclient.Actor{
+			Type: actorType,
+			ID:   actorID,
+			Role: actorRole,
+		},
+		Target: auditclient.Target{
+			Resource:   targetResource,
+			ResourceID: targetResourceID,
+		},
+	})
 }
 
 // Schema handlers
@@ -400,8 +470,13 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "CREATE", "SCHEMA-SUBMISSIONS", submission.SubmissionID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -420,8 +495,13 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "UPDATE", "SCHEMA-SUBMISSIONS", submission.SubmissionID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -463,8 +543,13 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "CREATE", "SCHEMAS", schema.SchemaID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
@@ -483,8 +568,13 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "UPDATE", "SCHEMAS", schema.SchemaID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
@@ -531,8 +621,13 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "CREATE", "APPLICATION-SUBMISSIONS", submission.SubmissionID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -551,8 +646,13 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "UPDATE", "APPLICATION-SUBMISSIONS", submission.SubmissionID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -594,8 +694,13 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "CREATE", "APPLICATIONS", application.ApplicationID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
@@ -614,8 +719,13 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 		return
 	}
 
+<<<<<<< HEAD
 	// Set resource ID in context for audit middleware
 	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
+=======
+	// Log management event
+	h.logManagementEvent(r, "UPDATE", "APPLICATIONS", application.ApplicationID)
+>>>>>>> dbed626 (Remove audit-middleware, call audit-service directly)
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
 }
