@@ -202,8 +202,10 @@ paths:
         
         Each provider interaction is logged separately with:
         - Who requested the data (actorUserId, consumerAppId)
+        - Which member owns the consumer application (consumerId - REQUIRED)
         - On behalf of whom (onBehalfOfOwnerId - the citizen/data owner)
         - Which provider schema was accessed (providerSchemaId)
+        - Which member owns the provider schema (providerId - REQUIRED)
         - What fields were requested (requestedFields)
         - Whether the request succeeded or failed (status)
       operationId: createDataExchangeEvent
@@ -223,8 +225,10 @@ paths:
                   timestamp: "2024-01-15T10:30:00Z"
                   actorUserId: "user-123"
                   consumerAppId: "passport-app"
+                  consumerId: "member-consumer-123"
                   onBehalfOfOwnerId: "citizen-abc"
                   providerSchemaId: "hospital-schema-v1"
+                  providerId: "member-provider-456"
                   requestedFields:
                     - "personInfo.name"
                     - "personInfo.address"
@@ -236,8 +240,10 @@ paths:
                   timestamp: "2024-01-15T10:35:00Z"
                   actorUserId: "user-123"
                   consumerAppId: "passport-app"
+                  consumerId: "member-consumer-123"
                   onBehalfOfOwnerId: "citizen-abc"
                   providerSchemaId: "hospital-schema-v1"
+                  providerId: "member-provider-456"
                   requestedFields:
                     - "personInfo.name"
                   status: "FAILURE"
@@ -255,14 +261,27 @@ paths:
                 requestedData: '["personInfo.name","personInfo.address"]'
                 applicationId: "passport-app"
                 schemaId: "hospital-schema-v1"
+                consumerId: "member-consumer-123"
+                providerId: "member-provider-456"
         '400':
           description: Bad request - invalid event data (missing required fields or invalid status)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "Missing required field: consumerAppId"
+              examples:
+                missing_consumer_app_id:
+                  value:
+                    error: "Missing required field: consumerAppId"
+                missing_consumer_id:
+                  value:
+                    error: "Missing required field: consumerId (member ID who owns the consumer application)"
+                missing_provider_id:
+                  value:
+                    error: "Missing required field: providerId (member ID who owns the provider schema)"
+                invalid_status:
+                  value:
+                    error: "Invalid status. Must be 'SUCCESS' or 'FAILURE'"
         '500':
           description: Internal server error
           content:
@@ -638,7 +657,17 @@ components:
 
     DataExchangeEvent:
       type: object
-      description: Data exchange event structure - sent by Orchestration Engine
+      description: |
+        Data exchange event structure - sent by Orchestration Engine.
+        
+        **Required Fields:**
+        - `consumerAppId`: The consumer application that made the request
+        - `consumerId`: The member ID who owns the consumer application (REQUIRED for data exchange events)
+        - `providerSchemaId`: The provider schema that was accessed
+        - `providerId`: The member ID who owns the provider schema (REQUIRED for data exchange events)
+        - `status`: Whether the request succeeded or failed
+        
+        These member IDs are essential for answering the business question: "Show me all data exchanges where Consumer-Member-A accessed data from Provider-Member-B."
       properties:
         eventId:
           type: string
@@ -656,8 +685,12 @@ components:
           example: "user-123"
         consumerAppId:
           type: string
-          description: Consumer application ID
+          description: Consumer application ID (e.g., "passport-app")
           example: "passport-app"
+        consumerId:
+          type: string
+          description: Member ID who owns the consumer application (REQUIRED for data exchange events)
+          example: "member-consumer-123"
         onBehalfOfOwnerId:
           type: string
           description: Citizen ID (data owner) on whose behalf the data is requested
@@ -666,6 +699,10 @@ components:
           type: string
           description: Provider schema ID that was accessed
           example: "hospital-schema-v1"
+        providerId:
+          type: string
+          description: Member ID who owns the provider schema (REQUIRED for data exchange events)
+          example: "member-provider-456"
         requestedFields:
           type: array
           description: List of requested fields from the provider
@@ -681,7 +718,9 @@ components:
           example: "SUCCESS"
       required:
         - consumerAppId
+        - consumerId
         - providerSchemaId
+        - providerId
         - status
 
     ManagementEventRequest:
