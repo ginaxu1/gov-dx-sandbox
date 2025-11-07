@@ -447,7 +447,6 @@ func TestManagementEventEndpoint(t *testing.T) {
 	})
 
 	t.Run("GetEvents_CombinedFilters", func(t *testing.T) {
-		actorID := "user-123"
 		req := httptest.NewRequest("GET", "/api/events?eventType=CREATE&actorType=USER&targetResource=SCHEMAS", nil)
 		w := httptest.NewRecorder()
 
@@ -473,8 +472,6 @@ func TestManagementEventEndpoint(t *testing.T) {
 				t.Errorf("Expected targetResource 'SCHEMAS', got %s", event.TargetResource)
 			}
 		}
-
-		_ = actorID // Suppress unused variable warning
 	})
 }
 

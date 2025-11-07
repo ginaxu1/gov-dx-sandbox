@@ -900,7 +900,7 @@ tags:
   - name: Health
     description: Health check endpoints
   - name: Logs
-    description: Simplified log access for admin and entity portals (legacy endpoints)
+    description: Query endpoint for retrieving data exchange audit logs (for Admin Portal and Entity Portals)
   - name: Data Exchange
     description: Data exchange audit logging - called by Orchestration Engine
   - name: Management Events
