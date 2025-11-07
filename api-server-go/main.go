@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
@@ -42,25 +41,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create a mux just for API routes that need auditing
+	// Create a mux for API routes
 	apiMux := http.NewServeMux()
 	v1Handler.SetupV1Routes(apiMux) // All /api/v1/... routes go here
 
 	// Setup CORS middleware
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
-	// Setup Audit middleware, reading the correct connection variable
-	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
-	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
-
-	// Apply middleware chain (CORS -> Audit) to the API mux ONLY
-	auditedAPIHandler := corsMiddleware(auditMiddleware.AuditLoggingMiddleware(apiMux))
+	// Apply CORS middleware to the API mux
+	// Note: Audit logging is now done directly in handlers, no middleware needed
+	apiHandler := corsMiddleware(apiMux)
 
 	// Create the MAIN (top-level) mux for all incoming traffic
 	topLevelMux := http.NewServeMux()
 
 	// Register public routes directly on the top-level mux
-	// These routes will bypass the audit middleware
 	topLevelMux.Handle("/health", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		type DBHealth struct {
 			Status   string `json:"status"`
@@ -171,9 +166,9 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
-	// Register the audited API routes to the top-level mux
-	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware
-	topLevelMux.Handle("/api/v1/", auditedAPIHandler)
+	// Register the API routes to the top-level mux
+	// Note: Audit logging is now done directly in handlers, no middleware needed
+	topLevelMux.Handle("/api/v1/", apiHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
