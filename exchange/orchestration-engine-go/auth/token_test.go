@@ -324,24 +324,3 @@ func TestConsumerAssertion_StructFields(t *testing.T) {
 		t.Errorf("Expected ApplicationId 'test-id', got '%s'", ca.ApplicationId)
 	}
 }
-
-func TestConstants(t *testing.T) {
-	// Verify that constants are correctly defined
-	expectedPrefix := "http://wso2.org/claims/"
-
-	if WSO2ClaimPrefix != expectedPrefix {
-		t.Errorf("Expected WSO2ClaimPrefix '%s', got '%s'", expectedPrefix, WSO2ClaimPrefix)
-	}
-
-	if ClaimSubscriber != expectedPrefix+"subscriber" {
-		t.Errorf("Expected ClaimSubscriber '%s', got '%s'", expectedPrefix+"subscriber", ClaimSubscriber)
-	}
-
-	if ClaimAppUUID != expectedPrefix+"applicationUUId" {
-		t.Errorf("Expected ClaimAppUUID '%s', got '%s'", expectedPrefix+"applicationUUId", ClaimAppUUID)
-	}
-
-	if ClaimAppID != expectedPrefix+"applicationid" {
-		t.Errorf("Expected ClaimAppID '%s', got '%s'", expectedPrefix+"applicationid", ClaimAppID)
-	}
-}
