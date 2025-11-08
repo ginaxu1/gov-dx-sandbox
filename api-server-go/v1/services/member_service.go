@@ -25,26 +25,37 @@ func NewMemberService(db *gorm.DB, idp *idp.IdentityProviderAPI) *MemberService 
 
 // CreateMember creates a new Member
 func (s *MemberService) CreateMember(req *models.CreateMemberRequest) (*models.MemberResponse, error) {
-	// Create user in the IDP using the factory-created client
 	ctx := context.Background()
 
+	// Create user in the IDP using the factory-created client
 	userInstance := &idp.User{
 		Email:       req.Email,
 		FirstName:   req.Name,
 		LastName:    "",
 		PhoneNumber: req.PhoneNumber,
 	}
-
 	createdUser, err := (*s.idp).CreateUser(ctx, userInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user in IDP: %w", err)
 	}
-
 	if createdUser.Email != userInstance.Email {
 		return nil, fmt.Errorf("IDP user email mismatch")
 	}
-
 	slog.Info("Created user in IDP", "userID", createdUser.Id)
+
+	// Add user to UserGroupMember in the IDP
+	patchGroupMember := &idp.GroupMember{
+		Value:   createdUser.Id,
+		Display: createdUser.Email,
+	}
+	groupId, err := (*s.idp).AddMemberToGroupByGroupName(ctx, string(models.UserGroupMember), patchGroupMember)
+	if err != nil {
+		deleteErr := (*s.idp).DeleteUser(ctx, createdUser.Id)
+		if deleteErr != nil {
+			return nil, fmt.Errorf("failed to rollback user creation in IDP: %w", deleteErr)
+		}
+		return nil, fmt.Errorf("failed to add user to group in IDP: %w", err)
+	}
 
 	// Create Member in the database
 	member := models.Member{
@@ -54,25 +65,16 @@ func (s *MemberService) CreateMember(req *models.CreateMemberRequest) (*models.M
 		PhoneNumber: req.PhoneNumber,
 		IdpUserID:   createdUser.Id,
 	}
-
-	patchGroupMember := &idp.GroupMember{
-		Value:   createdUser.Id,
-		Display: createdUser.Email,
-	}
-	// Add user to UserGroupMember in the IDP
-	if err := (*s.idp).AddMemberToGroup(ctx, string(models.UserGroupMember), patchGroupMember); err != nil {
-		deleteErr := (*s.idp).DeleteUser(ctx, createdUser.Id)
-		if deleteErr != nil {
-			return nil, deleteErr
-		}
-		return nil, fmt.Errorf("failed to add user to group in IDP: %w", err)
-	}
-
 	if err := s.db.Create(&member).Error; err != nil {
+		// Delete user from IDP group if adding to DB fails
+		removeErr := (*s.idp).RemoveMemberFromGroup(ctx, *groupId, createdUser.Id)
+		if removeErr != nil {
+			return nil, fmt.Errorf("failed to rollback group membership in IDP: %w", removeErr)
+		}
 		// Rollback IDP user creation if DB operation fails (not implemented here)
 		err := (*s.idp).DeleteUser(ctx, createdUser.Id)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to rollback user creation in IDP: %w", err)
 		}
 		return nil, fmt.Errorf("failed to create member: %w", err)
 	}
