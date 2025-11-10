@@ -400,6 +400,8 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -418,6 +420,8 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -459,6 +463,8 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
@@ -477,6 +483,8 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
@@ -523,6 +531,8 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -541,6 +551,8 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -582,6 +594,8 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
@@ -600,6 +614,8 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
 }

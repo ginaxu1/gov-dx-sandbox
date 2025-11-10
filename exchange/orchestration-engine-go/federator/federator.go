@@ -551,6 +551,11 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest,
 
 // logAuditEvent logs a data exchange event to the audit service
 func (f *Federator) logAuditEvent(ctx context.Context, consumerAppID, providerSchemaID string, req *federationServiceRequest, providerFieldMap *[]ProviderLevelFieldRecord, status string, err error) {
+	// Skip logging if audit client is not configured
+	if f.AuditClient == nil {
+		return
+	}
+
 	// Extract requested fields for this provider
 	requestedFields := make([]string, 0)
 	if providerFieldMap != nil {
