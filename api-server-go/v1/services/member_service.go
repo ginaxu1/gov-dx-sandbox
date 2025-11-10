@@ -65,18 +65,18 @@ func (s *MemberService) CreateMember(req *models.CreateMemberRequest) (*models.M
 		PhoneNumber: req.PhoneNumber,
 		IdpUserID:   createdUser.Id,
 	}
-	if err := s.db.Create(&member).Error; err != nil {
+	if dbErr := s.db.Create(&member).Error; dbErr != nil {
 		// Delete user from IDP group if adding to DB fails
-		removeErr := (*s.idp).RemoveMemberFromGroup(ctx, *groupId, createdUser.Id)
-		if removeErr != nil {
-			return nil, fmt.Errorf("failed to rollback group membership in IDP: %w", removeErr)
+		removeFromGroupIdpErr := (*s.idp).RemoveMemberFromGroup(ctx, *groupId, createdUser.Id)
+		if removeFromGroupIdpErr != nil {
+			return nil, fmt.Errorf("failed to create member: %w, and failed to rollback user group addition in IDP: %w", dbErr, removeFromGroupIdpErr)
 		}
-		// Rollback IDP user creation if DB operation fails (not implemented here)
-		err := (*s.idp).DeleteUser(ctx, createdUser.Id)
-		if err != nil {
-			return nil, fmt.Errorf("failed to rollback user creation in IDP: %w", err)
+		// Rollback IDP user creation if DB operation fails
+		rollbackUserCreationIdpErr := (*s.idp).DeleteUser(ctx, createdUser.Id)
+		if rollbackUserCreationIdpErr != nil {
+			return nil, fmt.Errorf("failed to create member: %w, and failed to create member: %w", dbErr, rollbackUserCreationIdpErr)
 		}
-		return nil, fmt.Errorf("failed to create member: %w", err)
+		return nil, fmt.Errorf("failed to create member: %w", dbErr)
 	}
 
 	response := &models.MemberResponse{

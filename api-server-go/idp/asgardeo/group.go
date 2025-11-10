@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -93,7 +94,7 @@ func (a *Client) CreateGroup(ctx context.Context, group *idp.Group) (*idp.GroupI
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close response body: %v\n", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}(res.Body)
 
@@ -141,7 +142,7 @@ func (a *Client) GetGroup(ctx context.Context, groupId string) (*idp.GroupInfo, 
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close response body: %v\n", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}(res.Body)
 
@@ -175,8 +176,8 @@ func (a *Client) GetGroup(ctx context.Context, groupId string) (*idp.GroupInfo, 
 }
 
 func (a *Client) GetGroupByName(ctx context.Context, groupName string) (*string, error) {
-	url := fmt.Sprintf("%s/scim2/Groups?filter=displayName eq \"%s\"", a.BaseURL, fmt.Sprintf("DEFAULT/%s", groupName))
-
+	displayName := fmt.Sprintf("DEFAULT/%s", groupName)
+	url := fmt.Sprintf("%s/scim2/Groups?filter=displayName eq \"%s\"", a.BaseURL, displayName)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -189,7 +190,7 @@ func (a *Client) GetGroupByName(ctx context.Context, groupName string) (*string,
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close response body: %v\n", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}(res.Body)
 
@@ -253,7 +254,7 @@ func (a *Client) UpdateGroup(ctx context.Context, groupId string, group *idp.Gro
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close response body: %v\n", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}(res.Body)
 
@@ -301,7 +302,7 @@ func (a *Client) DeleteGroup(ctx context.Context, groupId string) error {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close response body: %v\n", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}(res.Body)
 
@@ -352,7 +353,7 @@ func (a *Client) AddMemberToGroup(ctx context.Context, groupId *string, memberIn
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close response body: %v\n", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}(res.Body)
 
@@ -404,7 +405,7 @@ func (a *Client) RemoveMemberFromGroup(ctx context.Context, groupId string, user
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close response body: %v\n", err)
+			slog.Error("failed to close response body", "error", err)
 		}
 	}(res.Body)
 
