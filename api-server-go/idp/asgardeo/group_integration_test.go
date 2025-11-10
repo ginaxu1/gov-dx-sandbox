@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/idp"
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 )
 
 func TestGetGroupIntegration(t *testing.T) {
@@ -432,7 +433,7 @@ func TestAddMemberToGroupByGroupNameIntegration(t *testing.T) {
 		Display: createdUser.Email,
 	}
 	// Step 2: Add user to group by group name
-	groupName := "UserGroupMember"
+	groupName := string(models.UserGroupMember)
 	groupId, err := client.AddMemberToGroupByGroupName(ctx, groupName, patchGroupMember)
 	if err != nil {
 		// Clean up

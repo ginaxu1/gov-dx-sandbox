@@ -52,7 +52,7 @@ func (s *MemberService) CreateMember(req *models.CreateMemberRequest) (*models.M
 	if err != nil {
 		deleteErr := (*s.idp).DeleteUser(ctx, createdUser.Id)
 		if deleteErr != nil {
-			return nil, fmt.Errorf("failed to rollback user creation in IDP: %w", deleteErr)
+			return nil, fmt.Errorf("failed to add user to group in IDP: %w, and failed to rollback user creation in IDP: %w", err, deleteErr)
 		}
 		return nil, fmt.Errorf("failed to add user to group in IDP: %w", err)
 	}
@@ -66,17 +66,18 @@ func (s *MemberService) CreateMember(req *models.CreateMemberRequest) (*models.M
 		IdpUserID:   createdUser.Id,
 	}
 	if dbErr := s.db.Create(&member).Error; dbErr != nil {
-		// Delete user from IDP group if adding to DB fails
+		// Attempt to remove user from IDP group
 		removeFromGroupIdpErr := (*s.idp).RemoveMemberFromGroup(ctx, *groupId, createdUser.Id)
-		if removeFromGroupIdpErr != nil {
-			return nil, fmt.Errorf("failed to create member: %w, and failed to rollback user group addition in IDP: %w", dbErr, removeFromGroupIdpErr)
-		}
-		// Rollback IDP user creation if DB operation fails
+		// Attempt to delete user from IDP, regardless of group removal result
 		rollbackUserCreationIdpErr := (*s.idp).DeleteUser(ctx, createdUser.Id)
-		if rollbackUserCreationIdpErr != nil {
-			return nil, fmt.Errorf("failed to create member: %w, and failed to create member: %w", dbErr, rollbackUserCreationIdpErr)
+		// Aggregate errors
+		if removeFromGroupIdpErr != nil && rollbackUserCreationIdpErr != nil {
+			return nil, fmt.Errorf("failed to create member: %w, and failed to rollback user group addition in IDP: %w, and failed to rollback user creation in IDP: %w", dbErr, removeFromGroupIdpErr, rollbackUserCreationIdpErr)
+		} else if removeFromGroupIdpErr != nil {
+			return nil, fmt.Errorf("failed to create member: %w, and failed to rollback user group addition in IDP: %w", dbErr, removeFromGroupIdpErr)
+		} else if rollbackUserCreationIdpErr != nil {
+			return nil, fmt.Errorf("failed to create member: %w, and failed to rollback user creation in IDP: %w", dbErr, rollbackUserCreationIdpErr)
 		}
-		return nil, fmt.Errorf("failed to create member: %w", dbErr)
 	}
 
 	response := &models.MemberResponse{
