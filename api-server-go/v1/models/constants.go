@@ -5,7 +5,7 @@ type UserGroup string
 
 const (
 	UserGroupAdmin  UserGroup = "OpenDIF_Admin"
-	UserGroupMember UserGroup = "OpenDIF_Member"
+	UserGroupMember UserGroup = "OpenDIF_Members"
 )
 
 // Status represents the status of submissions and applications
