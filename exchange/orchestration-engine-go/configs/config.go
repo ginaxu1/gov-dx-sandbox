@@ -107,7 +107,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
-	return cfg, err
+	return cfg, nil
 }
 
 // GetProviders converts ProviderConfig slice to provider.Provider slice
