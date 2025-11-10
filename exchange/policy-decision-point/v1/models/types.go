@@ -109,9 +109,19 @@ func (al *AllowList) Scan(value interface{}) error {
 		return nil
 	}
 
-	bytes, ok := value.([]byte)
-	if !ok {
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
 		return fmt.Errorf("cannot scan %T into AllowList", value)
+	}
+
+	if len(bytes) == 0 {
+		*al = make(AllowList)
+		return nil
 	}
 
 	return json.Unmarshal(bytes, al)

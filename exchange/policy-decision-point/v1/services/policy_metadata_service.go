@@ -250,15 +250,16 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 
 	// Batch update all records in a single operation
 	if len(recordsToUpdate) > 0 {
-		// Convert slice of pointers to slice of values for batch update
-		var recordsToSave []models.PolicyMetadata
+		// Update each record individually to ensure custom types are properly serialized
 		for _, pm := range recordsToUpdate {
-			recordsToSave = append(recordsToSave, *pm)
-		}
-
-		if err := tx.Save(&recordsToSave).Error; err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to batch update allow list records: %w", err)
+			// Use Updates with Select to ensure allow_list is properly serialized
+			if err := tx.Model(pm).Select("allow_list", "updated_at").Updates(map[string]interface{}{
+				"allow_list": pm.AllowList,
+				"updated_at": time.Now(),
+			}).Error; err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("failed to update allow list record: %w", err)
+			}
 		}
 	}
 
