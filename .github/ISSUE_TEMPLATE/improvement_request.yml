@@ -1,0 +1,35 @@
+name: "🚀 Improvement Request"
+description: "Create new issue in LSFLK/OpenDIF: 🚀 Improvement Request"
+labels: ["Type/Improvement"]
+body:
+  - type: textarea
+    id: limitation
+    attributes:
+      label: "Current Limitation"
+      description: "Describe the current limitation."
+      placeholder: "What’s the current limitation or issue?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: "Suggested Improvement"
+      description: "Describe the improvement you suggest."
+      placeholder: "What could be improved and how?"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: "Version"
+      description: "Enter product version or commit."
+      placeholder: "e.g. v1.0.3 or commit hash"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Additional Context"
+      description: "Add any other context about the problem here."
+      placeholder: "Anything else you’d like to mention?"
