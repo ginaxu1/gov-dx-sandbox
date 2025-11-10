@@ -39,6 +39,10 @@ func (s *MemberService) CreateMember(ctx context.Context, req *models.CreateMemb
 		return nil, fmt.Errorf("failed to create user in IDP: %w", err)
 	}
 	if createdUser.Email != userInstance.Email {
+		deleteErr := (s.idp).DeleteUser(ctx, createdUser.Id)
+		if deleteErr != nil {
+			return nil, fmt.Errorf("IDP user email mismatch, and failed to rollback user creation in IDP: %w", deleteErr)
+		}
 		return nil, fmt.Errorf("IDP user email mismatch: expected %s, got %s", userInstance.Email, createdUser.Email)
 	}
 	slog.Info("Created user in IDP", "userID", createdUser.Id, "email", createdUser.Email)
