@@ -17,7 +17,7 @@ type FactoryConfig struct {
 }
 
 // asgardeoAdapter adapts *asgardeo.Client to match the idp.IdentityProviderAPI
-// method signatures (specifically AddMemberToGroup which expects a string, not *string).
+// method signatures (specifically AddMemberToGroup which expects a string (non-pointer), but the underlying asgardeo.Client expects a *string (pointer), so the adapter converts from string to *string).
 type asgardeoAdapter struct {
 	*asgardeo.Client
 }

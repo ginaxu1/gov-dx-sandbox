@@ -225,7 +225,7 @@ func (a *Client) GetGroupByName(ctx context.Context, groupName string) (*string,
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if response.TotalResults == 0 {
+	if response.TotalResults == 0 || len(response.Resources) == 0 {
 		return nil, fmt.Errorf("group with name %s not found", groupName)
 	}
 
