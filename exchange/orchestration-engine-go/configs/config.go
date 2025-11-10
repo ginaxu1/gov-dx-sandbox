@@ -95,7 +95,7 @@ func LoadConfigFile(path string) (*Config, error) {
 	return LoadConfigFromBytes(bytes)
 }
 
-// InitConfig is called usually from main()
+// LoadConfig is usually called from main()
 func LoadConfig() (*Config, error) {
 	path := os.Getenv("CONFIG_PATH")
 	if path == "" {
