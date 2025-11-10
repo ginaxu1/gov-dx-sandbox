@@ -235,6 +235,8 @@ func initTestDatabaseWithGORM(db *sql.DB, gormDB *gorm.DB) error {
 			requested_data TEXT NOT NULL,
 			application_id VARCHAR(255) NOT NULL,
 			schema_id VARCHAR(255) NOT NULL,
+			consumer_id VARCHAR(255),
+			provider_id VARCHAR(255),
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 		);
 	`
