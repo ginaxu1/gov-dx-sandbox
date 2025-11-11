@@ -65,32 +65,14 @@ type CeConfig struct {
 	ClientURL string `json:"clientUrl"`
 }
 
-// LoadConfig reads the configuration from the given path, unmarshals it,
-// and returns a pointer to the Config struct. It also sets the global AppConfig.
-func LoadConfig() (*Config, error) {
-	// Get config path from environment variable, default to ./config.json
-	path := os.Getenv("CONFIG_PATH")
-	if path == "" {
-		path = "./config.json"
-	}
-
-	// Read the entire file into memory.
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		// Return a clear error if the file cannot be read.
-		return nil, fmt.Errorf("error reading config file %s: %w", path, err)
-	}
-
-	// Initialize a new Config struct to hold the parsed data.
+// LoadConfigFromBytes unmarshals JSON into config (pure function, testable)
+func LoadConfigFromBytes(data []byte) (*Config, error) {
 	var config Config
-
-	// Unmarshal the JSON data into the Config struct.
-	// The json tags on the struct fields guide this process.
-	if err := json.Unmarshal(bytes, &config); err != nil {
+	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config JSON: %w", err)
 	}
 
-	// Set derived config values
+	// Derived config logic
 	if config.PdpConfig.ClientURL == "" && config.PdpURL != "" {
 		config.PdpConfig.ClientURL = config.PdpURL
 	}
@@ -101,8 +83,31 @@ func LoadConfig() (*Config, error) {
 		config.ArgMapping = config.ArgMappings
 	}
 
-	// Return the populated config object.
 	return &config, nil
+}
+
+// LoadConfigFile reads a file and uses LoadConfigFromBytes (IO separated)
+func LoadConfigFile(path string) (*Config, error) {
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading config file %s: %w", path, err)
+	}
+	return LoadConfigFromBytes(bytes)
+}
+
+// LoadConfig is usually called from main()
+func LoadConfig() (*Config, error) {
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "./config.json"
+	}
+
+	cfg, err := LoadConfigFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }
 
 // GetProviders converts ProviderConfig slice to provider.Provider slice
