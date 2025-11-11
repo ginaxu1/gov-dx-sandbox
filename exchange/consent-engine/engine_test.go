@@ -179,7 +179,7 @@ func TestConsentEngine_FindExistingConsent(t *testing.T) {
 		}
 
 		// Test finding existing consent
-		foundRecord := engine.FindExistingConsent("passport-app", "user123")
+		foundRecord := engine.FindExistingConsent("passport-app", "user123@example.com")
 		if foundRecord == nil {
 			t.Error("Expected to find existing consent record")
 		} else if foundRecord.ConsentID != createdRecord.ConsentID {
