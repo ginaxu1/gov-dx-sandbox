@@ -59,9 +59,11 @@ type ApplicationOIDCInfo struct {
 type GroupManager interface {
 	CreateGroup(ctx context.Context, group *Group) (*GroupInfo, error)
 	GetGroup(ctx context.Context, groupId string) (*GroupInfo, error)
+	GetGroupByName(ctx context.Context, groupName string) (*string, error)
 	UpdateGroup(ctx context.Context, groupId string, group *Group) (*GroupInfo, error)
 	DeleteGroup(ctx context.Context, groupId string) error
-	AddMemberToGroup(ctx context.Context, groupId string, userId *GroupMember) error
+	AddMemberToGroup(ctx context.Context, groupId string, memberInfo *GroupMember) error
+	AddMemberToGroupByGroupName(ctx context.Context, groupName string, memberInfo *GroupMember) (*string, error) // Returns groupId
 	RemoveMemberFromGroup(ctx context.Context, groupId string, userId string) error
 }
 

@@ -74,7 +74,7 @@ func NewTestV1HandlerWithMockPDP(t *testing.T, db *gorm.DB) *V1Handler {
 	if err != nil {
 		t.Fatalf("Failed to create test IDP provider: %v", err)
 	}
-	memberService := services.NewMemberService(db, &idpProvider)
+	memberService := services.NewMemberService(db, idpProvider)
 
 	// For testing, we'll use a real PDPService but skip actual HTTP calls
 	// In a real test, you'd use a test HTTP server
