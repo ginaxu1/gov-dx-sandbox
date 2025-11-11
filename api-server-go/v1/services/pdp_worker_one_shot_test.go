@@ -9,30 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockAlertNotifier is a test implementation of AlertNotifier
-type mockAlertNotifier struct {
-	alerts []alertCall
-}
-
-type alertCall struct {
-	severity string
-	message  string
-	details  map[string]interface{}
-}
-
-func (m *mockAlertNotifier) SendAlert(severity string, message string, details map[string]interface{}) error {
-	m.alerts = append(m.alerts, alertCall{
-		severity: severity,
-		message:  message,
-		details:  details,
-	})
-	return nil
-}
-
-func (m *mockAlertNotifier) reset() {
-	m.alerts = []alertCall{}
-}
-
 // TestPDPWorker_OneShot_Success tests Scenario A: PDP call succeeds
 func TestPDPWorker_OneShot_Success(t *testing.T) {
 	db := setupTestDB(t)

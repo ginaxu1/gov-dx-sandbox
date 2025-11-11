@@ -1226,70 +1226,6 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 
 // TestNewV1Handler tests the NewV1Handler constructor
 func TestNewV1Handler(t *testing.T) {
-	t.Run("NewV1Handler_MissingPDPURL", func(t *testing.T) {
-		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-		defer func() {
-			if originalURL != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", originalURL)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-			}
-			if originalKey != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY", originalKey)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-			}
-		}()
-
-		os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=api_server_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			t.Skip("Skipping test: could not connect to test database")
-			return
-		}
-
-		handler, err := NewV1Handler(db)
-		assert.Error(t, err)
-		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_SERVICEURL")
-	})
-
-	t.Run("NewV1Handler_MissingPDPKey", func(t *testing.T) {
-		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-		defer func() {
-			if originalURL != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", originalURL)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-			}
-			if originalKey != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY", originalKey)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-			}
-		}()
-
-		os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", "http://localhost:9999")
-		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=api_server_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			t.Skip("Skipping test: could not connect to test database")
-			return
-		}
-
-		handler, err := NewV1Handler(db)
-		assert.Error(t, err)
-		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-	})
-
 	t.Run("NewV1Handler_Success", func(t *testing.T) {
 		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
 		originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
@@ -1344,7 +1280,8 @@ func TestNewV1Handler(t *testing.T) {
 			return
 		}
 
-		handler, err := NewV1Handler(db)
+		mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+		handler, err := NewV1Handler(db, mockPDP)
 		assert.NoError(t, err)
 		assert.NotNil(t, handler)
 		assert.NotNil(t, handler.memberService)
@@ -1406,7 +1343,8 @@ func TestNewV1Handler(t *testing.T) {
 			return
 		}
 
-		handler, err := NewV1Handler(db)
+		mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+		handler, err := NewV1Handler(db, mockPDP)
 		assert.NoError(t, err)
 		assert.NotNil(t, handler)
 	})
@@ -1460,7 +1398,8 @@ func TestV1Handler_SetupV1Routes(t *testing.T) {
 	os.Setenv("ASGARDEO_CLIENT_ID", "test-client-id")
 	os.Setenv("ASGARDEO_CLIENT_SECRET", "test-client-secret")
 
-	handler, err := NewV1Handler(db)
+	mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+	handler, err := NewV1Handler(db, mockPDP)
 	if err != nil {
 		t.Fatalf("Failed to create handler: %v", err)
 	}
