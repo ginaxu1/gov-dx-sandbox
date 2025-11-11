@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 
@@ -73,88 +72,9 @@ func TestPDPWorker_ProcessUpdateAllowListJob(t *testing.T) {
 	assert.Equal(t, models.PDPJobStatusCompleted, updatedJob.Status)
 }
 
-// TestPDPWorker_ProcessJob_RetryOnFailure tests that jobs are retried on failure
-func TestPDPWorker_ProcessJob_RetryOnFailure(t *testing.T) {
-	db := setupTestDB(t)
-	callCount := 0
-	mockPDP := &mockPDPService{
-		createPolicyMetadataFunc: func(schemaID, sdl string) (*models.PolicyMetadataCreateResponse, error) {
-			callCount++
-			if callCount < 3 {
-				return nil, errors.New("PDP service temporarily unavailable")
-			}
-			return &models.PolicyMetadataCreateResponse{Records: []models.PolicyMetadataResponse{}}, nil
-		},
-	}
-	worker := NewPDPWorker(db, mockPDP, nil)
-
-	// Create a pending job
-	job := models.PDPJob{
-		JobID:    "job_retry",
-		JobType:  models.PDPJobTypeCreatePolicyMetadata,
-		SchemaID: stringPtr("schema_123"),
-		SDL:      stringPtr("type Person { name: String }"),
-		Status:   models.PDPJobStatusPending,
-	}
-	require.NoError(t, db.Create(&job).Error)
-
-	// Create a schema
-	schemaID := "schema_123"
-	schema := models.Schema{
-		SchemaID:   schemaID,
-		SchemaName: "Test Schema",
-		MemberID:   "member_123",
-	}
-	require.NoError(t, db.Create(&schema).Error)
-
-	// Process the job (should fail and compensate immediately - no retries)
-	worker.processJob(&job)
-	var updatedJob models.PDPJob
-	require.NoError(t, db.First(&updatedJob, "job_id = ?", job.JobID).Error)
-	assert.Equal(t, models.PDPJobStatusCompensated, updatedJob.Status) // Compensated, not pending
-	assert.NotNil(t, updatedJob.Error)
-
-	// Verify PDP was called exactly once (no retries)
-	assert.Equal(t, 1, callCount, "PDP should be called exactly once")
-
-	// Verify schema was deleted
-	var deletedSchema models.Schema
-	err := db.First(&deletedSchema, "schema_id = ?", schemaID).Error
-	assert.Error(t, err, "Schema should have been deleted")
-}
-
-// TestPDPWorker_ProcessJob_MaxRetriesExceeded tests that jobs fail after max retries
-func TestPDPWorker_ProcessJob_MaxRetriesExceeded(t *testing.T) {
-	db := setupTestDB(t)
-	mockPDP := &mockPDPService{
-		createPolicyMetadataFunc: func(schemaID, sdl string) (*models.PolicyMetadataCreateResponse, error) {
-			return nil, errors.New("PDP service permanently unavailable")
-		},
-	}
-	worker := NewPDPWorker(db, mockPDP, nil)
-
-	// Create a job but don't create the schema (compensation will fail)
-	schemaID := "schema_123"
-	job := models.PDPJob{
-		JobID:    "job_compensation_failed",
-		JobType:  models.PDPJobTypeCreatePolicyMetadata,
-		SchemaID: stringPtr(schemaID),
-		SDL:      stringPtr("type Person { name: String }"),
-		Status:   models.PDPJobStatusPending,
-	}
-	require.NoError(t, db.Create(&job).Error)
-
-	// Process the job (PDP fails, compensation fails)
-	worker.processJob(&job)
-
-	// Verify job was marked as compensation_failed
-	var updatedJob models.PDPJob
-	require.NoError(t, db.First(&updatedJob, "job_id = ?", job.JobID).Error)
-	assert.Equal(t, models.PDPJobStatusCompensationFailed, updatedJob.Status)
-	assert.NotNil(t, updatedJob.Error)
-	assert.Contains(t, *updatedJob.Error, "PDP call failed")
-	assert.Contains(t, *updatedJob.Error, "Compensation failed")
-}
+// Note: Tests for "no retries" and "compensation failure" are covered in pdp_worker_one_shot_test.go:
+// - TestPDPWorker_OneShot_NoRetries
+// - TestPDPWorker_OneShot_CompensationFailure
 
 // TestPDPWorker_ProcessJobs_BatchProcessing tests that worker processes jobs in batches
 func TestPDPWorker_ProcessJobs_BatchProcessing(t *testing.T) {

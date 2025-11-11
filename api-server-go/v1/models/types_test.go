@@ -1,11 +1,14 @@
 package models
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func TestSelectedFieldRecords_Scan(t *testing.T) {
@@ -92,14 +95,22 @@ func TestSelectedFieldRecords_GormValue(t *testing.T) {
 		{FieldName: "field1", SchemaID: "sch1"},
 	}
 
-	expr := sfr.GormValue(nil, nil)
+	// Create a test database connection for PostgreSQL
+	testDSN := "host=localhost port=5432 user=postgres password=postgres dbname=gov_dx_sandbox_test sslmode=disable"
+	db, err := gorm.Open(postgres.Open(testDSN), &gorm.Config{})
+	if err != nil {
+		t.Skipf("Skipping test: could not connect to test database: %v", err)
+		return
+	}
+
+	expr := sfr.GormValue(context.Background(), db)
 	assert.NotNil(t, expr)
 	assert.Contains(t, expr.SQL, "jsonb")
 	assert.Len(t, expr.Vars, 1)
 
 	// Verify the JSON is valid
 	var result SelectedFieldRecords
-	err := json.Unmarshal([]byte(expr.Vars[0].(string)), &result)
+	err = json.Unmarshal([]byte(expr.Vars[0].(string)), &result)
 	assert.NoError(t, err)
 	assert.Equal(t, sfr, result)
 }

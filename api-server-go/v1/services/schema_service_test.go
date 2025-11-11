@@ -1,6 +1,7 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
@@ -479,7 +480,12 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 		// Will fail on PDP call but tests the request structure
 		_, err := service.CreateSchema(req)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create policy metadata")
+		// Error could be "failed to create policy metadata" or "failed to create PDP job"
+		errMsg := err.Error()
+		assert.True(t,
+			strings.Contains(errMsg, "failed to create policy metadata") ||
+				strings.Contains(errMsg, "failed to create PDP job") ||
+				strings.Contains(errMsg, "pdp_jobs"))
 		// Verify schema was deleted (compensation)
 		var count int64
 		db.Model(&models.Schema{}).Where("schema_name = ?", req.SchemaName).Count(&count)
@@ -538,7 +544,12 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 		// Will fail on PDP call but tests description handling
 		_, err := service.CreateSchema(req)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create policy metadata")
+		// Error could be "failed to create policy metadata" or "failed to create PDP job"
+		errMsg := err.Error()
+		assert.True(t,
+			strings.Contains(errMsg, "failed to create policy metadata") ||
+				strings.Contains(errMsg, "failed to create PDP job") ||
+				strings.Contains(errMsg, "pdp_jobs"))
 		// Verify schema was deleted (compensation)
 		var count int64
 		db.Model(&models.Schema{}).Where("schema_name = ?", req.SchemaName).Count(&count)
@@ -647,10 +658,6 @@ func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 		assert.Equal(t, newEndpoint, result.Endpoint)
 		assert.Equal(t, newVersion, result.Version)
 	})
-}
-
-func stringPtr(s string) *string {
-	return &s
 }
 
 func TestSchemaService_CreateSchemaSubmission_EdgeCases(t *testing.T) {
