@@ -190,7 +190,7 @@ func TestPDPService_HealthCheck(t *testing.T) {
 		err := service.HealthCheck()
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "health check failed")
+		assert.Contains(t, err.Error(), "PDP service health check failed with status: 500")
 	})
 
 	t.Run("HealthCheck_NetworkError", func(t *testing.T) {

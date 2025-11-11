@@ -5,28 +5,14 @@ import (
 
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
-
-// setupTestDBForSchema creates an in-memory SQLite database for schema testing
-func setupTestDBForSchema(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to open test database: %v", err)
-	}
-
-	err = db.AutoMigrate(&models.Schema{}, &models.SchemaSubmission{}, &models.Member{})
-	if err != nil {
-		t.Fatalf("Failed to migrate test database: %v", err)
-	}
-
-	return db
-}
 
 func TestSchemaService_UpdateSchema(t *testing.T) {
 	t.Run("UpdateSchema_Success", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		// Use a real PDPService but it will fail on HTTP calls - we're testing DB operations
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
@@ -35,7 +21,7 @@ func TestSchemaService_UpdateSchema(t *testing.T) {
 		schema := models.Schema{
 			SchemaID:          "sch_123",
 			SchemaName:        "Original Name",
-			SchemaDescription: stringPtr("Original Description"),
+			SchemaDescription: "Original Description",
 			SDL:               "type Query { original: String }",
 			Endpoint:          "http://original.com",
 			MemberID:          "member-123",
@@ -65,7 +51,10 @@ func TestSchemaService_UpdateSchema(t *testing.T) {
 	})
 
 	t.Run("UpdateSchema_NotFound", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
@@ -84,7 +73,10 @@ func TestSchemaService_UpdateSchema(t *testing.T) {
 
 func TestSchemaService_GetSchema(t *testing.T) {
 	t.Run("GetSchema_Success", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
@@ -92,7 +84,7 @@ func TestSchemaService_GetSchema(t *testing.T) {
 		schema := models.Schema{
 			SchemaID:          "sch_123",
 			SchemaName:        "Test Schema",
-			SchemaDescription: stringPtr("Test Description"),
+			SchemaDescription: "Test Description",
 			SDL:               "type Query { test: String }",
 			Endpoint:          "http://example.com",
 			MemberID:          "member-123",
@@ -109,7 +101,10 @@ func TestSchemaService_GetSchema(t *testing.T) {
 	})
 
 	t.Run("GetSchema_NotFound", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
@@ -123,7 +118,10 @@ func TestSchemaService_GetSchema(t *testing.T) {
 
 func TestSchemaService_GetSchemas(t *testing.T) {
 	t.Run("GetSchemas_NoFilter", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
@@ -143,7 +141,10 @@ func TestSchemaService_GetSchemas(t *testing.T) {
 	})
 
 	t.Run("GetSchemas_WithMemberIDFilter", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
@@ -169,7 +170,10 @@ func TestSchemaService_GetSchemas(t *testing.T) {
 
 func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 	t.Run("CreateSchemaSubmission_Success", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
@@ -184,7 +188,7 @@ func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 
 		req := &models.CreateSchemaSubmissionRequest{
 			SchemaName:        "Test Submission",
-			SchemaDescription: stringPtr("Test Description"),
+			SchemaDescription: &desc,
 			SDL:               "type Query { test: String }",
 			SchemaEndpoint:    "http://example.com",
 			MemberID:          member.MemberID,
@@ -200,13 +204,16 @@ func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 	})
 
 	t.Run("CreateSchemaSubmission_MemberNotFound", func(t *testing.T) {
-		db := setupTestDBForSchema(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
 		req := &models.CreateSchemaSubmissionRequest{
 			SchemaName:        "Test Submission",
-			SchemaDescription: stringPtr("Test Description"),
+			SchemaDescription: &desc,
 			SDL:               "type Query { test: String }",
 			SchemaEndpoint:    "http://example.com",
 			MemberID:          "non-existent-member",
@@ -220,6 +227,404 @@ func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 	})
 }
 
+func TestSchemaService_UpdateSchemaSubmission(t *testing.T) {
+	t.Run("UpdateSchemaSubmission_Success", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		// Create member and submission
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.SchemaSubmission{
+			SubmissionID:   "sub_123",
+			SchemaName:     "Original",
+			SDL:            "type Query { original: String }",
+			SchemaEndpoint: "http://original.com",
+			MemberID:       member.MemberID,
+			Status:         string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		newName := "Updated"
+		newSDL := "type Query { updated: String }"
+		req := &models.UpdateSchemaSubmissionRequest{
+			SchemaName: &newName,
+			SDL:        &newSDL,
+		}
+
+		result, err := service.UpdateSchemaSubmission(submission.SubmissionID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, newName, result.SchemaName)
+		assert.Equal(t, newSDL, result.SDL)
+	})
+
+	t.Run("UpdateSchemaSubmission_NotFound", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		updatedName := "Updated"
+		req := &models.UpdateSchemaSubmissionRequest{SchemaName: &updatedName}
+		result, err := service.UpdateSchemaSubmission("non-existent", req)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "schema submission not found")
+	})
+
+	t.Run("UpdateSchemaSubmission_EmptySDL", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.SchemaSubmission{
+			SubmissionID:   "sub_123",
+			SchemaName:     "Test",
+			SDL:            "type Query { test: String }",
+			SchemaEndpoint: "http://example.com",
+			MemberID:       member.MemberID,
+			Status:         string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		emptySDL := ""
+		req := &models.UpdateSchemaSubmissionRequest{SDL: &emptySDL}
+		result, err := service.UpdateSchemaSubmission(submission.SubmissionID, req)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "SDL field cannot be empty")
+	})
+}
+
+func TestSchemaService_GetSchemaSubmission(t *testing.T) {
+	t.Run("GetSchemaSubmission_Success", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.SchemaSubmission{
+			SubmissionID:   "sub_123",
+			SchemaName:     "Test Submission",
+			SDL:            "type Query { test: String }",
+			SchemaEndpoint: "http://example.com",
+			MemberID:       member.MemberID,
+			Status:         string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		result, err := service.GetSchemaSubmission(submission.SubmissionID)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, submission.SubmissionID, result.SubmissionID)
+		assert.Equal(t, submission.SchemaName, result.SchemaName)
+	})
+
+	t.Run("GetSchemaSubmission_NotFound", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		result, err := service.GetSchemaSubmission("non-existent")
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "schema submission not found")
+	})
+}
+
+func TestSchemaService_GetSchemaSubmissions(t *testing.T) {
+	t.Run("GetSchemaSubmissions_NoFilter", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submissions := []models.SchemaSubmission{
+			{SubmissionID: "sub_1", SchemaName: "Sub 1", SDL: "type Query { test1: String }", SchemaEndpoint: "http://example.com", MemberID: member.MemberID, Status: string(models.StatusPending)},
+			{SubmissionID: "sub_2", SchemaName: "Sub 2", SDL: "type Query { test2: String }", SchemaEndpoint: "http://example.com", MemberID: member.MemberID, Status: string(models.StatusPending)},
+		}
+		for _, s := range submissions {
+			db.Create(&s)
+		}
+
+		result, err := service.GetSchemaSubmissions(nil, nil)
+
+		assert.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("GetSchemaSubmissions_WithMemberIDFilter", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		memberID := "member-123"
+		member := models.Member{MemberID: memberID, Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.SchemaSubmission{
+			SubmissionID:   "sub_1",
+			SchemaName:     "Sub 1",
+			SDL:            "type Query { test1: String }",
+			SchemaEndpoint: "http://example.com",
+			MemberID:       memberID,
+			Status:         string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		result, err := service.GetSchemaSubmissions(&memberID, nil)
+
+		assert.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, memberID, result[0].MemberID)
+	})
+
+	t.Run("GetSchemaSubmissions_WithStatusFilter", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submissions := []models.SchemaSubmission{
+			{SubmissionID: "sub_1", SchemaName: "Sub 1", SDL: "type Query { test1: String }", SchemaEndpoint: "http://example.com", MemberID: member.MemberID, Status: string(models.StatusPending)},
+			{SubmissionID: "sub_2", SchemaName: "Sub 2", SDL: "type Query { test2: String }", SchemaEndpoint: "http://example.com", MemberID: member.MemberID, Status: string(models.StatusApproved)},
+		}
+		for _, s := range submissions {
+			db.Create(&s)
+		}
+
+		statusFilter := []string{string(models.StatusApproved)}
+		result, err := service.GetSchemaSubmissions(nil, &statusFilter)
+
+		assert.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, string(models.StatusApproved), result[0].Status)
+	})
+}
+
+func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
+	t.Run("CreateSchema_EmptySDL", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		req := &models.CreateSchemaRequest{
+			SchemaName: "Test Schema",
+			SDL:        "",
+		}
+
+		_, err := service.CreateSchema(req)
+
+		// Should fail validation or PDP call
+		assert.Error(t, err)
+	})
+
+	t.Run("CreateSchema_WithOptionalFields", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		endpoint := "http://example.com/graphql"
+		memberID := "member-123"
+		req := &models.CreateSchemaRequest{
+			SchemaName: "Test Schema",
+			SDL:        "type Query { test: String }",
+			Endpoint:   endpoint,
+			MemberID:   memberID,
+		}
+
+		// Will fail on PDP call but tests the request structure
+		_, err := service.CreateSchema(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create policy metadata")
+	})
+}
+
+func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
+	t.Run("UpdateSchema_PartialUpdate", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		schema := models.Schema{
+			SchemaID:          "sch_123",
+			SchemaName:        "Original Name",
+			SchemaDescription: "Original Description",
+			SDL:               "type Query { original: String }",
+			Endpoint:          "http://original.com",
+			MemberID:          "member-123",
+			Version:           string(models.ActiveVersion),
+		}
+		db.Create(&schema)
+
+		// Only update name, leave other fields unchanged
+		newName := "Updated Name Only"
+		req := &models.UpdateSchemaRequest{
+			SchemaName: &newName,
+		}
+
+		result, err := service.UpdateSchema(schema.SchemaID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, newName, result.SchemaName)
+		// Original description should remain
+		if schema.SchemaDescription != "" {
+			assert.NotNil(t, result.SchemaDescription)
+			assert.Equal(t, schema.SchemaDescription, *result.SchemaDescription)
+		}
+	})
+
+	t.Run("UpdateSchema_AllFields", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		schema := models.Schema{
+			SchemaID:   "sch_123",
+			SchemaName: "Original",
+			SDL:        "type Query { original: String }",
+			Endpoint:   "http://original.com",
+			MemberID:   "member-123",
+			Version:    string(models.ActiveVersion),
+		}
+		db.Create(&schema)
+
+		newName := "Updated"
+		newSDL := "type Query { updated: String }"
+		newEndpoint := "http://updated.com"
+		newVersion := "v2.0"
+		req := &models.UpdateSchemaRequest{
+			SchemaName: &newName,
+			SDL:        &newSDL,
+			Endpoint:   &newEndpoint,
+			Version:    &newVersion,
+		}
+
+		result, err := service.UpdateSchema(schema.SchemaID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, newName, result.SchemaName)
+		assert.Equal(t, newSDL, result.SDL)
+		assert.Equal(t, newEndpoint, result.Endpoint)
+		assert.Equal(t, newVersion, result.Version)
+	})
+}
+
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestSchemaService_CreateSchemaSubmission_EdgeCases(t *testing.T) {
+	t.Run("CreateSchemaSubmission_WithPreviousSchemaID", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+
+		// Create a previous schema
+		previousSchema := models.Schema{
+			SchemaID:   "sch_prev",
+			SchemaName: "Previous Schema",
+			SDL:        "type Query { prev: String }",
+			Endpoint:   "http://prev.com",
+			MemberID:   member.MemberID,
+			Version:    string(models.ActiveVersion),
+		}
+		db.Create(&previousSchema)
+
+		previousSchemaID := previousSchema.SchemaID
+		req := &models.CreateSchemaSubmissionRequest{
+			SchemaName:       "New Submission",
+			SDL:              "type Query { new: String }",
+			SchemaEndpoint:   "http://new.com",
+			MemberID:         member.MemberID,
+			PreviousSchemaID: &previousSchemaID,
+		}
+
+		result, err := service.CreateSchemaSubmission(req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, previousSchemaID, *result.PreviousSchemaID)
+	})
+
+	t.Run("CreateSchemaSubmission_InvalidPreviousSchemaID", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+
+		invalidSchemaID := "non-existent-schema"
+		req := &models.CreateSchemaSubmissionRequest{
+			SchemaName:       "New Submission",
+			SDL:              "type Query { new: String }",
+			SchemaEndpoint:   "http://new.com",
+			MemberID:         member.MemberID,
+			PreviousSchemaID: &invalidSchemaID,
+		}
+
+		result, err := service.CreateSchemaSubmission(req)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "previous schema not found")
+	})
 }

@@ -25,11 +25,11 @@ type UpdateSchemaSubmissionRequest struct {
 
 // CreateSchemaRequest creates a new provider schema
 type CreateSchemaRequest struct {
-	SchemaName        string  `json:"schemaName" validate:"required"`
-	SchemaDescription *string `json:"schemaDescription,omitempty"`
-	SDL               string  `json:"sdl" validate:"required"`
-	Endpoint          string  `json:"endpoint" validate:"required"`
-	MemberID          string  `json:"memberId" validate:"required"`
+	SchemaName        string `json:"schemaName" validate:"required"`
+	SchemaDescription string `json:"schemaDescription,omitempty"`
+	SDL               string `json:"sdl" validate:"required"`
+	Endpoint          string `json:"endpoint" validate:"required"`
+	MemberID          string `json:"memberId" validate:"required"`
 }
 
 // UpdateSchemaRequest updates an existing provider schema
@@ -63,7 +63,7 @@ type UpdateApplicationSubmissionRequest struct {
 // CreateApplicationRequest creates a new consumer application
 type CreateApplicationRequest struct {
 	ApplicationName        string                `json:"applicationName" validate:"required"`
-	ApplicationDescription *string               `json:"applicationDescription,omitempty"`
+	ApplicationDescription string                `json:"applicationDescription,omitempty"`
 	SelectedFields         []SelectedFieldRecord `json:"selectedFields" validate:"required,min=1"`
 	MemberID               string                `json:"memberId" validate:"required"`
 }

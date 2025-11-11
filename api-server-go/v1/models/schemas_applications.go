@@ -2,13 +2,13 @@ package models
 
 // Schema represents the provider_schemas table
 type Schema struct {
-	SchemaID          string  `gorm:"primarykey;column:schema_id" json:"schemaId"`
-	MemberID          string  `gorm:"column:member_id;not null" json:"memberId"`
-	SchemaName        string  `gorm:"column:schema_name;not null" json:"schemaName"`
-	SDL               string  `gorm:"column:sdl;not null" json:"sdl"`
-	Endpoint          string  `gorm:"column:endpoint;not null" json:"endpoint"`
-	Version           string  `gorm:"column:version;not null" json:"version"`
-	SchemaDescription *string `gorm:"column:schema_description" json:"schemaDescription,omitempty"`
+	SchemaID          string `gorm:"primarykey;column:schema_id" json:"schemaId"`
+	MemberID          string `gorm:"column:member_id;not null" json:"memberId"`
+	SchemaName        string `gorm:"column:schema_name;not null" json:"schemaName"`
+	SDL               string `gorm:"column:sdl;not null" json:"sdl"`
+	Endpoint          string `gorm:"column:endpoint;not null" json:"endpoint"`
+	Version           string `gorm:"column:version;not null" json:"version"`
+	SchemaDescription string `gorm:"column:schema_description" json:"schemaDescription,omitempty"`
 	BaseModel
 
 	// Relationships
@@ -47,7 +47,7 @@ func (SchemaSubmission) TableName() string {
 type Application struct {
 	ApplicationID          string               `gorm:"primarykey;column:application_id" json:"applicationId"`
 	ApplicationName        string               `gorm:"column:application_name;not null" json:"applicationName"`
-	ApplicationDescription *string              `gorm:"column:application_description" json:"applicationDescription,omitempty"`
+	ApplicationDescription string               `gorm:"column:application_description" json:"applicationDescription,omitempty"`
 	SelectedFields         SelectedFieldRecords `gorm:"column:selected_fields;type:jsonb;not null" json:"selectedFields"`
 	MemberID               string               `gorm:"column:member_id;not null" json:"memberId"`
 	Version                string               `gorm:"column:version;not null" json:"version"`

@@ -59,19 +59,9 @@ func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clau
 		panic(fmt.Sprintf("Failed to marshal SelectedFieldRecords to JSON: %v", err))
 	}
 
-	// Detect database type for SQLite compatibility
-	dialector := db.Dialector.Name()
-	var sqlExpr string
-	if dialector == "sqlite" {
-		// SQLite uses TEXT for JSON, no cast needed
-		sqlExpr = "?"
-	} else {
-		// PostgreSQL uses jsonb with cast
-		sqlExpr = "?::jsonb"
-	}
-
+	// PostgreSQL uses jsonb with cast
 	return clause.Expr{
-		SQL:  sqlExpr,
+		SQL:  "?::jsonb",
 		Vars: []interface{}{string(data)},
 	}
 }

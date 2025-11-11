@@ -9,8 +9,6 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 // MockIdentityProviderAPI is a mock implementation of idp.IdentityProviderAPI
@@ -139,25 +137,12 @@ func (m *MockIdentityProviderAPI) GetApplicationOIDC(ctx context.Context, applic
 	return args.Get(0).(*idp.ApplicationOIDCInfo), args.Error(1)
 }
 
-// setupTestDB creates an in-memory SQLite database for testing
-func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to open test database: %v", err)
-	}
-
-	// Auto-migrate
-	err = db.AutoMigrate(&models.Member{})
-	if err != nil {
-		t.Fatalf("Failed to migrate test database: %v", err)
-	}
-
-	return db
-}
-
 func TestMemberService_CreateMember(t *testing.T) {
 	t.Run("CreateMember_Success", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -198,7 +183,10 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_IDPCreateUserFails", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -221,7 +209,10 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_EmailMismatch", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -251,7 +242,10 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_AddToGroupFails", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -281,7 +275,10 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_DatabaseCreateFails", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -325,7 +322,10 @@ func TestMemberService_CreateMember(t *testing.T) {
 
 func TestMemberService_UpdateMember(t *testing.T) {
 	t.Run("UpdateMember_Success", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -371,7 +371,10 @@ func TestMemberService_UpdateMember(t *testing.T) {
 	})
 
 	t.Run("UpdateMember_NotFound", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -389,7 +392,10 @@ func TestMemberService_UpdateMember(t *testing.T) {
 	})
 
 	t.Run("UpdateMember_IDPUpdateFails", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -421,7 +427,10 @@ func TestMemberService_UpdateMember(t *testing.T) {
 
 func TestMemberService_GetMember(t *testing.T) {
 	t.Run("GetMember_Success", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -446,7 +455,10 @@ func TestMemberService_GetMember(t *testing.T) {
 	})
 
 	t.Run("GetMember_NotFound", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -461,7 +473,10 @@ func TestMemberService_GetMember(t *testing.T) {
 
 func TestMemberService_GetAllMembers(t *testing.T) {
 	t.Run("GetAllMembers_NoFilters", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -482,7 +497,10 @@ func TestMemberService_GetAllMembers(t *testing.T) {
 	})
 
 	t.Run("GetAllMembers_WithEmailFilter", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 
@@ -506,7 +524,10 @@ func TestMemberService_GetAllMembers(t *testing.T) {
 	})
 
 	t.Run("GetAllMembers_WithIdpUserIDFilter", func(t *testing.T) {
-		db := setupTestDB(t)
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
 		mockIDP := new(MockIdentityProviderAPI)
 		service := NewMemberService(db, mockIDP)
 

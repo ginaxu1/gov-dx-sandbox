@@ -14,7 +14,6 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -27,27 +26,9 @@ type TestV1Handler struct {
 
 // NewTestV1Handler creates a new test handler with PostgreSQL test database
 func NewTestV1Handler(t *testing.T) *TestV1Handler {
-	// Use test database configuration
-	testDSN := "host=localhost port=5432 user=postgres password=postgres dbname=gov_dx_sandbox_test sslmode=disable"
-
-	db, err := gorm.Open(postgres.Open(testDSN), &gorm.Config{
-		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Skipf("Skipping test: could not connect to test database: %v", err)
-		return nil
-	}
-
-	// Auto-migrate the database in the correct order
-	err = db.AutoMigrate(
-		&models.Member{},
-		&models.Application{},
-		&models.ApplicationSubmission{},
-		&models.Schema{},
-		&models.SchemaSubmission{},
-	)
-	if err != nil {
-		t.Skipf("Skipping test: could not migrate test database: %v", err)
+	// Use shared PostgreSQL test utility
+	db := services.SetupPostgresTestDB(t)
+	if db == nil {
 		return nil
 	}
 
@@ -97,7 +78,7 @@ func TestMemberEndpoints(t *testing.T) {
 		t.Skip("Skipping test: database connection failed")
 		return
 	}
-	defer testHandler.db.Exec("DELETE FROM members")
+	// Cleanup is handled by SetupPostgresTestDB
 
 	var createdMemberID string
 
@@ -207,9 +188,11 @@ func TestMemberEndpoints(t *testing.T) {
 			return
 		}
 
+		name := "Updated Name"
+		phone := "9876543210"
 		req := models.UpdateMemberRequest{
-			Name:        stringPtr("Updated Name"),
-			PhoneNumber: stringPtr("9876543210"),
+			Name:        &name,
+			PhoneNumber: &phone,
 		}
 
 		reqBody, _ := json.Marshal(req)
@@ -266,7 +249,7 @@ func TestSchemaEndpoints(t *testing.T) {
 	t.Run("POST /api/v1/schemas - CreateSchema", func(t *testing.T) {
 		req := models.CreateSchemaRequest{
 			SchemaName:        "Test Schema",
-			SchemaDescription: stringPtr("Test Description"),
+			SchemaDescription: "Test Description",
 			SDL:               "type Query { test: String }",
 			Endpoint:          "http://example.com/graphql",
 			MemberID:          testMemberID,
@@ -366,9 +349,11 @@ func TestSchemaEndpoints(t *testing.T) {
 			return
 		}
 
+		schemaName := "Updated Schema Name"
+		sdl := "type Query { updated: String }"
 		req := models.UpdateSchemaRequest{
-			SchemaName: stringPtr("Updated Schema Name"),
-			SDL:        stringPtr("type Query { updated: String }"),
+			SchemaName: &schemaName,
+			SDL:        &sdl,
 		}
 
 		reqBody, _ := json.Marshal(req)
@@ -414,7 +399,7 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 	t.Run("POST /api/v1/schema-submissions - CreateSchemaSubmission", func(t *testing.T) {
 		req := models.CreateSchemaSubmissionRequest{
 			SchemaName:        "Test Schema Submission",
-			SchemaDescription: stringPtr("Test Description"),
+			SchemaDescription: &desc,
 			SDL:               "type Query { test: String }",
 			SchemaEndpoint:    "http://example.com/graphql",
 			MemberID:          testMemberID,
@@ -491,9 +476,10 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 		}
 
 		status := "approved"
+		review := "Looks good"
 		req := models.UpdateSchemaSubmissionRequest{
 			Status: &status,
-			Review: stringPtr("Looks good"),
+			Review: &review,
 		}
 
 		reqBody, _ := json.Marshal(req)
@@ -529,7 +515,7 @@ func TestApplicationEndpoints(t *testing.T) {
 	t.Run("POST /api/v1/applications - CreateApplication", func(t *testing.T) {
 		req := models.CreateApplicationRequest{
 			ApplicationName:        "Test Application",
-			ApplicationDescription: stringPtr("Test Description"),
+			ApplicationDescription: "Test Description",
 			SelectedFields: []models.SelectedFieldRecord{
 				{FieldName: "field1", SchemaID: testSchemaID},
 				{FieldName: "field2", SchemaID: testSchemaID},
@@ -630,9 +616,11 @@ func TestApplicationEndpoints(t *testing.T) {
 			return
 		}
 
+		appName := "Updated Application Name"
+		appDesc := "Updated Description"
 		req := models.UpdateApplicationRequest{
-			ApplicationName:        stringPtr("Updated Application Name"),
-			ApplicationDescription: stringPtr("Updated Description"),
+			ApplicationName:        &appName,
+			ApplicationDescription: &appDesc,
 		}
 
 		reqBody, _ := json.Marshal(req)
@@ -677,9 +665,10 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	testSchemaID := "test-schema-id"
 
 	t.Run("POST /api/v1/application-submissions - CreateApplicationSubmission", func(t *testing.T) {
+		desc := "Test Description"
 		req := models.CreateApplicationSubmissionRequest{
 			ApplicationName:        "Test Application Submission",
-			ApplicationDescription: stringPtr("Test Description"),
+			ApplicationDescription: &desc,
 			SelectedFields: []models.SelectedFieldRecord{
 				{FieldName: "field1", SchemaID: testSchemaID},
 			},
@@ -767,9 +756,10 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 		}
 
 		status := "approved"
+		review := "Approved"
 		req := models.UpdateApplicationSubmissionRequest{
 			Status: &status,
-			Review: stringPtr("Approved"),
+			Review: &review,
 		}
 
 		reqBody, _ := json.Marshal(req)
@@ -799,7 +789,172 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 }
 
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
+// TestSchemaEndpoints_EdgeCases tests edge cases for schema endpoints
+func TestSchemaEndpoints_EdgeCases(t *testing.T) {
+	testHandler := NewTestV1Handler(t)
+	if testHandler == nil {
+		t.Skip("Skipping test: database connection failed")
+		return
+	}
+
+	t.Run("POST /api/v1/schemas - Invalid JSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PUT /api/v1/schemas/:id - Invalid JSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schemas/test-id", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("GET /api/v1/schemas/:id - NotFound", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schemas/non-existent-id", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("PUT /api/v1/schemas/:id - NotFound", func(t *testing.T) {
+		schemaName := "Updated Name"
+		req := models.UpdateSchemaRequest{
+			SchemaName: &schemaName,
+		}
+		reqBody, _ := json.Marshal(req)
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schemas/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestApplicationEndpoints_EdgeCases tests edge cases for application endpoints
+func TestApplicationEndpoints_EdgeCases(t *testing.T) {
+	testHandler := NewTestV1Handler(t)
+	if testHandler == nil {
+		t.Skip("Skipping test: database connection failed")
+		return
+	}
+
+	t.Run("POST /api/v1/applications - Invalid JSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/applications", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PUT /api/v1/applications/:id - Invalid JSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/applications/test-id", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("GET /api/v1/applications/:id - NotFound", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/applications/non-existent-id", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("PUT /api/v1/applications/:id - NotFound", func(t *testing.T) {
+		appName := "Updated Name"
+		req := models.UpdateApplicationRequest{
+			ApplicationName: &appName,
+		}
+		reqBody, _ := json.Marshal(req)
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/applications/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// TestSchemaSubmissionEndpoints_EdgeCases tests edge cases for schema submission endpoints
+func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
+	testHandler := NewTestV1Handler(t)
+	if testHandler == nil {
+		t.Skip("Skipping test: database connection failed")
+		return
+	}
+
+	t.Run("POST /api/v1/schema-submissions - Invalid JSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schema-submissions", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PUT /api/v1/schema-submissions/:id - Invalid JSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schema-submissions/test-id", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PUT /api/v1/schema-submissions/:id - NotFound", func(t *testing.T) {
+		status := "approved"
+		req := models.UpdateSchemaSubmissionRequest{
+			Status: &status,
+		}
+		reqBody, _ := json.Marshal(req)
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schema-submissions/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }

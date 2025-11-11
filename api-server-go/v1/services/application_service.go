@@ -62,14 +62,16 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 	}
 
 	response := &models.ApplicationResponse{
-		ApplicationID:          application.ApplicationID,
-		ApplicationName:        application.ApplicationName,
-		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         application.SelectedFields,
-		MemberID:               application.MemberID,
-		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
+		ApplicationID:   application.ApplicationID,
+		ApplicationName: application.ApplicationName,
+		SelectedFields:  application.SelectedFields,
+		MemberID:        application.MemberID,
+		Version:         application.Version,
+		CreatedAt:       application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       application.UpdatedAt.Format(time.RFC3339),
+	}
+	if application.ApplicationDescription != "" {
+		response.ApplicationDescription = &application.ApplicationDescription
 	}
 
 	return response, nil
@@ -90,7 +92,7 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 		application.ApplicationName = *req.ApplicationName
 	}
 	if req.ApplicationDescription != nil {
-		application.ApplicationDescription = req.ApplicationDescription
+		application.ApplicationDescription = *req.ApplicationDescription
 	}
 	if req.Version != nil {
 		application.Version = *req.Version
@@ -101,14 +103,16 @@ func (s *ApplicationService) UpdateApplication(applicationID string, req *models
 	}
 
 	response := &models.ApplicationResponse{
-		ApplicationID:          application.ApplicationID,
-		ApplicationName:        application.ApplicationName,
-		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         application.SelectedFields,
-		MemberID:               application.MemberID,
-		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
+		ApplicationID:   application.ApplicationID,
+		ApplicationName: application.ApplicationName,
+		SelectedFields:  application.SelectedFields,
+		MemberID:        application.MemberID,
+		Version:         application.Version,
+		CreatedAt:       application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       application.UpdatedAt.Format(time.RFC3339),
+	}
+	if application.ApplicationDescription != "" {
+		response.ApplicationDescription = &application.ApplicationDescription
 	}
 
 	return response, nil
@@ -123,14 +127,16 @@ func (s *ApplicationService) GetApplication(applicationID string) (*models.Appli
 	}
 
 	response := &models.ApplicationResponse{
-		ApplicationID:          application.ApplicationID,
-		ApplicationName:        application.ApplicationName,
-		ApplicationDescription: application.ApplicationDescription,
-		SelectedFields:         application.SelectedFields,
-		MemberID:               application.MemberID,
-		Version:                application.Version,
-		CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
+		ApplicationID:   application.ApplicationID,
+		ApplicationName: application.ApplicationName,
+		SelectedFields:  application.SelectedFields,
+		MemberID:        application.MemberID,
+		Version:         application.Version,
+		CreatedAt:       application.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       application.UpdatedAt.Format(time.RFC3339),
+	}
+	if application.ApplicationDescription != "" {
+		response.ApplicationDescription = &application.ApplicationDescription
 	}
 
 	return response, nil
@@ -155,16 +161,20 @@ func (s *ApplicationService) GetApplications(MemberID *string) ([]models.Applica
 	// Pre-allocate slice with known capacity for better performance
 	responses := make([]models.ApplicationResponse, 0, len(applications))
 	for _, application := range applications {
-		responses = append(responses, models.ApplicationResponse{
-			ApplicationID:          application.ApplicationID,
-			ApplicationName:        application.ApplicationName,
-			ApplicationDescription: application.ApplicationDescription,
-			SelectedFields:         application.SelectedFields,
-			MemberID:               application.MemberID,
-			Version:                application.Version,
-			CreatedAt:              application.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:              application.UpdatedAt.Format(time.RFC3339),
-		})
+		resp := models.ApplicationResponse{
+			ApplicationID:   application.ApplicationID,
+			ApplicationName: application.ApplicationName,
+			SelectedFields:  application.SelectedFields,
+			MemberID:        application.MemberID,
+			Version:         application.Version,
+			CreatedAt:       application.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:       application.UpdatedAt.Format(time.RFC3339),
+		}
+		if application.ApplicationDescription != "" {
+			desc := application.ApplicationDescription
+			resp.ApplicationDescription = &desc
+		}
+		responses = append(responses, resp)
 	}
 
 	return responses, nil
@@ -273,7 +283,9 @@ func (s *ApplicationService) UpdateApplicationSubmission(submissionID string, re
 	if shouldCreateApplication {
 		var createApplicationRequest models.CreateApplicationRequest
 		createApplicationRequest.ApplicationName = submission.ApplicationName
-		createApplicationRequest.ApplicationDescription = submission.ApplicationDescription
+		if submission.ApplicationDescription != nil {
+			createApplicationRequest.ApplicationDescription = *submission.ApplicationDescription
+		}
 		createApplicationRequest.SelectedFields = models.SelectedFieldRecords(submission.SelectedFields)
 		createApplicationRequest.MemberID = submission.MemberID
 

@@ -56,15 +56,17 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:          schema.SchemaID,
-		SchemaName:        schema.SchemaName,
-		SchemaDescription: schema.SchemaDescription,
-		SDL:               schema.SDL,
-		Endpoint:          schema.Endpoint,
-		Version:           schema.Version,
-		MemberID:          schema.MemberID,
-		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
+		SchemaID:   schema.SchemaID,
+		SchemaName: schema.SchemaName,
+		SDL:        schema.SDL,
+		Endpoint:   schema.Endpoint,
+		Version:    schema.Version,
+		MemberID:   schema.MemberID,
+		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
+	}
+	if schema.SchemaDescription != "" {
+		response.SchemaDescription = &schema.SchemaDescription
 	}
 
 	return response, nil
@@ -83,7 +85,7 @@ func (s *SchemaService) UpdateSchema(schemaID string, req *models.UpdateSchemaRe
 		schema.SchemaName = *req.SchemaName
 	}
 	if req.SchemaDescription != nil {
-		schema.SchemaDescription = req.SchemaDescription
+		schema.SchemaDescription = *req.SchemaDescription
 	}
 	if req.SDL != nil {
 		schema.SDL = *req.SDL
@@ -100,14 +102,17 @@ func (s *SchemaService) UpdateSchema(schemaID string, req *models.UpdateSchemaRe
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:          schema.SchemaID,
-		SchemaName:        schema.SchemaName,
-		SchemaDescription: schema.SchemaDescription,
-		SDL:               schema.SDL,
-		Endpoint:          schema.Endpoint,
-		MemberID:          schema.MemberID,
-		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
+		SchemaID:   schema.SchemaID,
+		SchemaName: schema.SchemaName,
+		SDL:        schema.SDL,
+		Endpoint:   schema.Endpoint,
+		Version:    schema.Version,
+		MemberID:   schema.MemberID,
+		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
+	}
+	if schema.SchemaDescription != "" {
+		response.SchemaDescription = &schema.SchemaDescription
 	}
 
 	return response, nil
@@ -122,15 +127,17 @@ func (s *SchemaService) GetSchema(schemaID string) (*models.SchemaResponse, erro
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:          schema.SchemaID,
-		SchemaName:        schema.SchemaName,
-		SchemaDescription: schema.SchemaDescription,
-		SDL:               schema.SDL,
-		Endpoint:          schema.Endpoint,
-		Version:           schema.Version,
-		MemberID:          schema.MemberID,
-		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
+		SchemaID:   schema.SchemaID,
+		SchemaName: schema.SchemaName,
+		SDL:        schema.SDL,
+		Endpoint:   schema.Endpoint,
+		Version:    schema.Version,
+		MemberID:   schema.MemberID,
+		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
+	}
+	if schema.SchemaDescription != "" {
+		response.SchemaDescription = &schema.SchemaDescription
 	}
 
 	return response, nil
@@ -155,17 +162,20 @@ func (s *SchemaService) GetSchemas(memberID *string) ([]*models.SchemaResponse, 
 	// Pre-allocate slice with known capacity for better performance
 	responses := make([]*models.SchemaResponse, 0, len(schemas))
 	for _, schema := range schemas {
-		responses = append(responses, &models.SchemaResponse{
-			SchemaID:          schema.SchemaID,
-			SchemaName:        schema.SchemaName,
-			SchemaDescription: schema.SchemaDescription,
-			SDL:               schema.SDL,
-			Endpoint:          schema.Endpoint,
-			Version:           schema.Version,
-			MemberID:          schema.MemberID,
-			CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
-		})
+		resp := &models.SchemaResponse{
+			SchemaID:   schema.SchemaID,
+			SchemaName: schema.SchemaName,
+			SDL:        schema.SDL,
+			Endpoint:   schema.Endpoint,
+			Version:    schema.Version,
+			MemberID:   schema.MemberID,
+			CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
+		}
+		if schema.SchemaDescription != "" {
+			resp.SchemaDescription = &schema.SchemaDescription
+		}
+		responses = append(responses, resp)
 	}
 
 	return responses, nil
@@ -279,7 +289,9 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 	if shouldCreateSchema {
 		var createSchemaRequest models.CreateSchemaRequest
 		createSchemaRequest.SchemaName = submission.SchemaName
-		createSchemaRequest.SchemaDescription = submission.SchemaDescription
+		if submission.SchemaDescription != nil {
+			createSchemaRequest.SchemaDescription = *submission.SchemaDescription
+		}
 		createSchemaRequest.SDL = submission.SDL
 		createSchemaRequest.Endpoint = submission.SchemaEndpoint
 		createSchemaRequest.MemberID = submission.MemberID
