@@ -5,11 +5,11 @@ go 1.24.6
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/open-policy-agent/opa v1.8.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.0
-	github.com/joho/godotenv v1.5.1
 )
 
 require (
@@ -34,6 +34,7 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.0.10 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_golang v1.23.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
@@ -60,6 +61,7 @@ require (
 	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gorm.io/driver/sqlite v1.6.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 

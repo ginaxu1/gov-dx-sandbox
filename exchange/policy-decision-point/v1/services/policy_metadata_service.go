@@ -248,17 +248,23 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 		responseRecords = append(responseRecords, responseRecord)
 	}
 
-	// Batch update all records in a single operation
+	// Update all records
+	// Note: We perform individual updates because each record has a different allow_list value.
+	// Each field's allow_list map may already contain entries for other applications, so individual
+	// updates are necessary to ensure the correct application ID and expiration time are set for each field.
+	// However, this function only updates the allow_list for a single application ID and expiration time
+	// per request (from req.ApplicationID and req.GrantDuration); all records in the batch receive the same values.
+	// The custom AllowList type's Value() method ensures proper JSONB serialization for each record.
 	if len(recordsToUpdate) > 0 {
-		// Convert slice of pointers to slice of values for batch update
-		var recordsToSave []models.PolicyMetadata
 		for _, pm := range recordsToUpdate {
-			recordsToSave = append(recordsToSave, *pm)
-		}
-
-		if err := tx.Save(&recordsToSave).Error; err != nil {
-			tx.Rollback()
-			return nil, fmt.Errorf("failed to batch update allow list records: %w", err)
+			pm.UpdatedAt = currentTime
+			if err := tx.Model(pm).Select("allow_list", "updated_at").Updates(map[string]interface{}{
+				"allow_list": pm.AllowList,
+				"updated_at": pm.UpdatedAt,
+			}).Error; err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("failed to update allow list record: %w", err)
+			}
 		}
 	}
 
