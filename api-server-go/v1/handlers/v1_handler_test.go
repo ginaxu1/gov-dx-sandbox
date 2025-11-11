@@ -125,6 +125,73 @@ func TestMemberEndpoints(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
+	t.Run("PUT /api/v1/members/:id - UpdateMember", func(t *testing.T) {
+		// Create a member first
+		createReq := models.CreateMemberRequest{
+			Name:        "Original Name",
+			Email:       "original@example.com",
+			PhoneNumber: "1234567890",
+		}
+		createReqBody, _ := json.Marshal(createReq)
+		createHttpReq := httptest.NewRequest(http.MethodPost, "/api/v1/members", bytes.NewBuffer(createReqBody))
+		createHttpReq.Header.Set("Content-Type", "application/json")
+		createW := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(createW, createHttpReq)
+		if createW.Code != http.StatusCreated {
+			t.Skip("Member creation failed, skipping update test")
+			return
+		}
+
+		var createResponse map[string]interface{}
+		json.Unmarshal(createW.Body.Bytes(), &createResponse)
+		memberID := createResponse["data"].(map[string]interface{})["memberId"].(string)
+
+		// Now update the member
+		name := "Updated Name"
+		phone := "9876543210"
+		updateReq := models.UpdateMemberRequest{
+			Name:        &name,
+			PhoneNumber: &phone,
+		}
+		updateReqBody, _ := json.Marshal(updateReq)
+		updateHttpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/members/%s", memberID), bytes.NewBuffer(updateReqBody))
+		updateHttpReq.Header.Set("Content-Type", "application/json")
+		updateW := httptest.NewRecorder()
+		mux.ServeHTTP(updateW, updateHttpReq)
+
+		assert.Equal(t, http.StatusOK, updateW.Code)
+		var response map[string]interface{}
+		json.Unmarshal(updateW.Body.Bytes(), &response)
+		assert.NotNil(t, response["data"])
+	})
+
+	t.Run("PUT /api/v1/members/:id - UpdateMember_InvalidJSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/members/test-id", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PUT /api/v1/members/:id - UpdateMember_NotFound", func(t *testing.T) {
+		name := "Updated Name"
+		req := models.UpdateMemberRequest{
+			Name: &name,
+		}
+		reqBody, _ := json.Marshal(req)
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/members/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
 	t.Run("GET /api/v1/members - GetAllMembers", func(t *testing.T) {
 		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/members", nil)
 		w := httptest.NewRecorder()
@@ -396,7 +463,74 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 	var createdSubmissionID string
 	testMemberID := "test-member-id"
 
+	t.Run("GET /api/v1/schema-submissions/:id - GetSchemaSubmission", func(t *testing.T) {
+		// Create a member first
+		memberReq := models.CreateMemberRequest{
+			Name:        "Test Member",
+			Email:       "testmember@example.com",
+			PhoneNumber: "1234567890",
+		}
+		memberReqBody, _ := json.Marshal(memberReq)
+		memberHttpReq := httptest.NewRequest(http.MethodPost, "/api/v1/members", bytes.NewBuffer(memberReqBody))
+		memberHttpReq.Header.Set("Content-Type", "application/json")
+		memberW := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(memberW, memberHttpReq)
+		if memberW.Code != http.StatusCreated {
+			t.Skip("Member creation failed, skipping submission test")
+			return
+		}
+		var memberResponse map[string]interface{}
+		json.Unmarshal(memberW.Body.Bytes(), &memberResponse)
+		memberID := memberResponse["data"].(map[string]interface{})["memberId"].(string)
+
+		// Create a submission
+		desc := "Test Description"
+		createReq := models.CreateSchemaSubmissionRequest{
+			SchemaName:        "Test Schema Submission",
+			SchemaDescription: &desc,
+			SDL:               "type Query { test: String }",
+			SchemaEndpoint:    "http://example.com/graphql",
+			MemberID:          memberID,
+		}
+		createReqBody, _ := json.Marshal(createReq)
+		createHttpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schema-submissions", bytes.NewBuffer(createReqBody))
+		createHttpReq.Header.Set("Content-Type", "application/json")
+		createW := httptest.NewRecorder()
+		mux.ServeHTTP(createW, createHttpReq)
+		assert.Equal(t, http.StatusCreated, createW.Code)
+
+		var createResponse map[string]interface{}
+		json.Unmarshal(createW.Body.Bytes(), &createResponse)
+		if createResponse["data"] == nil {
+			t.Skip("Submission creation failed, skipping update test")
+			return
+		}
+		submissionID := createResponse["data"].(map[string]interface{})["submissionId"].(string)
+
+		// Now get the submission
+		getHttpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/schema-submissions/%s", submissionID), nil)
+		getW := httptest.NewRecorder()
+		mux.ServeHTTP(getW, getHttpReq)
+
+		assert.Equal(t, http.StatusOK, getW.Code)
+		var response map[string]interface{}
+		json.Unmarshal(getW.Body.Bytes(), &response)
+		assert.NotNil(t, response["data"])
+	})
+
+	t.Run("GET /api/v1/schema-submissions/:id - GetSchemaSubmission_NotFound", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schema-submissions/non-existent-id", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
 	t.Run("POST /api/v1/schema-submissions - CreateSchemaSubmission", func(t *testing.T) {
+		desc := "Test Description"
 		req := models.CreateSchemaSubmissionRequest{
 			SchemaName:        "Test Schema Submission",
 			SchemaDescription: &desc,
@@ -692,6 +826,119 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 			assert.NotEmpty(t, response.SubmissionID)
 			createdSubmissionID = response.SubmissionID
 		}
+	})
+
+	t.Run("PUT /api/v1/application-submissions/:id - UpdateApplicationSubmission", func(t *testing.T) {
+		// Create a member first
+		memberReq := models.CreateMemberRequest{
+			Name:        "Test Member",
+			Email:       "testmember3@example.com",
+			PhoneNumber: "1234567890",
+		}
+		memberReqBody, _ := json.Marshal(memberReq)
+		memberHttpReq := httptest.NewRequest(http.MethodPost, "/api/v1/members", bytes.NewBuffer(memberReqBody))
+		memberHttpReq.Header.Set("Content-Type", "application/json")
+		memberW := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(memberW, memberHttpReq)
+		if memberW.Code != http.StatusCreated {
+			t.Skip("Member creation failed, skipping submission test")
+			return
+		}
+		var memberResponse map[string]interface{}
+		json.Unmarshal(memberW.Body.Bytes(), &memberResponse)
+		memberID := memberResponse["data"].(map[string]interface{})["memberId"].(string)
+
+		// Create a schema first for the application submission
+		schemaReq := models.CreateSchemaRequest{
+			SchemaName:        "Test Schema",
+			SchemaDescription: "Test Description",
+			SDL:               "type Query { test: String }",
+			Endpoint:          "http://example.com/graphql",
+			MemberID:          memberID,
+		}
+		schemaReqBody, _ := json.Marshal(schemaReq)
+		schemaHttpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBuffer(schemaReqBody))
+		schemaHttpReq.Header.Set("Content-Type", "application/json")
+		schemaW := httptest.NewRecorder()
+		mux.ServeHTTP(schemaW, schemaHttpReq)
+		if schemaW.Code != http.StatusCreated {
+			t.Skip("Schema creation failed, skipping submission test")
+			return
+		}
+		var schemaResponse map[string]interface{}
+		json.Unmarshal(schemaW.Body.Bytes(), &schemaResponse)
+		schemaID := schemaResponse["data"].(map[string]interface{})["schemaId"].(string)
+
+		// Create a submission
+		desc := "Test Description"
+		createReq := models.CreateApplicationSubmissionRequest{
+			ApplicationName:        "Test Application Submission",
+			ApplicationDescription: &desc,
+			SelectedFields: []models.SelectedFieldRecord{
+				{FieldName: "field1", SchemaID: schemaID},
+			},
+			MemberID: memberID,
+		}
+		createReqBody, _ := json.Marshal(createReq)
+		createHttpReq := httptest.NewRequest(http.MethodPost, "/api/v1/application-submissions", bytes.NewBuffer(createReqBody))
+		createHttpReq.Header.Set("Content-Type", "application/json")
+		createW := httptest.NewRecorder()
+		mux.ServeHTTP(createW, createHttpReq)
+		if createW.Code != http.StatusCreated {
+			t.Skip("Submission creation failed, skipping update test")
+			return
+		}
+
+		var createResponse map[string]interface{}
+		json.Unmarshal(createW.Body.Bytes(), &createResponse)
+		if createResponse["data"] == nil {
+			t.Skip("Submission creation failed, skipping update test")
+			return
+		}
+		submissionID := createResponse["data"].(map[string]interface{})["submissionId"].(string)
+
+		// Now update the submission
+		status := "approved"
+		updateReq := models.UpdateApplicationSubmissionRequest{
+			Status: &status,
+		}
+		updateReqBody, _ := json.Marshal(updateReq)
+		updateHttpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/application-submissions/%s", submissionID), bytes.NewBuffer(updateReqBody))
+		updateHttpReq.Header.Set("Content-Type", "application/json")
+		updateW := httptest.NewRecorder()
+		mux.ServeHTTP(updateW, updateHttpReq)
+
+		assert.Equal(t, http.StatusOK, updateW.Code)
+		var response map[string]interface{}
+		json.Unmarshal(updateW.Body.Bytes(), &response)
+		assert.NotNil(t, response["data"])
+	})
+
+	t.Run("PUT /api/v1/application-submissions/:id - UpdateApplicationSubmission_InvalidJSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/application-submissions/test-id", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PUT /api/v1/application-submissions/:id - UpdateApplicationSubmission_NotFound", func(t *testing.T) {
+		status := "approved"
+		req := models.UpdateApplicationSubmissionRequest{
+			Status: &status,
+		}
+		reqBody, _ := json.Marshal(req)
+		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/application-submissions/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
 	t.Run("GET /api/v1/application-submissions - GetAllApplicationSubmissions", func(t *testing.T) {

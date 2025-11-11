@@ -331,6 +331,41 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "application submission not found")
 	})
+
+	t.Run("UpdateApplicationSubmission_ApprovalWithApplicationCreationFailure", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Status:          string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		status := string(models.StatusApproved)
+		req := &models.UpdateApplicationSubmissionRequest{
+			Status: &status,
+		}
+
+		// This will fail because PDP service is not available, but tests compensation logic
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		// Verify submission status was rolled back to pending
+		var updatedSubmission models.ApplicationSubmission
+		db.Where("submission_id = ?", submission.SubmissionID).First(&updatedSubmission)
+		assert.Equal(t, string(models.StatusPending), updatedSubmission.Status)
+	})
 }
 
 func TestApplicationService_GetApplicationSubmission(t *testing.T) {
@@ -473,6 +508,37 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 		// Will fail on PDP call but tests the request structure
 		_, err := service.CreateApplication(req)
 		assert.Error(t, err)
+		// Verify application was rolled back
+		var count int64
+		db.Model(&models.Application{}).Where("application_name = ?", req.ApplicationName).Count(&count)
+		assert.Equal(t, int64(0), count)
+	})
+
+	t.Run("CreateApplication_WithDescription", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		req := &models.CreateApplicationRequest{
+			ApplicationName:        "Test Application",
+			ApplicationDescription: "Test Description",
+			SelectedFields: []models.SelectedFieldRecord{
+				{FieldName: "field1", SchemaID: "schema-123"},
+			},
+			MemberID: "member-123",
+		}
+
+		// Will fail on PDP call but tests the request structure with description
+		_, err := service.CreateApplication(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to update allow list")
+		// Verify application was rolled back
+		var count int64
+		db.Model(&models.Application{}).Where("application_name = ?", req.ApplicationName).Count(&count)
+		assert.Equal(t, int64(0), count)
 	})
 }
 

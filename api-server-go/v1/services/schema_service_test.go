@@ -186,6 +186,7 @@ func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 		}
 		db.Create(&member)
 
+		desc := "Test Description"
 		req := &models.CreateSchemaSubmissionRequest{
 			SchemaName:        "Test Submission",
 			SchemaDescription: &desc,
@@ -211,6 +212,7 @@ func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
+		desc := "Test Description"
 		req := &models.CreateSchemaSubmissionRequest{
 			SchemaName:        "Test Submission",
 			SchemaDescription: &desc,
@@ -477,6 +479,42 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 		_, err := service.CreateSchema(req)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create policy metadata")
+		// Verify schema was deleted (compensation)
+		var count int64
+		db.Model(&models.Schema{}).Where("schema_name = ?", req.SchemaName).Count(&count)
+		assert.Equal(t, int64(0), count)
+	})
+
+	t.Run("CreateSchema_CompensationFailure", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		req := &models.CreateSchemaRequest{
+			SchemaName: "Test Schema",
+			SDL:        "type Query { test: String }",
+			Endpoint:   "http://example.com/graphql",
+			MemberID:   "member-123",
+		}
+
+		// Create schema manually first to simulate a scenario where deletion might fail
+		schema := models.Schema{
+			SchemaID:   "sch_manual",
+			SchemaName: req.SchemaName,
+			SDL:        req.SDL,
+			Endpoint:   req.Endpoint,
+			MemberID:   req.MemberID,
+			Version:    string(models.ActiveVersion),
+		}
+		db.Create(&schema)
+
+		// Now try to create with same name - will fail on duplicate or PDP
+		_, err := service.CreateSchema(req)
+		// This tests the compensation path when PDP fails
+		assert.Error(t, err)
 	})
 }
 
