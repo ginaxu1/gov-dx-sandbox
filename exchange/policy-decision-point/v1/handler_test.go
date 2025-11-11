@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
+	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -43,6 +44,68 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	}
 
 	return db
+}
+
+func TestHandler_CreatePolicyMetadata_InvalidJSON(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/metadata", bytes.NewBufferString("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreatePolicyMetadata(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_UpdateAllowList_InvalidJSON(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/update-allowlist", bytes.NewBufferString("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.UpdateAllowList(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetPolicyDecision_InvalidJSON(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/decide", bytes.NewBufferString("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.GetPolicyDecision(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_SetupRoutes(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+
+	mux := http.NewServeMux()
+	handler.SetupRoutes(mux)
+
+	// Verify routes are registered
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/metadata", bytes.NewBuffer([]byte("{}")))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Should not return 404 (route exists)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_NewHandler(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+	assert.NotNil(t, handler)
+	assert.NotNil(t, handler.policyService)
 }
 
 func TestHandler_CreatePolicyMetadata(t *testing.T) {
@@ -117,6 +180,81 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 				Records:  []models.PolicyMetadataCreateRequestRecord{},
 			},
 			expectedStatus: http.StatusCreated, // Handler doesn't validate, service will handle
+		},
+		{
+			name: "Service error - invalid field configuration",
+			requestBody: models.PolicyMetadataCreateRequest{
+				SchemaID: "schema-123",
+				Records: []models.PolicyMetadataCreateRequestRecord{
+					{
+						FieldName:         "person.invalid",
+						Source:            models.SourcePrimary,
+						IsOwner:           false, // Invalid: isOwner false but no owner specified
+						AccessControlType: models.AccessControlTypePublic,
+					},
+				},
+			},
+			expectedStatus: http.StatusInternalServerError,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Should return error response
+				assert.Contains(t, w.Body.String(), "owner")
+			},
+		},
+		{
+			name: "Create with multiple records",
+			requestBody: models.PolicyMetadataCreateRequest{
+				SchemaID: "schema-123",
+				Records: []models.PolicyMetadataCreateRequestRecord{
+					{
+						FieldName:         "person.fullName",
+						DisplayName:       stringPtr("Full Name"),
+						Source:            models.SourcePrimary,
+						IsOwner:           true,
+						AccessControlType: models.AccessControlTypePublic,
+					},
+					{
+						FieldName:         "person.email",
+						DisplayName:       stringPtr("Email"),
+						Source:            models.SourcePrimary,
+						IsOwner:           true,
+						AccessControlType: models.AccessControlTypeRestricted,
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var resp models.PolicyMetadataCreateResponse
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+				if len(resp.Records) != 2 {
+					t.Errorf("Expected 2 records, got %d", len(resp.Records))
+				}
+			},
+		},
+		{
+			name: "Create with fallback source",
+			requestBody: models.PolicyMetadataCreateRequest{
+				SchemaID: "schema-123",
+				Records: []models.PolicyMetadataCreateRequestRecord{
+					{
+						FieldName:         "person.fullName",
+						Source:            models.SourceFallback,
+						IsOwner:           true,
+						AccessControlType: models.AccessControlTypePublic,
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var resp models.PolicyMetadataCreateResponse
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+				if resp.Records[0].Source != models.SourceFallback {
+					t.Errorf("Expected source fallback, got %s", resp.Records[0].Source)
+				}
+			},
 		},
 	}
 
@@ -237,6 +375,20 @@ func TestHandler_UpdateAllowList(t *testing.T) {
 				Records:       []models.AllowListUpdateRequestRecord{},
 			},
 			expectedStatus: http.StatusOK, // Handler doesn't validate, service will handle
+		},
+		{
+			name: "Service error - invalid grant duration",
+			requestBody: models.AllowListUpdateRequest{
+				ApplicationID: "app-123",
+				GrantDuration: "invalid-duration", // Invalid grant duration
+				Records: []models.AllowListUpdateRequestRecord{
+					{
+						FieldName: "person.fullName",
+						SchemaID:  "schema-123",
+					},
+				},
+			},
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -439,6 +591,19 @@ func TestHandler_GetPolicyDecision(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK, // Handler doesn't validate, service will handle
 		},
+		{
+			name: "Service error - schema not found",
+			requestBody: models.PolicyDecisionRequest{
+				ApplicationID: "app-123",
+				RequiredFields: []models.PolicyDecisionRequestRecord{
+					{
+						FieldName: "person.fullName",
+						SchemaID:  "nonexistent-schema",
+					},
+				},
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -516,9 +681,45 @@ func TestHandler_handlePolicyService(t *testing.T) {
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
-			name:           "Invalid path",
+			name:           "PUT /api/v1/policy/metadata - Method not allowed",
+			method:         http.MethodPut,
+			path:           "/api/v1/policy/metadata",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "DELETE /api/v1/policy/metadata - Method not allowed",
+			method:         http.MethodDelete,
+			path:           "/api/v1/policy/metadata",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "GET /api/v1/policy/update-allowlist - Method not allowed",
+			method:         http.MethodGet,
+			path:           "/api/v1/policy/update-allowlist",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "GET /api/v1/policy/decide - Method not allowed",
+			method:         http.MethodGet,
+			path:           "/api/v1/policy/decide",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "Invalid path - single segment",
 			method:         http.MethodPost,
 			path:           "/api/v1/policy/invalid",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "Invalid path - multiple segments",
+			method:         http.MethodPost,
+			path:           "/api/v1/policy/metadata/extra",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "Invalid path - empty after prefix",
+			method:         http.MethodPost,
+			path:           "/api/v1/policy/",
 			expectedStatus: http.StatusNotFound,
 		},
 	}
