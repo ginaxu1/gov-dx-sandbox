@@ -363,7 +363,7 @@ func TestHandler_GetPolicyDecision(t *testing.T) {
 			},
 		},
 		{
-			name: "Consent required - restricted field",
+			name: "Unauthorized request - restricted field not in allow list",
 			requestBody: models.PolicyDecisionRequest{
 				ApplicationID: "app-123",
 				RequiredFields: []models.PolicyDecisionRequestRecord{
@@ -375,53 +375,46 @@ func TestHandler_GetPolicyDecision(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
-				// This test case expects the field to be in allow list and require consent
-				// Since the field is restricted and isOwner is false, it should require consent
-				// First add to allow list
-				updateReq := models.AllowListUpdateRequest{
-					ApplicationID: "app-123",
-					GrantDuration: models.GrantDurationTypeOneMonth,
-					Records: []models.AllowListUpdateRequestRecord{
-						{
-							FieldName: "person.nic",
-							SchemaID:  "schema-123",
-						},
-					},
-				}
-				// Use the handler's service to update allow list
-				handler.policyService.UpdateAllowList(&updateReq)
-
-				// Retry the decision request
-				decisionReq := models.PolicyDecisionRequest{
-					ApplicationID: "app-123",
-					RequiredFields: []models.PolicyDecisionRequestRecord{
-						{
-							FieldName: "person.nic",
-							SchemaID:  "schema-123",
-						},
-					},
-				}
-				body, _ := json.Marshal(decisionReq)
-				req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/decide", bytes.NewBuffer(body))
-				req.Header.Set("Content-Type", "application/json")
-				w2 := httptest.NewRecorder()
-				handler.GetPolicyDecision(w2, req)
-
-				if w2.Code != http.StatusOK {
-					t.Errorf("Expected status 200, got %d. Body: %s", w2.Code, w2.Body.String())
-					return
-				}
-
-				var resp2 models.PolicyDecisionResponse
-				if err := json.NewDecoder(w2.Body).Decode(&resp2); err != nil {
+				var resp models.PolicyDecisionResponse
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 					t.Fatalf("Failed to decode response: %v", err)
 				}
-
-				if !resp2.AppRequiresOwnerConsent {
+				if resp.AppAuthorized {
+					t.Error("Expected appAuthorized to be false")
+				}
+				if len(resp.UnauthorizedFields) != 1 {
+					t.Errorf("Expected 1 unauthorized field, got %d", len(resp.UnauthorizedFields))
+				}
+			},
+		},
+		{
+			name: "Consent required - restricted field in allow list",
+			requestBody: models.PolicyDecisionRequest{
+				ApplicationID: "app-123",
+				RequiredFields: []models.PolicyDecisionRequestRecord{
+					{
+						FieldName: "person.nic",
+						SchemaID:  "schema-123",
+					},
+				},
+			},
+			expectedStatus: http.StatusOK,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var resp models.PolicyDecisionResponse
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+				if !resp.AppAuthorized {
+					t.Error("Expected appAuthorized to be true (field is in allow list)")
+				}
+				if !resp.AppRequiresOwnerConsent {
 					t.Error("Expected appRequiresOwnerConsent to be true")
 				}
-				if len(resp2.ConsentRequiredFields) != 1 {
-					t.Errorf("Expected 1 consent required field, got %d", len(resp2.ConsentRequiredFields))
+				if len(resp.ConsentRequiredFields) != 1 {
+					t.Errorf("Expected 1 consent required field, got %d", len(resp.ConsentRequiredFields))
+				}
+				if len(resp.UnauthorizedFields) > 0 {
+					t.Errorf("Expected no unauthorized fields, got %d", len(resp.UnauthorizedFields))
 				}
 			},
 		},
@@ -450,6 +443,24 @@ func TestHandler_GetPolicyDecision(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup: Update allow list for consent-required test case before making the request
+			if tt.name == "Consent required - restricted field in allow list" {
+				updateReq := models.AllowListUpdateRequest{
+					ApplicationID: "app-123",
+					GrantDuration: models.GrantDurationTypeOneMonth,
+					Records: []models.AllowListUpdateRequestRecord{
+						{
+							FieldName: "person.nic",
+							SchemaID:  "schema-123",
+						},
+					},
+				}
+				_, err := handler.policyService.UpdateAllowList(&updateReq)
+				if err != nil {
+					t.Fatalf("Failed to update allow list for test setup: %v", err)
+				}
+			}
+
 			// Use the same handler instance for all operations
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/decide", bytes.NewBuffer(body))

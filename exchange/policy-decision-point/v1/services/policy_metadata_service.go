@@ -248,14 +248,20 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 		responseRecords = append(responseRecords, responseRecord)
 	}
 
-	// Batch update all records in a single operation
+	// Update all records
+	// Note: We update each record individually because:
+	// 1. Each record has a different allow_list value (different fields being updated)
+	// 2. GORM's batch Save() works, but Updates() with map[string]interface{} ensures
+	//    the custom AllowList type's Value() method is called for proper JSON serialization
+	// 3. Using Select() limits the update to only allow_list and updated_at fields
+	// Alternative approaches (raw SQL with CASE, or Save in batches) would be more complex
+	// and wouldn't provide significant performance improvement for typical use cases
 	if len(recordsToUpdate) > 0 {
-		// Update each record individually to ensure custom types are properly serialized
 		for _, pm := range recordsToUpdate {
-			// Use Updates with Select to ensure allow_list is properly serialized
+			pm.UpdatedAt = time.Now()
 			if err := tx.Model(pm).Select("allow_list", "updated_at").Updates(map[string]interface{}{
 				"allow_list": pm.AllowList,
-				"updated_at": time.Now(),
+				"updated_at": pm.UpdatedAt,
 			}).Error; err != nil {
 				tx.Rollback()
 				return nil, fmt.Errorf("failed to update allow list record: %w", err)
