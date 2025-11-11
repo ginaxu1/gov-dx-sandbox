@@ -71,6 +71,7 @@ func SetupSQLiteTestDB(t *testing.T) *gorm.DB {
 		&models.ApplicationSubmission{},
 		&models.Schema{},
 		&models.SchemaSubmission{},
+		&models.PDPJob{}, // Required for one-shot transactional outbox pattern
 	)
 	if err != nil {
 		t.Fatalf("Failed to migrate test database: %v", err)

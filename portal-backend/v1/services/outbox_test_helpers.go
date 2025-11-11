@@ -70,3 +70,27 @@ func (m *mockPDPService) HealthCheck() error {
 func stringPtr(s string) *string {
 	return &s
 }
+
+// mockAlertNotifier is a test implementation of AlertNotifier
+type mockAlertNotifier struct {
+	alerts []alertCall
+}
+
+type alertCall struct {
+	severity string
+	message  string
+	details  map[string]interface{}
+}
+
+func (m *mockAlertNotifier) SendAlert(severity string, message string, details map[string]interface{}) error {
+	m.alerts = append(m.alerts, alertCall{
+		severity: severity,
+		message:  message,
+		details:  details,
+	})
+	return nil
+}
+
+func (m *mockAlertNotifier) reset() {
+	m.alerts = []alertCall{}
+}

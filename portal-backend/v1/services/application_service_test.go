@@ -421,6 +421,73 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
+	t.Run("UpdateApplicationSubmission_ApprovalSuccess", func(t *testing.T) {
+		db, mock, cleanup := SetupMockDB(t)
+		defer cleanup()
+
+		pdpService := NewPDPService("http://mock-pdp", "mock-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test Member"}
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			MemberID:        member.MemberID,
+			Status:          models.StatusPending,
+			Member:          member,
+		}
+
+		// Mock DB expectations
+		// 1. Find submission
+		mock.ExpectQuery(`SELECT .*`).
+			WillReturnRows(sqlmock.NewRows([]string{"submission_id", "application_name", "member_id", "status"}).
+				AddRow(submission.SubmissionID, submission.ApplicationName, submission.MemberID, string(submission.Status)))
+
+		// 2. Save submission (status update to Approved)
+		mock.ExpectExec(`UPDATE "application_submissions"`).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+
+		// 3. Create Application
+		mock.ExpectQuery(`INSERT INTO "applications"`).
+			WillReturnRows(sqlmock.NewRows([]string{"application_id"}).AddRow("app_new"))
+
+		// 4. Create PDP Job
+		mock.ExpectQuery(`INSERT INTO "pdp_jobs"`).
+			WillReturnRows(sqlmock.NewRows([]string{"job_id"}).AddRow("pdp_job_1"))
+
+		status := string(models.StatusApproved)
+		req := &models.UpdateApplicationSubmissionRequest{
+			Status: &status,
+		}
+
+		// UpdateApplicationSubmission now uses outbox pattern - it succeeds and queues a job
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		// CreateApplication now uses outbox pattern - it succeeds and queues a job
+		// Note: The original instruction seems to have intended to replace the verification logic
+		// for UpdateApplicationSubmission_ApprovalSuccess, but the provided code snippet
+		// includes a call to `service.CreateApplication(req)` which is out of context for this test.
+		// Assuming the intent was to verify the outcome of the UpdateApplicationSubmission call
+		// leading to application creation and PDP job queuing.
+		// CreateApplication now uses outbox pattern - it succeeds and queues a job
+		// The following lines are adjusted to reflect the original test's context.
+		assert.Equal(t, string(models.StatusApproved), string(result.Status))
+
+		// Verify application was created (in the mock DB)
+		var appCount int64
+		db.Model(&models.Application{}).Where("member_id = ?", member.MemberID).Count(&appCount)
+		assert.Equal(t, int64(1), appCount)
+
+		// Verify PDP job was queued (in the mock DB)
+		var jobCount int64
+		db.Model(&models.PDPJob{}).Where("application_id IS NOT NULL").Count(&jobCount)
+		assert.GreaterOrEqual(t, jobCount, int64(1))
+
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
 	t.Run("UpdateApplicationSubmission_ApprovalWithApplicationCreationFailure", func(t *testing.T) {
 		db, mock, cleanup := SetupMockDB(t)
 		defer cleanup()

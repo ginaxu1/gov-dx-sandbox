@@ -1370,7 +1370,8 @@ func TestNewV1Handler(t *testing.T) {
 			return
 		}
 
-		handler, err := NewV1Handler(db)
+		mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+		handler, err := NewV1Handler(db, mockPDP)
 		assert.NoError(t, err)
 		assert.NotNil(t, handler)
 		assert.NotNil(t, handler.memberService)
@@ -1430,7 +1431,8 @@ func TestNewV1Handler(t *testing.T) {
 			return
 		}
 
-		handler, err := NewV1Handler(db)
+		mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+		handler, err := NewV1Handler(db, mockPDP)
 		assert.NoError(t, err)
 		assert.NotNil(t, handler)
 	})
@@ -1479,7 +1481,8 @@ func TestV1Handler_SetupV1Routes(t *testing.T) {
 	os.Setenv("ASGARDEO_CLIENT_ID", "test-client-id")
 	os.Setenv("ASGARDEO_CLIENT_SECRET", "test-client-secret")
 
-	handler, err := NewV1Handler(db)
+	mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+	handler, err := NewV1Handler(db, mockPDP)
 	if err != nil {
 		t.Fatalf("Failed to create handler: %v", err)
 	}
