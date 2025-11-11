@@ -74,11 +74,14 @@ func TestMakeConsentRequest_Success(t *testing.T) {
 
 	request := &CERequest{
 		AppId: "test-app-123",
-		DataFields: []DataOwnerRecord{
+		ConsentRequirements: []ConsentRequirement{
 			{
-				OwnerType: "individual",
-				OwnerId:   "user-456",
-				Fields:    []string{"name", "email", "phone"},
+				Owner:   "individual",
+				OwnerID: "user-456",
+				Fields: []ConsentField{
+					{FieldName: "email", SchemaID: "schema-1"},
+					{FieldName: "name", SchemaID: "schema-1"},
+				},
 			},
 		},
 		Purpose:   "test purpose",
@@ -115,10 +118,10 @@ func TestMakeConsentRequest_HTTPError(t *testing.T) {
 	client := NewCEClient(server.URL)
 
 	request := &CERequest{
-		AppId:      "test-app-123",
-		DataFields: []DataOwnerRecord{},
-		Purpose:    "test purpose",
-		SessionId:  "session-789",
+		AppId:               "test-app-123",
+		ConsentRequirements: []ConsentRequirement{},
+		Purpose:             "test purpose",
+		SessionId:           "session-789",
 	}
 
 	// Note: The current implementation doesn't check HTTP status codes,
@@ -145,10 +148,10 @@ func TestMakeConsentRequest_InvalidResponseJSON(t *testing.T) {
 	client := NewCEClient(server.URL)
 
 	request := &CERequest{
-		AppId:      "test-app-123",
-		DataFields: []DataOwnerRecord{},
-		Purpose:    "test purpose",
-		SessionId:  "session-789",
+		AppId:               "test-app-123",
+		ConsentRequirements: []ConsentRequirement{},
+		Purpose:             "test purpose",
+		SessionId:           "session-789",
 	}
 
 	response, err := client.MakeConsentRequest(request)
@@ -167,10 +170,10 @@ func TestMakeConsentRequest_NetworkError(t *testing.T) {
 	client := NewCEClient("http://invalid-host-that-does-not-exist-12345.com")
 
 	request := &CERequest{
-		AppId:      "test-app-123",
-		DataFields: []DataOwnerRecord{},
-		Purpose:    "test purpose",
-		SessionId:  "session-789",
+		AppId:               "test-app-123",
+		ConsentRequirements: []ConsentRequirement{},
+		Purpose:             "test purpose",
+		SessionId:           "session-789",
 	}
 
 	response, err := client.MakeConsentRequest(request)
@@ -190,8 +193,8 @@ func TestMakeConsentRequest_EmptyDataFields(t *testing.T) {
 		json.NewDecoder(r.Body).Decode(&req)
 
 		// Verify empty data fields
-		if len(req.DataFields) != 0 {
-			t.Errorf("Expected 0 data fields, got %d", len(req.DataFields))
+		if len(req.ConsentRequirements) != 0 {
+			t.Errorf("Expected 0 data fields, got %d", len(req.ConsentRequirements))
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -206,10 +209,10 @@ func TestMakeConsentRequest_EmptyDataFields(t *testing.T) {
 	client := NewCEClient(server.URL)
 
 	request := &CERequest{
-		AppId:      "test-app-123",
-		DataFields: []DataOwnerRecord{},
-		Purpose:    "test purpose",
-		SessionId:  "session-789",
+		AppId:               "test-app-123",
+		ConsentRequirements: []ConsentRequirement{},
+		Purpose:             "test purpose",
+		SessionId:           "session-789",
 	}
 
 	response, err := client.MakeConsentRequest(request)
@@ -229,8 +232,8 @@ func TestMakeConsentRequest_MultipleDataOwners(t *testing.T) {
 		json.NewDecoder(r.Body).Decode(&req)
 
 		// Verify multiple data owners
-		if len(req.DataFields) != 3 {
-			t.Errorf("Expected 3 data fields, got %d", len(req.DataFields))
+		if len(req.ConsentRequirements) != 3 {
+			t.Errorf("Expected 3 data fields, got %d", len(req.ConsentRequirements))
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -246,21 +249,30 @@ func TestMakeConsentRequest_MultipleDataOwners(t *testing.T) {
 
 	request := &CERequest{
 		AppId: "test-app-123",
-		DataFields: []DataOwnerRecord{
+		ConsentRequirements: []ConsentRequirement{
 			{
-				OwnerType: "individual",
-				OwnerId:   "user-1",
-				Fields:    []string{"name", "email"},
+				Owner:   "individual",
+				OwnerID: "user-1",
+				Fields: []ConsentField{
+					{FieldName: "email", SchemaID: "schema-1"},
+					{FieldName: "name", SchemaID: "schema-1"},
+				},
 			},
 			{
-				OwnerType: "organization",
-				OwnerId:   "org-1",
-				Fields:    []string{"company_name", "tax_id"},
+				Owner:   "organization",
+				OwnerID: "org-1",
+				Fields: []ConsentField{
+					{FieldName: "company_name", SchemaID: "schema-2"},
+					{FieldName: "tax_id", SchemaID: "schema-2"},
+				},
 			},
 			{
-				OwnerType: "individual",
-				OwnerId:   "user-2",
-				Fields:    []string{"address", "phone"},
+				Owner:   "individual",
+				OwnerID: "user-2",
+				Fields: []ConsentField{
+					{FieldName: "address", SchemaID: "schema-3"},
+					{FieldName: "phone", SchemaID: "schema-3"},
+				},
 			},
 		},
 		Purpose:   "multi-owner consent",
@@ -281,11 +293,14 @@ func TestMakeConsentRequest_MultipleDataOwners(t *testing.T) {
 func TestCERequest_JSONMarshaling(t *testing.T) {
 	request := &CERequest{
 		AppId: "test-app",
-		DataFields: []DataOwnerRecord{
+		ConsentRequirements: []ConsentRequirement{
 			{
-				OwnerType: "individual",
-				OwnerId:   "user-1",
-				Fields:    []string{"field1", "field2"},
+				Owner:   "individual",
+				OwnerID: "user-1",
+				Fields: []ConsentField{
+					{FieldName: "field1", SchemaID: "schema-1"},
+					{FieldName: "field2", SchemaID: "schema-1"},
+				},
 			},
 		},
 		Purpose:   "testing",
