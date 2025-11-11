@@ -45,8 +45,6 @@ func TestSchemaService_CreateSchema_TransactionalOutbox(t *testing.T) {
 	assert.Equal(t, models.PDPJobStatusPending, job.Status)
 	assert.Equal(t, response.SchemaID, *job.SchemaID)
 	assert.Equal(t, req.SDL, *job.SDL)
-	assert.Equal(t, 0, job.RetryCount)
-	assert.Equal(t, 5, job.MaxRetries)
 }
 
 // TestSchemaService_CreateSchema_TransactionRollbackOnSchemaError tests that transaction rolls back when schema creation fails

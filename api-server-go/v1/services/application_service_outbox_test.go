@@ -50,8 +50,6 @@ func TestApplicationService_CreateApplication_TransactionalOutbox(t *testing.T) 
 	assert.Equal(t, response.ApplicationID, *job.ApplicationID)
 	assert.NotNil(t, job.SelectedFields) // Should contain serialized JSON
 	assert.NotNil(t, job.GrantDuration)
-	assert.Equal(t, 0, job.RetryCount)
-	assert.Equal(t, 5, job.MaxRetries)
 }
 
 // TestApplicationService_CreateApplication_TransactionRollbackOnApplicationError tests rollback when application creation fails

@@ -57,13 +57,11 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 
 	// Create the PDP job in the same transaction
 	job := models.PDPJob{
-		JobID:      "job_" + uuid.New().String(),
-		JobType:    models.PDPJobTypeCreatePolicyMetadata,
-		SchemaID:   &schema.SchemaID,
-		SDL:        &schema.SDL,
-		Status:     models.PDPJobStatusPending,
-		RetryCount: 0,
-		MaxRetries: 5,
+		JobID:    "job_" + uuid.New().String(),
+		JobType:  models.PDPJobTypeCreatePolicyMetadata,
+		SchemaID: &schema.SchemaID,
+		SDL:      &schema.SDL,
+		Status:   models.PDPJobStatusPending,
 	}
 
 	if err := tx.Create(&job).Error; err != nil {

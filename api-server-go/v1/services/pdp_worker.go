@@ -12,21 +12,30 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// PDPWorker processes PDP jobs from the outbox table
+// AlertNotifier is an interface for sending high-priority alerts
+type AlertNotifier interface {
+	SendAlert(severity string, message string, details map[string]interface{}) error
+}
+
+// PDPWorker processes PDP jobs from the outbox table using a one-shot transactional state machine
+// It does NOT retry - if PDP call fails, it compensates by deleting the main record
 type PDPWorker struct {
-	db           *gorm.DB
-	pdpService   PDPClient
-	pollInterval time.Duration
-	batchSize    int
+	db            *gorm.DB
+	pdpService    PDPClient
+	pollInterval  time.Duration
+	batchSize     int
+	alertNotifier AlertNotifier // Optional alert notifier
 }
 
 // NewPDPWorker creates a new PDP worker
-func NewPDPWorker(db *gorm.DB, pdpService PDPClient) *PDPWorker {
+// alertNotifier can be nil - alerts will be logged but not sent to external systems
+func NewPDPWorker(db *gorm.DB, pdpService PDPClient, alertNotifier AlertNotifier) *PDPWorker {
 	return &PDPWorker{
-		db:           db,
-		pdpService:   pdpService,
-		pollInterval: 10 * time.Second,
-		batchSize:    10,
+		db:            db,
+		pdpService:    pdpService,
+		pollInterval:  10 * time.Second,
+		batchSize:     10,
+		alertNotifier: alertNotifier,
 	}
 }
 
@@ -35,7 +44,7 @@ func (w *PDPWorker) Start(ctx context.Context) {
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
-	slog.Info("PDP worker started", "pollInterval", w.pollInterval, "batchSize", w.batchSize)
+	slog.Info("PDP worker started (one-shot mode)", "pollInterval", w.pollInterval, "batchSize", w.batchSize)
 
 	for {
 		select {
@@ -52,10 +61,6 @@ func (w *PDPWorker) Start(ctx context.Context) {
 func (w *PDPWorker) processJobs() {
 	now := time.Now()
 
-	// Fetch pending jobs that are ready for retry (using SELECT FOR UPDATE to prevent concurrent processing)
-	// Only select jobs where next_retry_at is NULL or has passed
-	var jobs []models.PDPJob
-
 	// Clean up jobs stuck in "processing" status (e.g., from crashed workers)
 	// Reset them to "pending" if they've been processing for more than 5 minutes
 	stuckThreshold := now.Add(-5 * time.Minute)
@@ -67,11 +72,11 @@ func (w *PDPWorker) processJobs() {
 	}
 
 	// Use a transaction with row-level locking to prevent concurrent processing
+	var jobs []models.PDPJob
 	err := w.db.Transaction(func(tx *gorm.DB) error {
 		// SELECT FOR UPDATE with SKIP LOCKED to avoid blocking other workers unnecessarily
 		// This ensures only one worker can claim a job
 		if err := tx.Where("status = ?", models.PDPJobStatusPending).
-			Where("(next_retry_at IS NULL OR next_retry_at <= ?)", now).
 			Order("created_at ASC").
 			Limit(w.batchSize).
 			Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
@@ -114,11 +119,12 @@ func (w *PDPWorker) processJobs() {
 	}
 }
 
-// processJob processes a single PDP job
+// processJob processes a single PDP job using one-shot logic with compensation
 func (w *PDPWorker) processJob(job *models.PDPJob) {
-	var err error
 	now := time.Now()
+	var err error
 
+	// Attempt the PDP call exactly once
 	switch job.JobType {
 	case models.PDPJobTypeCreatePolicyMetadata:
 		err = w.processCreatePolicyMetadata(job)
@@ -128,56 +134,61 @@ func (w *PDPWorker) processJob(job *models.PDPJob) {
 		err = fmt.Errorf("unknown job type: %s", job.JobType)
 	}
 
-	// Calculate new retry count
-	newRetryCount := job.RetryCount + 1
-
-	// Update job status
 	updates := map[string]interface{}{
 		"processed_at": now,
-		"retry_count":  newRetryCount,
 	}
 
 	if err != nil {
+		// Scenario B: PDP Call FAILED - Move to compensation
 		errorMsg := err.Error()
 		updates["error"] = &errorMsg
 
-		// Check if we've exceeded max retries
-		// newRetryCount represents the number of attempts made (including this one)
-		// MaxRetries is the maximum number of retry attempts allowed
-		// If newRetryCount > MaxRetries, we've exceeded the limit
-		// Note: RetryCount starts at 0, so with MaxRetries=5:
-		//   - RetryCount=0 (1st attempt) -> newRetryCount=1, allowed
-		//   - RetryCount=4 (5th attempt) -> newRetryCount=5, allowed
-		//   - RetryCount=5 (6th attempt) -> newRetryCount=6, exceeded
-		if newRetryCount > job.MaxRetries {
-			updates["status"] = models.PDPJobStatusFailed
-			updates["next_retry_at"] = nil // Clear retry time since we're giving up
-			slog.Error("PDP job failed after max retries",
-				"jobID", job.JobID,
-				"jobType", job.JobType,
-				"retryCount", newRetryCount,
-				"maxRetries", job.MaxRetries,
-				"error", err)
-		} else {
-			// Exponential backoff: base delay 1 minute, doubled for each retry
-			baseDelay := time.Minute
-			backoffDelay := baseDelay * time.Duration(1<<job.RetryCount)
-			nextRetryAt := now.Add(backoffDelay)
-			updates["next_retry_at"] = &nextRetryAt
-			updates["status"] = models.PDPJobStatusPending // Reset to pending for next retry
+		slog.Warn("PDP job failed, attempting compensation",
+			"jobID", job.JobID,
+			"jobType", job.JobType,
+			"error", err)
 
-			slog.Warn("PDP job failed, will retry",
+		// Attempt compensation (delete the main record)
+		compensationErr := w.compensate(job)
+		if compensationErr != nil {
+			// Scenario B.2: Compensation also failed - CRITICAL ALERT
+			updates["status"] = models.PDPJobStatusCompensationFailed
+			compensationErrorMsg := fmt.Sprintf("PDP call failed: %v; Compensation failed: %v", err, compensationErr)
+			updates["error"] = &compensationErrorMsg
+
+			slog.Error("CRITICAL: Both PDP call and compensation failed",
 				"jobID", job.JobID,
 				"jobType", job.JobType,
-				"retryCount", newRetryCount,
-				"maxRetries", job.MaxRetries,
-				"error", err,
-				"nextRetryAt", nextRetryAt)
+				"pdpError", err,
+				"compensationError", compensationErr)
+
+			// Fire high-priority alert
+			if w.alertNotifier != nil {
+				alertErr := w.alertNotifier.SendAlert("critical",
+					fmt.Sprintf("PDP job compensation failed for job %s", job.JobID),
+					map[string]interface{}{
+						"jobID":             job.JobID,
+						"jobType":           job.JobType,
+						"pdpError":          err.Error(),
+						"compensationError": compensationErr.Error(),
+						"schemaID":          job.SchemaID,
+						"applicationID":     job.ApplicationID,
+					})
+				if alertErr != nil {
+					slog.Error("Failed to send alert", "error", alertErr)
+				}
+			}
+		} else {
+			// Scenario B.1: Compensation succeeded
+			updates["status"] = models.PDPJobStatusCompensated
+			slog.Info("PDP job failed, compensation successful",
+				"jobID", job.JobID,
+				"jobType", job.JobType)
 		}
 	} else {
+		// Scenario A: PDP Call SUCCEEDED
 		updates["status"] = models.PDPJobStatusCompleted
 		updates["error"] = nil
-		updates["next_retry_at"] = nil // Clear retry time on success
 		slog.Info("PDP job completed successfully",
 			"jobID", job.JobID,
 			"jobType", job.JobType)
@@ -188,6 +199,38 @@ func (w *PDPWorker) processJob(job *models.PDPJob) {
 		slog.Error("Failed to update PDP job status",
 			"jobID", job.JobID,
 			"error", updateErr)
+	}
+}
+
+// compensate attempts to delete the main record to restore consistency
+func (w *PDPWorker) compensate(job *models.PDPJob) error {
+	switch job.JobType {
+	case models.PDPJobTypeCreatePolicyMetadata:
+		// Delete the schema record
+		if job.SchemaID == nil {
+			return fmt.Errorf("cannot compensate: schema_id is nil")
+		}
+		result := w.db.Where("schema_id = ?", *job.SchemaID).Delete(&models.Schema{})
+		if result.Error != nil {
+			return fmt.Errorf("failed to delete schema: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("schema not found for compensation: %s", *job.SchemaID)
+		}
+		slog.Info("Compensated by deleting schema", "schemaID", *job.SchemaID)
+		return nil
+
+	case models.PDPJobTypeUpdateAllowList:
+		// For UpdateAllowList, we don't delete the application (it may have been created successfully)
+		// Instead, we just log that the allow list update failed
+		// The application exists but without the allow list entry - this is acceptable
+		// as the application can be updated later
+		slog.Info("Compensation not needed for UpdateAllowList - application remains",
+			"applicationID", job.ApplicationID)
+		return nil
+
+	default:
+		return fmt.Errorf("unknown job type for compensation: %s", job.JobType)
 	}
 }
 
