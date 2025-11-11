@@ -163,10 +163,11 @@ func QueryWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, q
 }
 
 // QueryRowWithTimeout executes a query with timeout and returns a single row
+// Note: The context is kept alive until Scan() is called on the returned row.
+// The caller must ensure Scan() is called promptly to avoid context leaks.
 func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) *sql.Row {
 	// Create a timeout context for the query
-	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
-	defer cancel()
+	queryCtx, _ := context.WithTimeout(ctx, config.QueryTimeout)
 
 	return db.QueryRowContext(queryCtx, query, args...)
 }
