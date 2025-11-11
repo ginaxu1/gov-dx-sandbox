@@ -677,7 +677,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 			name:   "ExpiryCheck_WithExpiredRecords",
 			method: http.MethodPost,
 			setupFunc: func(t *testing.T, engine ConsentEngine) string {
-				// Create a consent with very short grant duration
+				// Create a consent with very short grant duration (100ms)
 				createReq := ConsentRequest{
 					AppID: "test-app",
 					ConsentRequirements: []ConsentRequirement{
@@ -692,7 +692,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 							},
 						},
 					},
-					GrantDuration: "1s",
+					GrantDuration: "100ms",
 				}
 				record, err := engine.ProcessConsentRequest(createReq)
 				if err != nil {
@@ -710,8 +710,8 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 					t.Fatalf("Failed to approve consent: %v", err)
 				}
 
-				// Wait for expiry
-				time.Sleep(2 * time.Second)
+				// Wait for expiry (200ms should be sufficient for 100ms grant duration)
+				time.Sleep(200 * time.Millisecond)
 				return record.ConsentID
 			},
 			expectedStatus: http.StatusOK,
