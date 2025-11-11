@@ -54,7 +54,7 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=API Server Go service for the Government Data Exchange platform
-            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.licenses=Apache-2.0
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
