@@ -1,0 +1,64 @@
+name: "🐞 Report a Bug"
+description: "Create new issue in LSFLK/OpenDIF: 🐞 Report a Bug"
+labels: ["Type/Bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: "Describe the Bug"
+      description: "A clear and concise description of what the bug is."
+      placeholder: "Describe the issue you are facing"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "To Reproduce"
+      description: "List the steps you followed when you encountered the issue."
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Expected Behavior"
+      description: "A clear and concise description of what you expected to happen."
+      placeholder: "What should have happened?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: "Screenshots"
+      description: "If applicable, add screenshots to help explain your problem."
+      placeholder: "You can drag and drop images here or paste image links."
+
+  - type: input
+    id: version
+    attributes:
+      label: "Version"
+      description: "Enter product version or commit."
+      placeholder: "e.g. v1.0.3 or commit hash"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment Details (with versions)"
+      description: "Mention the environment details (OS, Database, etc.) that the product is running on."
+      placeholder: "e.g. Ubuntu 22.04, PostgreSQL 14, Docker 24.0"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Additional Context"
+      description: "Add any other context about the problem here."
+      placeholder: "Anything else to share?"
