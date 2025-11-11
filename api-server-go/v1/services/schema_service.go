@@ -32,7 +32,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		Version:    string(models.ActiveVersion),
 	}
 	if req.SchemaDescription != nil {
-		schema.SchemaDescription = *req.SchemaDescription
+		schema.SchemaDescription = req.SchemaDescription
 	}
 
 	// Step 1: Create schema in database first
@@ -58,15 +58,17 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:          schema.SchemaID,
-		SchemaName:        schema.SchemaName,
-		SchemaDescription: &schema.SchemaDescription,
-		SDL:               schema.SDL,
-		Endpoint:          schema.Endpoint,
-		Version:           schema.Version,
-		MemberID:          schema.MemberID,
-		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
+		SchemaID:   schema.SchemaID,
+		SchemaName: schema.SchemaName,
+		SDL:        schema.SDL,
+		Endpoint:   schema.Endpoint,
+		Version:    schema.Version,
+		MemberID:   schema.MemberID,
+		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
+	}
+	if schema.SchemaDescription != nil && *schema.SchemaDescription != "" {
+		response.SchemaDescription = schema.SchemaDescription
 	}
 
 	return response, nil
@@ -85,7 +87,7 @@ func (s *SchemaService) UpdateSchema(schemaID string, req *models.UpdateSchemaRe
 		schema.SchemaName = *req.SchemaName
 	}
 	if req.SchemaDescription != nil {
-		schema.SchemaDescription = *req.SchemaDescription
+		schema.SchemaDescription = req.SchemaDescription
 	}
 	if req.SDL != nil {
 		schema.SDL = *req.SDL
@@ -102,15 +104,17 @@ func (s *SchemaService) UpdateSchema(schemaID string, req *models.UpdateSchemaRe
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:          schema.SchemaID,
-		SchemaName:        schema.SchemaName,
-		SchemaDescription: &schema.SchemaDescription,
-		SDL:               schema.SDL,
-		Endpoint:          schema.Endpoint,
-		Version:           schema.Version,
-		MemberID:          schema.MemberID,
-		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
+		SchemaID:   schema.SchemaID,
+		SchemaName: schema.SchemaName,
+		SDL:        schema.SDL,
+		Endpoint:   schema.Endpoint,
+		Version:    schema.Version,
+		MemberID:   schema.MemberID,
+		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
+	}
+	if schema.SchemaDescription != nil && *schema.SchemaDescription != "" {
+		response.SchemaDescription = schema.SchemaDescription
 	}
 
 	return response, nil
@@ -125,15 +129,17 @@ func (s *SchemaService) GetSchema(schemaID string) (*models.SchemaResponse, erro
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:          schema.SchemaID,
-		SchemaName:        schema.SchemaName,
-		SchemaDescription: &schema.SchemaDescription,
-		SDL:               schema.SDL,
-		Endpoint:          schema.Endpoint,
-		Version:           schema.Version,
-		MemberID:          schema.MemberID,
-		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
+		SchemaID:   schema.SchemaID,
+		SchemaName: schema.SchemaName,
+		SDL:        schema.SDL,
+		Endpoint:   schema.Endpoint,
+		Version:    schema.Version,
+		MemberID:   schema.MemberID,
+		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
+	}
+	if schema.SchemaDescription != nil && *schema.SchemaDescription != "" {
+		response.SchemaDescription = schema.SchemaDescription
 	}
 
 	return response, nil
@@ -168,7 +174,9 @@ func (s *SchemaService) GetSchemas(memberID *string) ([]*models.SchemaResponse, 
 			CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
 		}
-		resp.SchemaDescription = &schema.SchemaDescription
+		if schema.SchemaDescription != nil && *schema.SchemaDescription != "" {
+			resp.SchemaDescription = schema.SchemaDescription
+		}
 		responses = append(responses, resp)
 	}
 

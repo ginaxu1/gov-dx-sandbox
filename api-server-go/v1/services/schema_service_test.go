@@ -18,10 +18,11 @@ func TestSchemaService_UpdateSchema(t *testing.T) {
 		service := NewSchemaService(db, pdpService)
 
 		// Create a schema first
+		desc := "Original Description"
 		schema := models.Schema{
 			SchemaID:          "sch_123",
 			SchemaName:        "Original Name",
-			SchemaDescription: "Original Description",
+			SchemaDescription: &desc,
 			SDL:               "type Query { original: String }",
 			Endpoint:          "http://original.com",
 			MemberID:          "member-123",
@@ -84,7 +85,7 @@ func TestSchemaService_GetSchema(t *testing.T) {
 		schema := models.Schema{
 			SchemaID:          "sch_123",
 			SchemaName:        "Test Schema",
-			SchemaDescription: "Test Description",
+			SchemaDescription: stringPtr("Test Description"),
 			SDL:               "type Query { test: String }",
 			Endpoint:          "http://example.com",
 			MemberID:          "member-123",
@@ -527,10 +528,11 @@ func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewSchemaService(db, pdpService)
 
+		desc := "Original Description"
 		schema := models.Schema{
 			SchemaID:          "sch_123",
 			SchemaName:        "Original Name",
-			SchemaDescription: "Original Description",
+			SchemaDescription: &desc,
 			SDL:               "type Query { original: String }",
 			Endpoint:          "http://original.com",
 			MemberID:          "member-123",
@@ -550,9 +552,9 @@ func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, newName, result.SchemaName)
 		// Original description should remain
-		if schema.SchemaDescription != "" {
+		if schema.SchemaDescription != nil {
 			assert.NotNil(t, result.SchemaDescription)
-			assert.Equal(t, schema.SchemaDescription, *result.SchemaDescription)
+			assert.Equal(t, *schema.SchemaDescription, *result.SchemaDescription)
 		}
 	})
 

@@ -50,10 +50,11 @@ func TestApplicationService_UpdateApplication(t *testing.T) {
 		service := NewApplicationService(db, pdpService)
 
 		// Create an application first using GORM (now works with SQLite)
+		desc := "Original Description"
 		application := models.Application{
 			ApplicationID:          "app_123",
 			ApplicationName:        "Original Name",
-			ApplicationDescription: "Original Description",
+			ApplicationDescription: &desc,
 			SelectedFields: models.SelectedFieldRecords{
 				{FieldName: "field1", SchemaID: "schema-123"},
 			},
@@ -122,7 +123,7 @@ func TestApplicationService_GetApplication(t *testing.T) {
 		application := models.Application{
 			ApplicationID:          "app_123",
 			ApplicationName:        "Test Application",
-			ApplicationDescription: desc,
+			ApplicationDescription: &desc,
 			SelectedFields: models.SelectedFieldRecords{
 				{FieldName: "field1", SchemaID: "schema-123"},
 			},
@@ -553,10 +554,11 @@ func TestApplicationService_UpdateApplication_EdgeCases(t *testing.T) {
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewApplicationService(db, pdpService)
 
+		desc := "Original Description"
 		application := models.Application{
 			ApplicationID:          "app_123",
 			ApplicationName:        "Original Name",
-			ApplicationDescription: "Original Description",
+			ApplicationDescription: &desc,
 			SelectedFields:         models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
 			MemberID:               "member-123",
 			Version:                string(models.ActiveVersion),
@@ -575,9 +577,9 @@ func TestApplicationService_UpdateApplication_EdgeCases(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Equal(t, newName, result.ApplicationName)
 		// Original description should remain
-		if application.ApplicationDescription != "" {
+		if application.ApplicationDescription != nil {
 			assert.NotNil(t, result.ApplicationDescription)
-			assert.Equal(t, application.ApplicationDescription, *result.ApplicationDescription)
+			assert.Equal(t, *application.ApplicationDescription, *result.ApplicationDescription)
 		}
 	})
 }
