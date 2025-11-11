@@ -6,26 +6,63 @@ import (
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/idp"
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 )
 
-func TestGetGroupIntegration(t *testing.T) {
-	ctx := context.Background()
+// Test constants and helper functions
+const (
+	testUserEmail1   = "hello@example.com"
+	testUserEmail2   = "addmember@example.com"
+	testUserEmail3   = "removemember@example.com"
+	testUserEmail4   = "lifecyclemember1@example.com"
+	testUserEmail5   = "lifecyclemember2@example.com"
+	testPhoneNumber1 = "+1234567890"
+	testPhoneNumber2 = "+9876543210"
+)
 
-	baseURL := os.Getenv("ASGARDEO_BASE_URL") // e.g. https://api.asgardeo.io/t/yourorg
+var (
+	groupScopes = []string{"internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"}
+	userScopes  = []string{"internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"}
+)
+
+// setupTestClient creates a test client with proper environment validation
+func setupTestClient(t *testing.T, scopes []string) *Client {
+	baseURL := os.Getenv("ASGARDEO_BASE_URL")
 	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
 	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-	testGroupID := os.Getenv("ASGARDEO_TEST_GROUP_ID")
 
-	if clientID == "" || clientSecret == "" || baseURL == "" || testGroupID == "" {
+	if clientID == "" || clientSecret == "" || baseURL == "" {
 		t.Skip("Skipping integration test: missing Asgardeo environment variables")
 	}
 
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	return NewClient(baseURL, clientID, clientSecret, scopes)
+}
+
+// cleanupResources handles cleanup of test resources with proper error handling
+func cleanupResources(t *testing.T, client *Client, ctx context.Context, groupIDs []string, userIDs []string) {
+	// Clean up groups first
+	for _, groupID := range groupIDs {
+		if err := client.DeleteGroup(ctx, groupID); err != nil {
+			t.Errorf("Failed to cleanup group %s: %v", groupID, err)
+		}
+	}
+
+	// Clean up users
+	for _, userID := range userIDs {
+		if err := client.DeleteUser(ctx, userID); err != nil {
+			t.Errorf("Failed to cleanup user %s: %v", userID, err)
+		}
+	}
+}
+
+func TestGetGroupIntegration(t *testing.T) {
+	ctx := context.Background()
+	client := setupTestClient(t, groupScopes)
+
+	testGroupID := os.Getenv("ASGARDEO_TEST_GROUP_ID")
+	if testGroupID == "" {
+		t.Skip("Skipping test: ASGARDEO_TEST_GROUP_ID not set")
+	}
 
 	group, err := client.GetGroup(ctx, testGroupID)
 	if err != nil {
@@ -37,23 +74,37 @@ func TestGetGroupIntegration(t *testing.T) {
 	}
 }
 
-func TestCreateGroupIntegration(t *testing.T) {
+func TestGetGroupByNameIntegration(t *testing.T) {
 	ctx := context.Background()
+	client := setupTestClient(t, groupScopes)
 
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
+	testGroupName := os.Getenv("ASGARDEO_TEST_GROUP_NAME")
+	if testGroupName == "" {
+		t.Skip("Skipping test: ASGARDEO_TEST_GROUP_NAME not set")
 	}
 
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	groupID, err := client.GetGroupByName(ctx, testGroupName)
+	if err != nil {
+		t.Fatalf("GetGroupByName failed: %v", err)
+	}
+
+	if groupID == nil {
+		t.Fatalf("GetGroupByName returned nil group ID")
+	}
+
+	groupObj, err := client.GetGroup(ctx, *groupID)
+	if err != nil {
+		t.Fatalf("GetGroup failed: %v", err)
+	}
+
+	if groupObj.DisplayName != testGroupName {
+		t.Errorf("Expected group name %s, got %s", testGroupName, groupObj.DisplayName)
+	}
+}
+
+func TestCreateGroupIntegration(t *testing.T) {
+	ctx := context.Background()
+	client := setupTestClient(t, groupScopes)
 
 	groupInstance := &idp.Group{
 		DisplayName: "TestGroup1",
@@ -63,48 +114,30 @@ func TestCreateGroupIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, []string{createdGroup.Id}, nil)
 
 	if createdGroup.DisplayName != groupInstance.DisplayName {
 		t.Errorf("Expected group display name %s, got %s", groupInstance.DisplayName, createdGroup.DisplayName)
-	}
-
-	// Clean up: delete the created group
-	err = client.DeleteGroup(ctx, createdGroup.Id)
-	if err != nil {
-		t.Fatalf("DeleteGroup failed: %v", err)
 	}
 }
 
 func TestCreateGroupWithMembersIntegration(t *testing.T) {
 	ctx := context.Background()
-
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-	}
-
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	client := setupTestClient(t, userScopes)
 
 	// Step 1: Create a test user
 	userInstance := &idp.User{
-		Email:       "hello@example.com",
+		Email:       testUserEmail1,
 		FirstName:   "Example",
 		LastName:    "User (Group Addition Test)",
-		PhoneNumber: "+1234567890",
+		PhoneNumber: testPhoneNumber1,
 	}
 
 	createdUser, err := client.CreateUser(ctx, userInstance)
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, nil, []string{createdUser.Id})
 
 	// Step 2: Create group with the user as a member
 	groupInstance := &idp.Group{
@@ -119,61 +152,32 @@ func TestCreateGroupWithMembersIntegration(t *testing.T) {
 
 	createdGroup, err := client.CreateGroup(ctx, groupInstance)
 	if err != nil {
-		// Clean up user
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, []string{createdGroup.Id}, nil)
 
 	if createdGroup.DisplayName != groupInstance.DisplayName {
 		t.Errorf("Expected group display name %s, got %s", groupInstance.DisplayName, createdGroup.DisplayName)
 	}
 
-	// get the created group to verify members
-	getCreatedGroup, err := client.GetGroup(ctx, createdGroup.Id)
+	// Verify the created group has the expected member
+	retrievedGroup, err := client.GetGroup(ctx, createdGroup.Id)
 	if err != nil {
-		// Clean up user and group
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
-	if len(getCreatedGroup.Members) != 1 {
-		t.Errorf("Expected 1 member, got %d", len(getCreatedGroup.Members))
+	if len(retrievedGroup.Members) != 1 {
+		t.Errorf("Expected 1 member, got %d", len(retrievedGroup.Members))
 	}
 
-	if len(createdGroup.Members) > 0 && createdGroup.Members[0].Value != createdUser.Id {
-		t.Errorf("Expected member ID %s, got %s", createdUser.Id, createdGroup.Members[0].Value)
-	}
-
-	// Clean up: delete group and user
-	err = client.DeleteGroup(ctx, createdGroup.Id)
-	if err != nil {
-		t.Fatalf("DeleteGroup failed: %v", err)
-	}
-
-	err = client.DeleteUser(ctx, createdUser.Id)
-	if err != nil {
-		t.Fatalf("DeleteUser failed: %v", err)
+	if len(retrievedGroup.Members) > 0 && retrievedGroup.Members[0].Value != createdUser.Id {
+		t.Errorf("Expected member ID %s, got %s", createdUser.Id, retrievedGroup.Members[0].Value)
 	}
 }
 
 func TestUpdateGroupIntegration(t *testing.T) {
 	ctx := context.Background()
-
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-	}
-
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	client := setupTestClient(t, groupScopes)
 
 	// Step 1: Create a group
 	groupInstance := &idp.Group{
@@ -184,6 +188,7 @@ func TestUpdateGroupIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, []string{createdGroup.Id}, nil)
 
 	// Step 2: Update the group
 	updatedGroupInstance := &idp.Group{
@@ -192,42 +197,18 @@ func TestUpdateGroupIntegration(t *testing.T) {
 
 	updatedGroup, err := client.UpdateGroup(ctx, createdGroup.Id, updatedGroupInstance)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
 		t.Fatalf("UpdateGroup failed: %v", err)
 	}
 
 	if updatedGroup.DisplayName != updatedGroupInstance.DisplayName {
 		t.Errorf("Expected updated display name %s, got %s", updatedGroupInstance.DisplayName, updatedGroup.DisplayName)
 	}
-
-	// Step 3: Clean up
-	err = client.DeleteGroup(ctx, createdGroup.Id)
-	if err != nil {
-		t.Fatalf("DeleteGroup failed: %v", err)
-	}
 }
 
 func TestDeleteGroupIntegration(t *testing.T) {
 	ctx := context.Background()
+	client := setupTestClient(t, groupScopes)
 
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-	testGroupID := os.Getenv("ASGARDEO_TEST_GROUP_ID_TO_DELETE")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" || testGroupID == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-	}
-
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
-
-	// create a group to delete
 	groupInstance := &idp.Group{
 		DisplayName: "DeleteTestGroup",
 	}
@@ -237,7 +218,7 @@ func TestDeleteGroupIntegration(t *testing.T) {
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
 
-	// Step: Delete Group
+	// Test: Delete Group
 	err = client.DeleteGroup(ctx, createdGroup.Id)
 	if err != nil {
 		t.Fatalf("DeleteGroup failed: %v", err)
@@ -246,21 +227,7 @@ func TestDeleteGroupIntegration(t *testing.T) {
 
 func TestGroupLifecycleIntegration(t *testing.T) {
 	ctx := context.Background()
-
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-	}
-
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	client := setupTestClient(t, groupScopes)
 
 	// Step 1: Create Group
 	groupInstance := &idp.Group{
@@ -271,6 +238,7 @@ func TestGroupLifecycleIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, []string{createdGroup.Id}, nil)
 
 	if createdGroup.DisplayName != groupInstance.DisplayName {
 		t.Errorf("Expected group display name %s, got %s", groupInstance.DisplayName, createdGroup.DisplayName)
@@ -279,8 +247,6 @@ func TestGroupLifecycleIntegration(t *testing.T) {
 	// Step 2: Get Group
 	retrievedGroup, err := client.GetGroup(ctx, createdGroup.Id)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
@@ -295,8 +261,6 @@ func TestGroupLifecycleIntegration(t *testing.T) {
 
 	updatedGroup, err := client.UpdateGroup(ctx, createdGroup.Id, updatedGroupInstance)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
 		t.Fatalf("UpdateGroup failed: %v", err)
 	}
 
@@ -304,43 +268,26 @@ func TestGroupLifecycleIntegration(t *testing.T) {
 		t.Errorf("Expected updated display name %s, got %s", updatedGroupInstance.DisplayName, updatedGroup.DisplayName)
 	}
 
-	// Step 4: Delete Group
-	err = client.DeleteGroup(ctx, createdGroup.Id)
-	if err != nil {
-		t.Fatalf("DeleteGroup failed: %v", err)
-	}
+	// Step 4: Delete Group (handled by defer cleanup)
 }
 
 func TestAddMemberToGroupIntegration(t *testing.T) {
 	ctx := context.Background()
-
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-	}
-
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	client := setupTestClient(t, userScopes)
 
 	// Step 1: Create a test user
 	userInstance := &idp.User{
-		Email:       "addmember@example.com",
+		Email:       testUserEmail2,
 		FirstName:   "Add",
 		LastName:    "Member",
-		PhoneNumber: "+1234567890",
+		PhoneNumber: testPhoneNumber1,
 	}
 
 	createdUser, err := client.CreateUser(ctx, userInstance)
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, nil, []string{createdUser.Id})
 
 	// Step 2: Create a group
 	groupInstance := &idp.Group{
@@ -349,10 +296,9 @@ func TestAddMemberToGroupIntegration(t *testing.T) {
 
 	createdGroup, err := client.CreateGroup(ctx, groupInstance)
 	if err != nil {
-		// Clean up user
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, []string{createdGroup.Id}, nil)
 
 	patchGroupMember := &idp.GroupMember{
 		Value:   createdUser.Id,
@@ -360,20 +306,14 @@ func TestAddMemberToGroupIntegration(t *testing.T) {
 	}
 
 	// Step 3: Add user to group
-	err = client.AddMemberToGroup(ctx, createdGroup.Id, patchGroupMember)
+	err = client.AddMemberToGroup(ctx, &createdGroup.Id, patchGroupMember)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("AddMemberToGroup failed: %v", err)
 	}
 
 	// Step 4: Verify member was added
 	retrievedGroup, err := client.GetGroup(ctx, createdGroup.Id)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
@@ -388,49 +328,74 @@ func TestAddMemberToGroupIntegration(t *testing.T) {
 	if !found {
 		t.Errorf("User %s was not found in group members", createdUser.Id)
 	}
-
-	// Clean up: delete group and user
-	err = client.DeleteGroup(ctx, createdGroup.Id)
-	if err != nil {
-		t.Fatalf("DeleteGroup failed: %v", err)
-	}
-
-	err = client.DeleteUser(ctx, createdUser.Id)
-	if err != nil {
-		t.Fatalf("DeleteUser failed: %v", err)
-	}
 }
 
-func TestRemoveMemberFromGroupIntegration(t *testing.T) {
+func TestAddMemberToGroupByGroupNameIntegration(t *testing.T) {
 	ctx := context.Background()
-
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-	}
-
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	client := setupTestClient(t, userScopes)
 
 	// Step 1: Create a test user
 	userInstance := &idp.User{
-		Email:       "removemember@example.com",
-		FirstName:   "Remove",
+		Email:       testUserEmail2,
+		FirstName:   "Add",
 		LastName:    "Member",
-		PhoneNumber: "+1234567890",
+		PhoneNumber: testPhoneNumber1,
 	}
 
 	createdUser, err := client.CreateUser(ctx, userInstance)
 	if err != nil {
 		t.Fatalf("CreateUser failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, nil, []string{createdUser.Id})
+
+	patchGroupMember := &idp.GroupMember{
+		Value:   createdUser.Id,
+		Display: createdUser.Email,
+	}
+
+	// Step 2: Add user to group by group name
+	groupName := string(models.UserGroupMember)
+	groupId, err := client.AddMemberToGroupByGroupName(ctx, groupName, patchGroupMember)
+	if err != nil {
+		t.Fatalf("AddMemberToGroupByGroupName failed: %v", err)
+	}
+
+	// Step 3: Verify member was added
+	retrievedGroup, err := client.GetGroup(ctx, *groupId)
+	if err != nil {
+		t.Fatalf("GetGroup failed: %v", err)
+	}
+
+	found := false
+	for _, member := range retrievedGroup.Members {
+		if member.Value == createdUser.Id {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("User %s was not found in group members", createdUser.Id)
+	}
+}
+
+func TestRemoveMemberFromGroupIntegration(t *testing.T) {
+	ctx := context.Background()
+	client := setupTestClient(t, userScopes)
+
+	// Step 1: Create a test user
+	userInstance := &idp.User{
+		Email:       testUserEmail3,
+		FirstName:   "Remove",
+		LastName:    "Member",
+		PhoneNumber: testPhoneNumber1,
+	}
+
+	createdUser, err := client.CreateUser(ctx, userInstance)
+	if err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+	defer cleanupResources(t, client, ctx, nil, []string{createdUser.Id})
 
 	// Step 2: Create a group with the user as a member
 	groupInstance := &idp.Group{
@@ -443,26 +408,19 @@ func TestRemoveMemberFromGroupIntegration(t *testing.T) {
 
 	createdGroup, err := client.CreateGroup(ctx, groupInstance)
 	if err != nil {
-		// Clean up user
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, []string{createdGroup.Id}, nil)
 
 	// Step 3: Remove user from group
 	err = client.RemoveMemberFromGroup(ctx, createdGroup.Id, createdUser.Id)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("RemoveMemberFromGroup failed: %v", err)
 	}
 
 	// Step 4: Verify member was removed
 	retrievedGroup, err := client.GetGroup(ctx, createdGroup.Id)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser.Id)
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
@@ -471,43 +429,18 @@ func TestRemoveMemberFromGroupIntegration(t *testing.T) {
 			t.Errorf("User %s should have been removed from group but was still found", createdUser.Id)
 		}
 	}
-
-	// Clean up: delete group and user
-	err = client.DeleteGroup(ctx, createdGroup.Id)
-	if err != nil {
-		t.Fatalf("DeleteGroup failed: %v", err)
-	}
-
-	err = client.DeleteUser(ctx, createdUser.Id)
-	if err != nil {
-		t.Fatalf("DeleteUser failed: %v", err)
-	}
 }
 
 func TestGroupWithMembersLifecycleIntegration(t *testing.T) {
 	ctx := context.Background()
-
-	baseURL := os.Getenv("ASGARDEO_BASE_URL")
-	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
-	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
-
-	if clientID == "" || clientSecret == "" || baseURL == "" {
-		t.Skip("Skipping integration test: missing Asgardeo environment variables")
-	}
-
-	client := NewClient(
-		baseURL,
-		clientID,
-		clientSecret,
-		[]string{"internal_user_mgt_create internal_user_mgt_list internal_user_mgt_view internal_user_mgt_delete internal_user_mgt_update internal_group_mgt_create internal_group_mgt_list internal_group_mgt_view internal_group_mgt_delete internal_group_mgt_update"},
-	)
+	client := setupTestClient(t, userScopes)
 
 	// Step 1: Create two test users
 	user1Instance := &idp.User{
-		Email:       "lifecyclemember1@example.com",
+		Email:       testUserEmail4,
 		FirstName:   "Lifecycle",
 		LastName:    "Member1",
-		PhoneNumber: "+1234567890",
+		PhoneNumber: testPhoneNumber1,
 	}
 
 	createdUser1, err := client.CreateUser(ctx, user1Instance)
@@ -516,18 +449,17 @@ func TestGroupWithMembersLifecycleIntegration(t *testing.T) {
 	}
 
 	user2Instance := &idp.User{
-		Email:       "lifecyclemember2@example.com",
+		Email:       testUserEmail5,
 		FirstName:   "Lifecycle",
 		LastName:    "Member2",
-		PhoneNumber: "+9876543210",
+		PhoneNumber: testPhoneNumber2,
 	}
 
 	createdUser2, err := client.CreateUser(ctx, user2Instance)
 	if err != nil {
-		// Clean up user1
-		client.DeleteUser(ctx, createdUser1.Id)
 		t.Fatalf("CreateUser2 failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, nil, []string{createdUser1.Id, createdUser2.Id})
 
 	// Step 2: Create group with first user
 	groupInstance := &idp.Group{
@@ -540,48 +472,34 @@ func TestGroupWithMembersLifecycleIntegration(t *testing.T) {
 
 	createdGroup, err := client.CreateGroup(ctx, groupInstance)
 	if err != nil {
-		// Clean up users
-		client.DeleteUser(ctx, createdUser1.Id)
-		client.DeleteUser(ctx, createdUser2.Id)
 		t.Fatalf("CreateGroup failed: %v", err)
 	}
+	defer cleanupResources(t, client, ctx, []string{createdGroup.Id}, nil)
 
-	getCreatedGroup, err := client.GetGroup(ctx, createdGroup.Id)
+	// Step 3: Verify group has one member
+	retrievedGroup, err := client.GetGroup(ctx, createdGroup.Id)
 	if err != nil {
-		// Clean up users and group
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser1.Id)
-		client.DeleteUser(ctx, createdUser2.Id)
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
-	// Step 3: Verify group has one member
-	if len(getCreatedGroup.Members) != 1 {
-		t.Errorf("Expected 1 member, got %d", len(getCreatedGroup.Members))
+	if len(retrievedGroup.Members) != 1 {
+		t.Errorf("Expected 1 member, got %d", len(retrievedGroup.Members))
 	}
 
+	// Step 4: Add second user to group
 	patchMember2 := &idp.GroupMember{
 		Value:   createdUser2.Id,
 		Display: createdUser2.Email,
 	}
 
-	// Step 4: Add second user to group
-	err = client.AddMemberToGroup(ctx, createdGroup.Id, patchMember2)
+	err = client.AddMemberToGroup(ctx, &createdGroup.Id, patchMember2)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser1.Id)
-		client.DeleteUser(ctx, createdUser2.Id)
 		t.Fatalf("AddMemberToGroup failed: %v", err)
 	}
 
 	// Step 5: Verify group has two members
-	retrievedGroup, err := client.GetGroup(ctx, createdGroup.Id)
+	retrievedGroup, err = client.GetGroup(ctx, createdGroup.Id)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser1.Id)
-		client.DeleteUser(ctx, createdUser2.Id)
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
@@ -592,44 +510,20 @@ func TestGroupWithMembersLifecycleIntegration(t *testing.T) {
 	// Step 6: Remove first user from group
 	err = client.RemoveMemberFromGroup(ctx, createdGroup.Id, createdUser1.Id)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser1.Id)
-		client.DeleteUser(ctx, createdUser2.Id)
 		t.Fatalf("RemoveMemberFromGroup failed: %v", err)
 	}
 
 	// Step 7: Verify group has one member
-	retrievedGroup2, err := client.GetGroup(ctx, createdGroup.Id)
+	retrievedGroup, err = client.GetGroup(ctx, createdGroup.Id)
 	if err != nil {
-		// Clean up
-		client.DeleteGroup(ctx, createdGroup.Id)
-		client.DeleteUser(ctx, createdUser1.Id)
-		client.DeleteUser(ctx, createdUser2.Id)
 		t.Fatalf("GetGroup failed: %v", err)
 	}
 
-	if len(retrievedGroup2.Members) != 1 {
-		t.Errorf("Expected 1 member after removal, got %d", len(retrievedGroup2.Members))
+	if len(retrievedGroup.Members) != 1 {
+		t.Errorf("Expected 1 member after removal, got %d", len(retrievedGroup.Members))
 	}
 
-	if len(retrievedGroup2.Members) > 0 && retrievedGroup2.Members[0].Value != createdUser2.Id {
-		t.Errorf("Expected remaining member to be %s, got %s", createdUser2.Id, retrievedGroup2.Members[0].Value)
-	}
-
-	// Step 8: Clean up - delete group and users
-	err = client.DeleteGroup(ctx, createdGroup.Id)
-	if err != nil {
-		t.Fatalf("DeleteGroup failed: %v", err)
-	}
-
-	err = client.DeleteUser(ctx, createdUser1.Id)
-	if err != nil {
-		t.Fatalf("DeleteUser1 failed: %v", err)
-	}
-
-	err = client.DeleteUser(ctx, createdUser2.Id)
-	if err != nil {
-		t.Fatalf("DeleteUser2 failed: %v", err)
+	if len(retrievedGroup.Members) > 0 && retrievedGroup.Members[0].Value != createdUser2.Id {
+		t.Errorf("Expected remaining member to be %s, got %s", createdUser2.Id, retrievedGroup.Members[0].Value)
 	}
 }
