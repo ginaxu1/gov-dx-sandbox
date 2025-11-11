@@ -17,9 +17,10 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewApplicationService(db, pdpService)
 
+		desc := "Test Description"
 		req := &models.CreateApplicationRequest{
 			ApplicationName:        "Test Application",
-			ApplicationDescription: "Test Description",
+			ApplicationDescription: &desc,
 			SelectedFields: []models.SelectedFieldRecord{
 				{FieldName: "field1", SchemaID: "schema-123"},
 			},
@@ -522,9 +523,10 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 		pdpService := NewPDPService("http://localhost:9999", "test-key")
 		service := NewApplicationService(db, pdpService)
 
+		desc := "Test Description"
 		req := &models.CreateApplicationRequest{
 			ApplicationName:        "Test Application",
-			ApplicationDescription: "Test Description",
+			ApplicationDescription: &desc,
 			SelectedFields: []models.SelectedFieldRecord{
 				{FieldName: "field1", SchemaID: "schema-123"},
 			},

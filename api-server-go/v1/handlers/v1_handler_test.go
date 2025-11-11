@@ -314,9 +314,10 @@ func TestSchemaEndpoints(t *testing.T) {
 	testMemberID := "test-member-id"
 
 	t.Run("POST /api/v1/schemas - CreateSchema", func(t *testing.T) {
+		desc := "Test Description"
 		req := models.CreateSchemaRequest{
 			SchemaName:        "Test Schema",
-			SchemaDescription: "Test Description",
+			SchemaDescription: &desc,
 			SDL:               "type Query { test: String }",
 			Endpoint:          "http://example.com/graphql",
 			MemberID:          testMemberID,
@@ -647,9 +648,10 @@ func TestApplicationEndpoints(t *testing.T) {
 	testSchemaID := "test-schema-id"
 
 	t.Run("POST /api/v1/applications - CreateApplication", func(t *testing.T) {
+		desc := "Test Description"
 		req := models.CreateApplicationRequest{
 			ApplicationName:        "Test Application",
-			ApplicationDescription: "Test Description",
+			ApplicationDescription: &desc,
 			SelectedFields: []models.SelectedFieldRecord{
 				{FieldName: "field1", SchemaID: testSchemaID},
 				{FieldName: "field2", SchemaID: testSchemaID},
@@ -851,9 +853,10 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 		memberID := memberResponse["data"].(map[string]interface{})["memberId"].(string)
 
 		// Create a schema first for the application submission
+		schemaDesc := "Test Description"
 		schemaReq := models.CreateSchemaRequest{
 			SchemaName:        "Test Schema",
-			SchemaDescription: "Test Description",
+			SchemaDescription: &schemaDesc,
 			SDL:               "type Query { test: String }",
 			Endpoint:          "http://example.com/graphql",
 			MemberID:          memberID,

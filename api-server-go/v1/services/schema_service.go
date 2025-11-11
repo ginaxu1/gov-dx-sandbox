@@ -24,13 +24,15 @@ func NewSchemaService(db *gorm.DB, policyService *PDPService) *SchemaService {
 // CreateSchema creates a new schema
 func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.SchemaResponse, error) {
 	schema := models.Schema{
-		SchemaID:          "sch_" + uuid.New().String(),
-		SchemaName:        req.SchemaName,
-		SchemaDescription: req.SchemaDescription,
-		SDL:               req.SDL,
-		Endpoint:          req.Endpoint,
-		MemberID:          req.MemberID,
-		Version:           string(models.ActiveVersion),
+		SchemaID:   "sch_" + uuid.New().String(),
+		SchemaName: req.SchemaName,
+		SDL:        req.SDL,
+		Endpoint:   req.Endpoint,
+		MemberID:   req.MemberID,
+		Version:    string(models.ActiveVersion),
+	}
+	if req.SchemaDescription != nil {
+		schema.SchemaDescription = *req.SchemaDescription
 	}
 
 	// Step 1: Create schema in database first
@@ -56,17 +58,15 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:   schema.SchemaID,
-		SchemaName: schema.SchemaName,
-		SDL:        schema.SDL,
-		Endpoint:   schema.Endpoint,
-		Version:    schema.Version,
-		MemberID:   schema.MemberID,
-		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
-	}
-	if schema.SchemaDescription != "" {
-		response.SchemaDescription = &schema.SchemaDescription
+		SchemaID:          schema.SchemaID,
+		SchemaName:        schema.SchemaName,
+		SchemaDescription: &schema.SchemaDescription,
+		SDL:               schema.SDL,
+		Endpoint:          schema.Endpoint,
+		Version:           schema.Version,
+		MemberID:          schema.MemberID,
+		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -102,17 +102,15 @@ func (s *SchemaService) UpdateSchema(schemaID string, req *models.UpdateSchemaRe
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:   schema.SchemaID,
-		SchemaName: schema.SchemaName,
-		SDL:        schema.SDL,
-		Endpoint:   schema.Endpoint,
-		Version:    schema.Version,
-		MemberID:   schema.MemberID,
-		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
-	}
-	if schema.SchemaDescription != "" {
-		response.SchemaDescription = &schema.SchemaDescription
+		SchemaID:          schema.SchemaID,
+		SchemaName:        schema.SchemaName,
+		SchemaDescription: &schema.SchemaDescription,
+		SDL:               schema.SDL,
+		Endpoint:          schema.Endpoint,
+		Version:           schema.Version,
+		MemberID:          schema.MemberID,
+		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -127,17 +125,15 @@ func (s *SchemaService) GetSchema(schemaID string) (*models.SchemaResponse, erro
 	}
 
 	response := &models.SchemaResponse{
-		SchemaID:   schema.SchemaID,
-		SchemaName: schema.SchemaName,
-		SDL:        schema.SDL,
-		Endpoint:   schema.Endpoint,
-		Version:    schema.Version,
-		MemberID:   schema.MemberID,
-		CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
-	}
-	if schema.SchemaDescription != "" {
-		response.SchemaDescription = &schema.SchemaDescription
+		SchemaID:          schema.SchemaID,
+		SchemaName:        schema.SchemaName,
+		SchemaDescription: &schema.SchemaDescription,
+		SDL:               schema.SDL,
+		Endpoint:          schema.Endpoint,
+		Version:           schema.Version,
+		MemberID:          schema.MemberID,
+		CreatedAt:         schema.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         schema.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return response, nil
@@ -172,9 +168,7 @@ func (s *SchemaService) GetSchemas(memberID *string) ([]*models.SchemaResponse, 
 			CreatedAt:  schema.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:  schema.UpdatedAt.Format(time.RFC3339),
 		}
-		if schema.SchemaDescription != "" {
-			resp.SchemaDescription = &schema.SchemaDescription
-		}
+		resp.SchemaDescription = &schema.SchemaDescription
 		responses = append(responses, resp)
 	}
 
@@ -289,9 +283,7 @@ func (s *SchemaService) UpdateSchemaSubmission(submissionID string, req *models.
 	if shouldCreateSchema {
 		var createSchemaRequest models.CreateSchemaRequest
 		createSchemaRequest.SchemaName = submission.SchemaName
-		if submission.SchemaDescription != nil {
-			createSchemaRequest.SchemaDescription = *submission.SchemaDescription
-		}
+		createSchemaRequest.SchemaDescription = submission.SchemaDescription
 		createSchemaRequest.SDL = submission.SDL
 		createSchemaRequest.Endpoint = submission.SchemaEndpoint
 		createSchemaRequest.MemberID = submission.MemberID
