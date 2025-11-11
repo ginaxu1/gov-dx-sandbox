@@ -1,0 +1,28 @@
+name: "💡 New Feature Request"
+description: "Create new issue in LSFLK/OpenDIF: 💡 New Feature Request"
+labels: ["Type/New Feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem"
+      description: "What is the problem this feature will solve?"
+      placeholder: "Describe the problem or gap this feature addresses."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Proposed Solution"
+      description: "Describe the solution you'd like to have."
+      placeholder: "Explain your proposed feature or enhancement."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatives"
+      description: "Describe any alternatives you have considered."
+      placeholder: "List any other approaches or workarounds you’ve tried."
