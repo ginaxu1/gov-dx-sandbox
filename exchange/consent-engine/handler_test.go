@@ -10,6 +10,58 @@ import (
 	"time"
 )
 
+// createTestConsent is a helper function to create a consent record for testing
+// It reduces code duplication across test functions and ensures consistent test data setup
+func createTestConsent(t *testing.T, engine ConsentEngine, appID, ownerID string) *ConsentRecord {
+	if appID == "" {
+		appID = "test-app"
+	}
+	if ownerID == "" {
+		ownerID = "user@example.com"
+	}
+
+	createReq := ConsentRequest{
+		AppID: appID,
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   "CITIZEN",
+				OwnerID: ownerID,
+				Fields: []ConsentField{
+					{
+						FieldName: "personInfo.name",
+						SchemaID:  "schema-123",
+					},
+				},
+			},
+		},
+	}
+	record, err := engine.ProcessConsentRequest(createReq)
+	if err != nil {
+		t.Fatalf("Failed to create test consent: %v", err)
+	}
+	return record
+}
+
+// makeJSONRequest is a simple helper to marshal request body and create an HTTP request
+// It handles json.Marshal errors to prevent tests from proceeding with invalid data
+func makeJSONRequest(t *testing.T, method, path string, body interface{}) *http.Request {
+	var jsonBody []byte
+	var err error
+
+	if body != nil {
+		jsonBody, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("Failed to marshal request body: %v", err)
+		}
+	}
+
+	req := httptest.NewRequest(method, path, bytes.NewBuffer(jsonBody))
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req
+}
+
 // TestPOSTConsents tests POST /consents endpoint
 func TestPOSTConsents(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
@@ -135,9 +187,7 @@ func TestPOSTConsents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsonBody, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest(http.MethodPost, "/consents", bytes.NewBuffer(jsonBody))
-			req.Header.Set("Content-Type", "application/json")
+			req := makeJSONRequest(t, http.MethodPost, "/consents", tt.requestBody)
 			w := httptest.NewRecorder()
 
 			server.consentHandler(w, req)
@@ -164,25 +214,7 @@ func TestGETConsentsByID(t *testing.T) {
 	server := &apiServer{engine: engine}
 
 	// Create a consent first
-	createReq := ConsentRequest{
-		AppID: "test-app",
-		ConsentRequirements: []ConsentRequirement{
-			{
-				Owner:   "CITIZEN",
-				OwnerID: "user@example.com",
-				Fields: []ConsentField{
-					{
-						FieldName: "personInfo.name",
-						SchemaID:  "schema-123",
-					},
-				},
-			},
-		},
-	}
-	record, err := engine.ProcessConsentRequest(createReq)
-	if err != nil {
-		t.Fatalf("Failed to create consent: %v", err)
-	}
+	record := createTestConsent(t, engine, "test-app", "user@example.com")
 
 	tests := []struct {
 		name           string
@@ -238,75 +270,56 @@ func TestPATCHConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
-	// Create a consent first
-	createReq := ConsentRequest{
-		AppID: "test-app",
-		ConsentRequirements: []ConsentRequirement{
-			{
-				Owner:   "CITIZEN",
-				OwnerID: "user@example.com",
-				Fields: []ConsentField{
-					{
-						FieldName: "personInfo.name",
-						SchemaID:  "schema-123",
-					},
-				},
-			},
-		},
-	}
-	record, err := engine.ProcessConsentRequest(createReq)
-	if err != nil {
-		t.Fatalf("Failed to create consent: %v", err)
-	}
-
 	tests := []struct {
 		name           string
+		setupConsent   bool // Whether to create a new consent for this test
 		consentID      string
 		requestBody    map[string]interface{}
 		expectedStatus int
-		validateFunc   func(t *testing.T, response map[string]interface{})
+		validateFunc   func(t *testing.T, response map[string]interface{}, consentID string)
 	}{
 		{
-			name:      "PatchConsent_UpdateStatus",
-			consentID: record.ConsentID,
+			name:         "PatchConsent_UpdateStatus",
+			setupConsent: true,
 			requestBody: map[string]interface{}{
 				"status": "approved",
 			},
 			expectedStatus: http.StatusOK,
-			validateFunc: func(t *testing.T, response map[string]interface{}) {
+			validateFunc: func(t *testing.T, response map[string]interface{}, consentID string) {
 				if response["status"] != "approved" {
 					t.Errorf("Expected status 'approved', got '%s'", response["status"])
 				}
-				if response["consent_id"] != record.ConsentID {
-					t.Errorf("Expected consent_id '%s', got '%s'", record.ConsentID, response["consent_id"])
+				if response["consent_id"] != consentID {
+					t.Errorf("Expected consent_id '%s', got '%s'", consentID, response["consent_id"])
 				}
 			},
 		},
 		{
-			name:      "PatchConsent_UpdateGrantDuration",
-			consentID: record.ConsentID,
+			name:         "PatchConsent_UpdateGrantDuration",
+			setupConsent: true,
 			requestBody: map[string]interface{}{
 				"status":         "approved",
 				"grant_duration": "1m",
 			},
 			expectedStatus: http.StatusOK,
-			validateFunc: func(t *testing.T, response map[string]interface{}) {
+			validateFunc: func(t *testing.T, response map[string]interface{}, consentID string) {
 				if response["status"] != "approved" {
 					t.Errorf("Expected status 'approved', got '%s'", response["status"])
 				}
 			},
 		},
 		{
-			name:      "PatchConsent_NotFound",
-			consentID: "non-existent-id",
+			name:         "PatchConsent_NotFound",
+			setupConsent: false,
+			consentID:    "non-existent-id",
 			requestBody: map[string]interface{}{
 				"status": "approved",
 			},
 			expectedStatus: http.StatusNotFound,
 		},
 		{
-			name:      "PatchConsent_InvalidJSON",
-			consentID: record.ConsentID,
+			name:         "PatchConsent_InvalidJSON",
+			setupConsent: true,
 			requestBody: map[string]interface{}{
 				"invalid": "data",
 			},
@@ -316,9 +329,13 @@ func TestPATCHConsentsByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsonBody, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest(http.MethodPatch, "/consents/"+tt.consentID, bytes.NewBuffer(jsonBody))
-			req.Header.Set("Content-Type", "application/json")
+			consentID := tt.consentID
+			if tt.setupConsent {
+				record := createTestConsent(t, engine, "test-app", "user@example.com")
+				consentID = record.ConsentID
+			}
+
+			req := makeJSONRequest(t, http.MethodPatch, "/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
 			server.consentHandlerWithID(w, req)
@@ -333,7 +350,7 @@ func TestPATCHConsentsByID(t *testing.T) {
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 					t.Fatalf("Failed to unmarshal response: %v", err)
 				}
-				tt.validateFunc(t, response)
+				tt.validateFunc(t, response, consentID)
 			}
 		})
 	}
@@ -344,37 +361,17 @@ func TestDELETEConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
-	// Create a consent first
-	createReq := ConsentRequest{
-		AppID: "test-app",
-		ConsentRequirements: []ConsentRequirement{
-			{
-				Owner:   "CITIZEN",
-				OwnerID: "user@example.com",
-				Fields: []ConsentField{
-					{
-						FieldName: "personInfo.name",
-						SchemaID:  "schema-123",
-					},
-				},
-			},
-		},
-	}
-	record, err := engine.ProcessConsentRequest(createReq)
-	if err != nil {
-		t.Fatalf("Failed to create consent: %v", err)
-	}
-
 	tests := []struct {
 		name           string
+		setupConsent   bool // Whether to create a new consent for this test
 		consentID      string
 		requestBody    map[string]interface{}
 		expectedStatus int
 		validateFunc   func(t *testing.T, response map[string]interface{})
 	}{
 		{
-			name:      "DeleteConsent_Success",
-			consentID: record.ConsentID,
+			name:         "DeleteConsent_Success",
+			setupConsent: true,
 			requestBody: map[string]interface{}{
 				"reason": "User requested revocation",
 			},
@@ -387,6 +384,7 @@ func TestDELETEConsentsByID(t *testing.T) {
 		},
 		{
 			name:           "DeleteConsent_NotFound",
+			setupConsent:   false,
 			consentID:      "non-existent-id",
 			requestBody:    map[string]interface{}{"reason": "test"},
 			expectedStatus: http.StatusNotFound,
@@ -395,9 +393,13 @@ func TestDELETEConsentsByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsonBody, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest(http.MethodDelete, "/consents/"+tt.consentID, bytes.NewBuffer(jsonBody))
-			req.Header.Set("Content-Type", "application/json")
+			consentID := tt.consentID
+			if tt.setupConsent {
+				record := createTestConsent(t, engine, "test-app", "user@example.com")
+				consentID = record.ConsentID
+			}
+
+			req := makeJSONRequest(t, http.MethodDelete, "/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
 			server.consentHandlerWithID(w, req)
@@ -424,25 +426,7 @@ func TestGETConsentsByDataOwner(t *testing.T) {
 	server := &apiServer{engine: engine}
 
 	// Create consents for a specific owner
-	createReq := ConsentRequest{
-		AppID: "test-app",
-		ConsentRequirements: []ConsentRequirement{
-			{
-				Owner:   "CITIZEN",
-				OwnerID: "owner123@example.com",
-				Fields: []ConsentField{
-					{
-						FieldName: "personInfo.name",
-						SchemaID:  "schema-123",
-					},
-				},
-			},
-		},
-	}
-	_, err := engine.ProcessConsentRequest(createReq)
-	if err != nil {
-		t.Fatalf("Failed to create consent: %v", err)
-	}
+	_ = createTestConsent(t, engine, "test-app", "owner123@example.com")
 
 	tests := []struct {
 		name           string
@@ -511,25 +495,7 @@ func TestGETConsentsByConsumer(t *testing.T) {
 	server := &apiServer{engine: engine}
 
 	// Create consents for a specific consumer app
-	createReq := ConsentRequest{
-		AppID: "consumer-app-123",
-		ConsentRequirements: []ConsentRequirement{
-			{
-				Owner:   "CITIZEN",
-				OwnerID: "user@example.com",
-				Fields: []ConsentField{
-					{
-						FieldName: "personInfo.name",
-						SchemaID:  "schema-123",
-					},
-				},
-			},
-		},
-	}
-	_, err := engine.ProcessConsentRequest(createReq)
-	if err != nil {
-		t.Fatalf("Failed to create consent: %v", err)
-	}
+	_ = createTestConsent(t, engine, "consumer-app-123", "user@example.com")
 
 	tests := []struct {
 		name           string
@@ -598,25 +564,7 @@ func TestGETDataInfo(t *testing.T) {
 	server := &apiServer{engine: engine}
 
 	// Create a consent first
-	createReq := ConsentRequest{
-		AppID: "test-app",
-		ConsentRequirements: []ConsentRequirement{
-			{
-				Owner:   "CITIZEN",
-				OwnerID: "owner@example.com",
-				Fields: []ConsentField{
-					{
-						FieldName: "personInfo.name",
-						SchemaID:  "schema-123",
-					},
-				},
-			},
-		},
-	}
-	record, err := engine.ProcessConsentRequest(createReq)
-	if err != nil {
-		t.Fatalf("Failed to create consent: %v", err)
-	}
+	record := createTestConsent(t, engine, "test-app", "owner@example.com")
 
 	tests := []struct {
 		name           string
@@ -677,12 +625,14 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		method         string
 		setupFunc      func(t *testing.T, engine ConsentEngine) string
 		expectedStatus int
 		validateFunc   func(t *testing.T, response map[string]interface{})
 	}{
 		{
-			name: "ExpiryCheck_NoExpiredRecords",
+			name:   "ExpiryCheck_NoExpiredRecords",
+			method: http.MethodPost,
 			setupFunc: func(t *testing.T, engine ConsentEngine) string {
 				// Create a consent that won't expire soon
 				createReq := ConsentRequest{
@@ -724,7 +674,8 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "ExpiryCheck_WithExpiredRecords",
+			name:   "ExpiryCheck_WithExpiredRecords",
+			method: http.MethodPost,
 			setupFunc: func(t *testing.T, engine ConsentEngine) string {
 				// Create a consent with very short grant duration
 				createReq := ConsentRequest{
@@ -775,10 +726,9 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "ExpiryCheck_InvalidMethod",
-			setupFunc: func(t *testing.T, engine ConsentEngine) string {
-				return ""
-			},
+			name:           "ExpiryCheck_InvalidMethod",
+			method:         http.MethodGet,
+			setupFunc:      func(t *testing.T, engine ConsentEngine) string { return "" },
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 	}
@@ -789,12 +739,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 				tt.setupFunc(t, engine)
 			}
 
-			method := http.MethodPost
-			if tt.name == "ExpiryCheck_InvalidMethod" {
-				method = http.MethodGet
-			}
-
-			req := httptest.NewRequest(method, "/admin/expiry-check", nil)
+			req := httptest.NewRequest(tt.method, "/admin/expiry-check", nil)
 			w := httptest.NewRecorder()
 
 			server.adminHandler(w, req)
@@ -820,37 +765,17 @@ func TestPUTConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
 	server := &apiServer{engine: engine}
 
-	// Create a consent first
-	createReq := ConsentRequest{
-		AppID: "test-app",
-		ConsentRequirements: []ConsentRequirement{
-			{
-				Owner:   "CITIZEN",
-				OwnerID: "user@example.com",
-				Fields: []ConsentField{
-					{
-						FieldName: "personInfo.name",
-						SchemaID:  "schema-123",
-					},
-				},
-			},
-		},
-	}
-	record, err := engine.ProcessConsentRequest(createReq)
-	if err != nil {
-		t.Fatalf("Failed to create consent: %v", err)
-	}
-
 	tests := []struct {
 		name           string
+		setupConsent   bool // Whether to create a new consent for this test
 		consentID      string
 		requestBody    map[string]interface{}
 		expectedStatus int
 		validateFunc   func(t *testing.T, response map[string]interface{})
 	}{
 		{
-			name:      "PUTConsent_UpdateStatus",
-			consentID: record.ConsentID,
+			name:         "PUTConsent_UpdateStatus",
+			setupConsent: true,
 			requestBody: map[string]interface{}{
 				"status": "approved",
 			},
@@ -862,8 +787,8 @@ func TestPUTConsentsByID(t *testing.T) {
 			},
 		},
 		{
-			name:      "PUTConsent_UpdateWithGrantDuration",
-			consentID: record.ConsentID,
+			name:         "PUTConsent_UpdateWithGrantDuration",
+			setupConsent: true,
 			requestBody: map[string]interface{}{
 				"status":         "approved",
 				"grant_duration": "1m",
@@ -876,8 +801,8 @@ func TestPUTConsentsByID(t *testing.T) {
 			},
 		},
 		{
-			name:      "PUTConsent_InvalidStatus",
-			consentID: record.ConsentID,
+			name:         "PUTConsent_InvalidStatus",
+			setupConsent: true,
 			requestBody: map[string]interface{}{
 				"status": "invalid-status",
 			},
@@ -885,6 +810,7 @@ func TestPUTConsentsByID(t *testing.T) {
 		},
 		{
 			name:           "PUTConsent_NotFound",
+			setupConsent:   false,
 			consentID:      "non-existent-id",
 			requestBody:    map[string]interface{}{"status": "approved"},
 			expectedStatus: http.StatusNotFound,
@@ -893,9 +819,13 @@ func TestPUTConsentsByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsonBody, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest(http.MethodPut, "/consents/"+tt.consentID, bytes.NewBuffer(jsonBody))
-			req.Header.Set("Content-Type", "application/json")
+			consentID := tt.consentID
+			if tt.setupConsent {
+				record := createTestConsent(t, engine, "test-app", "user@example.com")
+				consentID = record.ConsentID
+			}
+
+			req := makeJSONRequest(t, http.MethodPut, "/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
 			server.consentHandlerWithID(w, req)
@@ -969,8 +899,7 @@ func TestConsentHandlerRouting(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var req *http.Request
 			if tt.method == http.MethodPost || tt.method == http.MethodPut || tt.method == http.MethodPatch || tt.method == http.MethodDelete {
-				req = httptest.NewRequest(tt.method, tt.path, bytes.NewBuffer([]byte("{}")))
-				req.Header.Set("Content-Type", "application/json")
+				req = makeJSONRequest(t, tt.method, tt.path, map[string]interface{}{})
 			} else {
 				req = httptest.NewRequest(tt.method, tt.path, nil)
 			}
