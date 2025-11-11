@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -635,20 +636,22 @@ func TestGETDataInfo(t *testing.T) {
 
 // TestPOSTAdminExpiryCheck tests POST /admin/expiry-check endpoint
 func TestPOSTAdminExpiryCheck(t *testing.T) {
-	engine := setupPostgresTestEngine(t)
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
+	db := testEngine.db
 	server := &apiServer{engine: engine}
 
 	tests := []struct {
 		name           string
 		method         string
-		setupFunc      func(t *testing.T, engine ConsentEngine) string
+		setupFunc      func(t *testing.T, engine ConsentEngine, db *sql.DB) string
 		expectedStatus int
 		validateFunc   func(t *testing.T, response map[string]interface{})
 	}{
 		{
 			name:   "ExpiryCheck_NoExpiredRecords",
 			method: http.MethodPost,
-			setupFunc: func(t *testing.T, engine ConsentEngine) string {
+			setupFunc: func(t *testing.T, engine ConsentEngine, db *sql.DB) string {
 				// Create a consent that won't expire soon
 				createReq := ConsentRequest{
 					AppID: "test-app",
@@ -691,7 +694,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 		{
 			name:   "ExpiryCheck_WithExpiredRecords",
 			method: http.MethodPost,
-			setupFunc: func(t *testing.T, engine ConsentEngine) string {
+			setupFunc: func(t *testing.T, engine ConsentEngine, db *sql.DB) string {
 				// Create a consent
 				createReq := ConsentRequest{
 					AppID: "test-app",
@@ -713,21 +716,24 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 					t.Fatalf("Failed to create consent: %v", err)
 				}
 
-				// Approve the consent with a very short grant duration (10ms)
+				// Approve the consent
 				updateReq := UpdateConsentRequest{
 					Status:        StatusApproved,
 					UpdatedBy:     "user@example.com",
 					Reason:        "User approved",
-					GrantDuration: "10ms", // Set very short grant duration when approving
+					GrantDuration: "1h", // Use normal duration
 				}
 				_, err = engine.UpdateConsent(record.ConsentID, updateReq)
 				if err != nil {
 					t.Fatalf("Failed to approve consent: %v", err)
 				}
 
-				// Wait for expiry (100ms should be sufficient for 10ms grant duration + buffer)
-				// expires_at is recalculated from approval time, so we need to wait from approval
-				time.Sleep(100 * time.Millisecond)
+				// Directly set expires_at to a time in the past to simulate expiry
+				// This avoids timing dependencies and makes the test deterministic
+				expiresAt := time.Now().Add(-1 * time.Minute)
+				if err := updateConsentExpiry(t, db, record.ConsentID, expiresAt); err != nil {
+					t.Fatalf("Failed to set consent expiry: %v", err)
+				}
 				return record.ConsentID
 			},
 			expectedStatus: http.StatusOK,
@@ -738,15 +744,16 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 					t.Errorf("Expected expired_records to be an array, got %T", response["expired_records"])
 					return
 				}
-				// Note: Due to timing sensitivity, we just verify the structure exists
-				// The actual count may vary based on test execution speed
-				_ = expiredRecords // Acknowledge we checked the structure
+				// With deterministic expiry setting, we should have exactly 1 expired record
+				if len(expiredRecords) != 1 {
+					t.Errorf("Expected 1 expired record, got %d", len(expiredRecords))
+				}
 			},
 		},
 		{
 			name:           "ExpiryCheck_InvalidMethod",
 			method:         http.MethodGet,
-			setupFunc:      func(t *testing.T, engine ConsentEngine) string { return "" },
+			setupFunc:      func(t *testing.T, engine ConsentEngine, db *sql.DB) string { return "" },
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 	}
@@ -754,7 +761,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setupFunc != nil {
-				tt.setupFunc(t, engine)
+				tt.setupFunc(t, engine, db)
 			}
 
 			req := httptest.NewRequest(tt.method, "/admin/expiry-check", nil)
