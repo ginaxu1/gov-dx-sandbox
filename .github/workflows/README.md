@@ -1,6 +1,6 @@
 # GitHub Actions Docker Image Build Workflows
 
-Automatically builds and publishes Docker images to GitHub Container Registry (ghcr.io) when code is merged to main/master.
+Automatically builds and publishes Docker images to GitHub Container Registry (ghcr.io) when code is merged to main.
 
 ## Available Workflows
 
@@ -16,7 +16,7 @@ Automatically builds and publishes Docker images to GitHub Container Registry (g
 ## How It Works
 
 **Triggers:**
-- Push to main/master (when service code changes)
+- Push to main (when service code changes)
 - Manual dispatch from GitHub Actions UI
 
 **Process:**
@@ -26,7 +26,7 @@ Automatically builds and publishes Docker images to GitHub Container Registry (g
 4. Publishes to GHCR
 
 **Image Tags:**
-- `latest` - Latest build from main/master
+- `latest` - Latest build from main
 - `{branch}-{sha}` - Specific commit (e.g., `main-abc123`)
 
 ## Quick Test
@@ -77,7 +77,7 @@ docker compose up -d
 
 **Workflow doesn't trigger:**
 - Check service directory files changed
-- Verify branch is `main` or `master`
+- Verify branch is `main`
 
 **Build fails:**
 - Test build locally first

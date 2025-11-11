@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
     paths:
       - 'audit-service/**'
       - '.github/workflows/build-audit-service.yml'
