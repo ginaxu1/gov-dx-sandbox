@@ -1,5 +1,13 @@
 package models
 
+// UserGroup represents different user groups in the system
+type UserGroup string
+
+const (
+	UserGroupAdmin  UserGroup = "OpenDIF_Admin"
+	UserGroupMember UserGroup = "OpenDIF_Members"
+)
+
 // Status represents the status of submissions and applications
 type Status string
 

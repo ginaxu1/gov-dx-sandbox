@@ -44,7 +44,7 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IDP provider: %w", err)
 	}
-	memberService := services.NewMemberService(db, &idpProvider)
+	memberService := services.NewMemberService(db, idpProvider)
 
 	pdpServiceURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
 	if pdpServiceURL == "" {
@@ -301,7 +301,8 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := h.memberService.CreateMember(&req)
+	// Pass request context to service for proper context propagation
+	member, err := h.memberService.CreateMember(r.Context(), &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -318,7 +319,8 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 		return
 	}
 
-	member, err := h.memberService.UpdateMember(memberId, &req)
+	// Pass request context to service for proper context propagation
+	member, err := h.memberService.UpdateMember(r.Context(), memberId, &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
@@ -328,7 +330,8 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 }
 
 func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberId string) {
-	member, err := h.memberService.GetMember(memberId)
+	// Pass request context to service for proper context propagation
+	member, err := h.memberService.GetMember(r.Context(), memberId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -337,7 +340,8 @@ func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberId s
 }
 
 func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request, idpUserId *string, email *string) {
-	members, err := h.memberService.GetAllMembers(idpUserId, email)
+	// Pass request context to service for proper context propagation
+	members, err := h.memberService.GetAllMembers(r.Context(), idpUserId, email)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
