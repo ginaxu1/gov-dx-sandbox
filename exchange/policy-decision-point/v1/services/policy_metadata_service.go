@@ -249,15 +249,15 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 	}
 
 	// Update all records
-	// Note: We perform individual updates because each record has a different allow_list value
-	// (different fields being updated with potentially different application IDs and expiration times).
-	// While this results in N database queries, batch operations like a single UPDATE with CASE
-	// statements would be significantly more complex and wouldn't provide substantial performance
-	// improvement for typical use cases (usually < 10 fields per request). The custom AllowList
-	// type's Value() method ensures proper JSONB serialization for each record.
+	// Note: We perform individual updates because each record has a different allow_list value.
+	// Each field's allow_list map may already contain entries for other applications, so individual
+	// updates are necessary to ensure the correct application ID and expiration time are set for each field.
+	// However, this function only updates the allow_list for a single application ID and expiration time
+	// per request (from req.ApplicationID and req.GrantDuration); all records in the batch receive the same values.
+	// The custom AllowList type's Value() method ensures proper JSONB serialization for each record.
 	if len(recordsToUpdate) > 0 {
 		for _, pm := range recordsToUpdate {
-			pm.UpdatedAt = time.Now()
+			pm.UpdatedAt = currentTime
 			if err := tx.Model(pm).Select("allow_list", "updated_at").Updates(map[string]interface{}{
 				"allow_list": pm.AllowList,
 				"updated_at": pm.UpdatedAt,
