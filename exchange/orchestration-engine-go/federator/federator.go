@@ -353,20 +353,21 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 			}
 		}
 
-		fields := make([]string, len(pdpResponse.ConsentRequiredFields))
+		fields := make([]consent.ConsentField, len(pdpResponse.ConsentRequiredFields))
 		for i, f := range pdpResponse.ConsentRequiredFields {
-			fields[i] = f.FieldName
+			fields[i].FieldName = f.FieldName
+			fields[i].SchemaID = f.SchemaID
 		}
 
 		ceRequest := &consent.CERequest{
 			AppId:     consumerInfo.ApplicationId,
 			Purpose:   "testing",
 			SessionId: "session_123",
-			DataFields: []consent.DataOwnerRecord{
+			ConsentRequirements: []consent.ConsentRequirement{
 				{
-					OwnerType: "citizen",
-					OwnerId:   extractedArgs[0].Value.GetValue().(string),
-					Fields:    fields,
+					Owner:   "citizen",
+					OwnerID: extractedArgs[0].Value.GetValue().(string),
+					Fields:  fields,
 				},
 			},
 		}

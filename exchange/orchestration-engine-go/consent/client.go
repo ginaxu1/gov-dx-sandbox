@@ -14,16 +14,21 @@ type CeConfig struct {
 }
 
 type CERequest struct {
-	AppId      string            `json:"app_id"`
-	DataFields []DataOwnerRecord `json:"data_fields"`
-	Purpose    string            `json:"purpose"`
-	SessionId  string            `json:"session_id"`
+	AppId               string               `json:"app_id"`
+	ConsentRequirements []ConsentRequirement `json:"consent_requirements"`
+	Purpose             string               `json:"purpose"`
+	SessionId           string               `json:"session_id"`
 }
 
-type DataOwnerRecord struct {
-	OwnerType string   `json:"owner_type"`
-	OwnerId   string   `json:"owner_id"`
-	Fields    []string `json:"fields"`
+type ConsentRequirement struct {
+	Owner   string         `json:"owner"`
+	OwnerID string         `json:"owner_id"`
+	Fields  []ConsentField `json:"fields"`
+}
+
+type ConsentField struct {
+	FieldName string `json:"fieldName"`
+	SchemaID  string `json:"schemaId"`
 }
 
 type CEResponse struct {
@@ -63,6 +68,9 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 		return nil, err
 	}
 	defer response.Body.Close()
+
+	// convert to string and log
+	logger.Log.Info("Consent Response Status", "status", response.Status)
 
 	var pdpResponse CEResponse
 	err = json.NewDecoder(response.Body).Decode(&pdpResponse)
