@@ -73,8 +73,6 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		SelectedFields: &selectedFieldsStr,
 		GrantDuration:  &grantDuration,
 		Status:         models.PDPJobStatusPending,
-		RetryCount:     0,
-		MaxRetries:     5,
 	}
 
 	if err := tx.Create(&job).Error; err != nil {

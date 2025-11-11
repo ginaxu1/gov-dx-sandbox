@@ -440,7 +440,8 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusCreated, schema)
+	// Return 202 Accepted - job is queued, will be processed asynchronously
+	utils.RespondWithSuccess(w, http.StatusAccepted, schema)
 }
 
 func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaId string) {
@@ -559,7 +560,8 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondWithSuccess(w, http.StatusCreated, application)
+	// Return 202 Accepted - job is queued, will be processed asynchronously
+	utils.RespondWithSuccess(w, http.StatusAccepted, application)
 }
 
 func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationId string) {
