@@ -274,7 +274,9 @@ func main() {
 	}
 
 	// Create and start PDP worker
-	pdpWorker := v1services.NewPDPWorker(gormDB, pdpService)
+	// Initialize alert notifier (using logging for now, can be extended to PagerDuty/Slack)
+	alertNotifier := v1services.NewLoggingAlertNotifier()
+	pdpWorker := v1services.NewPDPWorker(gormDB, pdpService, alertNotifier)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 

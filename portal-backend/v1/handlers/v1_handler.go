@@ -57,7 +57,7 @@ func (h *V1Handler) getUserMemberID(r *http.Request, user *models.AuthenticatedU
 }
 
 // NewV1Handler creates a new V1 handler
-func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
+func NewV1Handler(db *gorm.DB, pdpService services.PDPClient) (*V1Handler, error) {
 	// Get scopes from environment variable, fallback to default if not set
 	asgScopesEnv := os.Getenv("ASGARDEO_SCOPES")
 	var scopes []string
@@ -85,19 +85,6 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 		return nil, fmt.Errorf("failed to create IDP provider: %w", err)
 	}
 	memberService := services.NewMemberService(db, idpProvider)
-
-	pdpServiceURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-	if pdpServiceURL == "" {
-		return nil, fmt.Errorf("CHOREO_PDP_CONNECTION_SERVICEURL environment variable not set")
-	}
-
-	pdpServiceAPIKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-	if pdpServiceAPIKey == "" {
-		return nil, fmt.Errorf("CHOREO_PDP_CONNECTION_CHOREOAPIKEY environment variable not set")
-	}
-
-	pdpService := services.NewPDPService(pdpServiceURL, pdpServiceAPIKey)
-	slog.Info("PDP Service URL", "url", pdpServiceURL)
 
 	return &V1Handler{
 		memberService:      memberService,
@@ -808,7 +795,8 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 	// Log audit event
 	middleware.LogAuditEvent(r, string(models.ResourceTypeSchemas), &schema.SchemaID, string(models.AuditStatusSuccess))
 
-	utils.RespondWithSuccess(w, http.StatusCreated, schema)
+	// Return 202 Accepted - job is queued, will be processed asynchronously
+	utils.RespondWithSuccess(w, http.StatusAccepted, schema)
 }
 
 func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaId string) {
@@ -1195,7 +1183,8 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 	// Log audit event
 	middleware.LogAuditEvent(r, string(models.ResourceTypeApplications), &application.ApplicationID, string(models.AuditStatusSuccess))
 
-	utils.RespondWithSuccess(w, http.StatusCreated, application)
+	// Return 202 Accepted - job is queued, will be processed asynchronously
+	utils.RespondWithSuccess(w, http.StatusAccepted, application)
 }
 
 func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationId string) {

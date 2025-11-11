@@ -22,7 +22,7 @@ func TestOutboxPattern_EndToEnd_Schema(t *testing.T) {
 	}
 
 	schemaService := NewSchemaService(db, mockPDP)
-	worker := NewPDPWorker(db, mockPDP)
+	worker := NewPDPWorker(db, mockPDP, nil)
 	worker.pollInterval = 100 * time.Millisecond // Faster polling for test
 
 	// Step 1: Create schema (should create job atomically)
@@ -72,7 +72,7 @@ func TestOutboxPattern_EndToEnd_Application(t *testing.T) {
 	}
 
 	appService := NewApplicationService(db, mockPDP)
-	worker := NewPDPWorker(db, mockPDP)
+	worker := NewPDPWorker(db, mockPDP, nil)
 
 	// Step 1: Create application (should create job atomically)
 	desc := "Test Description"
@@ -123,7 +123,7 @@ func TestOutboxPattern_Resilience(t *testing.T) {
 	}
 
 	schemaService := NewSchemaService(db, mockPDP)
-	worker := NewPDPWorker(db, mockPDP)
+	worker := NewPDPWorker(db, mockPDP, nil)
 
 	// Create schema
 	desc := "Test Description"
@@ -143,37 +143,31 @@ func TestOutboxPattern_Resilience(t *testing.T) {
 	err = db.Where("schema_id = ?", response.SchemaID).First(&job).Error
 	require.NoError(t, err)
 
-	// Process job (first attempt - fails)
+	// Process job (should fail and compensate immediately - no retries)
 	worker.processJob(&job)
 	db.First(&job, "job_id = ?", job.JobID)
-	assert.Equal(t, models.PDPJobStatusPending, job.Status)
-	assert.Equal(t, 1, job.RetryCount)
+	assert.Equal(t, models.PDPJobStatusCompensated, job.Status) // Compensated, not pending
+	assert.Equal(t, 1, callCount, "PDP should be called exactly once")
 
-	// Process job (second attempt - fails)
-	worker.processJob(&job)
-	db.First(&job, "job_id = ?", job.JobID)
-	assert.Equal(t, models.PDPJobStatusPending, job.Status)
-	assert.Equal(t, 2, job.RetryCount)
-
-	// Process job (third attempt - succeeds)
-	worker.processJob(&job)
-	db.First(&job, "job_id = ?", job.JobID)
-	assert.Equal(t, models.PDPJobStatusCompleted, job.Status)
-	assert.Equal(t, 3, job.RetryCount)
-	assert.Equal(t, 3, callCount)
+	// Verify schema was deleted
+	var deletedSchema models.Schema
+	err = db.First(&deletedSchema, "schema_id = ?", response.SchemaID).Error
+	assert.Error(t, err, "Schema should have been deleted")
 }
 
-// TestOutboxPattern_NoCompensationNeeded tests that no compensation is needed with outbox pattern
-func TestOutboxPattern_NoCompensationNeeded(t *testing.T) {
+// TestOutboxPattern_CompensationOnFailure tests that compensation happens when PDP fails
+func TestOutboxPattern_CompensationOnFailure(t *testing.T) {
 	db := setupTestDB(t)
-	// Create a failing PDP service - should not affect schema creation
+	// Create a failing PDP service
 	failingPDP := &mockPDPService{
 		createPolicyMetadataFunc: func(schemaID, sdl string) (*models.PolicyMetadataCreateResponse, error) {
 			return nil, errors.New("PDP service is down")
 		},
 	}
+	alertNotifier := &mockAlertNotifier{}
 
 	schemaService := NewSchemaService(db, failingPDP)
+	worker := NewPDPWorker(db, failingPDP, alertNotifier)
 
 	desc := "Test Description"
 	req := &models.CreateSchemaRequest{
@@ -189,18 +183,27 @@ func TestOutboxPattern_NoCompensationNeeded(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, response.SchemaID)
 
-	// Verify schema exists
+	// Verify schema exists initially
 	var schema models.Schema
 	err = db.First(&schema, "schema_id = ?", response.SchemaID).Error
 	require.NoError(t, err)
 	assert.Equal(t, req.SchemaName, schema.SchemaName)
 
-	// Verify job exists (will be processed later by worker)
+	// Verify job exists
 	var job models.PDPJob
 	err = db.Where("schema_id = ?", response.SchemaID).First(&job).Error
 	require.NoError(t, err)
 	assert.Equal(t, models.PDPJobStatusPending, job.Status)
 
-	// Schema is NOT deleted - this is the key difference from the old pattern!
-	// The worker will retry the PDP call until it succeeds
+	// Process the job (PDP fails, should compensate)
+	worker.processJob(&job)
+
+	// Verify job is compensated
+	db.First(&job, "job_id = ?", job.JobID)
+	assert.Equal(t, models.PDPJobStatusCompensated, job.Status)
+
+	// Verify schema was deleted (compensation succeeded)
+	var deletedSchema models.Schema
+	err = db.First(&deletedSchema, "schema_id = ?", response.SchemaID).Error
+	assert.Error(t, err, "Schema should have been deleted by compensation")
 }
