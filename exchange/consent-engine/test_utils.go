@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -32,6 +33,17 @@ func SetupTestEngine(t *testing.T) ConsentEngine {
 
 // setupPostgresTestEngine creates a PostgreSQL test engine
 func setupPostgresTestEngine(t *testing.T) ConsentEngine {
+	return setupPostgresTestEngineWithDB(t).engine
+}
+
+// postgresTestEngineWithDB holds both the engine and database connection for tests
+type postgresTestEngineWithDB struct {
+	engine ConsentEngine
+	db     *sql.DB
+}
+
+// setupPostgresTestEngineWithDB creates a PostgreSQL test engine and returns both engine and DB
+func setupPostgresTestEngineWithDB(t *testing.T) *postgresTestEngineWithDB {
 	// Use test database configuration
 	config := &DatabaseConfig{
 		Host:            getEnvOrDefault("TEST_DB_HOST", "localhost"),
@@ -63,7 +75,10 @@ func setupPostgresTestEngine(t *testing.T) ConsentEngine {
 	// Clean up test data before each test
 	cleanupTestData(t, db)
 
-	return NewPostgresConsentEngine(db, "http://localhost:5173")
+	return &postgresTestEngineWithDB{
+		engine: NewPostgresConsentEngine(db, "http://localhost:5173"),
+		db:     db,
+	}
 }
 
 // cleanupTestData removes all test data from the database
@@ -72,6 +87,16 @@ func cleanupTestData(t *testing.T, db *sql.DB) {
 	if err != nil {
 		t.Logf("Warning: failed to cleanup test data: %v", err)
 	}
+}
+
+// updateConsentExpiry directly updates the expires_at timestamp in the database
+// This is useful for tests to simulate expired consents without waiting
+func updateConsentExpiry(t *testing.T, db *sql.DB, consentID string, expiresAt time.Time) error {
+	_, err := db.Exec("UPDATE consent_records SET expires_at = $1 WHERE consent_id = $2", expiresAt, consentID)
+	if err != nil {
+		return fmt.Errorf("failed to update consent expiry: %w", err)
+	}
+	return nil
 }
 
 // TestWithPostgresEngine runs a test function with PostgreSQL engine
