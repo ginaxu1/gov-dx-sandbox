@@ -77,3 +77,84 @@ jobs:
       - name: Build application
         run: cd ${{ env.SERVICE_PATH }} && go build .
 
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          path: ${{ env.SERVICE_PATH }}
+          no-git: false
+          exit-code: 1
+
+      - name: Test health endpoint
+        env:
+          PORT: 8081
+          CHOREO_DB_CE_HOSTNAME: localhost
+          CHOREO_DB_CE_PORT: 5432
+          CHOREO_DB_CE_USERNAME: postgres
+          CHOREO_DB_CE_PASSWORD: password
+          CHOREO_DB_CE_DATABASENAME: consent_engine_test
+          DB_SSLMODE: disable
+        run: |
+          # Start service in background
+          cd ${{ env.SERVICE_PATH }} && ./consent-engine &
+          SERVICE_PID=$!
+          
+          # Wait for service to start
+          echo "Waiting for service to start..."
+          for i in {1..30}; do
+            if curl -f -s http://localhost:8081/health > /dev/null 2>&1; then
+              echo "Service is ready!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Service failed to start"
+              kill $SERVICE_PID 2>/dev/null || true
+              exit 1
+            fi
+            sleep 1
+          done
+          
+          # Test health endpoint
+          echo "Testing health endpoint..."
+          response=$(curl -s http://localhost:8081/health)
+          echo "$response" | jq -e '.status == "healthy"' || {
+            echo "Health check failed. Response: $response"
+            kill $SERVICE_PID 2>/dev/null || true
+            exit 1
+          }
+          
+          # Cleanup
+          kill $SERVICE_PID 2>/dev/null || true
+          echo "Health endpoint test passed"
+
+      - name: Integration test - Service startup
+        env:
+          PORT: 8081
+          CHOREO_DB_CE_HOSTNAME: localhost
+          CHOREO_DB_CE_PORT: 5432
+          CHOREO_DB_CE_USERNAME: postgres
+          CHOREO_DB_CE_PASSWORD: password
+          CHOREO_DB_CE_DATABASENAME: consent_engine_test
+          DB_SSLMODE: disable
+        run: |
+          # Verify service can start and respond to requests
+          cd ${{ env.SERVICE_PATH }} && timeout 10s ./consent-engine &
+          SERVICE_PID=$!
+          sleep 3
+          
+          # Verify service is running
+          if ! ps -p $SERVICE_PID > /dev/null; then
+            echo "Service failed to start"
+            exit 1
+          fi
+          
+          # Test basic endpoint
+          curl -f http://localhost:8081/health || {
+            echo "Service is not responding"
+            kill $SERVICE_PID 2>/dev/null || true
+            exit 1
+          }
+          
+          # Cleanup
+          kill $SERVICE_PID 2>/dev/null || true
+          echo "Integration test passed"
+
