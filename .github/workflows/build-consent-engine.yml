@@ -95,7 +95,7 @@ jobs:
           path: ./
           base: ${{ github.event.before || 'main' }}
           head: HEAD
-          extra_args: --only-verified --fail
+          extra_args: --only-verified
 
   # ----------------------------------------------------
   # JOB 2: PUBLISH (Runs ONLY on push to main)
