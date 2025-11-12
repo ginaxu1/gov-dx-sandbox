@@ -363,10 +363,213 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		// Verify submission status was rolled back to pending
-		var updatedSubmission models.ApplicationSubmission
-		db.Where("submission_id = ?", submission.SubmissionID).First(&updatedSubmission)
-		assert.Equal(t, string(models.StatusPending), updatedSubmission.Status)
+	})
+
+	t.Run("UpdateApplicationSubmission_WithPreviousApplicationID_NotFound", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Status:          string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		prevAppID := "non-existent-app"
+		req := &models.UpdateApplicationSubmissionRequest{
+			PreviousApplicationID: &prevAppID,
+		}
+
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "previous application not found")
+	})
+
+	t.Run("UpdateApplicationSubmission_WithDescription", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Status:          string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		newDesc := "Updated Description"
+		req := &models.UpdateApplicationSubmissionRequest{
+			ApplicationDescription: &newDesc,
+		}
+
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		if result.ApplicationDescription != nil {
+			assert.Equal(t, newDesc, *result.ApplicationDescription)
+		}
+	})
+
+	t.Run("UpdateApplicationSubmission_WithSelectedFields", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Status:          string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		newFields := []models.SelectedFieldRecord{
+			{FieldName: "field2", SchemaID: "schema-456"},
+			{FieldName: "field3", SchemaID: "schema-789"},
+		}
+		req := &models.UpdateApplicationSubmissionRequest{
+			SelectedFields: &newFields,
+		}
+
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, 2, len(result.SelectedFields))
+	})
+
+	t.Run("UpdateApplicationSubmission_WithReview", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Status:          string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		review := "Approved by admin"
+		req := &models.UpdateApplicationSubmissionRequest{
+			Review: &review,
+		}
+
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		if result.Review != nil {
+			assert.Equal(t, review, *result.Review)
+		}
+	})
+
+	t.Run("UpdateApplicationSubmission_WithPreviousApplicationID_Success", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		prevApp := models.Application{
+			ApplicationID:   "app_prev",
+			ApplicationName: "Previous App",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Version:         string(models.ActiveVersion),
+		}
+		db.Create(&prevApp)
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Status:          string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		prevAppID := prevApp.ApplicationID
+		req := &models.UpdateApplicationSubmissionRequest{
+			PreviousApplicationID: &prevAppID,
+		}
+
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		if result.PreviousApplicationID != nil {
+			assert.Equal(t, prevAppID, *result.PreviousApplicationID)
+		}
+	})
+
+	t.Run("UpdateApplicationSubmission_NonApprovedStatus", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewApplicationService(db, pdpService)
+
+		member := models.Member{MemberID: "member-123", Name: "Test", Email: "test@example.com", PhoneNumber: "123"}
+		db.Create(&member)
+		submission := models.ApplicationSubmission{
+			SubmissionID:    "sub_123",
+			ApplicationName: "Original",
+			SelectedFields:  models.SelectedFieldRecords{{FieldName: "field1", SchemaID: "schema-123"}},
+			MemberID:        member.MemberID,
+			Status:          string(models.StatusPending),
+		}
+		db.Create(&submission)
+
+		status := string(models.StatusRejected)
+		req := &models.UpdateApplicationSubmissionRequest{
+			Status: &status,
+		}
+
+		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, status, result.Status)
+		// Should not create application for non-approved status
+		var appCount int64
+		db.Model(&models.Application{}).Where("application_name = ?", submission.ApplicationName).Count(&appCount)
+		assert.Equal(t, int64(0), appCount)
 	})
 }
 

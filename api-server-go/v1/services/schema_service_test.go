@@ -517,6 +517,57 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 		// This tests the compensation path when PDP fails
 		assert.Error(t, err)
 	})
+
+	t.Run("CreateSchema_WithDescription", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		desc := "Test Description"
+		req := &models.CreateSchemaRequest{
+			SchemaName:        "Test Schema With Desc",
+			SchemaDescription: &desc,
+			SDL:               "type Query { test: String }",
+			Endpoint:          "http://example.com/graphql",
+			MemberID:          "member-123",
+		}
+
+		// Will fail on PDP call but tests description handling
+		_, err := service.CreateSchema(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create policy metadata")
+		// Verify schema was deleted (compensation)
+		var count int64
+		db.Model(&models.Schema{}).Where("schema_name = ?", req.SchemaName).Count(&count)
+		assert.Equal(t, int64(0), count)
+	})
+
+	t.Run("CreateSchema_DatabaseError", func(t *testing.T) {
+		db := SetupPostgresTestDB(t)
+		if db == nil {
+			return
+		}
+		pdpService := NewPDPService("http://localhost:9999", "test-key")
+		service := NewSchemaService(db, pdpService)
+
+		// Create a schema with invalid data that will cause DB error
+		// Use a very long name that might exceed DB constraints
+		longName := string(make([]byte, 10000)) // Very long string
+		req := &models.CreateSchemaRequest{
+			SchemaName: longName,
+			SDL:        "type Query { test: String }",
+			Endpoint:   "http://example.com/graphql",
+			MemberID:   "member-123",
+		}
+
+		_, err := service.CreateSchema(req)
+		// Should fail on database create
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create schema")
+	})
 }
 
 func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
