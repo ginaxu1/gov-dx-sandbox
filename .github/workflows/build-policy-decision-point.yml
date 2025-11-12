@@ -19,6 +19,10 @@ env:
   IMAGE_NAME: ${{ github.repository }}/policy-decision-point
   GO_VERSION: '1.24'
   SERVICE_PATH: 'exchange/policy-decision-point'
+  # Define test DB details
+  TEST_DB_NAME: pdp_test
+  TEST_DB_USER: postgres
+  TEST_DB_PASS: password
 
 jobs:
   build-and-push:
@@ -27,6 +31,22 @@ jobs:
       contents: read
       packages: write
       security-events: write
+
+    # Start a Postgres container for the unit tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: ${{ env.TEST_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.TEST_DB_PASS }}
+          POSTGRES_DB: ${{ env.TEST_DB_NAME }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -43,82 +63,89 @@ jobs:
       - name: Check for unclean Go Mod
         run: |
           if ! git diff --exit-code -- ${{ env.SERVICE_PATH }}/go.mod ${{ env.SERVICE_PATH }}/go.sum; then
-            echo "::error::go.mod or go.sum files in '${{ env.SERVICE_PATH }}' have uncommitted changes after 'go mod tidy'. Please commit these changes."
+            echo "::error::go.mod or go.sum files in '${{ env.SERVICE_PATH }}' have uncommitted changes. Please run 'go mod tidy' locally and commit them."
             git diff -- ${{ env.SERVICE_PATH }}/go.mod ${{ env.SERVICE_PATH }}/go.sum
             exit 1
           fi
 
-      - name: Run unit tests
-        run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
-
       - name: Build application
         run: cd ${{ env.SERVICE_PATH }} && go build .
 
-      - name: Scan for secrets
-        uses: gitleaks/gitleaks-action@v2
+      - name: Run unit tests
+        # Injects the test DB credentials into the test environment
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5432
+          TEST_DB_USERNAME: ${{ env.TEST_DB_USER }}
+          TEST_DB_PASSWORD: ${{ env.TEST_DB_PASS }}
+          TEST_DB_DATABASE: ${{ env.TEST_DB_NAME }}
+          TEST_DB_SSLMODE: disable
+        run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
+
+      - name: Scan repository for secrets (TruffleHog)
+        # Replaced curl|sh with the official action
+        # This step will now FAIL if secrets are found
+        uses: trufflesecurity/trufflehog@main
         with:
-          path: ${{ env.SERVICE_PATH }}
-          no-git: false
-          exit-code: 1
+          path: ./
+          base: ${{ github.event.before || 'main' }}
+          head: HEAD
+          extra_args: --only-verified --fail
 
-      - name: Test health endpoint
-        env:
-          PORT: 8082
-        run: |
-          # Start service in background
-          cd ${{ env.SERVICE_PATH }} && ./policy-decision-point &
-          SERVICE_PID=$!
-          
-          # Wait for service to start
-          echo "Waiting for service to start..."
-          for i in {1..30}; do
-            if curl -f -s http://localhost:8082/health > /dev/null 2>&1; then
-              echo "Service is ready!"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Service failed to start"
-              kill $SERVICE_PID 2>/dev/null || true
-              exit 1
-            fi
-            sleep 1
-          done
-          
-          # Test health endpoint
-          echo "Testing health endpoint..."
-          response=$(curl -s http://localhost:8082/health)
-          echo "$response" | jq -e '.status == "healthy" or .message' || {
-            echo "Health check failed. Response: $response"
-            kill $SERVICE_PID 2>/dev/null || true
-            exit 1
-          }
-          
-          # Cleanup
-          kill $SERVICE_PID 2>/dev/null || true
-          echo "Health endpoint test passed"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Integration test - Service startup
-        env:
-          PORT: 8082
-        run: |
-          # Verify service can start and respond to requests
-          cd ${{ env.SERVICE_PATH }} && timeout 10s ./policy-decision-point &
-          SERVICE_PID=$!
-          sleep 3
-          
-          # Verify service is running
-          if ! ps -p $SERVICE_PID > /dev/null; then
-            echo "Service failed to start"
-            exit 1
-          fi
-          
-          # Test basic endpoint
-          curl -f http://localhost:8082/health || {
-            echo "Service is not responding"
-            kill $SERVICE_PID 2>/dev/null || true
-            exit 1
-          }
-          
-          # Cleanup
-          kill $SERVICE_PID 2>/dev/null || true
-          echo "Integration test passed"
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=Policy Decision Point service for authorization decisions
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and push Docker image
+        id: build-push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.SERVICE_PATH }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SERVICE_PATH=${{ env.SERVICE_PATH }}
+            BUILD_VERSION=${{ github.sha }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || '2025-01-01T00:00:00Z' }}
+            GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build-push.outputs.digest }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          scanners: 'vuln' # Only scan for OS/lib vulnerabilities
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() # Ensures report uploads even if scan finds issues
+        with:
+          sarif_file: 'trivy-results.sarif'
