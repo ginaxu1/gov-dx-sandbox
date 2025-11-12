@@ -76,3 +76,4 @@ jobs:
 
       - name: Build application
         run: cd ${{ env.SERVICE_PATH }} && go build .
+        
