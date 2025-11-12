@@ -113,13 +113,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ⬇️⬇️ FIX #1: ADD DOCKER HUB LOGIN ⬇️⬇️
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
