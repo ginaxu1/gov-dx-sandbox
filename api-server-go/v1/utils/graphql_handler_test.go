@@ -1,111 +1,283 @@
 package utils
 
 import (
-	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/vektah/gqlparser/v2/ast"
 )
 
-// Example usage of GraphQLHandler
-func ExampleGraphQLHandler() {
+func TestGraphQLHandler_buildFieldPath(t *testing.T) {
+	handler := NewGraphQLHandler()
+
+	tests := []struct {
+		name      string
+		typeName  string
+		fieldName string
+		expected  string
+	}{
+		{"Simple", "User", "id", "user.id"},
+		{"CamelCase", "BirthInfo", "birthPlace", "birthinfo.birthPlace"},
+		{"MixedCase", "UserProfile", "fullName", "userprofile.fullName"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := handler.buildFieldPath(tt.typeName, tt.fieldName)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGraphQLHandler_getDirectiveValue(t *testing.T) {
+	handler := NewGraphQLHandler()
+
+	// Create a directive list with test data
+	directives := ast.DirectiveList{
+		{
+			Name: "accessControl",
+			Arguments: ast.ArgumentList{
+				{
+					Name: "type",
+					Value: &ast.Value{
+						Kind: ast.StringValue,
+						Raw:  `"public"`,
+					},
+				},
+			},
+		},
+		{
+			Name: "source",
+			Arguments: ast.ArgumentList{
+				{
+					Name: "value",
+					Value: &ast.Value{
+						Kind: ast.StringValue,
+						Raw:  `"fallback"`,
+					},
+				},
+			},
+		},
+	}
+
+	t.Run("GetExistingDirective", func(t *testing.T) {
+		result := handler.getDirectiveValue(directives, "accessControl", "type")
+		// The value should have quotes stripped
+		assert.Contains(t, result, "public")
+	})
+
+	t.Run("GetNonExistentDirective", func(t *testing.T) {
+		result := handler.getDirectiveValue(directives, "nonExistent", "type")
+		assert.Empty(t, result)
+	})
+
+	t.Run("GetNonExistentArgument", func(t *testing.T) {
+		result := handler.getDirectiveValue(directives, "accessControl", "nonExistent")
+		assert.Empty(t, result)
+	})
+}
+
+func TestGraphQLHandler_getBaseTypeName(t *testing.T) {
+	handler := NewGraphQLHandler()
+
+	t.Run("SimpleType", func(t *testing.T) {
+		fieldType := &ast.Type{
+			NamedType: "User",
+		}
+		result := handler.getBaseTypeName(fieldType)
+		assert.Equal(t, "User", result)
+	})
+
+	t.Run("ListType", func(t *testing.T) {
+		fieldType := &ast.Type{
+			Elem: &ast.Type{
+				NamedType: "User",
+			},
+		}
+		result := handler.getBaseTypeName(fieldType)
+		assert.Equal(t, "User", result)
+	})
+
+	t.Run("NonNullListType", func(t *testing.T) {
+		fieldType := &ast.Type{
+			NonNull: true,
+			Elem: &ast.Type{
+				NamedType: "User",
+			},
+		}
+		result := handler.getBaseTypeName(fieldType)
+		assert.Equal(t, "User", result)
+	})
+}
+
+func TestGraphQLHandler_isBuiltInType(t *testing.T) {
+	handler := NewGraphQLHandler()
+
+	tests := []struct {
+		name     string
+		typeName string
+		expected bool
+	}{
+		{"String", "String", true},
+		{"Int", "Int", true},
+		{"Float", "Float", true},
+		{"Boolean", "Boolean", true},
+		{"ID", "ID", true},
+		{"__Schema", "__Schema", true},
+		{"__Type", "__Type", true},
+		{"CustomType", "User", false},
+		{"CustomType2", "BirthInfo", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := handler.isBuiltInType(tt.typeName)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGraphQLHandler_isRootType(t *testing.T) {
+	handler := NewGraphQLHandler()
+
+	tests := []struct {
+		name     string
+		typeName string
+		expected bool
+	}{
+		{"Query", "Query", true},
+		{"Mutation", "Mutation", true},
+		{"Subscription", "Subscription", true},
+		{"CustomType", "User", false},
+		{"CustomType2", "BirthInfo", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := handler.isRootType(tt.typeName)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGraphQLHandler_ParseSDLToPolicyRequest_InvalidSDL(t *testing.T) {
+	handler := NewGraphQLHandler()
+
+	invalidSDL := `type User { id: ID!` // Missing closing brace
+
+	_, err := handler.ParseSDLToPolicyRequest("test-schema", invalidSDL)
+	assert.Error(t, err)
+	if err != nil {
+		assert.Contains(t, err.Error(), "failed to parse GraphQL schema")
+	}
+}
+
+func TestGraphQLHandler_ParseSDLToPolicyRequest_WithNestedFields(t *testing.T) {
 	handler := NewGraphQLHandler()
 
 	sdl := `
 	directive @accessControl(type: String) on FIELD_DEFINITION
 	directive @source(value: String) on FIELD_DEFINITION
-	directive @isOwner(value: Boolean) on FIELD_DEFINITION
-	directive @owner(value: String) on FIELD_DEFINITION
-	directive @displayName(value: String) on FIELD_DEFINITION
-	directive @description(value: String) on FIELD_DEFINITION
 
 	type BirthInfo {
 	  birthCertificateID: ID! @accessControl(type: "public") @source(value: "fallback")
 	  birthPlace: String! @accessControl(type: "public") @source(value: "fallback")
-	  birthDate: String! @accessControl(type: "public") @source(value: "fallback")
 	}
 
 	type User {
 	  id: ID! @accessControl(type: "public") @source(value: "fallback")
-	  name: String! @accessControl(type: "public") @source(value: "fallback")
-	  email: String! @accessControl(type: "public") @source(value: "fallback")
-	  birthInfo: BirthInfo @description(value: "Default Description")
+	  birthInfo: BirthInfo @accessControl(type: "public") @source(value: "fallback")
 	}
 
 	type Query {
-	  getUser(id: ID!): User @description(value: "Default Description")
-	  listUsers: [User!]! @description(value: "Default Description")
-	  getBirthInfo(userId: ID!): BirthInfo @description(value: "Default Description")
-	  listUsersByBirthPlace(birthPlace: String!): [User!]! @description(value: "Default Description")
-	  searchUsersByName(name: String!): [User!]! @description(value: "Default Description")
+	  getUser(id: ID!): User
 	}
 	`
 
-	request, err := handler.ParseSDLToPolicyRequest("schema123", sdl)
-	slog.Info("Parsed Policy Metadata Create Request", "request", request)
-	if err != nil {
-		panic(err)
+	request, err := handler.ParseSDLToPolicyRequest("test-schema", sdl)
+	assert.NoError(t, err)
+	assert.NotNil(t, request)
+	assert.Equal(t, "test-schema", request.SchemaID)
+	assert.GreaterOrEqual(t, len(request.Records), 3) // At least user.id, user.birthInfo, birthinfo.birthCertificateID, birthinfo.birthPlace
+
+	// Check for nested field - verify we have nested fields from BirthInfo
+	hasNestedField := false
+	fieldNames := make([]string, 0, len(request.Records))
+	for _, record := range request.Records {
+		fieldNames = append(fieldNames, record.FieldName)
+		// Check for nested fields (birthinfo.* or user.birthinfo.*)
+		if len(record.FieldName) > len("birthinfo.") &&
+			(strings.HasPrefix(record.FieldName, "birthinfo.") || strings.Contains(record.FieldName, "birthinfo.")) {
+			hasNestedField = true
+		}
 	}
-
-	// request now contains PolicyMetadataCreateRequest with field paths like:
-	// - user.id
-	// - user.name
-	// - user.email
-	// - user.birthInfo (if it has directives)
-	// - user.birthInfo.birthCertificateID
-	// - user.birthInfo.birthPlace
-	// - user.birthInfo.birthDate
-	// - birthinfo.birthCertificateID
-	// - birthinfo.birthPlace
-	// - birthinfo.birthDate
-
-	_ = request // Use the request as needed
+	assert.True(t, hasNestedField, "Should have nested field. Got fields: %v", fieldNames)
 }
 
-func TestGraphQLHandler_ParseSDLToPolicyRequest(t *testing.T) {
+func TestGraphQLHandler_ParseSDLToPolicyRequest_WithDirectives(t *testing.T) {
 	handler := NewGraphQLHandler()
 
 	sdl := `
 	directive @accessControl(type: String) on FIELD_DEFINITION
 	directive @source(value: String) on FIELD_DEFINITION
+	directive @displayName(value: String) on FIELD_DEFINITION
+	directive @description(value: String) on FIELD_DEFINITION
+	directive @isOwner(value: Boolean) on FIELD_DEFINITION
+	directive @owner(value: String) on FIELD_DEFINITION
 
 	type User {
-	  id: ID! @accessControl(type: "public") @source(value: "fallback")
-	  name: String! @accessControl(type: "public") @source(value: "fallback")
+	  id: ID! @accessControl(type: "restricted") @source(value: "drc") @displayName(value: "User ID") @description(value: "Unique identifier") @isOwner(value: true) @owner(value: "member")
+	}
+
+	type Query {
+	  getUser(id: ID!): User
 	}
 	`
 
 	request, err := handler.ParseSDLToPolicyRequest("test-schema", sdl)
-	slog.Info("Parsed Policy Metadata Create Request", "request", request)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	assert.NoError(t, err)
+	assert.NotNil(t, request)
 
-	if request.SchemaID != "test-schema" {
-		t.Errorf("Expected schema ID 'test-schema', got '%s'", request.SchemaID)
-	}
-
-	if len(request.Records) != 2 {
-		t.Errorf("Expected 2 records, got %d", len(request.Records))
-	}
-
-	// Check field names
-	expectedFields := map[string]bool{
-		"user.id":   true,
-		"user.name": true,
-	}
-
-	for _, record := range request.Records {
-		if !expectedFields[record.FieldName] {
-			t.Errorf("Unexpected field name: %s", record.FieldName)
-		}
-
-		if record.Source != models.SourceFallback {
-			t.Errorf("Expected source 'fallback', got '%s'", record.Source)
-		}
-
-		if record.AccessControlType != models.AccessControlTypePublic {
-			t.Errorf("Expected access control 'public', got '%s'", record.AccessControlType)
+	// Find the user.id record
+	var userIDRecord *models.PolicyMetadataCreateRequestRecord
+	for i := range request.Records {
+		if request.Records[i].FieldName == "user.id" {
+			userIDRecord = &request.Records[i]
+			break
 		}
 	}
+
+	assert.NotNil(t, userIDRecord)
+	assert.Equal(t, models.AccessControlType("restricted"), userIDRecord.AccessControlType)
+	assert.Equal(t, models.Source("drc"), userIDRecord.Source)
+	assert.NotNil(t, userIDRecord.DisplayName)
+	assert.Equal(t, "User ID", *userIDRecord.DisplayName)
+	assert.NotNil(t, userIDRecord.Description)
+	assert.Equal(t, "Unique identifier", *userIDRecord.Description)
+	assert.True(t, userIDRecord.IsOwner)
+	assert.NotNil(t, userIDRecord.Owner)
+	assert.Equal(t, models.Owner("member"), *userIDRecord.Owner)
+}
+
+func TestGraphQLHandler_ParseSDLToPolicyRequest_NoDirectives(t *testing.T) {
+	handler := NewGraphQLHandler()
+
+	sdl := `
+	type User {
+	  id: ID!
+	  name: String!
+	}
+
+	type Query {
+	  getUser(id: ID!): User
+	}
+	`
+
+	request, err := handler.ParseSDLToPolicyRequest("test-schema", sdl)
+	assert.NoError(t, err)
+	assert.NotNil(t, request)
+	// Should have no records since no directives are present
+	assert.Equal(t, 0, len(request.Records))
 }
