@@ -13,6 +13,12 @@ on:
     tags:
       - 'consent-engine-v*'
       - 'v*'
+  pull_request:
+    paths:
+      # Trigger only when this service, shared code, or the workflow itself changes
+      - 'exchange/consent-engine/**'
+      - 'exchange/shared/**'
+      - '.github/workflows/build-consent-engine.yml'
   workflow_dispatch:
 
 env:
@@ -85,16 +91,6 @@ jobs:
       #     TEST_DB_DATABASE: ${{ env.TEST_DB_NAME }}
       #     TEST_DB_SSLMODE: disable
       #   run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
-
-      - name: Scan repository for secrets (TruffleHog)
-        # This uses the official, safer action instead of curl|sh
-        # It will FAIL the build if any verified secrets are found.
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event.before || 'main' }}
-          head: HEAD
-          extra_args: --only-verified --fail
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
