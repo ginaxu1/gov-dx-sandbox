@@ -155,8 +155,9 @@ func TestQueryRowWithTimeout(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	row := QueryRowWithTimeout(ctx, db, config, "SELECT 1")
+	row, cleanup := QueryRowWithTimeout(ctx, db, config, "SELECT 1")
 	assert.NotNil(t, row)
+	defer cleanup() // Cleanup after Scan() completes
 
 	var result int
 	err := row.Scan(&result)

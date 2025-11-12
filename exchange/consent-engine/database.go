@@ -162,14 +162,19 @@ func QueryWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, q
 	return db.QueryContext(queryCtx, query, args...)
 }
 
-// QueryRowWithTimeout executes a query with timeout and returns a single row
-// Note: The context is kept alive until Scan() is called on the returned row.
-// The caller must ensure Scan() is called promptly to avoid context leaks.
-func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) *sql.Row {
+// QueryRowWithTimeout executes a query with timeout and returns a single row and a cleanup function.
+// The cleanup function MUST be called after Scan() completes to avoid context leaks.
+// Usage:
+//
+//	row, cleanup := QueryRowWithTimeout(ctx, db, config, "SELECT ...")
+//	defer cleanup() // Call cleanup after Scan() completes
+//	err := row.Scan(&result)
+func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, query string, args ...interface{}) (*sql.Row, func()) {
 	// Create a timeout context for the query
-	queryCtx, _ := context.WithTimeout(ctx, config.QueryTimeout)
+	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
 
-	return db.QueryRowContext(queryCtx, query, args...)
+	row := db.QueryRowContext(queryCtx, query, args...)
+	return row, cancel
 }
 
 // InitDatabase creates the necessary tables if they don't exist
