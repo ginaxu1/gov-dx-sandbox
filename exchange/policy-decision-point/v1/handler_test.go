@@ -8,41 +8,75 @@ import (
 	"testing"
 
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
-	"gorm.io/driver/sqlite"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/testhelpers"
+	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
 
-// setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to connect to test database: %v", err)
-	}
+	return testhelpers.SetupTestDB(t)
+}
 
-	// Create table manually for SQLite compatibility
-	// SQLite doesn't support PostgreSQL-specific features like gen_random_uuid(), enums, jsonb
-	createTableSQL := `
-		CREATE TABLE IF NOT EXISTS policy_metadata (
-			id TEXT PRIMARY KEY,
-			schema_id TEXT NOT NULL,
-			field_name TEXT NOT NULL,
-			display_name TEXT,
-			description TEXT,
-			source TEXT NOT NULL DEFAULT 'fallback',
-			is_owner INTEGER NOT NULL DEFAULT 0,
-			access_control_type TEXT NOT NULL DEFAULT 'restricted',
-			allow_list TEXT NOT NULL DEFAULT '{}',
-			owner TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(schema_id, field_name)
-		)
-	`
-	if err := db.Exec(createTableSQL).Error; err != nil {
-		t.Fatalf("Failed to create table: %v", err)
-	}
+func TestHandler_CreatePolicyMetadata_InvalidJSON(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
 
-	return db
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/metadata", bytes.NewBufferString("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.CreatePolicyMetadata(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_UpdateAllowList_InvalidJSON(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/update-allowlist", bytes.NewBufferString("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.UpdateAllowList(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_GetPolicyDecision_InvalidJSON(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/decide", bytes.NewBufferString("invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handler.GetPolicyDecision(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_SetupRoutes(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+
+	mux := http.NewServeMux()
+	handler.SetupRoutes(mux)
+
+	// Verify routes are registered
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policy/metadata", bytes.NewBuffer([]byte("{}")))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Should not return 404 (route exists)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandler_NewHandler(t *testing.T) {
+	db := setupTestDB(t)
+	handler := NewHandler(db)
+	assert.NotNil(t, handler)
+	assert.NotNil(t, handler.policyService)
 }
 
 func TestHandler_CreatePolicyMetadata(t *testing.T) {
@@ -59,8 +93,8 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 				Records: []models.PolicyMetadataCreateRequestRecord{
 					{
 						FieldName:         "person.fullName",
-						DisplayName:       stringPtr("Full Name"),
-						Description:       stringPtr("Complete name"),
+						DisplayName:       testhelpers.StringPtr("Full Name"),
+						Description:       testhelpers.StringPtr("Complete name"),
 						Source:            models.SourcePrimary,
 						IsOwner:           true,
 						AccessControlType: models.AccessControlTypePublic,
@@ -88,8 +122,8 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 				Records: []models.PolicyMetadataCreateRequestRecord{
 					{
 						FieldName:         "person.fullName",
-						DisplayName:       stringPtr("Full Name Updated"),
-						Description:       stringPtr("Updated description"),
+						DisplayName:       testhelpers.StringPtr("Full Name Updated"),
+						Description:       testhelpers.StringPtr("Updated description"),
 						Source:            models.SourcePrimary,
 						IsOwner:           true,
 						AccessControlType: models.AccessControlTypeRestricted,
@@ -118,6 +152,81 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 			},
 			expectedStatus: http.StatusCreated, // Handler doesn't validate, service will handle
 		},
+		{
+			name: "Service error - invalid field configuration",
+			requestBody: models.PolicyMetadataCreateRequest{
+				SchemaID: "schema-123",
+				Records: []models.PolicyMetadataCreateRequestRecord{
+					{
+						FieldName:         "person.invalid",
+						Source:            models.SourcePrimary,
+						IsOwner:           false, // Invalid: isOwner false but no owner specified
+						AccessControlType: models.AccessControlTypePublic,
+					},
+				},
+			},
+			expectedStatus: http.StatusInternalServerError,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				// Should return error response
+				assert.Contains(t, w.Body.String(), "owner")
+			},
+		},
+		{
+			name: "Create with multiple records",
+			requestBody: models.PolicyMetadataCreateRequest{
+				SchemaID: "schema-123",
+				Records: []models.PolicyMetadataCreateRequestRecord{
+					{
+						FieldName:         "person.fullName",
+						DisplayName:       testhelpers.StringPtr("Full Name"),
+						Source:            models.SourcePrimary,
+						IsOwner:           true,
+						AccessControlType: models.AccessControlTypePublic,
+					},
+					{
+						FieldName:         "person.email",
+						DisplayName:       testhelpers.StringPtr("Email"),
+						Source:            models.SourcePrimary,
+						IsOwner:           true,
+						AccessControlType: models.AccessControlTypeRestricted,
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var resp models.PolicyMetadataCreateResponse
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+				if len(resp.Records) != 2 {
+					t.Errorf("Expected 2 records, got %d", len(resp.Records))
+				}
+			},
+		},
+		{
+			name: "Create with fallback source",
+			requestBody: models.PolicyMetadataCreateRequest{
+				SchemaID: "schema-123",
+				Records: []models.PolicyMetadataCreateRequestRecord{
+					{
+						FieldName:         "person.fullName",
+						Source:            models.SourceFallback,
+						IsOwner:           true,
+						AccessControlType: models.AccessControlTypePublic,
+					},
+				},
+			},
+			expectedStatus: http.StatusCreated,
+			validateFunc: func(t *testing.T, w *httptest.ResponseRecorder) {
+				var resp models.PolicyMetadataCreateResponse
+				if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+					t.Fatalf("Failed to decode response: %v", err)
+				}
+				if resp.Records[0].Source != models.SourceFallback {
+					t.Errorf("Expected source fallback, got %s", resp.Records[0].Source)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -133,7 +242,7 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 					Records: []models.PolicyMetadataCreateRequestRecord{
 						{
 							FieldName:         "person.fullName",
-							DisplayName:       stringPtr("Full Name"),
+							DisplayName:       testhelpers.StringPtr("Full Name"),
 							Source:            models.SourcePrimary,
 							IsOwner:           true,
 							AccessControlType: models.AccessControlTypePublic,
@@ -171,7 +280,7 @@ func TestHandler_UpdateAllowList(t *testing.T) {
 		Records: []models.PolicyMetadataCreateRequestRecord{
 			{
 				FieldName:         "person.fullName",
-				DisplayName:       stringPtr("Full Name"),
+				DisplayName:       testhelpers.StringPtr("Full Name"),
 				Source:            models.SourcePrimary,
 				IsOwner:           true,
 				AccessControlType: models.AccessControlTypePublic,
@@ -238,6 +347,20 @@ func TestHandler_UpdateAllowList(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK, // Handler doesn't validate, service will handle
 		},
+		{
+			name: "Service error - invalid grant duration",
+			requestBody: models.AllowListUpdateRequest{
+				ApplicationID: "app-123",
+				GrantDuration: "invalid-duration", // Invalid grant duration
+				Records: []models.AllowListUpdateRequestRecord{
+					{
+						FieldName: "person.fullName",
+						SchemaID:  "schema-123",
+					},
+				},
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -270,18 +393,18 @@ func TestHandler_GetPolicyDecision(t *testing.T) {
 		Records: []models.PolicyMetadataCreateRequestRecord{
 			{
 				FieldName:         "person.fullName",
-				DisplayName:       stringPtr("Full Name"),
+				DisplayName:       testhelpers.StringPtr("Full Name"),
 				Source:            models.SourcePrimary,
 				IsOwner:           true,
 				AccessControlType: models.AccessControlTypePublic,
 			},
 			{
 				FieldName:         "person.nic",
-				DisplayName:       stringPtr("NIC"),
+				DisplayName:       testhelpers.StringPtr("NIC"),
 				Source:            models.SourcePrimary,
 				IsOwner:           false,
 				AccessControlType: models.AccessControlTypeRestricted,
-				Owner:             ownerPtr(models.OwnerCitizen),
+				Owner:             testhelpers.OwnerPtr(models.OwnerCitizen),
 			},
 		},
 	}
@@ -439,6 +562,19 @@ func TestHandler_GetPolicyDecision(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK, // Handler doesn't validate, service will handle
 		},
+		{
+			name: "Service error - schema not found",
+			requestBody: models.PolicyDecisionRequest{
+				ApplicationID: "app-123",
+				RequiredFields: []models.PolicyDecisionRequestRecord{
+					{
+						FieldName: "person.fullName",
+						SchemaID:  "nonexistent-schema",
+					},
+				},
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -516,9 +652,45 @@ func TestHandler_handlePolicyService(t *testing.T) {
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
-			name:           "Invalid path",
+			name:           "PUT /api/v1/policy/metadata - Method not allowed",
+			method:         http.MethodPut,
+			path:           "/api/v1/policy/metadata",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "DELETE /api/v1/policy/metadata - Method not allowed",
+			method:         http.MethodDelete,
+			path:           "/api/v1/policy/metadata",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "GET /api/v1/policy/update-allowlist - Method not allowed",
+			method:         http.MethodGet,
+			path:           "/api/v1/policy/update-allowlist",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "GET /api/v1/policy/decide - Method not allowed",
+			method:         http.MethodGet,
+			path:           "/api/v1/policy/decide",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "Invalid path - single segment",
 			method:         http.MethodPost,
 			path:           "/api/v1/policy/invalid",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "Invalid path - multiple segments",
+			method:         http.MethodPost,
+			path:           "/api/v1/policy/metadata/extra",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "Invalid path - empty after prefix",
+			method:         http.MethodPost,
+			path:           "/api/v1/policy/",
 			expectedStatus: http.StatusNotFound,
 		},
 	}
@@ -536,14 +708,4 @@ func TestHandler_handlePolicyService(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}
-
-// Helper function to create Owner pointers
-func ownerPtr(o models.Owner) *models.Owner {
-	return &o
 }
