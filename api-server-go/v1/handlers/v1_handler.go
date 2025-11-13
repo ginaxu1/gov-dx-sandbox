@@ -11,6 +11,7 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/idp"
 	"github.com/gov-dx-sandbox/api-server-go/idp/idpfactory"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
+	"github.com/gov-dx-sandbox/api-server-go/v1/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 
@@ -58,6 +59,7 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 
 	pdpService := services.NewPDPService(pdpServiceURL, pdpServiceAPIKey)
 	slog.Info("PDP Service URL", "url", pdpServiceURL)
+
 	return &V1Handler{
 		memberService:      memberService,
 		schemaService:      services.NewSchemaService(db, pdpService),
@@ -308,6 +310,9 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "MEMBERS", member.MemberID))
+
 	utils.RespondWithSuccess(w, http.StatusCreated, member)
 }
 
@@ -325,6 +330,9 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Set resource ID in context for audit middleware (path extraction may have missed it)
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "MEMBERS", member.MemberID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
@@ -396,6 +404,9 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
+
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
@@ -412,6 +423,9 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -453,6 +467,9 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
+
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
 
@@ -469,6 +486,9 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
@@ -515,6 +535,9 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
+
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
 
@@ -531,6 +554,9 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -572,6 +598,9 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
+
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
 
@@ -588,6 +617,9 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Set resource ID in context for audit middleware
+	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
 }

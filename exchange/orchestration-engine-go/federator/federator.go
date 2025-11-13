@@ -20,6 +20,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
+	auditclient "github.com/gov-dx-sandbox/audit-service/client"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -33,6 +34,7 @@ type Federator struct {
 	Client          *http.Client
 	Schema          *ast.Document
 	SchemaService   interface{} // Will be *services.SchemaService, using interface{} to avoid circular import
+	AuditClient     auditclient.AuditClient
 }
 
 type FederationServiceAST struct {
@@ -113,6 +115,15 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 10,
 		},
+	}
+
+	// Initialize audit client if URL is configured
+	auditServiceURL := os.Getenv("CHOREO_AUDIT_CONNECTION_SERVICEURL")
+	if auditServiceURL != "" {
+		federator.AuditClient = auditclient.NewAuditClient(auditServiceURL)
+		logger.Log.Info("Audit client initialized", "url", auditServiceURL)
+	} else {
+		logger.Log.Info("Audit service URL not configured, audit logging disabled")
 	}
 
 	return federator
@@ -439,7 +450,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	federationRequest := &federationRequest{
 		FederationServiceRequest: splitRequests,
 	}
-	responses := f.performFederation(ctx, federationRequest)
+	responses := f.performFederation(ctx, federationRequest, consumerInfo.ApplicationId, schemaCollection.ProviderFieldMap)
 
 	// Build schema info map for array-aware processing
 	var schemaInfoMap map[string]*SourceSchemaInfo
@@ -457,7 +468,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	return response
 }
 
-func (f *Federator) performFederation(ctx context.Context, r *federationRequest) *FederationResponse {
+func (f *Federator) performFederation(ctx context.Context, r *federationRequest, consumerAppID string, providerFieldMap *[]ProviderLevelFieldRecord) *FederationResponse {
 	FederationResponse := &FederationResponse{
 		Responses: make([]ProviderResponse, 0, len(r.FederationServiceRequest)),
 	}
@@ -479,12 +490,18 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
 				logger.Log.Info("Failed to marshal request", "Provider Key", req.ServiceKey, "Error", err)
+				if f.AuditClient != nil {
+					f.logAuditEvent(ctx, consumerAppID, req.SchemaID, req, providerFieldMap, "FAILURE", err)
+				}
 				return
 			}
 
 			response, err := prov.PerformRequest(ctx, reqBody)
 			if err != nil {
 				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
+				if f.AuditClient != nil {
+					f.logAuditEvent(ctx, consumerAppID, req.SchemaID, req, providerFieldMap, "FAILURE", err)
+				}
 				return
 			}
 			defer response.Body.Close()
@@ -492,6 +509,9 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
 				logger.Log.Error("Failed to read response body", "Provider Key", req.ServiceKey, "Error", err)
+				if f.AuditClient != nil {
+					f.logAuditEvent(ctx, consumerAppID, req.SchemaID, req, providerFieldMap, "FAILURE", err)
+				}
 				return
 			}
 
@@ -499,7 +519,21 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			err = json.Unmarshal(body, &bodyJson)
 			if err != nil {
 				logger.Log.Error("Failed to unmarshal response", "Provider Key", req.ServiceKey, "Error", err)
+				if f.AuditClient != nil {
+					f.logAuditEvent(ctx, consumerAppID, req.SchemaID, req, providerFieldMap, "FAILURE", err)
+				}
 				return
+			}
+
+			// Determine status based on response
+			status := "SUCCESS"
+			if len(bodyJson.Errors) > 0 || response.StatusCode >= 400 {
+				status = "FAILURE"
+			}
+
+			// Log audit event
+			if f.AuditClient != nil {
+				f.logAuditEvent(ctx, consumerAppID, req.SchemaID, req, providerFieldMap, status, nil)
 			}
 
 			// Thread-safe append
@@ -514,6 +548,157 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 
 	wg.Wait()
 	return FederationResponse
+}
+
+// logAuditEvent logs a data exchange event to the audit service
+func (f *Federator) logAuditEvent(ctx context.Context, consumerAppID, providerSchemaID string, req *federationServiceRequest, providerFieldMap *[]ProviderLevelFieldRecord, status string, err error) {
+	// Skip logging if audit client is not configured
+	if f.AuditClient == nil {
+		return
+	}
+
+	// Extract requested fields for this provider
+	requestedFields := make([]string, 0)
+	if providerFieldMap != nil {
+		for _, field := range *providerFieldMap {
+			if field.SchemaId == req.SchemaID && field.ServiceKey == req.ServiceKey {
+				requestedFields = append(requestedFields, field.FieldPath)
+			}
+		}
+	}
+
+	// Look up member IDs (simple HTTP calls to API Server)
+	consumerID := f.lookupMemberIDFromApplication(consumerAppID)
+	providerID := f.lookupMemberIDFromSchema(providerSchemaID)
+
+	// Skip audit logging if required fields are missing
+	// The audit service requires consumerId and providerId for data exchange events
+	if consumerID == "" || providerID == "" {
+		logger.Log.Warn("Skipping audit log - missing required member IDs",
+			"consumerAppID", consumerAppID,
+			"providerSchemaID", providerSchemaID,
+			"consumerID", consumerID,
+			"providerID", providerID)
+		return
+	}
+
+	// Log the event
+	event := auditclient.DataExchangeEvent{
+		ConsumerAppID:    consumerAppID,
+		ProviderSchemaID: providerSchemaID,
+		RequestedFields:  requestedFields,
+		Status:           status,
+		ConsumerID:       consumerID,
+		ProviderID:       providerID,
+	}
+
+	if err := f.AuditClient.LogDataExchange(ctx, event); err != nil {
+		logger.Log.Error("Failed to log audit event", "error", err, "consumerAppID", consumerAppID, "providerSchemaID", providerSchemaID)
+	}
+}
+
+// lookupMemberIDFromApplication looks up member ID from application ID via API Server
+func (f *Federator) lookupMemberIDFromApplication(applicationID string) string {
+	apiServerURL := os.Getenv("API_SERVER_URL")
+	if apiServerURL == "" {
+		logger.Log.Debug("API_SERVER_URL not configured, cannot lookup member ID for application", "applicationID", applicationID)
+		return ""
+	}
+
+	url := fmt.Sprintf("%s/api/v1/applications/%s", apiServerURL, applicationID)
+	resp, err := f.Client.Get(url)
+	if err != nil {
+		logger.Log.Warn("Failed to lookup member ID from application - network error",
+			"applicationID", applicationID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+	if resp == nil {
+		logger.Log.Warn("Failed to lookup member ID from application - nil response", "applicationID", applicationID, "url", url)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Log.Warn("Failed to lookup member ID from application - non-200 status",
+			"applicationID", applicationID,
+			"url", url,
+			"statusCode", resp.StatusCode)
+		return ""
+	}
+
+	var appResp struct {
+		MemberID string `json:"memberId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&appResp); err != nil {
+		logger.Log.Warn("Failed to lookup member ID from application - decode error",
+			"applicationID", applicationID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+
+	if appResp.MemberID == "" {
+		logger.Log.Warn("Application response missing memberId field",
+			"applicationID", applicationID,
+			"url", url)
+		return ""
+	}
+
+	return appResp.MemberID
+}
+
+// lookupMemberIDFromSchema looks up member ID from schema ID via API Server
+func (f *Federator) lookupMemberIDFromSchema(schemaID string) string {
+	apiServerURL := os.Getenv("API_SERVER_URL")
+	if apiServerURL == "" {
+		logger.Log.Debug("API_SERVER_URL not configured, cannot lookup member ID for schema", "schemaID", schemaID)
+		return ""
+	}
+
+	url := fmt.Sprintf("%s/api/v1/schemas/%s", apiServerURL, schemaID)
+	resp, err := f.Client.Get(url)
+	if err != nil {
+		logger.Log.Warn("Failed to lookup member ID from schema - network error",
+			"schemaID", schemaID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+	if resp == nil {
+		logger.Log.Warn("Failed to lookup member ID from schema - nil response", "schemaID", schemaID, "url", url)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Log.Warn("Failed to lookup member ID from schema - non-200 status",
+			"schemaID", schemaID,
+			"url", url,
+			"statusCode", resp.StatusCode)
+		return ""
+	}
+
+	var schemaResp struct {
+		MemberID string `json:"memberId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&schemaResp); err != nil {
+		logger.Log.Warn("Failed to lookup member ID from schema - decode error",
+			"schemaID", schemaID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+
+	if schemaResp.MemberID == "" {
+		logger.Log.Warn("Schema response missing memberId field",
+			"schemaID", schemaID,
+			"url", url)
+		return ""
+	}
+
+	return schemaResp.MemberID
 }
 
 func (f *Federator) mergeResponses(responses []ProviderResponse) graphql.Response {

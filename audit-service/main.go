@@ -59,11 +59,20 @@ func main() {
 		slog.Warn("Continuing with database initialization failure - some operations may not work")
 	}
 
+	// Initialize GORM connection for management events
+	gormDB, err := ConnectGORM(dbConfig)
+	if err != nil {
+		slog.Error("Failed to connect to database via GORM", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize services
 	auditService := services.NewAuditService(db)
+	managementEventService := services.NewManagementEventService(gormDB)
 
 	// Initialize handlers
 	auditHandler := handlers.NewAuditHandler(auditService)
+	managementEventHandler := handlers.NewManagementEventHandler(managementEventService)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -98,13 +107,25 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	// API endpoints for log access
+	// API endpoint for log access (GET only - for Admin Portal and Entity Portals)
 	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		auditHandler.GetLogs(w, r)
+	})
+
+	// API endpoint for data exchange events from Orchestration Engine
+	mux.HandleFunc("/v1/audit/exchange", auditHandler.CreateDataExchangeEvent)
+
+	// API endpoints for management events from API Server
+	mux.HandleFunc("/api/events", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			auditHandler.GetLogs(w, r)
+			managementEventHandler.GetEvents(w, r)
 		case http.MethodPost:
-			auditHandler.CreateLog(w, r)
+			managementEventHandler.CreateEvent(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -138,21 +159,10 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	slog.Info("Starting HTTP server", "address", server.Addr)
+
 	// Start server in a goroutine
 	go func() {
-		slog.Info("Audit Service starting",
-			"environment", *env,
-			"port", serverPort,
-			"version", Version,
-			"buildTime", BuildTime,
-			"gitCommit", GitCommit)
-		slog.Info("Database configuration",
-			"host", dbConfig.Host,
-			"port", dbConfig.Port,
-			"database", dbConfig.Database,
-			"choreoHost", os.Getenv("CHOREO_OPENDIF_DB_HOSTNAME"),
-		)
-
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server failed to start", "error", err)
 			os.Exit(1)

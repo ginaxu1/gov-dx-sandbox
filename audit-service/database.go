@@ -9,6 +9,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 // DatabaseConfig holds database connection configuration
@@ -163,7 +165,72 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 		return db, nil
 	}
 
-	return nil, fmt.Errorf("unexpected error: should not reach here")
+	return nil, fmt.Errorf("failed to establish database connection after %d attempts", config.RetryAttempts)
+}
+
+// ConnectGORM establishes a GORM connection to the PostgreSQL database
+func ConnectGORM(config *DatabaseConfig) (*gorm.DB, error) {
+	// Build DSN string
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
+		config.Host, config.Username, config.Password, config.Database, config.Port, config.SSLMode)
+
+	var gormDB *gorm.DB
+	var err error
+
+	// Retry connection attempts
+	for attempt := 1; attempt <= config.RetryAttempts; attempt++ {
+		slog.Info("Attempting GORM database connection", "attempt", attempt, "max_attempts", config.RetryAttempts)
+
+		// Open GORM connection
+		gormDB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err != nil {
+			slog.Warn("Failed to open GORM database connection", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to open GORM database connection after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		// Get underlying sql.DB to configure connection pool
+		sqlDB, err := gormDB.DB()
+		if err != nil {
+			slog.Warn("Failed to get underlying sql.DB", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		}
+
+		// Configure connection pool
+		sqlDB.SetMaxOpenConns(config.MaxOpenConns)
+		sqlDB.SetMaxIdleConns(config.MaxIdleConns)
+		sqlDB.SetConnMaxLifetime(config.ConnMaxLifetime)
+		sqlDB.SetConnMaxIdleTime(config.ConnMaxIdleTime)
+
+		// Test connection with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
+		err = sqlDB.PingContext(ctx)
+		cancel()
+
+		if err != nil {
+			slog.Warn("Failed to ping database via GORM", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("failed to ping database via GORM after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		slog.Info("GORM database connection established successfully",
+			"host", config.Host,
+			"port", config.Port,
+			"database", config.Database)
+		return gormDB, nil
+	}
+
+	return nil, fmt.Errorf("failed to establish GORM database connection after %d attempts", config.RetryAttempts)
 }
 
 // InitDatabase creates the necessary tables if they don't exist
@@ -183,27 +250,63 @@ func InitDatabase(db *sql.DB) error {
 	}
 
 	if tableExists {
-		// Check if table has the new schema (application_id, schema_id)
-		var hasNewSchema bool
+		// Check if table has consumer_id and provider_id columns
+		var hasConsumerID bool
+		var hasProviderID bool
 		err := db.QueryRow(`
 			SELECT EXISTS (
 				SELECT FROM information_schema.columns 
 				WHERE table_schema = 'public' 
 				AND table_name = 'audit_logs' 
-				AND column_name = 'application_id'
+				AND column_name = 'consumer_id'
 			)
-		`).Scan(&hasNewSchema)
-
+		`).Scan(&hasConsumerID)
 		if err != nil {
-			return fmt.Errorf("failed to check table schema: %w", err)
+			return fmt.Errorf("failed to check for consumer_id column: %w", err)
 		}
 
-		if hasNewSchema {
-			slog.Info("audit_logs table already exists with new schema (application_id, schema_id)")
-		} else {
-			slog.Info("audit_logs table exists with old schema, skipping creation")
+		err = db.QueryRow(`
+			SELECT EXISTS (
+				SELECT FROM information_schema.columns 
+				WHERE table_schema = 'public' 
+				AND table_name = 'audit_logs' 
+				AND column_name = 'provider_id'
+			)
+		`).Scan(&hasProviderID)
+		if err != nil {
+			return fmt.Errorf("failed to check for provider_id column: %w", err)
 		}
-		return nil
+
+		if !hasConsumerID || !hasProviderID {
+			// Add missing columns
+			slog.Info("Adding consumer_id and provider_id columns to audit_logs table")
+			if !hasConsumerID {
+				if _, err := db.Exec("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS consumer_id VARCHAR(255)"); err != nil {
+					return fmt.Errorf("failed to add consumer_id column: %w", err)
+				}
+				// Create index for consumer_id
+				if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_id ON audit_logs(consumer_id)"); err != nil {
+					slog.Warn("Failed to create index for consumer_id", "error", err)
+				}
+			}
+			if !hasProviderID {
+				if _, err := db.Exec("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS provider_id VARCHAR(255)"); err != nil {
+					return fmt.Errorf("failed to add provider_id column: %w", err)
+				}
+				// Create index for provider_id
+				if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_audit_logs_provider_id ON audit_logs(provider_id)"); err != nil {
+					slog.Warn("Failed to create index for provider_id", "error", err)
+				}
+			}
+			// Create composite index for member-to-member queries
+			if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_provider_timestamp ON audit_logs(consumer_id, provider_id, timestamp DESC)"); err != nil {
+				slog.Warn("Failed to create composite index", "error", err)
+			}
+		} else {
+			slog.Info("audit_logs table already exists with consumer_id and provider_id columns")
+		}
+		// Update view to select directly from table
+		return updateAuditLogsView(db)
 	}
 
 	// Create the new schema table
@@ -215,6 +318,8 @@ func InitDatabase(db *sql.DB) error {
 		requested_data TEXT NOT NULL,
 		application_id VARCHAR(255) NOT NULL,
 		schema_id VARCHAR(255) NOT NULL,
+		consumer_id VARCHAR(255),
+		provider_id VARCHAR(255),
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
 
@@ -223,10 +328,13 @@ func InitDatabase(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_schema_id ON audit_logs(schema_id);
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_status ON audit_logs(status);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_id ON audit_logs(consumer_id);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_provider_id ON audit_logs(provider_id);
 	
 	-- Create composite indexes for common query patterns
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_application_timestamp ON audit_logs(application_id, timestamp DESC);
 	CREATE INDEX IF NOT EXISTS idx_audit_logs_schema_timestamp ON audit_logs(schema_id, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_audit_logs_consumer_provider_timestamp ON audit_logs(consumer_id, provider_id, timestamp DESC);
 
 	-- Note: View creation is handled separately after table creation
 	`
@@ -236,48 +344,77 @@ func InitDatabase(db *sql.DB) error {
 		return fmt.Errorf("failed to create audit_logs table: %w", err)
 	}
 
-	// Try to create the view, but don't fail if referenced tables don't exist
-	viewSQL := `
-	CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
-	SELECT audit_logs.id,
-		   audit_logs."timestamp",
-		   audit_logs.status,
-		   audit_logs.requested_data,
-		   audit_logs.application_id,
-		   audit_logs.schema_id,
-		   COALESCE(consumer_applications.consumer_id, 'unknown') as consumer_id,
-		   COALESCE(provider_schemas.provider_id, 'unknown') as provider_id
-	FROM audit_logs
-			 LEFT JOIN provider_schemas USING (schema_id)
-			 LEFT JOIN consumer_applications USING (application_id);
+	// Create view that selects consumer_id and provider_id directly from audit_logs table
+	if err := updateAuditLogsView(db); err != nil {
+		return err
+	}
+
+	// Create management_events table for Admin/Member Portal events
+	createManagementEventsTableSQL := `
+	CREATE TABLE IF NOT EXISTS management_events (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		event_id UUID NOT NULL UNIQUE,
+		event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')),
+		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		
+		-- Actor information
+		actor_type VARCHAR(10) NOT NULL CHECK (actor_type IN ('USER', 'SERVICE')),
+		actor_id VARCHAR(255), -- NULL if SERVICE type
+		actor_role VARCHAR(10) CHECK (actor_role IN ('MEMBER', 'ADMIN')), -- NULL if SERVICE type
+		
+		-- Target resource
+		target_resource VARCHAR(50) NOT NULL CHECK (target_resource IN (
+			'MEMBERS', 'SCHEMAS', 'SCHEMA-SUBMISSIONS', 
+			'APPLICATIONS', 'APPLICATION-SUBMISSIONS', 'POLICY-METADATA'
+		)),
+		target_resource_id VARCHAR(255) NOT NULL,
+		
+		-- Additional metadata
+		metadata JSONB,
+		
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+
+	-- Create indexes for better performance
+	CREATE INDEX IF NOT EXISTS idx_management_events_event_id ON management_events(event_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_timestamp ON management_events(timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_management_events_actor ON management_events(actor_type, actor_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_target ON management_events(target_resource, target_resource_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_actor_target_time ON management_events(actor_type, actor_id, timestamp DESC);
 	`
 
-	_, viewErr := db.Exec(viewSQL)
-	if viewErr != nil {
-		slog.Warn("Failed to create view (referenced tables may not exist)", "error", viewErr)
-		// Create a simple view without joins as fallback
-		fallbackViewSQL := `
-		CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
-		SELECT id,
-			   "timestamp",
-			   status,
-			   requested_data,
-			   application_id,
-			   schema_id,
-			   'unknown' as consumer_id,
-			   'unknown' as provider_id
-		FROM audit_logs;
-		`
-		if _, fallbackErr := db.Exec(fallbackViewSQL); fallbackErr != nil {
-			slog.Warn("Failed to create fallback view", "error", fallbackErr)
-		} else {
-			slog.Info("Created fallback view without joins")
-		}
-	} else {
-		slog.Info("Created view with joins to consumer_applications and provider_schemas")
+	_, err = db.Exec(createManagementEventsTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create management_events table: %w", err)
 	}
 
 	slog.Info("Database tables and view initialized successfully")
+	return nil
+}
+
+// updateAuditLogsView creates or updates the view to select consumer_id and provider_id directly from audit_logs
+func updateAuditLogsView(db *sql.DB) error {
+	// Create view that selects consumer_id and provider_id directly from audit_logs table
+	// (no longer using joins since these columns are now stored directly in the table)
+	viewSQL := `
+	CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
+	SELECT id,
+		   "timestamp",
+		   status,
+		   requested_data,
+		   application_id,
+		   schema_id,
+		   COALESCE(consumer_id, 'unknown') as consumer_id,
+		   COALESCE(provider_id, 'unknown') as provider_id
+	FROM audit_logs;
+	`
+
+	_, err := db.Exec(viewSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create/update audit_logs_with_provider_consumer view: %w", err)
+	}
+
+	slog.Info("Created/updated audit_logs_with_provider_consumer view (selecting directly from audit_logs table)")
 	return nil
 }
 
