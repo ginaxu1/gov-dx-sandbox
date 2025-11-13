@@ -791,7 +791,7 @@ func TestPolicyMetadataService_CreatePolicyMetadata_ErrorPaths(t *testing.T) {
 		// Create a closed/invalid DB connection
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		assert.NoError(t, err)
-		
+
 		// Close the underlying connection to simulate error
 		sqlDB, err := db.DB()
 		assert.NoError(t, err)
@@ -820,7 +820,7 @@ func TestPolicyMetadataService_CreatePolicyMetadata_ErrorPaths(t *testing.T) {
 		// Create a closed DB connection
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		assert.NoError(t, err)
-		
+
 		// Create table first
 		createTableSQL := `
 			CREATE TABLE IF NOT EXISTS policy_metadata (
@@ -837,7 +837,7 @@ func TestPolicyMetadataService_CreatePolicyMetadata_ErrorPaths(t *testing.T) {
 			)
 		`
 		db.Exec(createTableSQL)
-		
+
 		// Close connection after table creation
 		sqlDB, err := db.DB()
 		assert.NoError(t, err)
@@ -861,10 +861,8 @@ func TestPolicyMetadataService_CreatePolicyMetadata_ErrorPaths(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	// Note: Testing specific delete/create/update errors is difficult with SQLite in-memory
-	// because dropping the table causes errors at the fetch stage. These error paths
-	// are covered by the fetch error test and would be better tested with integration tests
-	// or a mock database. The error handling code paths exist and are tested implicitly.
+	// TODO: Add integration tests or mock database tests to explicitly cover delete/create/update
+	// error scenarios (lines 100-103, 108-111, 122-125 in policy_metadata_service.go).
 
 	t.Run("CreatePolicyMetadata_CommitError", func(t *testing.T) {
 		db := setupTestDB(t)
@@ -914,7 +912,7 @@ func TestPolicyMetadataService_UpdateAllowList_ErrorPaths(t *testing.T) {
 		// Create a closed/invalid DB connection
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		assert.NoError(t, err)
-		
+
 		// Create table first
 		createTableSQL := `
 			CREATE TABLE IF NOT EXISTS policy_metadata (
@@ -931,7 +929,7 @@ func TestPolicyMetadataService_UpdateAllowList_ErrorPaths(t *testing.T) {
 			)
 		`
 		db.Exec(createTableSQL)
-		
+
 		// Close the underlying connection
 		sqlDB, err := db.DB()
 		assert.NoError(t, err)
@@ -958,7 +956,7 @@ func TestPolicyMetadataService_UpdateAllowList_ErrorPaths(t *testing.T) {
 		// Create a closed DB connection
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		assert.NoError(t, err)
-		
+
 		// Close connection immediately
 		sqlDB, err := db.DB()
 		assert.NoError(t, err)
@@ -982,47 +980,12 @@ func TestPolicyMetadataService_UpdateAllowList_ErrorPaths(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to fetch policy metadata records")
 	})
 
-	t.Run("UpdateAllowList_CommitError", func(t *testing.T) {
-		// For commit error, we need the transaction to succeed but commit to fail
-		// With SQLite in-memory, this is hard to simulate directly
-		// Instead, we test that the error handling path exists
-		// The actual commit error would be caught by integration tests
-		// For unit tests, we verify the error path code exists
-		db := setupTestDB(t)
-		service := NewPolicyMetadataService(db)
-
-		// Create policy metadata first
-		createReq := &models.PolicyMetadataCreateRequest{
-			SchemaID: "schema-123",
-			Records: []models.PolicyMetadataCreateRequestRecord{
-				{
-					FieldName:         "field1",
-					Source:            models.SourcePrimary,
-					IsOwner:           true,
-					AccessControlType: models.AccessControlTypePublic,
-				},
-			},
-		}
-		_, err := service.CreatePolicyMetadata(createReq)
-		assert.NoError(t, err)
-
-		// Test successful update to ensure the code path works
-		// The commit error path is tested implicitly through transaction handling
-		req := &models.AllowListUpdateRequest{
-			ApplicationID: "app-123",
-			GrantDuration: models.GrantDurationTypeOneMonth,
-			Records: []models.AllowListUpdateRequestRecord{
-				{
-					FieldName: "field1",
-					SchemaID:  "schema-123",
-				},
-			},
-		}
-
-		_, err = service.UpdateAllowList(req)
-		// This should succeed, but we've verified the commit error handling exists in the code
-		assert.NoError(t, err)
-	})
+	// Note: Testing commit errors with SQLite in-memory is not feasible because:
+	// 1. SQLite in-memory databases don't support simulating commit failures in a controlled way
+	// 2. Closing the connection before commit causes errors at earlier stages (fetch/update)
+	// 3. The commit error handling code path exists in the service (line 272-273 in policy_metadata_service.go)
+	//    and would be better tested with integration tests using a real PostgreSQL database
+	// 4. Transaction begin errors and fetch errors are already covered in other tests
 }
 
 // Error path tests for GetPolicyDecision
@@ -1031,7 +994,7 @@ func TestPolicyMetadataService_GetPolicyDecision_ErrorPaths(t *testing.T) {
 		// Create a closed DB connection
 		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 		assert.NoError(t, err)
-		
+
 		// Close connection immediately
 		sqlDB, err := db.DB()
 		assert.NoError(t, err)
