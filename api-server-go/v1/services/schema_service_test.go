@@ -85,7 +85,7 @@ func TestSchemaService_GetSchema(t *testing.T) {
 		schema := models.Schema{
 			SchemaID:          "sch_123",
 			SchemaName:        "Test Schema",
-			SchemaDescription: stringPtr("Test Description"),
+			SchemaDescription: func() *string { s := "Test Description"; return &s }(),
 			SDL:               "type Query { test: String }",
 			Endpoint:          "http://example.com",
 			MemberID:          "member-123",
@@ -649,9 +649,6 @@ func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 	})
 }
 
-func stringPtr(s string) *string {
-	return &s
-}
 
 func TestSchemaService_CreateSchemaSubmission_EdgeCases(t *testing.T) {
 	t.Run("CreateSchemaSubmission_WithPreviousSchemaID", func(t *testing.T) {
