@@ -60,8 +60,11 @@ func TestPolicyMetadata_BeforeCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-			err := tt.pm.BeforeCreate(db)
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("Failed to connect to test database: %v", err)
+			}
+			err = tt.pm.BeforeCreate(db)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -100,8 +103,9 @@ func TestPolicyMetadata_BeforeUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db, _ := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-			err := tt.pm.BeforeUpdate(db)
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			assert.NoError(t, err)
+			err = tt.pm.BeforeUpdate(db)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)

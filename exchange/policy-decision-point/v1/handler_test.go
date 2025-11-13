@@ -8,42 +8,13 @@ import (
 	"testing"
 
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/testhelpers"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-// setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to connect to test database: %v", err)
-	}
-
-	// Create table manually for SQLite compatibility
-	// SQLite doesn't support PostgreSQL-specific features like gen_random_uuid(), enums, jsonb
-	createTableSQL := `
-		CREATE TABLE IF NOT EXISTS policy_metadata (
-			id TEXT PRIMARY KEY,
-			schema_id TEXT NOT NULL,
-			field_name TEXT NOT NULL,
-			display_name TEXT,
-			description TEXT,
-			source TEXT NOT NULL DEFAULT 'fallback',
-			is_owner INTEGER NOT NULL DEFAULT 0,
-			access_control_type TEXT NOT NULL DEFAULT 'restricted',
-			allow_list TEXT NOT NULL DEFAULT '{}',
-			owner TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(schema_id, field_name)
-		)
-	`
-	if err := db.Exec(createTableSQL).Error; err != nil {
-		t.Fatalf("Failed to create table: %v", err)
-	}
-
-	return db
+	return testhelpers.SetupTestDB(t)
 }
 
 func TestHandler_CreatePolicyMetadata_InvalidJSON(t *testing.T) {
@@ -122,8 +93,8 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 				Records: []models.PolicyMetadataCreateRequestRecord{
 					{
 						FieldName:         "person.fullName",
-						DisplayName:       stringPtr("Full Name"),
-						Description:       stringPtr("Complete name"),
+						DisplayName:       testhelpers.StringPtr("Full Name"),
+						Description:       testhelpers.StringPtr("Complete name"),
 						Source:            models.SourcePrimary,
 						IsOwner:           true,
 						AccessControlType: models.AccessControlTypePublic,
@@ -151,8 +122,8 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 				Records: []models.PolicyMetadataCreateRequestRecord{
 					{
 						FieldName:         "person.fullName",
-						DisplayName:       stringPtr("Full Name Updated"),
-						Description:       stringPtr("Updated description"),
+						DisplayName:       testhelpers.StringPtr("Full Name Updated"),
+						Description:       testhelpers.StringPtr("Updated description"),
 						Source:            models.SourcePrimary,
 						IsOwner:           true,
 						AccessControlType: models.AccessControlTypeRestricted,
@@ -207,14 +178,14 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 				Records: []models.PolicyMetadataCreateRequestRecord{
 					{
 						FieldName:         "person.fullName",
-						DisplayName:       stringPtr("Full Name"),
+						DisplayName:       testhelpers.StringPtr("Full Name"),
 						Source:            models.SourcePrimary,
 						IsOwner:           true,
 						AccessControlType: models.AccessControlTypePublic,
 					},
 					{
 						FieldName:         "person.email",
-						DisplayName:       stringPtr("Email"),
+						DisplayName:       testhelpers.StringPtr("Email"),
 						Source:            models.SourcePrimary,
 						IsOwner:           true,
 						AccessControlType: models.AccessControlTypeRestricted,
@@ -271,7 +242,7 @@ func TestHandler_CreatePolicyMetadata(t *testing.T) {
 					Records: []models.PolicyMetadataCreateRequestRecord{
 						{
 							FieldName:         "person.fullName",
-							DisplayName:       stringPtr("Full Name"),
+							DisplayName:       testhelpers.StringPtr("Full Name"),
 							Source:            models.SourcePrimary,
 							IsOwner:           true,
 							AccessControlType: models.AccessControlTypePublic,
@@ -309,7 +280,7 @@ func TestHandler_UpdateAllowList(t *testing.T) {
 		Records: []models.PolicyMetadataCreateRequestRecord{
 			{
 				FieldName:         "person.fullName",
-				DisplayName:       stringPtr("Full Name"),
+				DisplayName:       testhelpers.StringPtr("Full Name"),
 				Source:            models.SourcePrimary,
 				IsOwner:           true,
 				AccessControlType: models.AccessControlTypePublic,
@@ -422,18 +393,18 @@ func TestHandler_GetPolicyDecision(t *testing.T) {
 		Records: []models.PolicyMetadataCreateRequestRecord{
 			{
 				FieldName:         "person.fullName",
-				DisplayName:       stringPtr("Full Name"),
+				DisplayName:       testhelpers.StringPtr("Full Name"),
 				Source:            models.SourcePrimary,
 				IsOwner:           true,
 				AccessControlType: models.AccessControlTypePublic,
 			},
 			{
 				FieldName:         "person.nic",
-				DisplayName:       stringPtr("NIC"),
+				DisplayName:       testhelpers.StringPtr("NIC"),
 				Source:            models.SourcePrimary,
 				IsOwner:           false,
 				AccessControlType: models.AccessControlTypeRestricted,
-				Owner:             ownerPtr(models.OwnerCitizen),
+				Owner:             testhelpers.OwnerPtr(models.OwnerCitizen),
 			},
 		},
 	}
@@ -737,14 +708,4 @@ func TestHandler_handlePolicyService(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}
-
-// Helper function to create Owner pointers
-func ownerPtr(o models.Owner) *models.Owner {
-	return &o
 }

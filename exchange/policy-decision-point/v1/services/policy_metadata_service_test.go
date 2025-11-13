@@ -5,40 +5,14 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/testhelpers"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to connect to test database: %v", err)
-	}
-
-	// Create table manually for SQLite compatibility
-	createTableSQL := `
-		CREATE TABLE IF NOT EXISTS policy_metadata (
-			id TEXT PRIMARY KEY,
-			schema_id TEXT NOT NULL,
-			field_name TEXT NOT NULL,
-			display_name TEXT,
-			description TEXT,
-			source TEXT NOT NULL DEFAULT 'fallback',
-			is_owner INTEGER NOT NULL DEFAULT 0,
-			access_control_type TEXT NOT NULL DEFAULT 'restricted',
-			allow_list TEXT NOT NULL DEFAULT '{}',
-			owner TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(schema_id, field_name)
-		)
-	`
-	if err := db.Exec(createTableSQL).Error; err != nil {
-		t.Fatalf("Failed to create table: %v", err)
-	}
-
-	return db
+	return testhelpers.SetupTestDB(t)
 }
 
 func TestNewPolicyMetadataService(t *testing.T) {
@@ -158,14 +132,14 @@ func TestPolicyMetadataService_CreatePolicyMetadata_EdgeCases(t *testing.T) {
 			Records: []models.PolicyMetadataCreateRequestRecord{
 				{
 					FieldName:         "field1",
-					DisplayName:       stringPtr("Updated Field 1"),
+					DisplayName:       testhelpers.StringPtr("Updated Field 1"),
 					Source:            models.SourcePrimary,
 					IsOwner:           true,
 					AccessControlType: models.AccessControlTypeRestricted,
 				},
 				{
 					FieldName:         "field2",
-					DisplayName:       stringPtr("New Field 2"),
+					DisplayName:       testhelpers.StringPtr("New Field 2"),
 					Source:            models.SourcePrimary,
 					IsOwner:           true,
 					AccessControlType: models.AccessControlTypePublic,
@@ -193,7 +167,7 @@ func TestPolicyMetadataService_CreatePolicyMetadata_EdgeCases(t *testing.T) {
 					FieldName:         "field1",
 					Source:            models.SourcePrimary,
 					IsOwner:           false,
-					Owner:             ownerPtr(models.OwnerCitizen),
+					Owner:             testhelpers.OwnerPtr(models.OwnerCitizen),
 					AccessControlType: models.AccessControlTypeRestricted,
 				},
 			},
@@ -204,14 +178,6 @@ func TestPolicyMetadataService_CreatePolicyMetadata_EdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(resp.Records))
 		assert.Equal(t, models.OwnerCitizen, *resp.Records[0].Owner)
 	})
-}
-
-func stringPtr(s string) *string {
-	return &s
-}
-
-func ownerPtr(o models.Owner) *models.Owner {
-	return &o
 }
 
 func TestPolicyMetadataService_UpdateAllowList_EdgeCases(t *testing.T) {
@@ -656,7 +622,7 @@ func TestPolicyMetadataService_GetPolicyDecision_EdgeCases(t *testing.T) {
 					FieldName:         "field1",
 					Source:            models.SourcePrimary,
 					IsOwner:           false,
-					Owner:             ownerPtr(models.OwnerCitizen),
+					Owner:             testhelpers.OwnerPtr(models.OwnerCitizen),
 					AccessControlType: models.AccessControlTypeRestricted,
 				},
 			},
