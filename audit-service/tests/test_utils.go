@@ -97,15 +97,24 @@ func setupPostgresTestServer(t *testing.T) *TestServer {
 
 // initTestDatabase initializes the test database with required tables
 func initTestDatabase(db *sql.DB) error {
+	// Drop and recreate audit_logs table to ensure correct schema
+	// This ensures the table always has the latest schema including consumer_id and provider_id
+	dropTableQuery := `DROP TABLE IF EXISTS audit_logs CASCADE;`
+	if _, err := db.Exec(dropTableQuery); err != nil {
+		return err
+	}
+
 	// Create audit_logs table for testing (matching the new schema)
 	createTableQuery := `
-		CREATE TABLE IF NOT EXISTS audit_logs (
+		CREATE TABLE audit_logs (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			status VARCHAR(10) NOT NULL CHECK (status IN ('success', 'failure')),
 			requested_data TEXT NOT NULL,
 			application_id VARCHAR(255) NOT NULL,
 			schema_id VARCHAR(255) NOT NULL,
+			consumer_id VARCHAR(255),
+			provider_id VARCHAR(255),
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 		);
 	`
@@ -114,7 +123,7 @@ func initTestDatabase(db *sql.DB) error {
 		return err
 	}
 
-	// Create a simple view for testing (without joins since related tables may not exist)
+	// Create a simple view for testing (uses actual columns from audit_logs table)
 	createViewQuery := `
 		CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
 		SELECT id,
@@ -123,8 +132,8 @@ func initTestDatabase(db *sql.DB) error {
 			   requested_data,
 			   application_id,
 			   schema_id,
-			   'test-consumer' as consumer_id,
-			   'test-provider' as provider_id
+			   COALESCE(consumer_id, 'test-consumer') as consumer_id,
+			   COALESCE(provider_id, 'test-provider') as provider_id
 		FROM audit_logs;
 	`
 
