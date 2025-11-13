@@ -27,16 +27,24 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 			MemberID: "member-123",
 		}
 
-		// This will fail on PDP call, but we can verify DB operations
-		_, err := service.CreateApplication(req)
+		// CreateApplication now uses outbox pattern - it succeeds and queues a job
+		result, err := service.CreateApplication(req)
 
-		// Expect error due to PDP failure, but verify compensation worked
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to update allow list")
-		// Verify application was rolled back
+		// Should succeed (job is queued, not executed immediately)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, req.ApplicationName, result.ApplicationName)
+		assert.NotEmpty(t, result.ApplicationID)
+
+		// Verify application was created
 		var count int64
 		db.Model(&models.Application{}).Where("application_name = ?", req.ApplicationName).Count(&count)
-		assert.Equal(t, int64(0), count)
+		assert.Equal(t, int64(1), count)
+
+		// Verify PDP job was queued
+		var jobCount int64
+		db.Model(&models.PDPJob{}).Where("application_id = ?", result.ApplicationID).Count(&jobCount)
+		assert.Equal(t, int64(1), jobCount)
 	})
 }
 
@@ -358,11 +366,22 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 			Status: &status,
 		}
 
-		// This will fail because PDP service is not available, but tests compensation logic
+		// UpdateApplicationSubmission now uses outbox pattern - it succeeds and queues a job
 		result, err := service.UpdateApplicationSubmission(submission.SubmissionID, req)
 
-		assert.Error(t, err)
-		assert.Nil(t, result)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, string(models.StatusApproved), string(result.Status))
+
+		// Verify application was created
+		var appCount int64
+		db.Model(&models.Application{}).Where("member_id = ?", member.MemberID).Count(&appCount)
+		assert.Equal(t, int64(1), appCount)
+
+		// Verify PDP job was queued
+		var jobCount int64
+		db.Model(&models.PDPJob{}).Where("application_id IS NOT NULL").Count(&jobCount)
+		assert.GreaterOrEqual(t, jobCount, int64(1))
 	})
 
 	t.Run("UpdateApplicationSubmission_WithPreviousApplicationID_NotFound", func(t *testing.T) {
@@ -710,13 +729,22 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 			MemberID:        "member-123",
 		}
 
-		// Will fail on PDP call but tests the request structure
-		_, err := service.CreateApplication(req)
-		assert.Error(t, err)
-		// Verify application was rolled back
+		// CreateApplication now uses outbox pattern - it succeeds and queues a job
+		result, err := service.CreateApplication(req)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, req.ApplicationName, result.ApplicationName)
+		assert.NotEmpty(t, result.ApplicationID)
+
+		// Verify application was created
 		var count int64
 		db.Model(&models.Application{}).Where("application_name = ?", req.ApplicationName).Count(&count)
-		assert.Equal(t, int64(0), count)
+		assert.Equal(t, int64(1), count)
+
+		// Verify PDP job was queued (even with empty selected fields)
+		var jobCount int64
+		db.Model(&models.PDPJob{}).Where("application_id = ?", result.ApplicationID).Count(&jobCount)
+		assert.Equal(t, int64(1), jobCount)
 	})
 
 	t.Run("CreateApplication_WithDescription", func(t *testing.T) {
@@ -729,7 +757,7 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 
 		desc := "Test Description"
 		req := &models.CreateApplicationRequest{
-			ApplicationName:        "Test Application",
+			ApplicationName:        "Test Application With Desc",
 			ApplicationDescription: &desc,
 			SelectedFields: []models.SelectedFieldRecord{
 				{FieldName: "field1", SchemaID: "schema-123"},
@@ -737,14 +765,23 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 			MemberID: "member-123",
 		}
 
-		// Will fail on PDP call but tests the request structure with description
-		_, err := service.CreateApplication(req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to update allow list")
-		// Verify application was rolled back
+		// CreateApplication now uses outbox pattern - it succeeds and queues a job
+		result, err := service.CreateApplication(req)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, req.ApplicationName, result.ApplicationName)
+		assert.Equal(t, *req.ApplicationDescription, *result.ApplicationDescription)
+		assert.NotEmpty(t, result.ApplicationID)
+
+		// Verify application was created
 		var count int64
 		db.Model(&models.Application{}).Where("application_name = ?", req.ApplicationName).Count(&count)
-		assert.Equal(t, int64(0), count)
+		assert.Equal(t, int64(1), count)
+
+		// Verify PDP job was queued
+		var jobCount int64
+		db.Model(&models.PDPJob{}).Where("application_id = ?", result.ApplicationID).Count(&jobCount)
+		assert.Equal(t, int64(1), jobCount)
 	})
 }
 

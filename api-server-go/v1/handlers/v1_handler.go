@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -25,7 +24,8 @@ type V1Handler struct {
 }
 
 // NewV1Handler creates a new V1 handler
-func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
+// pdpService is used by the schema and application services for async PDP operations
+func NewV1Handler(db *gorm.DB, pdpService services.PDPClient) (*V1Handler, error) {
 	// Get scopes from environment variable, fallback to default if not set
 	asgScopesEnv := os.Getenv("ASGARDEO_SCOPES")
 	var scopes []string
@@ -46,18 +46,6 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 	}
 	memberService := services.NewMemberService(db, idpProvider)
 
-	pdpServiceURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-	if pdpServiceURL == "" {
-		return nil, fmt.Errorf("CHOREO_PDP_CONNECTION_SERVICEURL environment variable not set")
-	}
-
-	pdpServiceAPIKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-	if pdpServiceAPIKey == "" {
-		return nil, fmt.Errorf("CHOREO_PDP_CONNECTION_CHOREOAPIKEY environment variable not set")
-	}
-
-	pdpService := services.NewPDPService(pdpServiceURL, pdpServiceAPIKey)
-	slog.Info("PDP Service URL", "url", pdpServiceURL)
 	return &V1Handler{
 		memberService:      memberService,
 		schemaService:      services.NewSchemaService(db, pdpService),
@@ -453,6 +441,7 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Return 201 Created - maintain backward compatibility for v1
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
 
@@ -572,6 +561,7 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Return 201 Created - maintain backward compatibility for v1
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
 

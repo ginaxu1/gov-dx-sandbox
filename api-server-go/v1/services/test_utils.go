@@ -45,6 +45,7 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 		&models.ApplicationSubmission{},
 		&models.Schema{},
 		&models.SchemaSubmission{},
+		&models.PDPJob{}, // Required for one-shot transactional outbox pattern
 	)
 	if err != nil {
 		t.Skipf("Skipping test: could not migrate test database: %v", err)
