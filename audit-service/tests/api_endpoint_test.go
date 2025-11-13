@@ -47,25 +47,31 @@ func TestGETLogsEndpoint(t *testing.T) {
 	server := SetupTestServer(t)
 	defer server.Close()
 
-	// Create test data
+	// Create test data with consumer_id and provider_id for filtering tests
 	testLogs := []models.LogRequest{
 		{
 			Status:        "success",
 			RequestedData: "query { personInfo(nic: \"199512345678\") { fullName } }",
 			ApplicationID: "app-123",
 			SchemaID:      "schema-456",
+			ConsumerID:    "consumer-123",
+			ProviderID:    "provider-456",
 		},
 		{
 			Status:        "failure",
 			RequestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }",
 			ApplicationID: "app-789",
 			SchemaID:      "schema-456",
+			ConsumerID:    "consumer-456",
+			ProviderID:    "provider-456",
 		},
 		{
 			Status:        "success",
 			RequestedData: "query { citizenInfo(nic: \"199012345678\") { address } }",
 			ApplicationID: "app-123",
 			SchemaID:      "schema-789",
+			ConsumerID:    "consumer-123",
+			ProviderID:    "provider-789",
 		},
 	}
 
@@ -315,6 +321,8 @@ func TestLogsEndpointIntegration(t *testing.T) {
 			RequestedData: "query { integrationTest }",
 			ApplicationID: "integration-app",
 			SchemaID:      "integration-schema",
+			ConsumerID:    "integration-consumer",
+			ProviderID:    "integration-provider",
 		}
 
 		createdLog, err := server.AuditService.CreateLog(context.Background(), &createReq)

@@ -123,17 +123,23 @@ func initTestDatabase(db *sql.DB) error {
 		return err
 	}
 
+	// Drop view if it exists to avoid type conflicts
+	dropViewQuery := `DROP VIEW IF EXISTS audit_logs_with_provider_consumer CASCADE;`
+	if _, err := db.Exec(dropViewQuery); err != nil {
+		return err
+	}
+
 	// Create a simple view for testing (uses actual columns from audit_logs table)
 	createViewQuery := `
-		CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
+		CREATE VIEW audit_logs_with_provider_consumer AS
 		SELECT id,
 			   timestamp,
 			   status,
 			   requested_data,
 			   application_id,
 			   schema_id,
-			   COALESCE(consumer_id, 'test-consumer') as consumer_id,
-			   COALESCE(provider_id, 'test-provider') as provider_id
+			   consumer_id,
+			   provider_id
 		FROM audit_logs;
 	`
 
@@ -235,9 +241,15 @@ func SetupTestServerWithGORM(t *testing.T) *TestServerWithGORM {
 
 // initTestDatabaseWithGORM initializes the test database with required tables for both cases
 func initTestDatabaseWithGORM(db *sql.DB, gormDB *gorm.DB) error {
+	// Drop and recreate audit_logs table to ensure correct schema
+	dropTableQuery := `DROP TABLE IF EXISTS audit_logs CASCADE;`
+	if _, err := db.Exec(dropTableQuery); err != nil {
+		return err
+	}
+
 	// Create audit_logs table for CASE 1
 	createTableQuery := `
-		CREATE TABLE IF NOT EXISTS audit_logs (
+		CREATE TABLE audit_logs (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 			status VARCHAR(10) NOT NULL CHECK (status IN ('success', 'failure')),
@@ -290,17 +302,23 @@ func initTestDatabaseWithGORM(db *sql.DB, gormDB *gorm.DB) error {
 		}
 	}
 
-	// Create a simple view for testing (without joins since related tables may not exist)
+	// Drop view if it exists to avoid type conflicts
+	dropViewQuery := `DROP VIEW IF EXISTS audit_logs_with_provider_consumer CASCADE;`
+	if _, err := db.Exec(dropViewQuery); err != nil {
+		return err
+	}
+
+	// Create a simple view for testing (uses actual columns from audit_logs table)
 	createViewQuery := `
-		CREATE OR REPLACE VIEW audit_logs_with_provider_consumer AS
+		CREATE VIEW audit_logs_with_provider_consumer AS
 		SELECT id,
 			   timestamp,
 			   status,
 			   requested_data,
 			   application_id,
 			   schema_id,
-			   'test-consumer' as consumer_id,
-			   'test-provider' as provider_id
+			   consumer_id,
+			   provider_id
 		FROM audit_logs;
 	`
 
