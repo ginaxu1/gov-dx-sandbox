@@ -358,6 +358,38 @@ func TestMemberEndpoints(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
+	t.Run("PUT /api/v1/members/:id - UpdateMember_Success", func(t *testing.T) {
+		// Create a member first
+		email := fmt.Sprintf("test-%d@example.com", time.Now().UnixNano())
+		memberID := createTestMember(t, testHandler.db, email)
+
+		// Get the member to find the IDP user ID
+		var member models.Member
+		err := testHandler.db.Where("member_id = ?", memberID).First(&member).Error
+		assert.NoError(t, err)
+
+		// Setup mock IDP for member update
+		setupMockIDPForMemberUpdate(member.IdpUserID, email)
+
+		name := "Updated Name"
+		req := models.UpdateMemberRequest{
+			Name: &name,
+		}
+		reqBody, _ := json.Marshal(req)
+		httpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/members/%s", memberID), bytes.NewBuffer(reqBody))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var response models.MemberResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, name, response.Name)
+	})
+
 	t.Run("GET /api/v1/members - GetAllMembers", func(t *testing.T) {
 		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/members", nil)
 		w := httptest.NewRecorder()
@@ -1065,6 +1097,47 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 		mux.ServeHTTP(w, httpReq)
 
 		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	})
+
+	t.Run("POST /api/v1/application-submissions - Invalid JSON", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/application-submissions", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("GET /api/v1/application-submissions - WithStatusFilter", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/application-submissions?status=pending&status=approved", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("GET /api/v1/schema-submissions - WithStatusFilter", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schema-submissions?status=pending&status=approved", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("GET /api/v1/schemas - WithMemberID", func(t *testing.T) {
+		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schemas?memberId=test-member-123", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 
