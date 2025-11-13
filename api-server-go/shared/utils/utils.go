@@ -309,7 +309,6 @@ func ReadRequestBody(r *http.Request) ([]byte, error) {
 }
 
 // ExtractApplicationIDFromJSON extracts applicationId from JSON body data
-// Supports multiple field name variations: applicationId, application_id, appId, app_id
 func ExtractApplicationIDFromJSON(body []byte) string {
 	if len(body) == 0 {
 		return ""
@@ -333,7 +332,6 @@ func ExtractApplicationIDFromJSON(body []byte) string {
 }
 
 // ExtractSchemaIDFromJSON extracts schemaId from JSON body data
-// Supports multiple field name variations: schemaId, schema_id, schemaID
 func ExtractSchemaIDFromJSON(body []byte) string {
 	if len(body) == 0 {
 		return ""
