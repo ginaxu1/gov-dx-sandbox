@@ -1,14 +1,14 @@
 name: OpenDIF CI/CD Pipeline
 
 on:
-  # Run on pushes to dev (for deployment)
+  # Run on pushes to main (for deployment)
   push:
     branches:
-      - dev
-  # Run on pull requests to dev (for testing)
+      - main
+  # Run on pull requests to main (for testing)
   pull_request:
     branches:
-      - dev
+      - main
 
 # Reusable workflow inputs/outputs could be added here if needed
 env:
@@ -109,8 +109,8 @@ jobs:
     name: Deploy & Run Shell Smoke Tests
     runs-on: ubuntu-latest
     needs: build_and_test
-    # This job only runs on a push to dev, NOT on pull requests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    # This job only runs on a push to main, NOT on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 45
 
     steps:
@@ -155,7 +155,7 @@ jobs:
             local attempt=1
             
             while [ $attempt -le $max_attempts ]; do
-              if curl -f -s $health_url > /dev/null; then
+              if curl -f -s $health_url > /main/null; then
                 echo "✅ $service_name is healthy"
                 return 0
               fi
@@ -218,8 +218,8 @@ jobs:
     name: Build & Push Docker Images
     runs-on: ubuntu-latest
     needs: build_and_test
-    # Only run on pushes to dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    # Only run on pushes to main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
