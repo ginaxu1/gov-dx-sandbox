@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"strings"
 )
 
 // Context keys for storing request information
@@ -233,7 +234,7 @@ func findFirstSlash(s string) int {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s[:len(substr)] == substr
+	return strings.Contains(s, substr)
 }
 
 // Context getter functions (for use in handlers and middleware)
