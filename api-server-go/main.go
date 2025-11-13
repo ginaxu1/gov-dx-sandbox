@@ -211,8 +211,7 @@ func main() {
 	// Initialize alert notifier (using logging for now, can be extended to PagerDuty/Slack)
 	alertNotifier := v1services.NewLoggingAlertNotifier()
 	pdpWorker := v1services.NewPDPWorker(gormDB, pdpService, alertNotifier)
-	workerCtx, workerCancel := context.WithCancel(context.Background())
-	defer workerCancel()
+	workerCtx := context.Background()
 
 	go pdpWorker.Start(workerCtx)
 	slog.Info("PDP worker started in background")
@@ -233,9 +232,13 @@ func main() {
 
 	slog.Info("Shutting down API Server...")
 
-	// Stop the PDP worker
-	workerCancel()
-	slog.Info("PDP worker stopped")
+	// Gracefully shutdown the PDP worker, waiting for in-flight jobs to complete
+	shutdownTimeout := 30 * time.Second
+	if err := pdpWorker.Shutdown(shutdownTimeout); err != nil {
+		slog.Warn("PDP worker shutdown warning", "error", err)
+	} else {
+		slog.Info("PDP worker stopped gracefully")
+	}
 
 	// Create a deadline to wait for
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

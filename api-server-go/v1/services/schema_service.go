@@ -41,17 +41,22 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		return nil, fmt.Errorf("failed to start transaction: %w", tx.Error)
 	}
 
-	// Ensure we rollback on any error
+	// Track whether the transaction was committed
+	committed := false
 	defer func() {
 		if r := recover(); r != nil {
-			tx.Rollback()
+			if !committed {
+				tx.Rollback()
+			}
 			panic(r)
+		} else if !committed {
+			// Rollback on any error path that didn't commit
+			tx.Rollback()
 		}
 	}()
 
 	// Create the schema record (using the transaction)
 	if err := tx.Create(&schema).Error; err != nil {
-		tx.Rollback()
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
@@ -65,7 +70,6 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 	}
 
 	if err := tx.Create(&job).Error; err != nil {
-		tx.Rollback()
 		return nil, fmt.Errorf("failed to create PDP job: %w", err)
 	}
 
@@ -73,6 +77,7 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 	if err := tx.Commit().Error; err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
+	committed = true
 
 	// Return success immediately - the background worker will handle the PDP call
 	slog.Info("Schema created successfully, PDP job queued", "schemaID", schema.SchemaID, "jobID", job.JobID)

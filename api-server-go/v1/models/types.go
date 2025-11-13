@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -61,7 +62,7 @@ func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clau
 
 	// Database-aware handling: PostgreSQL uses jsonb, SQLite uses TEXT
 	dialector := db.Dialector.Name()
-	if dialector == "sqlite" {
+	if strings.Contains(strings.ToLower(dialector), "sqlite") {
 		return clause.Expr{
 			SQL:  "?",
 			Vars: []interface{}{string(data)},

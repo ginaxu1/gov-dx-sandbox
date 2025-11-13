@@ -42,24 +42,28 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		return nil, fmt.Errorf("failed to start transaction: %w", tx.Error)
 	}
 
-	// Ensure we rollback on any error
+	// Track whether the transaction was committed
+	committed := false
 	defer func() {
 		if r := recover(); r != nil {
-			tx.Rollback()
+			if !committed {
+				tx.Rollback()
+			}
 			panic(r)
+		} else if !committed {
+			// Rollback on any error path that didn't commit
+			tx.Rollback()
 		}
 	}()
 
 	// Step 1: Create the application record (using the transaction)
 	if err := tx.Create(&application).Error; err != nil {
-		tx.Rollback()
 		return nil, fmt.Errorf("failed to create application: %w", err)
 	}
 
 	// Step 2: Serialize SelectedFields to JSON for the job
 	selectedFieldsJSON, err := json.Marshal(application.SelectedFields)
 	if err != nil {
-		tx.Rollback()
 		return nil, fmt.Errorf("failed to marshal selected fields: %w", err)
 	}
 	selectedFieldsStr := string(selectedFieldsJSON)
@@ -76,7 +80,6 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 	}
 
 	if err := tx.Create(&job).Error; err != nil {
-		tx.Rollback()
 		return nil, fmt.Errorf("failed to create PDP job: %w", err)
 	}
 
@@ -84,6 +87,7 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 	if err := tx.Commit().Error; err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
+	committed = true
 
 	// Return success immediately - the background worker will handle the PDP call
 	slog.Info("Application created successfully, PDP job queued", "applicationID", application.ApplicationID, "jobID", job.JobID)

@@ -24,6 +24,7 @@ type V1Handler struct {
 }
 
 // NewV1Handler creates a new V1 handler
+// pdpService is used by the schema and application services for async PDP operations
 func NewV1Handler(db *gorm.DB, pdpService services.PDPClient) (*V1Handler, error) {
 	// Get scopes from environment variable, fallback to default if not set
 	asgScopesEnv := os.Getenv("ASGARDEO_SCOPES")
@@ -440,8 +441,8 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return 202 Accepted - job is queued, will be processed asynchronously
-	utils.RespondWithSuccess(w, http.StatusAccepted, schema)
+	// Return 201 Created - maintain backward compatibility for v1
+	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
 
 func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaId string) {
@@ -560,8 +561,8 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return 202 Accepted - job is queued, will be processed asynchronously
-	utils.RespondWithSuccess(w, http.StatusAccepted, application)
+	// Return 201 Created - maintain backward compatibility for v1
+	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
 
 func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, applicationId string) {
