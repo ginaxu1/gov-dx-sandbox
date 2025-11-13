@@ -173,7 +173,6 @@ func main() {
 	})))
 
 	// Register the API routes to the top-level mux
-	// Note: Audit logging is now done directly in handlers, no middleware needed
 	topLevelMux.Handle("/api/v1/", apiHandler)
 
 	// Start server
