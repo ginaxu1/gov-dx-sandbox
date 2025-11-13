@@ -571,6 +571,17 @@ func (f *Federator) logAuditEvent(ctx context.Context, consumerAppID, providerSc
 	consumerID := f.lookupMemberIDFromApplication(consumerAppID)
 	providerID := f.lookupMemberIDFromSchema(providerSchemaID)
 
+	// Skip audit logging if required fields are missing
+	// The audit service requires consumerId and providerId for data exchange events
+	if consumerID == "" || providerID == "" {
+		logger.Log.Warn("Skipping audit log - missing required member IDs",
+			"consumerAppID", consumerAppID,
+			"providerSchemaID", providerSchemaID,
+			"consumerID", consumerID,
+			"providerID", providerID)
+		return
+	}
+
 	// Log the event
 	event := auditclient.DataExchangeEvent{
 		ConsumerAppID:    consumerAppID,
@@ -590,17 +601,30 @@ func (f *Federator) logAuditEvent(ctx context.Context, consumerAppID, providerSc
 func (f *Federator) lookupMemberIDFromApplication(applicationID string) string {
 	apiServerURL := os.Getenv("API_SERVER_URL")
 	if apiServerURL == "" {
+		logger.Log.Debug("API_SERVER_URL not configured, cannot lookup member ID for application", "applicationID", applicationID)
 		return ""
 	}
 
 	url := fmt.Sprintf("%s/api/v1/applications/%s", apiServerURL, applicationID)
 	resp, err := f.Client.Get(url)
-	if err != nil || resp == nil {
+	if err != nil {
+		logger.Log.Warn("Failed to lookup member ID from application - network error",
+			"applicationID", applicationID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+	if resp == nil {
+		logger.Log.Warn("Failed to lookup member ID from application - nil response", "applicationID", applicationID, "url", url)
 		return ""
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logger.Log.Warn("Failed to lookup member ID from application - non-200 status",
+			"applicationID", applicationID,
+			"url", url,
+			"statusCode", resp.StatusCode)
 		return ""
 	}
 
@@ -608,6 +632,17 @@ func (f *Federator) lookupMemberIDFromApplication(applicationID string) string {
 		MemberID string `json:"memberId"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&appResp); err != nil {
+		logger.Log.Warn("Failed to lookup member ID from application - decode error",
+			"applicationID", applicationID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+
+	if appResp.MemberID == "" {
+		logger.Log.Warn("Application response missing memberId field",
+			"applicationID", applicationID,
+			"url", url)
 		return ""
 	}
 
@@ -618,17 +653,30 @@ func (f *Federator) lookupMemberIDFromApplication(applicationID string) string {
 func (f *Federator) lookupMemberIDFromSchema(schemaID string) string {
 	apiServerURL := os.Getenv("API_SERVER_URL")
 	if apiServerURL == "" {
+		logger.Log.Debug("API_SERVER_URL not configured, cannot lookup member ID for schema", "schemaID", schemaID)
 		return ""
 	}
 
 	url := fmt.Sprintf("%s/api/v1/schemas/%s", apiServerURL, schemaID)
 	resp, err := f.Client.Get(url)
-	if err != nil || resp == nil {
+	if err != nil {
+		logger.Log.Warn("Failed to lookup member ID from schema - network error",
+			"schemaID", schemaID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+	if resp == nil {
+		logger.Log.Warn("Failed to lookup member ID from schema - nil response", "schemaID", schemaID, "url", url)
 		return ""
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logger.Log.Warn("Failed to lookup member ID from schema - non-200 status",
+			"schemaID", schemaID,
+			"url", url,
+			"statusCode", resp.StatusCode)
 		return ""
 	}
 
@@ -636,6 +684,17 @@ func (f *Federator) lookupMemberIDFromSchema(schemaID string) string {
 		MemberID string `json:"memberId"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&schemaResp); err != nil {
+		logger.Log.Warn("Failed to lookup member ID from schema - decode error",
+			"schemaID", schemaID,
+			"url", url,
+			"error", err)
+		return ""
+	}
+
+	if schemaResp.MemberID == "" {
+		logger.Log.Warn("Schema response missing memberId field",
+			"schemaID", schemaID,
+			"url", url)
 		return ""
 	}
 
