@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"log/slog"
 )
 
@@ -63,6 +62,5 @@ func (n *PagerDutyAlertNotifier) SendAlert(severity string, message string, deta
 		"severity", severity,
 		"message", message,
 		"details", details)
-
-	return fmt.Errorf("PagerDuty integration not implemented - use LoggingAlertNotifier for now")
+	panic("PagerDutyAlertNotifier.SendAlert called: PagerDuty integration not implemented. This is a placeholder and must not be used in production.")
 }

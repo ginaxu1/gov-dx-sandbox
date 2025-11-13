@@ -29,13 +29,6 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("Failed to migrate test database: %v", err)
 	}
 
-	// For SQLite, we need to handle JSONB differently
-	// Convert JSONB columns to TEXT for SQLite compatibility
-	if db.Dialector.Name() == "sqlite" {
-		// For SQLite, JSONB is stored as TEXT
-		// GORM should handle this automatically, but we ensure it works
-	}
-
 	return db
 }
 

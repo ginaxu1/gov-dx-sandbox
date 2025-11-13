@@ -26,6 +26,9 @@ const (
 )
 
 // PDPJob represents a job to be processed by the PDP worker
+// Recommended database indexes for performance:
+// - idx_pdp_jobs_status_created_at: Optimizes job fetching query (WHERE status = 'pending' ORDER BY created_at ASC)
+// - idx_pdp_jobs_status_updated_at: Optimizes stuck job cleanup query (WHERE status = 'processing' AND updated_at < threshold)
 type PDPJob struct {
 	JobID          string         `gorm:"primaryKey;type:varchar(255)" json:"job_id"`
 	JobType        PDPJobType     `gorm:"type:varchar(50);not null" json:"job_type"`
@@ -34,10 +37,10 @@ type PDPJob struct {
 	SDL            *string        `gorm:"type:text" json:"sdl,omitempty"`                    // For policy metadata jobs
 	SelectedFields *string        `gorm:"type:text" json:"selected_fields,omitempty"`        // For allow list jobs (JSON stored as TEXT)
 	GrantDuration  *string        `gorm:"type:varchar(50)" json:"grant_duration,omitempty"`  // For allow list jobs
-	Status         PDPJobStatus   `gorm:"type:varchar(30);not null;default:'pending'" json:"status"`
+	Status         PDPJobStatus   `gorm:"type:varchar(30);not null;default:'pending';index:idx_pdp_jobs_status_created_at;index:idx_pdp_jobs_status_updated_at" json:"status"`
 	Error          *string        `gorm:"type:text" json:"error,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	CreatedAt      time.Time      `gorm:"index:idx_pdp_jobs_status_created_at" json:"created_at"`
+	UpdatedAt      time.Time      `gorm:"index:idx_pdp_jobs_status_updated_at" json:"updated_at"`
 	ProcessedAt    *time.Time     `json:"processed_at,omitempty"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
 }
