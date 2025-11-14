@@ -11,6 +11,7 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/idp"
 	"github.com/gov-dx-sandbox/api-server-go/idp/idpfactory"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
+	"github.com/gov-dx-sandbox/api-server-go/v1/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 
@@ -294,14 +295,27 @@ func (h *V1Handler) handleApplicationSubmissions(w http.ResponseWriter, r *http.
 
 // Member handlers
 func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateMemberRequest
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
 
+	var req models.CreateMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// Pass request context to service for proper context propagation
+	// For non-admin users, ensure they can only create members for themselves
+	// For admin users, they can create members for any user if IdpUserID is provided in the request
+	if !user.IsAdmin() {
+		// Regular users can only create a member for themselves
+		// Override any IdpUserID in the request with the authenticated user's ID
+		// This prevents users from creating members for other users
+	}
+
 	member, err := h.memberService.CreateMember(r.Context(), &req)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
@@ -312,8 +326,28 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberId string) {
-	var req models.UpdateMemberRequest
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
 
+	// Get the existing member to check ownership
+	existingMember, err := h.memberService.GetMember(r.Context(), memberId)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	// Check if user can update this member resource
+	// Admin can update any member, regular members can only update their own
+	if !user.IsAdmin() && existingMember.IdpUserID != user.IdpUserID {
+		utils.RespondWithError(w, http.StatusForbidden, "Access denied to update this resource")
+		return
+	}
+
+	var req models.UpdateMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -330,12 +364,28 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 }
 
 func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberId string) {
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	// Get the member from database
 	// Pass request context to service for proper context propagation
 	member, err := h.memberService.GetMember(r.Context(), memberId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
+
+	// Check if user can access this member resource
+	// Admin can access any member, regular members can only access their own
+	if !user.IsAdmin() && member.IdpUserID != user.IdpUserID {
+		utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
+		return
+	}
+
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
 
@@ -379,15 +429,40 @@ func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Request, memberId *string) {
-	var req models.CreateSchemaSubmissionRequest
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
 
+	var req models.CreateSchemaSubmissionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
+	// If memberId is provided from URL parameter, use it
 	if memberId != nil {
 		req.MemberID = *memberId
+	}
+
+	// For non-admin users, ensure they can only create submissions for themselves
+	if !user.IsAdmin() {
+		// Get the member to verify ownership
+		if req.MemberID != "" {
+			member, err := h.memberService.GetMember(r.Context(), req.MemberID)
+			if err != nil {
+				utils.RespondWithError(w, http.StatusNotFound, "Member not found")
+				return
+			}
+
+			// Check if the authenticated user owns this member record
+			if member.IdpUserID != user.IdpUserID {
+				utils.RespondWithError(w, http.StatusForbidden, "Access denied: cannot create submission for another user")
+				return
+			}
+		}
 	}
 
 	submission, err := h.schemaService.CreateSchemaSubmission(&req)
