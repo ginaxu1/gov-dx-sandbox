@@ -37,22 +37,22 @@ type JWK struct {
 
 // JWTAuthMiddleware provides JWT authentication functionality
 type JWTAuthMiddleware struct {
-	jwksURL          string
-	expectedIssuer   string
-	expectedAudience string
-	orgName          string
-	httpClient       *http.Client
-	keys             map[string]*rsa.PublicKey
-	lastFetch        time.Time
+	jwksURL        string
+	expectedIssuer string
+	validClientIDs []string
+	orgName        string
+	httpClient     *http.Client
+	keys           map[string]*rsa.PublicKey
+	lastFetch      time.Time
 }
 
 // JWTAuthConfig contains configuration for JWT authentication
 type JWTAuthConfig struct {
-	JWKSURL          string
-	ExpectedIssuer   string
-	ExpectedAudience string
-	OrgName          string
-	Timeout          time.Duration
+	JWKSURL        string
+	ExpectedIssuer string
+	ValidClientIDs []string // Multiple valid client IDs for different portals
+	OrgName        string
+	Timeout        time.Duration
 }
 
 // NewJWTAuthMiddleware creates a new JWT authentication middleware
@@ -63,10 +63,10 @@ func NewJWTAuthMiddleware(config JWTAuthConfig) *JWTAuthMiddleware {
 	}
 
 	return &JWTAuthMiddleware{
-		jwksURL:          config.JWKSURL,
-		expectedIssuer:   config.ExpectedIssuer,
-		expectedAudience: config.ExpectedAudience,
-		orgName:          config.OrgName,
+		jwksURL:        config.JWKSURL,
+		expectedIssuer: config.ExpectedIssuer,
+		validClientIDs: config.ValidClientIDs,
+		orgName:        config.OrgName,
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -209,9 +209,9 @@ func (j *JWTAuthMiddleware) validateStandardClaims(claims *models.UserClaims) er
 		return fmt.Errorf("invalid issuer: expected %s, got %s", j.expectedIssuer, claims.Issuer)
 	}
 
-	// Validate audience
-	if j.expectedAudience != "" && !j.containsAudience(claims.Audience, j.expectedAudience) {
-		return fmt.Errorf("invalid audience: expected %s, got %v", j.expectedAudience, claims.Audience)
+	// Validate client ID (audience)
+	if len(j.validClientIDs) > 0 && !j.containsValidClientID(claims.Audience) {
+		return fmt.Errorf("invalid audience: expected one of %v, got %v", j.validClientIDs, claims.Audience)
 	}
 
 	// Validate organization name if configured
@@ -231,11 +231,13 @@ func (j *JWTAuthMiddleware) validateStandardClaims(claims *models.UserClaims) er
 	return nil
 }
 
-// containsAudience checks if the audience list contains the expected audience
-func (j *JWTAuthMiddleware) containsAudience(audiences []string, expected string) bool {
+// containsValidClientID checks if the audience list contains any of the valid client IDs
+func (j *JWTAuthMiddleware) containsValidClientID(audiences []string) bool {
 	for _, aud := range audiences {
-		if aud == expected {
-			return true
+		for _, validClientID := range j.validClientIDs {
+			if aud == validClientID {
+				return true
+			}
 		}
 	}
 	return false

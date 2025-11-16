@@ -50,12 +50,18 @@ func main() {
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
 	// Setup JWT Authentication middleware
+	// Support multiple valid client IDs for different portals
+	validClientIDs := []string{
+		os.Getenv("ASGARDEO_MEMBER_PORTAL_CLIENT_ID"),
+		os.Getenv("ASGARDEO_ADMIN_PORTAL_CLIENT_ID"),
+	}
+
 	jwtConfig := v1middleware.JWTAuthConfig{
-		JWKSURL:          utils.GetEnvOrDefault("ASGARDEO_JWKS_URL", os.Getenv("ASGARDEO_BASE_URL")+"/oauth2/jwks"),
-		ExpectedIssuer:   os.Getenv("ASGARDEO_BASE_URL") + "/oauth2/token",
-		ExpectedAudience: os.Getenv("ASGARDEO_CLIENT_ID"),
-		OrgName:          utils.GetEnvOrDefault("ASGARDEO_ORG_NAME", ""),
-		Timeout:          10 * time.Second,
+		JWKSURL:        utils.GetEnvOrDefault("ASGARDEO_JWKS_URL", os.Getenv("ASGARDEO_BASE_URL")+"/oauth2/jwks"),
+		ExpectedIssuer: os.Getenv("ASGARDEO_BASE_URL") + "/oauth2/token",
+		ValidClientIDs: validClientIDs,
+		OrgName:        utils.GetEnvOrDefault("ASGARDEO_ORG_NAME", ""),
+		Timeout:        10 * time.Second,
 	}
 	jwtAuthMiddleware := v1middleware.NewJWTAuthMiddleware(jwtConfig)
 

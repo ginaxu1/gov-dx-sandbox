@@ -8,14 +8,14 @@ import (
 
 // UserClaims represents the JWT claims for a user
 type UserClaims struct {
-	Email       string   `json:"email"`
-	FirstName   string   `json:"given_name"`
-	LastName    string   `json:"family_name"`
-	PhoneNumber string   `json:"phone_number"`
-	Roles       []string `json:"roles"`
-	Groups      []string `json:"groups"`
-	OrgName     string   `json:"org_name"`
-	IdpUserID   string   `json:"sub"` // Subject is typically the user ID from IdP
+	Email       string              `json:"email"`
+	FirstName   string              `json:"given_name"`
+	LastName    string              `json:"family_name"`
+	PhoneNumber string              `json:"phone_number"`
+	Roles       FlexibleStringSlice `json:"roles"`
+	Groups      []string            `json:"groups"`
+	OrgName     string              `json:"org_name"`
+	IdpUserID   string              `json:"sub"` // Subject is typically the user ID from IdP
 	// Standard JWT claims
 	Issuer    string    `json:"iss"`
 	Audience  []string  `json:"aud"`
@@ -176,7 +176,7 @@ func (u *AuthenticatedUser) IsTokenExpired() bool {
 func NewAuthenticatedUser(claims *UserClaims) *AuthenticatedUser {
 	// Convert string roles to Role type
 	var roles []Role
-	for _, roleStr := range claims.Roles {
+	for _, roleStr := range claims.Roles.ToStringSlice() {
 		role := Role(roleStr)
 		if role.IsValid() {
 			roles = append(roles, role)
@@ -186,6 +186,7 @@ func NewAuthenticatedUser(claims *UserClaims) *AuthenticatedUser {
 	// If no valid roles found, default to member
 	if len(roles) == 0 {
 		roles = []Role{RoleMember}
+		// TODO: If no roles are found, consider restricting access or logging a warning
 	}
 
 	return &AuthenticatedUser{

@@ -180,3 +180,32 @@ func (al *AllowList) Scan(value interface{}) error {
 func (al *AllowList) Value() (driver.Value, error) {
 	return json.Marshal(*al)
 }
+
+// FlexibleStringSlice can unmarshal both single string and string array from JSON
+type FlexibleStringSlice []string
+
+// UnmarshalJSON implements custom unmarshaling to handle both string and []string
+func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string array first
+	var strArray []string
+	if err := json.Unmarshal(data, &strArray); err == nil {
+		*f = FlexibleStringSlice(strArray)
+		return nil
+	}
+
+	// If that fails, try to unmarshal as single string
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		*f = FlexibleStringSlice([]string{str})
+		return nil
+	}
+
+	// If both fail, return empty slice
+	*f = FlexibleStringSlice([]string{})
+	return nil
+}
+
+// ToStringSlice converts to regular string slice
+func (f FlexibleStringSlice) ToStringSlice() []string {
+	return []string(f)
+}

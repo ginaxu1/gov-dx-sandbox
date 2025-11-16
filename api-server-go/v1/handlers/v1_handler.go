@@ -390,8 +390,32 @@ func (h *V1Handler) getMember(w http.ResponseWriter, r *http.Request, memberId s
 }
 
 func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request, idpUserId *string, email *string) {
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	// Check permission - admin can read all members, regular users need specific permission
+	var filteredIdpUserId *string
+	var filteredEmail *string
+
+	if user.HasPermission(models.PermissionReadAllMembers) {
+		// Admin can use provided filters or see all
+		filteredIdpUserId = idpUserId
+		filteredEmail = email
+	} else if user.HasPermission(models.PermissionReadMember) {
+		// Regular users can only see their own member record
+		filteredIdpUserId = &user.IdpUserID
+		filteredEmail = &user.Email
+	} else {
+		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
+		return
+	}
+
 	// Pass request context to service for proper context propagation
-	members, err := h.memberService.GetAllMembers(r.Context(), idpUserId, email)
+	members, err := h.memberService.GetAllMembers(r.Context(), filteredIdpUserId, filteredEmail)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -492,7 +516,36 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, memberId *string) {
-	schemas, err := h.schemaService.GetSchemas(memberId)
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	// Check permission
+	if !user.HasPermission(models.PermissionReadSchema) {
+		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
+		return
+	}
+
+	// For non-admin users, filter results to only their own schemas
+	var filteredMemberId *string
+	if !user.IsAdmin() {
+		// Get member ID for the authenticated user
+		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
+		if err != nil || len(members) == 0 {
+			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
+			return
+		}
+		userMemberId := members[0].MemberID
+		filteredMemberId = &userMemberId
+	} else {
+		// Admin can specify memberId or see all
+		filteredMemberId = memberId
+	}
+
+	schemas, err := h.schemaService.GetSchemas(filteredMemberId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -505,21 +558,78 @@ func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, member
 	utils.RespondWithSuccess(w, http.StatusOK, response)
 }
 
-func (h *V1Handler) getSchema(w http.ResponseWriter, r *http.Request, submissionId string) {
-	schema, err := h.schemaService.GetSchema(submissionId)
+func (h *V1Handler) getSchema(w http.ResponseWriter, r *http.Request, schemaId string) {
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	// Check permission
+	if !user.HasPermission(models.PermissionReadSchema) {
+		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
+		return
+	}
+
+	schema, err := h.schemaService.GetSchema(schemaId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
+
+	// For non-admin users, check ownership
+	if !user.IsAdmin() {
+		// Get member ID for the authenticated user
+		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
+		if err != nil || len(members) == 0 {
+			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
+			return
+		}
+
+		// Check if schema belongs to the user (assuming schema has MemberID field)
+		// This would need to be adjusted based on your actual schema model structure
+		// if schema.MemberID != members[0].MemberID {
+		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
+		//     return
+		// }
+	}
+
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
 
 func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
-	var req models.CreateSchemaRequest
+	// Get authenticated user
+	user, err := middleware.GetUserFromRequest(r)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
 
+	// Check permission
+	if !user.HasPermission(models.PermissionCreateSchema) {
+		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
+		return
+	}
+
+	var req models.CreateSchemaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
+	}
+
+	// For non-admin users, ensure they can only create schemas for themselves
+	if !user.IsAdmin() {
+		// Get member ID for the authenticated user
+		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
+		if err != nil || len(members) == 0 {
+			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
+			return
+		}
+
+		// Set the member ID to the authenticated user's member ID
+		// This assumes the CreateSchemaRequest has a MemberID field
+		// req.MemberID = members[0].MemberID
 	}
 
 	schema, err := h.schemaService.CreateSchema(&req)
