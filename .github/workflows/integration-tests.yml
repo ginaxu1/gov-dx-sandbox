@@ -155,7 +155,7 @@ jobs:
             local attempt=1
             
             while [ $attempt -le $max_attempts ]; do
-              if curl -f -s $health_url > /main/null; then
+              if curl -f -s $health_url > /dev/null; then
                 echo "✅ $service_name is healthy"
                 return 0
               fi

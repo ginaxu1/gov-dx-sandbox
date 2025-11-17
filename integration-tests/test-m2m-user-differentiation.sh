@@ -6,14 +6,41 @@
 echo "🧪 Testing M2M vs User Differentiation in Audit Logs"
 echo "=================================================="
 
-# Set up environment variables
-export REDIS_ADDR=localhost:6379
-export CHOREO_DB_AUDIT_HOSTNAME=pg-41200aa141064e6cbabf311dce37c04a-opendifd1461627769-choreo-o.h.aivencloud.com
-export CHOREO_DB_AUDIT_PORT=19847
-export CHOREO_DB_AUDIT_USERNAME=avnadmin
-export CHOREO_DB_AUDIT_PASSWORD=AVNS_HwUxELSQImHrLu9XnYD
-export CHOREO_DB_AUDIT_DATABASENAME=defaultdb
-export DB_SSLMODE=require
+# Validate required environment variables
+REQUIRED_VARS=(
+  "CHOREO_DB_AUDIT_HOSTNAME"
+  "CHOREO_DB_AUDIT_PORT"
+  "CHOREO_DB_AUDIT_USERNAME"
+  "CHOREO_DB_AUDIT_PASSWORD"
+  "CHOREO_DB_AUDIT_DATABASENAME"
+)
+
+MISSING_VARS=()
+for var in "${REQUIRED_VARS[@]}"; do
+  if [ -z "${!var}" ]; then
+    MISSING_VARS+=("$var")
+  fi
+done
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+  echo "❌ Error: The following required environment variables are not set:"
+  for var in "${MISSING_VARS[@]}"; do
+    echo "   - $var"
+  done
+  echo ""
+  echo "Please export these variables before running this script."
+  echo "Example:"
+  echo "  export CHOREO_DB_AUDIT_HOSTNAME=your-hostname"
+  echo "  export CHOREO_DB_AUDIT_PORT=your-port"
+  echo "  export CHOREO_DB_AUDIT_USERNAME=your-username"
+  echo "  export CHOREO_DB_AUDIT_PASSWORD=your-password"
+  echo "  export CHOREO_DB_AUDIT_DATABASENAME=your-database"
+  exit 1
+fi
+
+# Set up environment variables (use defaults for non-sensitive values)
+export REDIS_ADDR=${REDIS_ADDR:-localhost:6379}
+export DB_SSLMODE=${DB_SSLMODE:-require}
 
 ORCHESTRATION_ENGINE_URL="http://localhost:4000"
 AUDIT_SERVICE_URL="http://localhost:3001"
