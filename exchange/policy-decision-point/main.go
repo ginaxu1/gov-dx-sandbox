@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	v1 "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/joho/godotenv"
@@ -30,6 +31,16 @@ func main() {
 		"version", Version,
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
+
+	metricsCtx := context.Background()
+	shutdownTelemetry, err := monitoring.Setup(metricsCtx, monitoring.Config{
+		ServiceName: "policy-decision-point",
+	})
+	if err != nil {
+		slog.Error("Failed to initialize telemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTelemetry(context.Background()) }()
 
 	// Log database configuration being used
 	slog.Info("Database configuration",
@@ -57,6 +68,7 @@ func main() {
 
 	// Health check endpoint
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("policy-decision-point")))
+	mux.Handle("/metrics", monitoring.Handler())
 
 	// Debug endpoint
 	mux.Handle("/debug", utils.PanicRecoveryMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +148,8 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	server := utils.CreateServer(serverConfig, mux)
+	handler := monitoring.HTTPMetricsMiddleware(mux)
+	server := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
 	if err := utils.StartServerWithGracefulShutdown(server, "policy-decision-point"); err != nil {

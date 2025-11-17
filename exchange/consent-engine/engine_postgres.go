@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/lib/pq"
 )
 
@@ -14,6 +16,95 @@ import (
 type postgresConsentEngine struct {
 	db               *sql.DB
 	consentPortalURL string
+	pendingCache     sync.Map
+	consentCache     sync.Map
+}
+
+const (
+	consentDBName    = "consent-db"
+	pendingCacheName = "consent-engine.pending_cache"
+	consentCacheName = "consent-engine.consents_cache"
+)
+
+func (pce *postgresConsentEngine) exec(operation string, query string, args ...interface{}) (sql.Result, error) {
+	start := time.Now()
+	result, err := pce.db.Exec(query, args...)
+	monitoring.RecordDBLatency(context.Background(), consentDBName, operation, time.Since(start))
+	return result, err
+}
+
+func (pce *postgresConsentEngine) queryRows(operation string, query string, args ...interface{}) (*sql.Rows, error) {
+	start := time.Now()
+	rows, err := pce.db.Query(query, args...)
+	monitoring.RecordDBLatency(context.Background(), consentDBName, operation, time.Since(start))
+	return rows, err
+}
+
+func (pce *postgresConsentEngine) queryRow(operation string, query string, args ...interface{}) *sql.Row {
+	start := time.Now()
+	row := pce.db.QueryRow(query, args...)
+	monitoring.RecordDBLatency(context.Background(), consentDBName, operation, time.Since(start))
+	return row
+}
+
+func cloneConsentRecord(record *ConsentRecord) *ConsentRecord {
+	if record == nil {
+		return nil
+	}
+	clone := *record
+	if record.Fields != nil {
+		clone.Fields = append([]string(nil), record.Fields...)
+	}
+	return &clone
+}
+
+func cacheKey(ownerID, appID string) string {
+	return ownerID + "|" + appID
+}
+
+func (pce *postgresConsentEngine) loadPendingCache(ownerID, appID string) (*ConsentRecord, bool) {
+	if value, ok := pce.pendingCache.Load(cacheKey(ownerID, appID)); ok {
+		if record, ok := value.(*ConsentRecord); ok {
+			monitoring.RecordCacheEvent(context.Background(), pendingCacheName, true)
+			return cloneConsentRecord(record), true
+		}
+	}
+	monitoring.RecordCacheEvent(context.Background(), pendingCacheName, false)
+	return nil, false
+}
+
+func (pce *postgresConsentEngine) storePendingCache(ownerID, appID string, record *ConsentRecord) {
+	key := cacheKey(ownerID, appID)
+	if record == nil {
+		pce.pendingCache.Delete(key)
+		return
+	}
+	pce.pendingCache.Store(key, cloneConsentRecord(record))
+}
+
+func (pce *postgresConsentEngine) loadConsentCache(ownerID, appID string) (*ConsentRecord, bool) {
+	if value, ok := pce.consentCache.Load(cacheKey(ownerID, appID)); ok {
+		if record, ok := value.(*ConsentRecord); ok {
+			monitoring.RecordCacheEvent(context.Background(), consentCacheName, true)
+			return cloneConsentRecord(record), true
+		}
+	}
+	monitoring.RecordCacheEvent(context.Background(), consentCacheName, false)
+	return nil, false
+}
+
+func (pce *postgresConsentEngine) storeConsentCache(ownerID, appID string, record *ConsentRecord) {
+	key := cacheKey(ownerID, appID)
+	if record == nil {
+		pce.consentCache.Delete(key)
+		return
+	}
+	pce.consentCache.Store(key, cloneConsentRecord(record))
+}
+
+func (pce *postgresConsentEngine) deleteConsentCaches(ownerID, appID string) {
+	pce.pendingCache.Delete(cacheKey(ownerID, appID))
+	pce.consentCache.Delete(cacheKey(ownerID, appID))
 }
 
 // NewPostgresConsentEngine creates a new PostgreSQL-based consent engine
@@ -120,7 +211,7 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	`
 
-	_, err = pce.db.Exec(insertSQL,
+	_, err = pce.exec("insert_consent", insertSQL,
 		consentID, ownerID, ownerEmail, req.AppID, string(StatusPending), "realtime",
 		now, now, expiresAt, grantDuration, pq.Array(allFields),
 		"", // Intentionally passing empty string for session_id in the new format (session information not required)
@@ -153,6 +244,9 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 		"owner_email", record.OwnerEmail,
 		"app_id", record.AppID)
 
+	pce.storePendingCache(ownerID, req.AppID, record)
+	pce.storeConsentCache(ownerID, req.AppID, record)
+
 	return record, nil
 }
 
@@ -171,7 +265,7 @@ func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*ConsentRe
 		WHERE consent_id = $1
 	`
 
-	row := pce.db.QueryRow(querySQL, consentID)
+	row := pce.queryRow("get_consent_status", querySQL, consentID)
 
 	var record ConsentRecord
 
@@ -188,6 +282,12 @@ func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*ConsentRe
 		return nil, fmt.Errorf("failed to retrieve consent record: %w", err)
 	}
 
+	if record.Status == string(StatusPending) {
+		pce.storePendingCache(record.OwnerID, record.AppID, &record)
+	} else {
+		pce.storePendingCache(record.OwnerID, record.AppID, nil)
+	}
+	pce.storeConsentCache(record.OwnerID, record.AppID, &record)
 	return &record, nil
 }
 
@@ -232,7 +332,7 @@ func (pce *postgresConsentEngine) UpdateConsent(consentID string, req UpdateCons
 		WHERE consent_id = $7
 	`
 
-	_, err = pce.db.Exec(updateSQL,
+	_, err = pce.exec("update_consent", updateSQL,
 		string(req.Status), now, expiresAt, grantDuration,
 		pq.Array(fields), req.UpdatedBy, consentID)
 
@@ -253,6 +353,13 @@ func (pce *postgresConsentEngine) UpdateConsent(consentID string, req UpdateCons
 		"consent_id", updatedRecord.ConsentID,
 		"owner_id", updatedRecord.OwnerID,
 		"status", updatedRecord.Status)
+
+	if req.Status == StatusPending {
+		pce.storePendingCache(existingRecord.OwnerID, existingRecord.AppID, &updatedRecord)
+	} else {
+		pce.storePendingCache(existingRecord.OwnerID, existingRecord.AppID, nil)
+	}
+	pce.storeConsentCache(existingRecord.OwnerID, existingRecord.AppID, &updatedRecord)
 
 	return &updatedRecord, nil
 }
@@ -280,7 +387,7 @@ func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error)
 		WHERE expires_at < $1 AND status = 'approved'
 	`
 
-	rows, err := pce.db.Query(querySQL, now)
+	rows, err := pce.queryRows("select_expired_consents", querySQL, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query expired records: %w", err)
 	}
@@ -303,13 +410,14 @@ func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error)
 
 		// Delete the expired record
 		deleteSQL := `DELETE FROM consent_records WHERE consent_id = $1`
-		_, err = pce.db.Exec(deleteSQL, record.ConsentID)
+		_, err = pce.exec("delete_expired_consent", deleteSQL, record.ConsentID)
 		if err != nil {
 			slog.Error("Failed to delete expired consent", "consent_id", record.ConsentID, "error", err)
 			continue
 		}
 
 		deletedRecords = append(deletedRecords, &record)
+		pce.deleteConsentCaches(record.OwnerID, record.AppID)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -367,7 +475,11 @@ func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID st
 		LIMIT 1
 	`
 
-	row := pce.db.QueryRow(querySQL, ownerID, appID)
+	if cached, ok := pce.loadConsentCache(ownerID, appID); ok {
+		return cached, nil
+	}
+
+	row := pce.queryRow("find_existing_consent", querySQL, ownerID, appID)
 
 	var record ConsentRecord
 
@@ -384,6 +496,7 @@ func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID st
 		return nil, fmt.Errorf("failed to query existing consent: %w", err)
 	}
 
+	pce.storeConsentCache(ownerID, appID, &record)
 	return &record, nil
 }
 
@@ -400,7 +513,11 @@ func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 		LIMIT 1
 	`
 
-	row := pce.db.QueryRow(querySQL, ownerID, appID)
+	if cached, ok := pce.loadPendingCache(ownerID, appID); ok {
+		return cached, nil
+	}
+
+	row := pce.queryRow("find_pending_consent", querySQL, ownerID, appID)
 
 	var record ConsentRecord
 
@@ -417,6 +534,7 @@ func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 		return nil, fmt.Errorf("failed to query existing consent: %w", err)
 	}
 
+	pce.storePendingCache(ownerID, appID, &record)
 	return &record, nil
 }
 
@@ -448,7 +566,7 @@ func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 		WHERE consent_id = $6
 	`
 
-	_, err = pce.db.Exec(updateSQL,
+	_, err = pce.exec("update_existing_consent", updateSQL,
 		pq.Array(allFields), now, grantDuration, expiresAt, existingConsent.OwnerID, existingConsent.ConsentID)
 
 	if err != nil {
@@ -461,6 +579,13 @@ func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 	updatedRecord.GrantDuration = grantDuration
 	updatedRecord.ExpiresAt = expiresAt
 	updatedRecord.UpdatedAt = now
+
+	pce.storeConsentCache(existingConsent.OwnerID, existingConsent.AppID, &updatedRecord)
+	if updatedRecord.Status == string(StatusPending) {
+		pce.storePendingCache(existingConsent.OwnerID, existingConsent.AppID, &updatedRecord)
+	} else {
+		pce.storePendingCache(existingConsent.OwnerID, existingConsent.AppID, nil)
+	}
 
 	return &updatedRecord, nil
 }
@@ -477,7 +602,11 @@ func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID str
 		LIMIT 1
 	`
 
-	row := pce.db.QueryRow(querySQL, consumerAppID, ownerID)
+	if cached, ok := pce.loadConsentCache(ownerID, consumerAppID); ok {
+		return cached
+	}
+
+	row := pce.queryRow("find_consent_consumer_owner", querySQL, consumerAppID, ownerID)
 
 	var record ConsentRecord
 
@@ -495,6 +624,7 @@ func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID str
 		return nil
 	}
 
+	pce.storeConsentCache(ownerID, consumerAppID, &record)
 	return &record
 }
 
@@ -534,7 +664,7 @@ func (pce *postgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*C
 		ORDER BY created_at DESC
 	`
 
-	rows, err := pce.db.Query(querySQL, dataOwner)
+	rows, err := pce.queryRows("consents_by_owner", querySQL, dataOwner)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query consents by data owner: %w", err)
 	}
@@ -575,7 +705,7 @@ func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*Con
 		ORDER BY created_at DESC
 	`
 
-	rows, err := pce.db.Query(querySQL, consumer)
+	rows, err := pce.queryRows("consents_by_consumer", querySQL, consumer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query consents by consumer: %w", err)
 	}
