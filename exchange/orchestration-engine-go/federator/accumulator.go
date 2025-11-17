@@ -678,7 +678,7 @@ func isArrayFieldValue(fieldName string, value interface{}) bool {
 
 // isArrayFieldInSchema checks if a field is an array field based on the schema definition
 func isArrayFieldInSchema(schema *ast.Document, parentTypeName, fieldName string) bool {
-	if schema == nil {
+	if schema == nil || parentTypeName == "" {
 		return false
 	}
 
@@ -705,6 +705,10 @@ func isArrayFieldInSchema(schema *ast.Document, parentTypeName, fieldName string
 
 // getArrayElementTypeNameFromSchema dynamically derives array element type names from the schema
 func getArrayElementTypeNameFromSchema(schema *ast.Document, parentTypeName, arrayFieldName string) string {
+	if schema == nil || parentTypeName == "" {
+		return ""
+	}
+
 	// Find the parent type definition in the schema
 	for _, def := range schema.Definitions {
 		if objType, ok := def.(*ast.ObjectDefinition); ok {
