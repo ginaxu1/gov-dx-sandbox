@@ -1,5 +1,7 @@
 package models
 
+import "fmt"
+
 // AuthorizationMode defines how the system behaves when no explicit permission is defined for an endpoint
 type AuthorizationMode string
 
@@ -163,4 +165,132 @@ func (r Role) String() string {
 func (r Role) IsValid() bool {
 	_, exists := RolePermissions[r]
 	return exists
+}
+
+// GetAllPermissions returns a list of all defined permissions in the system
+// This is useful for documentation, validation, and testing purposes
+func GetAllPermissions() []Permission {
+	return []Permission{
+		// Schema permissions
+		PermissionCreateSchema,
+		PermissionReadSchema,
+		PermissionUpdateSchema,
+		PermissionDeleteSchema,
+		PermissionReadAllSchemas,
+		// Schema submission permissions
+		PermissionCreateSchemaSubmission,
+		PermissionReadSchemaSubmission,
+		PermissionUpdateSchemaSubmission,
+		PermissionDeleteSchemaSubmission,
+		PermissionReadAllSchemaSubmissions,
+		PermissionApproveSchemaSubmission,
+		// Application permissions
+		PermissionCreateApplication,
+		PermissionReadApplication,
+		PermissionUpdateApplication,
+		PermissionDeleteApplication,
+		PermissionReadAllApplications,
+		// Application submission permissions
+		PermissionCreateApplicationSubmission,
+		PermissionReadApplicationSubmission,
+		PermissionUpdateApplicationSubmission,
+		PermissionDeleteApplicationSubmission,
+		PermissionReadAllApplicationSubmissions,
+		PermissionApproveApplicationSubmission,
+		// Member permissions
+		PermissionCreateMember,
+		PermissionReadMember,
+		PermissionUpdateMember,
+		PermissionDeleteMember,
+		PermissionReadAllMembers,
+	}
+}
+
+// ValidateRolePermissions ensures all permissions assigned to roles are valid
+// Returns a list of errors if any invalid permissions are found
+func ValidateRolePermissions() []error {
+	var errors []error
+	allPermissions := make(map[Permission]bool)
+	
+	// Build set of all valid permissions
+	for _, perm := range GetAllPermissions() {
+		allPermissions[perm] = true
+	}
+
+	// Validate each role's permissions
+	for role, permissions := range RolePermissions {
+		for _, perm := range permissions {
+			if !allPermissions[perm] {
+				errors = append(errors, fmt.Errorf("role %s has invalid permission: %s", role, perm))
+			}
+		}
+	}
+
+	return errors
+}
+
+// GetPermissionsByResourceType groups permissions by their resource type
+// Useful for documentation and permission management UIs
+func GetPermissionsByResourceType() map[string][]Permission {
+	return map[string][]Permission{
+		"schema": {
+			PermissionCreateSchema,
+			PermissionReadSchema,
+			PermissionUpdateSchema,
+			PermissionDeleteSchema,
+			PermissionReadAllSchemas,
+		},
+		"schema_submission": {
+			PermissionCreateSchemaSubmission,
+			PermissionReadSchemaSubmission,
+			PermissionUpdateSchemaSubmission,
+			PermissionDeleteSchemaSubmission,
+			PermissionReadAllSchemaSubmissions,
+			PermissionApproveSchemaSubmission,
+		},
+		"application": {
+			PermissionCreateApplication,
+			PermissionReadApplication,
+			PermissionUpdateApplication,
+			PermissionDeleteApplication,
+			PermissionReadAllApplications,
+		},
+		"application_submission": {
+			PermissionCreateApplicationSubmission,
+			PermissionReadApplicationSubmission,
+			PermissionUpdateApplicationSubmission,
+			PermissionDeleteApplicationSubmission,
+			PermissionReadAllApplicationSubmissions,
+			PermissionApproveApplicationSubmission,
+		},
+		"member": {
+			PermissionCreateMember,
+			PermissionReadMember,
+			PermissionUpdateMember,
+			PermissionDeleteMember,
+			PermissionReadAllMembers,
+		},
+	}
+}
+
+// GetPermissionsByRole returns all permissions for a given role
+func GetPermissionsByRole(role Role) []Permission {
+	if permissions, exists := RolePermissions[role]; exists {
+		// Return a copy to prevent external modification
+		result := make([]Permission, len(permissions))
+		copy(result, permissions)
+		return result
+	}
+	return []Permission{}
+}
+
+// IsValidPermission checks if a permission string is valid
+func IsValidPermission(perm Permission) bool {
+	allPermissions := GetAllPermissions()
+	for _, validPerm := range allPermissions {
+		if perm == validPerm {
+			return true
+		}
+	}
+	return false
 }

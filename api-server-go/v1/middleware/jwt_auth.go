@@ -20,6 +20,17 @@ import (
 	authutils "github.com/gov-dx-sandbox/api-server-go/v1/utils"
 )
 
+const (
+	// MaxJWTTokenSize is the maximum allowed size for a JWT token in bytes
+	// Most HTTP servers and proxies have header size limits (typically 8KB-16KB)
+	// JWT tokens are sent in the Authorization header, so we enforce a conservative 8KB limit
+	MaxJWTTokenSize = 8 * 1024 // 8KB
+
+	// JWTTokenSizeWarningThreshold is the size at which we log a warning
+	// Tokens approaching the limit may indicate excessive claims data
+	JWTTokenSizeWarningThreshold = 6 * 1024 // 6KB
+)
+
 // JWKS represents the JSON Web Key Set structure
 type JWKS struct {
 	Keys []JWK `json:"keys"`
@@ -60,8 +71,53 @@ type JWTAuthConfig struct {
 	Timeout        time.Duration
 }
 
+// ValidateJWTAuthConfig validates the JWT authentication configuration
+// Returns an error if the configuration is invalid
+func ValidateJWTAuthConfig(config JWTAuthConfig) error {
+	if config.JWKSURL == "" {
+		return fmt.Errorf("JWKS URL is required")
+	}
+
+	// Validate JWKS URL uses HTTPS (security requirement)
+	// Allow http://localhost and http://127.0.0.1 for local development only
+	if !strings.HasPrefix(config.JWKSURL, "https://") {
+		isLocalhost := strings.HasPrefix(config.JWKSURL, "http://localhost") ||
+			strings.HasPrefix(config.JWKSURL, "http://127.0.0.1") ||
+			strings.HasPrefix(config.JWKSURL, "http://[::1]")
+		
+		if !isLocalhost {
+			return fmt.Errorf("JWKS URL must use HTTPS (http://localhost allowed for local development only): %s", config.JWKSURL)
+		}
+		slog.Warn("JWKS URL uses HTTP - only allowed for localhost in development",
+			"jwks_url", config.JWKSURL)
+	}
+
+	if config.ExpectedIssuer == "" {
+		return fmt.Errorf("expected issuer is required")
+	}
+
+	if len(config.ValidClientIDs) == 0 {
+		return fmt.Errorf("at least one valid client ID is required")
+	}
+
+	// Validate client IDs are not empty
+	for i, clientID := range config.ValidClientIDs {
+		if clientID == "" {
+			return fmt.Errorf("client ID at index %d is empty", i)
+		}
+	}
+
+	return nil
+}
+
 // NewJWTAuthMiddleware creates a new JWT authentication middleware
-func NewJWTAuthMiddleware(config JWTAuthConfig) *JWTAuthMiddleware {
+// Validates configuration and returns an error if invalid
+func NewJWTAuthMiddleware(config JWTAuthConfig) (*JWTAuthMiddleware, error) {
+	// Validate configuration
+	if err := ValidateJWTAuthConfig(config); err != nil {
+		return nil, fmt.Errorf("invalid JWT auth configuration: %w", err)
+	}
+
 	timeout := config.Timeout
 	if timeout == 0 {
 		timeout = 10 * time.Second
@@ -76,7 +132,7 @@ func NewJWTAuthMiddleware(config JWTAuthConfig) *JWTAuthMiddleware {
 			Timeout: timeout,
 		},
 		keys: make(map[string]*rsa.PublicKey),
-	}
+	}, nil
 }
 
 // AuthenticateJWT returns a middleware function that validates JWT tokens
@@ -94,6 +150,28 @@ func (j *JWTAuthMiddleware) AuthenticateJWT(next http.Handler) http.Handler {
 			slog.Warn("Failed to extract bearer token", "error", err, "path", r.URL.Path, "method", r.Method)
 			sharedutils.RespondWithError(w, http.StatusUnauthorized, "Invalid or missing authorization header")
 			return
+		}
+
+		// Validate token size to prevent oversized tokens
+		tokenSize := len(tokenString)
+		if tokenSize > MaxJWTTokenSize {
+			slog.Error("JWT token exceeds maximum size",
+				"token_size", tokenSize,
+				"max_size", MaxJWTTokenSize,
+				"path", r.URL.Path,
+				"method", r.Method)
+			sharedutils.RespondWithError(w, http.StatusBadRequest, "Token size exceeds maximum allowed limit")
+			return
+		}
+
+		// Log warning for tokens approaching size limit
+		if tokenSize > JWTTokenSizeWarningThreshold {
+			slog.Warn("JWT token approaching size limit",
+				"token_size", tokenSize,
+				"warning_threshold", JWTTokenSizeWarningThreshold,
+				"max_size", MaxJWTTokenSize,
+				"path", r.URL.Path,
+				"method", r.Method)
 		}
 
 		// Validate and parse the token

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestJWTAuthMiddleware_ThreadSafety tests that concurrent access to keys map is safe
@@ -18,7 +20,8 @@ func TestJWTAuthMiddleware_ThreadSafety(t *testing.T) {
 		Timeout:        5 * time.Second,
 	}
 
-	middleware := NewJWTAuthMiddleware(config)
+	middleware, err := NewJWTAuthMiddleware(config)
+	require.NoError(t, err)
 
 	// Initialize with some test keys to simulate real scenario
 	middleware.keysMutex.Lock()
@@ -113,7 +116,8 @@ func TestJWTAuthMiddleware_KeyUpdateAtomicity(t *testing.T) {
 		Timeout:        5 * time.Second,
 	}
 
-	middleware := NewJWTAuthMiddleware(config)
+	middleware, err := NewJWTAuthMiddleware(config)
+	require.NoError(t, err)
 
 	// Initialize with initial state
 	middleware.keysMutex.Lock()
@@ -184,7 +188,10 @@ func BenchmarkJWTAuthMiddleware_ConcurrentKeyAccess(b *testing.B) {
 		Timeout:        5 * time.Second,
 	}
 
-	middleware := NewJWTAuthMiddleware(config)
+	middleware, err := NewJWTAuthMiddleware(config)
+	if err != nil {
+		b.Fatalf("Failed to create middleware: %v", err)
+	}
 
 	// Initialize with test keys
 	middleware.keysMutex.Lock()

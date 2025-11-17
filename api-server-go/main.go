@@ -64,7 +64,11 @@ func main() {
 		OrgName:        utils.GetEnvOrDefault("ASGARDEO_ORG_NAME", ""),
 		Timeout:        10 * time.Second,
 	}
-	jwtAuthMiddleware := v1middleware.NewJWTAuthMiddleware(jwtConfig)
+	jwtAuthMiddleware, err := v1middleware.NewJWTAuthMiddleware(jwtConfig)
+	if err != nil {
+		slog.Error("Failed to initialize JWT authentication middleware", "error", err)
+		os.Exit(1)
+	}
 
 	// Setup Authorization middleware with configurable security policy
 	authMode := utils.GetEnvOrDefault("AUTHORIZATION_MODE", "fail_open_admin_system")
@@ -85,6 +89,17 @@ func main() {
 	authConfig.StrictMode = strictMode
 
 	authorizationMiddleware := v1middleware.NewAuthorizationMiddlewareWithConfig(authConfig)
+
+	// Validate role permissions at startup (fail fast if configuration is invalid)
+	if permErrors := v1models.ValidateRolePermissions(); len(permErrors) > 0 {
+		slog.Error("Invalid role permission configuration detected at startup",
+			"error_count", len(permErrors))
+		for _, permErr := range permErrors {
+			slog.Error("Permission validation error", "error", permErr)
+		}
+		os.Exit(1)
+	}
+	slog.Info("Role permissions validated successfully")
 
 	// Setup Audit middleware, reading the correct connection variable
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
