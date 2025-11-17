@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -10,10 +11,20 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/server"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/telemetry"
 )
 
 func main() {
 	logger.Init()
+
+	ctx := context.Background()
+	shutdown, err := telemetry.Init(ctx, "orchestration-engine")
+	if err != nil {
+		log.Fatalf("Failed to initialize telemetry: %v", err)
+	}
+	defer func() {
+		_ = shutdown(context.Background())
+	}()
 
 	// Load configuration with proper error handling
 	config, err := configs.LoadConfig()

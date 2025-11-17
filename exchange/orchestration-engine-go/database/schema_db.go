@@ -1,10 +1,12 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/telemetry"
 	_ "github.com/lib/pq"
 )
 
@@ -15,22 +17,27 @@ type SchemaDB struct {
 
 // NewSchemaDB creates a new schema database connection
 func NewSchemaDB(connectionString string) (*SchemaDB, error) {
+	start := time.Now()
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), err)
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	if pingErr := db.Ping(); pingErr != nil {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), pingErr)
+		return nil, fmt.Errorf("failed to ping database: %w", pingErr)
 	}
 
 	schemaDB := &SchemaDB{db: db}
 
 	// Create tables if they don't exist
 	if err := schemaDB.createTables(); err != nil {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), err)
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
+	telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), nil)
 	return schemaDB, nil
 }
 
@@ -41,6 +48,11 @@ func (s *SchemaDB) Close() error {
 
 // createTables creates the necessary tables
 func (s *SchemaDB) createTables() error {
+	start := time.Now()
+	var err error
+	defer func() {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "createTables", time.Since(start), err)
+	}()
 	// Create unified_schemas table
 	createSchemasTable := `
 	CREATE TABLE IF NOT EXISTS unified_schemas (
@@ -56,8 +68,9 @@ func (s *SchemaDB) createTables() error {
 		is_active BOOLEAN DEFAULT FALSE
 	);`
 
-	if _, err := s.db.Exec(createSchemasTable); err != nil {
-		return fmt.Errorf("failed to create unified_schemas table: %w", err)
+	if _, execErr := s.db.Exec(createSchemasTable); execErr != nil {
+		err = fmt.Errorf("failed to create unified_schemas table: %w", execErr)
+		return err
 	}
 
 	// Create schema_versions table for change tracking
@@ -72,8 +85,9 @@ func (s *SchemaDB) createTables() error {
 		created_by VARCHAR(255) NOT NULL
 	);`
 
-	if _, err := s.db.Exec(createVersionsTable); err != nil {
-		return fmt.Errorf("failed to create schema_versions table: %w", err)
+	if _, execErr := s.db.Exec(createVersionsTable); execErr != nil {
+		err = fmt.Errorf("failed to create schema_versions table: %w", execErr)
+		return err
 	}
 
 	return nil
@@ -94,84 +108,106 @@ type Schema struct {
 }
 
 // CreateSchema creates a new schema in the database
-func (s *SchemaDB) CreateSchema(schema *Schema) error {
+func (s *SchemaDB) CreateSchema(schema *Schema) (err error) {
+	start := time.Now()
+	defer func() {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "CreateSchema", time.Since(start), err)
+	}()
 	query := `
 		INSERT INTO unified_schemas (id, version, sdl, status, description, created_by, checksum, is_active)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
-	_, err := s.db.Exec(query, schema.ID, schema.Version, schema.SDL, schema.Status,
+	_, execErr := s.db.Exec(query, schema.ID, schema.Version, schema.SDL, schema.Status,
 		schema.Description, schema.CreatedBy, schema.Checksum, schema.IsActive)
 
-	if err != nil {
-		return fmt.Errorf("failed to create schema: %w", err)
+	if execErr != nil {
+		err = fmt.Errorf("failed to create schema: %w", execErr)
+		return err
 	}
 
 	return nil
 }
 
 // GetSchemaByVersion retrieves a schema by version
-func (s *SchemaDB) GetSchemaByVersion(version string) (*Schema, error) {
+func (s *SchemaDB) GetSchemaByVersion(version string) (_ *Schema, err error) {
+	start := time.Now()
+	defer func() {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "GetSchemaByVersion", time.Since(start), err)
+	}()
 	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
 			  FROM unified_schemas WHERE version = $1`
 
 	row := s.db.QueryRow(query, version)
 
 	schema := &Schema{}
-	err := row.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.Status,
+	scanErr := row.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.Status,
 		&schema.Description, &schema.CreatedAt, &schema.UpdatedAt, &schema.CreatedBy,
 		&schema.Checksum, &schema.IsActive)
 
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("schema version %s not found", version)
+	if scanErr != nil {
+		if scanErr == sql.ErrNoRows {
+			err = fmt.Errorf("schema version %s not found", version)
+			return nil, err
 		}
-		return nil, fmt.Errorf("failed to get schema: %w", err)
+		err = fmt.Errorf("failed to get schema: %w", scanErr)
+		return nil, err
 	}
 
 	return schema, nil
 }
 
 // GetActiveSchema retrieves the currently active schema
-func (s *SchemaDB) GetActiveSchema() (*Schema, error) {
+func (s *SchemaDB) GetActiveSchema() (_ *Schema, err error) {
+	start := time.Now()
+	defer func() {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "GetActiveSchema", time.Since(start), err)
+	}()
 	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
 			  FROM unified_schemas WHERE is_active = TRUE LIMIT 1`
 
 	row := s.db.QueryRow(query)
 
 	schema := &Schema{}
-	err := row.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.Status,
+	scanErr := row.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.Status,
 		&schema.Description, &schema.CreatedAt, &schema.UpdatedAt, &schema.CreatedBy,
 		&schema.Checksum, &schema.IsActive)
 
-	if err != nil {
-		if err == sql.ErrNoRows {
+	if scanErr != nil {
+		if scanErr == sql.ErrNoRows {
 			return nil, nil // No active schema
 		}
-		return nil, fmt.Errorf("failed to get active schema: %w", err)
+		err = fmt.Errorf("failed to get active schema: %w", scanErr)
+		return nil, err
 	}
 
 	return schema, nil
 }
 
 // GetAllSchemas retrieves all schemas
-func (s *SchemaDB) GetAllSchemas() ([]*Schema, error) {
+func (s *SchemaDB) GetAllSchemas() (_ []*Schema, err error) {
+	start := time.Now()
+	defer func() {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "GetAllSchemas", time.Since(start), err)
+	}()
 	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
 			  FROM unified_schemas ORDER BY created_at DESC`
 
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get schemas: %w", err)
+	rows, queryErr := s.db.Query(query)
+	if queryErr != nil {
+		err = fmt.Errorf("failed to get schemas: %w", queryErr)
+		return nil, err
 	}
 	defer rows.Close()
 
 	var schemas []*Schema
 	for rows.Next() {
 		schema := &Schema{}
-		err := rows.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.Status,
+		scanErr := rows.Scan(&schema.ID, &schema.Version, &schema.SDL, &schema.Status,
 			&schema.Description, &schema.CreatedAt, &schema.UpdatedAt, &schema.CreatedBy,
 			&schema.Checksum, &schema.IsActive)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan schema: %w", err)
+		if scanErr != nil {
+			err = fmt.Errorf("failed to scan schema: %w", scanErr)
+			return nil, err
 		}
 		schemas = append(schemas, schema)
 	}
@@ -180,38 +216,48 @@ func (s *SchemaDB) GetAllSchemas() ([]*Schema, error) {
 }
 
 // ActivateSchema activates a specific schema version
-func (s *SchemaDB) ActivateSchema(version string) error {
+func (s *SchemaDB) ActivateSchema(version string) (err error) {
+	start := time.Now()
+	defer func() {
+		telemetry.RecordExternalCall(context.Background(), "postgres", "ActivateSchema", time.Since(start), err)
+	}()
 	// Start transaction
 	tx, err := s.db.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		err = fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
 	defer tx.Rollback()
 
 	// Deactivate all schemas
 	_, err = tx.Exec("UPDATE unified_schemas SET is_active = FALSE")
 	if err != nil {
-		return fmt.Errorf("failed to deactivate schemas: %w", err)
+		err = fmt.Errorf("failed to deactivate schemas: %w", err)
+		return err
 	}
 
 	// Activate the specified version
 	result, err := tx.Exec("UPDATE unified_schemas SET is_active = TRUE WHERE version = $1", version)
 	if err != nil {
-		return fmt.Errorf("failed to activate schema: %w", err)
+		err = fmt.Errorf("failed to activate schema: %w", err)
+		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		err = fmt.Errorf("failed to get rows affected: %w", err)
+		return err
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("schema version %s not found", version)
+		err = fmt.Errorf("schema version %s not found", version)
+		return err
 	}
 
 	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	if commitErr := tx.Commit(); commitErr != nil {
+		err = fmt.Errorf("failed to commit transaction: %w", commitErr)
+		return err
 	}
 
 	return nil
