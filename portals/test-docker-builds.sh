@@ -11,15 +11,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Find an available host port starting from requested port
-find_free_port() {
-    local port=$1
-    while lsof -ti tcp:"${port}" >/dev/null 2>&1 || docker ps --format '{{.Ports}}' | grep -q ":${port}->"; do
-        port=$((port + 1))
-    done
-    echo "${port}"
-}
-
 # Function to test a portal
 test_portal() {
     local portal_name=$1
@@ -53,14 +44,8 @@ test_portal() {
     # Clean up any previous container with the same name
     docker rm -f "${portal_name}-test" >/dev/null 2>&1 || true
 
-    local host_port
-    host_port=$(find_free_port "${port}")
-    if [ "${host_port}" != "${port}" ]; then
-        echo -e "${YELLOW}Port ${port} busy, using ${host_port} instead...${NC}"
-    fi
-
-    echo -e "${YELLOW}Starting container for ${portal_name} on port ${host_port}...${NC}"
-    CONTAINER_ID=$(docker run -d -p "${host_port}:80" --name "${portal_name}-test" "${portal_name}:test" 2>/dev/null || echo "")
+    echo -e "${YELLOW}Starting container for ${portal_name} on port ${port}...${NC}"
+    CONTAINER_ID=$(docker run -d -p "${port}:80" --name "${portal_name}-test" "${portal_name}:test" 2>/dev/null || echo "")
     
     if [ -z "$CONTAINER_ID" ]; then
         echo -e "${RED}✗ Failed to start container${NC}"
@@ -81,7 +66,7 @@ test_portal() {
     
     # Test health check endpoint
     echo -e "${YELLOW}Testing health check endpoint...${NC}"
-    if curl -f -s "http://localhost:${host_port}/health" | grep -q "healthy"; then
+    if curl -f -s "http://localhost:${port}/health" | grep -q "healthy"; then
         echo -e "${GREEN}✓ Health check passed${NC}"
     else
         echo -e "${RED}✗ Health check failed${NC}"
@@ -91,7 +76,7 @@ test_portal() {
     
     # Test main page
     echo -e "${YELLOW}Testing main page...${NC}"
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${host_port}/")
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${port}/")
     if [ "$HTTP_CODE" = "200" ]; then
         echo -e "${GREEN}✓ Main page returns 200${NC}"
     else
@@ -102,7 +87,7 @@ test_portal() {
     
     # Test React Router (should redirect to index.html)
     echo -e "${YELLOW}Testing React Router (404 redirect)...${NC}"
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${host_port}/nonexistent-route")
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${port}/nonexistent-route")
     if [ "$HTTP_CODE" = "200" ]; then
         echo -e "${GREEN}✓ React Router redirect works (404 -> index.html)${NC}"
     else
@@ -113,7 +98,7 @@ test_portal() {
     
     # Check if index.html is served
     echo -e "${YELLOW}Verifying index.html content...${NC}"
-    if curl -s "http://localhost:${host_port}/" | grep -q "<!DOCTYPE html\|<html"; then
+    if curl -s "http://localhost:${port}/" | grep -q "<!DOCTYPE html\|<html"; then
         echo -e "${GREEN}✓ index.html is being served${NC}"
     else
         echo -e "${RED}✗ index.html not found or invalid${NC}"
@@ -125,6 +110,7 @@ test_portal() {
     echo -e "${YELLOW}Cleaning up...${NC}"
     docker stop "${portal_name}-test" >/dev/null 2>&1 || true
     docker rm -f "${portal_name}-test" >/dev/null 2>&1 || true
+    docker rmi "${portal_name}:test" >/dev/null 2>&1 || true
     
     echo -e "${GREEN}✓ All tests passed for ${portal_name}${NC}\n"
     return 0
