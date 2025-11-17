@@ -57,8 +57,6 @@ func TestNewSchemaDB_InvalidConnection(t *testing.T) {
 	// PostgreSQL connection will fail on ping, not on open
 	_, err := NewSchemaDB("host=invalid port=5432 user=test password=test dbname=test sslmode=disable")
 	assert.Error(t, err)
-	// Error could be from open or ping
-	assert.True(t, err != nil, "Should return error for invalid connection")
 }
 
 func TestSchemaDB_CreateSchema(t *testing.T) {

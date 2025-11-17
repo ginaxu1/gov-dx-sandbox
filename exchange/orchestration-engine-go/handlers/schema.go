@@ -8,13 +8,23 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// SchemaService defines the behavior SchemaHandler depends on.
+type SchemaService interface {
+	CreateSchema(version, sdl, createdBy string) (*services.Schema, error)
+	GetAllSchemas() ([]services.Schema, error)
+	GetActiveSchema() (*services.Schema, error)
+	ActivateSchema(version string) error
+	ValidateSDL(sdl string) bool
+	CheckCompatibility(newSDL string) (bool, string)
+}
+
 // SchemaHandler handles HTTP requests for schema management
 type SchemaHandler struct {
-	schemaService *services.SchemaService
+	schemaService SchemaService
 }
 
 // NewSchemaHandler creates a new schema handler
-func NewSchemaHandler(schemaService *services.SchemaService) *SchemaHandler {
+func NewSchemaHandler(schemaService SchemaService) *SchemaHandler {
 	return &SchemaHandler{
 		schemaService: schemaService,
 	}

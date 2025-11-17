@@ -122,7 +122,6 @@ func TestQueryParsing(t *testing.T) {
 }
 
 func TestSchemaCollection(t *testing.T) {
-	//t.Skip("Skipping schema collection test - requires config initialization")
 	// Create a mock schema with @sourceInfo directives
 	schemaSDL := `
 		directive @sourceInfo(
@@ -309,9 +308,6 @@ func TestSchemaCollection(t *testing.T) {
 
 			assert.NoError(t, err, tt.description)
 			assert.NotNil(t, response, "Response should not be nil")
-			//assert.Len(t, response.ProviderFieldMap, len(tt.expectedFields), "Should extract correct number of fields")
-			//assert.Len(t, response.Arguments, tt.expectedArgs, "Should extract correct number of arguments")
-
 			assert.EqualValues(t, response.ProviderFieldMap, tt.expectedFields, "Should contain field: %s", tt.expectedFields)
 		})
 	}

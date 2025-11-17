@@ -5,11 +5,7 @@ import (
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/graphql-go/graphql/language/ast"
-	"github.com/graphql-go/graphql/language/parser"
-	"github.com/graphql-go/graphql/language/source"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -26,7 +22,7 @@ func TestAccumulateResponse_SimpleBackwardCompatibility(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQueryHelper(t, query)
+	queryDoc := ParseTestQuery(t, query)
 
 	federatedResponse := &FederationResponse{
 		Responses: []ProviderResponse{
@@ -167,8 +163,8 @@ func TestAccumulateResponseWithSchema_NoSourceInfo(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQueryHelper(t, query)
-	schema := CreateTestSchemaHelper(t)
+	queryDoc := ParseTestQuery(t, query)
+	schema := CreateTestSchema(t)
 
 	federatedResponse := &FederationResponse{
 		Responses: []ProviderResponse{
@@ -200,8 +196,8 @@ func TestAccumulateResponseWithSchema_EmptyResponse(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQueryHelper(t, query)
-	schema := CreateTestSchemaHelper(t)
+	queryDoc := ParseTestQuery(t, query)
+	schema := CreateTestSchema(t)
 
 	federatedResponse := &FederationResponse{
 		Responses: []ProviderResponse{},
@@ -221,8 +217,8 @@ func TestAccumulateResponseWithSchema_MultipleProviders(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQueryHelper(t, query)
-	schema := CreateTestSchemaHelper(t)
+	queryDoc := ParseTestQuery(t, query)
+	schema := CreateTestSchema(t)
 
 	federatedResponse := &FederationResponse{
 		Responses: []ProviderResponse{
@@ -294,43 +290,4 @@ func TestPushValue_ArrayElement(t *testing.T) {
 		vehicle := v.(map[string]interface{})
 		assert.Equal(t, "Toyota", vehicle["make"])
 	}
-}
-
-// Helper functions
-func parseTestQueryHelper(t *testing.T, query string) *ast.Document {
-	src := source.NewSource(&source.Source{
-		Body: []byte(query),
-		Name: "TestQuery",
-	})
-
-	doc, err := parser.Parse(parser.ParseParams{Source: src})
-	require.NoError(t, err, "Should parse query successfully")
-	return doc
-}
-
-func CreateTestSchemaHelper(t *testing.T) *ast.Document {
-	schemaSDL := `
-		directive @sourceInfo(
-			providerKey: String!
-			providerField: String!
-		) on FIELD_DEFINITION
-
-		type Query {
-			personInfo(nic: String!): PersonInfo
-		}
-
-		type PersonInfo {
-			fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName")
-			name: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name")
-		}
-	`
-
-	src := source.NewSource(&source.Source{
-		Body: []byte(schemaSDL),
-		Name: "TestSchema",
-	})
-
-	schema, err := parser.Parse(parser.ParseParams{Source: src})
-	require.NoError(t, err, "Should parse schema successfully")
-	return schema
 }

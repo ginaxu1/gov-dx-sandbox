@@ -6,8 +6,6 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/kinds"
-	"github.com/graphql-go/graphql/language/parser"
-	"github.com/graphql-go/graphql/language/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,8 +41,8 @@ func TestBuildSchemaInfoMap_WithArrayAndSimpleFields(t *testing.T) {
 		}
 	`
 
-	schema := parseSchemaDoc(t, schemaSDL)
-	query := parseQueryDoc(t, querySDL)
+	schema := ParseSchemaDoc(t, schemaSDL)
+	query := ParseQueryDoc(t, querySDL)
 
 	schemaInfoMap, err := BuildSchemaInfoMap(schema, query)
 	require.NoError(t, err)
@@ -92,8 +90,8 @@ func TestProcessNestedFieldsForArray(t *testing.T) {
 		}
 	`
 
-	schema := parseSchemaDoc(t, schemaSDL)
-	query := parseQueryDoc(t, querySDL)
+	schema := ParseSchemaDoc(t, schemaSDL)
+	query := ParseQueryDoc(t, querySDL)
 
 	selectionSet := query.Definitions[0].(*ast.OperationDefinition).
 		SelectionSet.Selections[0].(*ast.Field).
@@ -194,26 +192,6 @@ func TestPushArgumentValue(t *testing.T) {
 	}
 }
 
-// Helpers
-func parseSchemaDoc(t *testing.T, sdl string) *ast.Document {
-	src := source.NewSource(&source.Source{
-		Body: []byte(sdl),
-		Name: "TestSchema",
-	})
-	doc, err := parser.Parse(parser.ParseParams{Source: src})
-	require.NoError(t, err)
-	return doc
-}
-
-func parseQueryDoc(t *testing.T, query string) *ast.Document {
-	src := source.NewSource(&source.Source{
-		Body: []byte(query),
-		Name: "TestQuery",
-	})
-	doc, err := parser.Parse(parser.ParseParams{Source: src})
-	require.NoError(t, err)
-	return doc
-}
 func TestQueryBuilder(t *testing.T) {
 	tests := []struct {
 		name          string

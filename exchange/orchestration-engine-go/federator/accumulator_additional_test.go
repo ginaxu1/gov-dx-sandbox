@@ -6,10 +6,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
-	"github.com/graphql-go/graphql/language/parser"
-	"github.com/graphql-go/graphql/language/source"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -26,7 +23,7 @@ func TestAccumulateResponse_Simple(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQuery(t, query)
+	queryDoc := ParseTestQuery(t, query)
 
 	federatedResponse := &FederationResponse{
 		Responses: []ProviderResponse{
@@ -62,7 +59,7 @@ func TestAccumulateResponseWithSchemaInfo(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQuery(t, query)
+	queryDoc := ParseTestQuery(t, query)
 
 	federatedResponse := &FederationResponse{
 		Responses: []ProviderResponse{
@@ -116,7 +113,7 @@ func TestAccumulateResponseWithSchemaInfo(t *testing.T) {
 
 func TestAccumulateArrayResponse_ErrorCases(t *testing.T) {
 	query := `query { personInfo { ownedVehicles { regNo } } }`
-	queryDoc := parseTestQuery(t, query)
+	queryDoc := ParseTestQuery(t, query)
 
 	// Test with non-existent provider
 	schemaInfoMap := map[string]*SourceSchemaInfo{
@@ -278,7 +275,7 @@ func TestIsNestedFieldOfArray(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQuery(t, query)
+	queryDoc := ParseTestQuery(t, query)
 
 	tests := []struct {
 		name     string
@@ -327,7 +324,7 @@ func TestFindFieldInQuery(t *testing.T) {
 		}
 	`
 
-	queryDoc := parseTestQuery(t, query)
+	queryDoc := ParseTestQuery(t, query)
 
 	tests := []struct {
 		name      string
@@ -492,13 +489,3 @@ func TestIsArrayFieldValue(t *testing.T) {
 }
 
 // Helper function
-func parseTestQuery(t *testing.T, query string) *ast.Document {
-	src := source.NewSource(&source.Source{
-		Body: []byte(query),
-		Name: "TestQuery",
-	})
-
-	doc, err := parser.Parse(parser.ParseParams{Source: src})
-	require.NoError(t, err, "Should parse query successfully")
-	return doc
-}
