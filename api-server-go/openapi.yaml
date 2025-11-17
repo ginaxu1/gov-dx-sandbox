@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Government Data Exchange API Server
+  title: Data Exchange API Server
   description: |
     A secure, scalable Go-based REST API server for managing government data exchange workflows.
     
