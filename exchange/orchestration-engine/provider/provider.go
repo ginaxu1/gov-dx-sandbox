@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/auth"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/telemetry"
 	"golang.org/x/oauth2/clientcredentials"
 )
 
@@ -56,6 +58,8 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 
 	req.Header.Set("Content-Type", "application/json")
 
+	start := time.Now()
+
 	if p.Auth != nil {
 		switch p.Auth.Type {
 		case auth.AuthTypeOAuth2:
@@ -65,12 +69,16 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 			}
 
 			client := p.OAuth2Config.Client(ctx)
-			return client.Do(req) // Use context with request
+			resp, err := client.Do(req) // Use context with request
+			telemetry.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
+			return resp, err
 		case auth.AuthTypeAPIKey:
 			req.Header.Set(p.Auth.APIKeyName, p.Auth.APIKeyValue)
 		}
 	}
 
 	// Default client execution (for API Key or no auth)
-	return p.Client.Do(req)
+	resp, err := p.Client.Do(req)
+	telemetry.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
+	return resp, err
 }
