@@ -5,7 +5,10 @@ go 1.24.6
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0-00010101000000-000000000000
+<<<<<<< HEAD
 	github.com/golang-jwt/jwt/v5 v5.2.1
+=======
+>>>>>>> b1bb100 (Add metrics to PDP and CE too)
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
 	github.com/gov-dx-sandbox/api-server-go/shared/utils v0.0.0

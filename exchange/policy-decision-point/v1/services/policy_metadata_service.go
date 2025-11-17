@@ -1,9 +1,12 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 	"gorm.io/gorm"
@@ -279,7 +282,15 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 }
 
 // GetPolicyDecision evaluates policy decision based on policy metadata
-func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequest) (*models.PolicyDecisionResponse, error) {
+func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequest) (_ *models.PolicyDecisionResponse, err error) {
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start)
+		monitoring.RecordDecisionLatency(context.Background(), "policy_decision", duration)
+		if err != nil {
+			monitoring.RecordDecisionFailure(context.Background(), classifyDecisionError(err))
+		}
+	}()
 	// Collect all unique schema IDs from the request
 	schemaIDSet := make(map[string]struct{})
 	for _, record := range req.RequiredFields {
@@ -354,7 +365,7 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 		}
 	}
 
-	response := &models.PolicyDecisionResponse{
+	resp := &models.PolicyDecisionResponse{
 		ConsentRequiredFields:   consentRequiredFields,
 		UnauthorizedFields:      unauthorizedFields,
 		ExpiredFields:           expiredFields,
@@ -363,5 +374,20 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 		AppRequiresOwnerConsent: len(consentRequiredFields) > 0,
 	}
 
-	return response, nil
+	return resp, nil
+}
+
+func classifyDecisionError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "not found"):
+		return "not_found"
+	case strings.Contains(msg, "fetch policy metadata"):
+		return "db_error"
+	default:
+		return "decision_error"
+	}
 }
