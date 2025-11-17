@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -699,6 +700,20 @@ func main() {
 	// Setup logging
 	utils.SetupLogging(cfg.Logging.Format, cfg.Logging.Level)
 
+	monitorCtx := context.Background()
+	shutdownMetrics, err := monitoring.Setup(monitorCtx, monitoring.Config{
+		ServiceName: "consent-engine",
+		ResourceAttrs: map[string]string{
+			"environment": cfg.Environment,
+			"version":     Version,
+		},
+	})
+	if err != nil {
+		slog.Error("Failed to initialize telemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownMetrics(context.Background()) }()
+
 	slog.Info("Starting consent engine",
 		"environment", cfg.Environment,
 		"port", cfg.Service.Port,
@@ -789,6 +804,7 @@ func main() {
 	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
 	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+	mux.Handle("/metrics", monitoring.Handler())
 
 	// Routes for /consents/{id} with selective authentication (GET and PUT require auth, PATCH and DELETE don't)
 	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(selectiveAuthMiddleware(userJWTVerifier, engine, userTokenConfig, []string{"GET", "PUT"})(http.HandlerFunc(server.consentHandlerWithID))))
@@ -802,7 +818,7 @@ func main() {
 	}
 
 	// Wrap the mux with CORS middleware
-	handler := corsMiddleware(mux)
+	handler := corsMiddleware(monitoring.HTTPMetricsMiddleware(mux))
 	httpServer := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
