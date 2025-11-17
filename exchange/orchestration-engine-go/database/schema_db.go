@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/telemetry"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	_ "github.com/lib/pq"
 )
 
@@ -20,12 +20,12 @@ func NewSchemaDB(connectionString string) (*SchemaDB, error) {
 	start := time.Now()
 	db, err := sql.Open("postgres", connectionString)
 	if err != nil {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), err)
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	if pingErr := db.Ping(); pingErr != nil {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), pingErr)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), pingErr)
 		return nil, fmt.Errorf("failed to ping database: %w", pingErr)
 	}
 
@@ -33,11 +33,11 @@ func NewSchemaDB(connectionString string) (*SchemaDB, error) {
 
 	// Create tables if they don't exist
 	if err := schemaDB.createTables(); err != nil {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), err)
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
-	telemetry.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), nil)
+	monitoring.RecordExternalCall(context.Background(), "postgres", "connect", time.Since(start), nil)
 	return schemaDB, nil
 }
 
@@ -51,7 +51,7 @@ func (s *SchemaDB) createTables() error {
 	start := time.Now()
 	var err error
 	defer func() {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "createTables", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "createTables", time.Since(start), err)
 	}()
 	// Create unified_schemas table
 	createSchemasTable := `
@@ -111,7 +111,7 @@ type Schema struct {
 func (s *SchemaDB) CreateSchema(schema *Schema) (err error) {
 	start := time.Now()
 	defer func() {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "CreateSchema", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "CreateSchema", time.Since(start), err)
 	}()
 	query := `
 		INSERT INTO unified_schemas (id, version, sdl, status, description, created_by, checksum, is_active)
@@ -132,7 +132,7 @@ func (s *SchemaDB) CreateSchema(schema *Schema) (err error) {
 func (s *SchemaDB) GetSchemaByVersion(version string) (_ *Schema, err error) {
 	start := time.Now()
 	defer func() {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "GetSchemaByVersion", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "GetSchemaByVersion", time.Since(start), err)
 	}()
 	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
 			  FROM unified_schemas WHERE version = $1`
@@ -160,7 +160,7 @@ func (s *SchemaDB) GetSchemaByVersion(version string) (_ *Schema, err error) {
 func (s *SchemaDB) GetActiveSchema() (_ *Schema, err error) {
 	start := time.Now()
 	defer func() {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "GetActiveSchema", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "GetActiveSchema", time.Since(start), err)
 	}()
 	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
 			  FROM unified_schemas WHERE is_active = TRUE LIMIT 1`
@@ -187,7 +187,7 @@ func (s *SchemaDB) GetActiveSchema() (_ *Schema, err error) {
 func (s *SchemaDB) GetAllSchemas() (_ []*Schema, err error) {
 	start := time.Now()
 	defer func() {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "GetAllSchemas", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "GetAllSchemas", time.Since(start), err)
 	}()
 	query := `SELECT id, version, sdl, status, description, created_at, updated_at, created_by, checksum, is_active
 			  FROM unified_schemas ORDER BY created_at DESC`
@@ -219,7 +219,7 @@ func (s *SchemaDB) GetAllSchemas() (_ []*Schema, err error) {
 func (s *SchemaDB) ActivateSchema(version string) (err error) {
 	start := time.Now()
 	defer func() {
-		telemetry.RecordExternalCall(context.Background(), "postgres", "ActivateSchema", time.Since(start), err)
+		monitoring.RecordExternalCall(context.Background(), "postgres", "ActivateSchema", time.Since(start), err)
 	}()
 	// Start transaction
 	tx, err := s.db.Begin()
