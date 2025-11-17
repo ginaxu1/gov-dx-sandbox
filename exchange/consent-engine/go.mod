@@ -3,9 +3,9 @@ module github.com/gov-dx-sandbox/exchange/consent-engine
 go 1.24.6
 
 require (
-	github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
+	github.com/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/constants v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
@@ -46,4 +46,4 @@ replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constant
 
 replace github.com/gov-dx-sandbox/exchange/shared/utils => ./shared/utils
 
-replace github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring
+replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring
