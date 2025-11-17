@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 )
 
 type CeConfig struct {
@@ -61,6 +61,7 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 
 	logger.Log.Info("Making Consent Request to Consent Engine", "url", p.baseUrl+"/consents")
 	response, err := p.httpClient.Post(p.baseUrl+"/consents", "application/json", bytes.NewReader(requestBody))
+
 	if err != nil {
 		// handle error
 		logger.Log.Error("Consent Request Failed", "error", err)
@@ -73,6 +74,7 @@ func (p *CEClient) MakeConsentRequest(request *CERequest) (*CEResponse, error) {
 
 	var pdpResponse CEResponse
 	err = json.NewDecoder(response.Body).Decode(&pdpResponse)
+
 	if err != nil {
 		// handle error
 		logger.Log.Error("Failed to decode CE response", "error", err)
