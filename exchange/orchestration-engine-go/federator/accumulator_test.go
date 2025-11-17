@@ -1,24 +1,19 @@
-package tests
+package federator
 
 import (
-	"os"
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/parser"
+	"github.com/graphql-go/graphql/language/source"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) {
-	// Initialize logger for tests
+func init() {
 	logger.Init()
-
-	// Run tests
-	code := m.Run()
-
-	// Exit with the same code as the tests
-	os.Exit(code)
 }
 
 func TestAccumulateResponse_SingleObject(t *testing.T) {
@@ -36,8 +31,8 @@ func TestAccumulateResponse_SingleObject(t *testing.T) {
 	queryDoc := ParseTestQuery(t, query)
 
 	// Mock federated response
-	federatedResponse := &federator.FederationResponse{
-		Responses: []federator.ProviderResponse{
+	federatedResponse := &FederationResponse{
+		Responses: []ProviderResponse{
 			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
@@ -66,7 +61,7 @@ func TestAccumulateResponse_SingleObject(t *testing.T) {
 	schema := CreateTestSchema(t)
 
 	// Accumulate response with schema
-	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
+	response := AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 	// Verify response structure
 	assert.NotNil(t, response.Data)
@@ -96,8 +91,8 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 	queryDoc := ParseTestQuery(t, query)
 
 	// Mock federated response with array data
-	federatedResponse := &federator.FederationResponse{
-		Responses: []federator.ProviderResponse{
+	federatedResponse := &FederationResponse{
+		Responses: []ProviderResponse{
 			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
@@ -138,7 +133,7 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 	schema := CreateTestSchema(t)
 
 	// Accumulate response with schema
-	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
+	response := AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 	// Verify response structure
 	assert.NotNil(t, response.Data)
@@ -164,84 +159,85 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 	assert.Equal(t, "Civic", vehicle2["model"])
 }
 
-func TestAccumulateResponse_BulkQuery(t *testing.T) {
-	t.Skip("Bulk query test - future implementation")
-	// Test bulk query (future implementation)
-	query := `
-		query {
-			personInfos(nics: ["123456789V", "987654321V"]) {
-				fullName
-				name
-				address
-			}
-		}
-	`
-
-	queryDoc := ParseTestQuery(t, query)
-
-	// Mock federated response with array of persons
-	federatedResponse := &federator.FederationResponse{
-		Responses: []federator.ProviderResponse{
-			{
-				ServiceKey: "drp",
-				Response: graphql.Response{
-					Data: map[string]interface{}{
-						"persons": []interface{}{
-							map[string]interface{}{
-								"fullName":         "John Doe",
-								"permanentAddress": "123 Main St",
-							},
-							map[string]interface{}{
-								"fullName":         "Jane Smith",
-								"permanentAddress": "456 Oak Ave",
-							},
-						},
-					},
-				},
-			},
-			{
-				ServiceKey: "rgd",
-				Response: graphql.Response{
-					Data: map[string]interface{}{
-						"getPersonInfos": []interface{}{
-							map[string]interface{}{
-								"name": "John",
-							},
-							map[string]interface{}{
-								"name": "Jane",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	// Mock schema with source info directives
-	schema := CreateTestSchema(t)
-
-	// Accumulate response with schema
-	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
-
-	// Verify response structure
-	assert.NotNil(t, response.Data)
-	assert.Contains(t, response.Data, "personInfos")
-
-	personInfos := response.Data["personInfos"].([]map[string]interface{})
-	assert.Len(t, personInfos, 2)
-
-	// Verify first person
-	person1 := personInfos[0]
-	assert.Equal(t, "John Doe", person1["fullName"])
-	assert.Equal(t, "John", person1["name"])
-	assert.Equal(t, "123 Main St", person1["address"])
-
-	// Verify second person
-	person2 := personInfos[1]
-	assert.Equal(t, "Jane Smith", person2["fullName"])
-	assert.Equal(t, "Jane", person2["name"])
-	assert.Equal(t, "456 Oak Ave", person2["address"])
-}
+//
+//func TestAccumulateResponse_BulkQuery(t *testing.T) {
+//	t.Skip("Bulk query test - future implementation")
+//	// Test bulk query (future implementation)
+//	query := `
+//		query {
+//			personInfos(nics: ["123456789V", "987654321V"]) {
+//				fullName
+//				name
+//				address
+//			}
+//		}
+//	`
+//
+//	queryDoc := ParseTestQuery(t, query)
+//
+//	// Mock federated response with array of persons
+//	federatedResponse := &FederationResponse{
+//		Responses: []ProviderResponse{
+//			{
+//				ServiceKey: "drp",
+//				Response: graphql.Response{
+//					Data: map[string]interface{}{
+//						"persons": []interface{}{
+//							map[string]interface{}{
+//								"fullName":         "John Doe",
+//								"permanentAddress": "123 Main St",
+//							},
+//							map[string]interface{}{
+//								"fullName":         "Jane Smith",
+//								"permanentAddress": "456 Oak Ave",
+//							},
+//						},
+//					},
+//				},
+//			},
+//			{
+//				ServiceKey: "rgd",
+//				Response: graphql.Response{
+//					Data: map[string]interface{}{
+//						"getPersonInfos": []interface{}{
+//							map[string]interface{}{
+//								"name": "John",
+//							},
+//							map[string]interface{}{
+//								"name": "Jane",
+//							},
+//						},
+//					},
+//				},
+//			},
+//		},
+//	}
+//
+//	// Mock schema with source info directives
+//	schema := CreateTestSchema(t)
+//
+//	// Accumulate response with schema
+//	response := AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
+//
+//	// Verify response structure
+//	assert.NotNil(t, response.Data)
+//	assert.Contains(t, response.Data, "personInfos")
+//
+//	personInfos := response.Data["personInfos"].([]map[string]interface{})
+//	assert.Len(t, personInfos, 2)
+//
+//	// Verify first person
+//	person1 := personInfos[0]
+//	assert.Equal(t, "John Doe", person1["fullName"])
+//	assert.Equal(t, "John", person1["name"])
+//	assert.Equal(t, "123 Main St", person1["address"])
+//
+//	// Verify second person
+//	person2 := personInfos[1]
+//	assert.Equal(t, "Jane Smith", person2["fullName"])
+//	assert.Equal(t, "Jane", person2["name"])
+//	assert.Equal(t, "456 Oak Ave", person2["address"])
+//}
 
 func TestPushValue_ArrayHandling(t *testing.T) {
 	tests := []struct {
@@ -302,7 +298,7 @@ func TestPushValue_ArrayHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := federator.PushValue(tt.obj, tt.path, tt.value)
+			result, err := PushValue(tt.obj, tt.path, tt.value)
 
 			if tt.expectError {
 				assert.Error(t, err, tt.description)
@@ -408,7 +404,7 @@ func TestGetValueAtPath_ArrayHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := federator.GetValueAtPath(tt.data, tt.path)
+			result, err := GetValueAtPath(tt.data, tt.path)
 
 			if tt.expectError {
 				assert.Error(t, err, tt.description)
@@ -443,8 +439,8 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 	queryDoc := ParseTestQuery(t, query)
 
 	// Mock federated response with both object and array data
-	federatedResponse := &federator.FederationResponse{
-		Responses: []federator.ProviderResponse{
+	federatedResponse := &FederationResponse{
+		Responses: []ProviderResponse{
 			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
@@ -485,7 +481,7 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 	schema := CreateTestSchema(t)
 
 	// Accumulate response with schema
-	response := federator.AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
+	response := AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
 
 	// Verify response structure
 	assert.NotNil(t, response.Data)
@@ -506,3 +502,64 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 }
 
 // Helper functions
+// ParseTestQuery is a shared utility function for parsing GraphQL queries in tests
+func ParseTestQuery(t *testing.T, query string) *ast.Document {
+	src := source.NewSource(&source.Source{
+		Body: []byte(query),
+		Name: "TestQuery",
+	})
+
+	doc, err := parser.Parse(parser.ParseParams{Source: src})
+	require.NoError(t, err, "Should parse query successfully")
+	return doc
+}
+
+// CreateTestSchema is a shared utility function for creating test schemas
+func CreateTestSchema(t *testing.T) *ast.Document {
+	schemaSDL := `
+		directive @sourceInfo(
+			providerKey: String!
+			providerField: String!
+		) on FIELD_DEFINITION
+
+		type Query {
+			personInfo(nic: String!): PersonInfo
+			vehicle(regNo: String!): VehicleInfo
+		}
+
+		type PersonInfo {
+			fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName")
+			name: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name")
+			address: String @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress")
+			ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data")
+			birthInfo: BirthInfo
+		}
+
+		type VehicleInfo {
+			regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.registrationNumber")
+			make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.make")
+			model: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.model")
+			maintenanceRecords: [MaintenanceRecord] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.maintenanceRecords")
+		}
+
+		type BirthInfo {
+			birthRegistrationNumber: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.brNo")
+			birthPlace: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.birthPlace")
+			district: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.district")
+		}
+
+		type MaintenanceRecord {
+			date: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.maintenanceRecords.date")
+			description: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.maintenanceRecords.description")
+		}
+	`
+
+	src := source.NewSource(&source.Source{
+		Body: []byte(schemaSDL),
+		Name: "TestSchema",
+	})
+
+	schema, err := parser.Parse(parser.ParseParams{Source: src})
+	require.NoError(t, err, "Should parse schema successfully")
+	return schema
+}

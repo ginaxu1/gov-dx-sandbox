@@ -1,9 +1,8 @@
-package tests
+package federator
 
 import (
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/stretchr/testify/assert"
@@ -141,7 +140,7 @@ func TestProviderSchemaCollector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			queryDoc := ParseTestQuery(t, tt.query)
 
-			response, err := federator.ProviderSchemaCollector(schema, queryDoc)
+			response, err := ProviderSchemaCollector(schema, queryDoc)
 
 			if tt.expectError {
 				assert.Error(t, err, tt.description)
@@ -164,17 +163,28 @@ func TestProviderSchemaCollector(t *testing.T) {
 func TestQueryBuilder(t *testing.T) {
 	tests := []struct {
 		name          string
-		fieldsMap     []string
-		args          []*federator.ArgSource
+		fieldsMap     *[]ProviderLevelFieldRecord
+		args          []*ArgSource
 		expectedCount int
 		expectedKeys  []string
 		expectError   bool
 		description   string
 	}{
 		{
-			name:      "Single Provider Query",
-			fieldsMap: []string{"drp.person.fullName", "drp.person.address"},
-			args: []*federator.ArgSource{
+			name: "Single Provider Query",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema",
+					FieldPath:  "person.address",
+				},
+			},
+			args: []*ArgSource{
 				{
 					ArgMapping: &graphql.ArgMapping{
 						ProviderKey:   "drp",
@@ -194,9 +204,25 @@ func TestQueryBuilder(t *testing.T) {
 			description:   "Should build single provider query with arguments",
 		},
 		{
-			name:      "Multiple Provider Queries",
-			fieldsMap: []string{"drp.person.fullName", "rgd.getPersonInfo.name", "dmt.vehicle.data"},
-			args: []*federator.ArgSource{
+			name: "Multiple Provider Queries",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "rgd",
+					SchemaId:   "rgd-schema",
+					FieldPath:  "getPersonInfo.name",
+				},
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema",
+					FieldPath:  "vehicle.data",
+				},
+			},
+			args: []*ArgSource{
 				{
 					ArgMapping: &graphql.ArgMapping{
 						ProviderKey:   "drp",
@@ -229,17 +255,23 @@ func TestQueryBuilder(t *testing.T) {
 		},
 		{
 			name:          "Empty Fields Map",
-			fieldsMap:     []string{},
-			args:          []*federator.ArgSource{},
+			fieldsMap:     &[]ProviderLevelFieldRecord{},
+			args:          []*ArgSource{},
 			expectedCount: 0,
 			expectedKeys:  []string{},
 			expectError:   false,
 			description:   "Should handle empty fields map",
 		},
 		{
-			name:      "Query with Array Arguments",
-			fieldsMap: []string{"dmt.vehicle.data"},
-			args: []*federator.ArgSource{
+			name: "Query with Array Arguments",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema",
+					FieldPath:  "vehicle.getVehicleInfos.data",
+				},
+			},
+			args: []*ArgSource{
 				{
 					ArgMapping: &graphql.ArgMapping{
 						ProviderKey:   "dmt",
@@ -267,7 +299,7 @@ func TestQueryBuilder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			requests, err := federator.QueryBuilder(tt.fieldsMap, tt.args)
+			requests, err := QueryBuilder(tt.fieldsMap, tt.args)
 
 			if tt.expectError {
 				assert.Error(t, err, tt.description)
@@ -383,15 +415,15 @@ func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 			selectionSet := operationDef.SelectionSet
 
 			// Get query object definition from schema
-			queryObjectDef := federator.GetQueryObjectDefinition(schema)
+			queryObjectDef := GetQueryObjectDefinition(schema)
 			assert.NotNil(t, queryObjectDef, "Should find query object definition")
 
 			// Extract source schema info
-			directives, arguments := federator.RecursivelyExtractSourceSchemaInfo(
+			directives, arguments := RecursivelyExtractSourceSchemaInfo(
 				selectionSet, schema, queryObjectDef, nil, nil)
 
 			// Convert directives to field map
-			fieldMap := federator.ProviderFieldMap(directives)
+			fieldMap := ProviderFieldMap(directives)
 
 			assert.Len(t, fieldMap, len(tt.expectedFields), "Should extract correct number of fields")
 			assert.Len(t, arguments, tt.expectedArgs, "Should extract correct number of arguments")
@@ -446,7 +478,7 @@ func TestFindFieldDefinitionFromFieldName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fieldDef := federator.FindFieldDefinitionFromFieldName(tt.fieldName, schema, tt.parentObject)
+			fieldDef := FindFieldDefinitionFromFieldName(tt.fieldName, schema, tt.parentObject)
 
 			if tt.expectedExists {
 				assert.NotNil(t, fieldDef, tt.description)
@@ -461,7 +493,7 @@ func TestFindFieldDefinitionFromFieldName(t *testing.T) {
 func TestGetQueryObjectDefinition(t *testing.T) {
 	schema := CreateTestSchema(t)
 
-	queryDef := federator.GetQueryObjectDefinition(schema)
+	queryDef := GetQueryObjectDefinition(schema)
 	assert.NotNil(t, queryDef, "Should find query object definition")
 	assert.Equal(t, "Query", queryDef.Name.Value, "Should have correct name")
 	assert.Greater(t, len(queryDef.Fields), 0, "Should have fields")
