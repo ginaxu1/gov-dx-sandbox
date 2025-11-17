@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"

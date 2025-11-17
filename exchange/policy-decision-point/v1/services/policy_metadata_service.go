@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 	"gorm.io/gorm"
 )

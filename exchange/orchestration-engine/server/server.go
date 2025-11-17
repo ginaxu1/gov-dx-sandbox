@@ -8,15 +8,15 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/auth"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/database"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/federator"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/handlers"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/go-chi/chi/v5"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/database"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 )
 
 type Response struct {

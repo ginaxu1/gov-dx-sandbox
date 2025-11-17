@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -44,6 +44,7 @@ type ValidateSDLRequest struct {
 
 // CreateSchema handles POST /sdl - create a new schema version
 func (h *SchemaHandler) CreateSchema(w http.ResponseWriter, r *http.Request) {
+
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
 		return
@@ -76,6 +77,7 @@ func (h *SchemaHandler) CreateSchema(w http.ResponseWriter, r *http.Request) {
 
 // GetSchemas handles GET /sdl/versions - get all schema versions
 func (h *SchemaHandler) GetSchemas(w http.ResponseWriter, r *http.Request) {
+
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
 		return
@@ -116,6 +118,7 @@ func (h *SchemaHandler) GetActiveSchema(w http.ResponseWriter, r *http.Request) 
 
 // ActivateSchema handles POST /sdl/versions/{version}/activate - activate a schema version
 func (h *SchemaHandler) ActivateSchema(w http.ResponseWriter, r *http.Request) {
+
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
 		return
@@ -136,6 +139,7 @@ func (h *SchemaHandler) ActivateSchema(w http.ResponseWriter, r *http.Request) {
 
 // ValidateSDL handles POST /sdl/validate - validate SDL syntax
 func (h *SchemaHandler) ValidateSDL(w http.ResponseWriter, r *http.Request) {
+
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
 		return
@@ -156,6 +160,7 @@ func (h *SchemaHandler) ValidateSDL(w http.ResponseWriter, r *http.Request) {
 
 // CheckCompatibility handles POST /sdl/check-compatibility - check backward compatibility
 func (h *SchemaHandler) CheckCompatibility(w http.ResponseWriter, r *http.Request) {
+
 	if h.schemaService == nil {
 		http.Error(w, "Schema management not available - database not connected", http.StatusServiceUnavailable)
 		return

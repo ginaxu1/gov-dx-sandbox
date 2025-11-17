@@ -11,16 +11,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/auth"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/configs"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/consent"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/internals/errors"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/middleware"
-	auth2 "github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/auth"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/policy"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/provider"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/internals/errors"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
+	auth2 "github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -148,6 +148,7 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
+
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
 		Body: []byte(request.Query),
@@ -155,6 +156,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	})
 
 	doc, err := parser.Parse(parser.ParseParams{Source: src})
+
 	if err != nil {
 		logger.Log.Error("Failed to parse query", "Error", err)
 	}
@@ -230,6 +232,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// Collect the directives from the query
 	schemaCollection, err := ProviderSchemaCollector(schema, doc)
+
 	if err != nil {
 		logger.Log.Error("Failed to collect provider schema", "Error", err)
 		return graphql.Response{
@@ -246,9 +249,9 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		argMapping = f.Configs.ArgMapping
 	}
 
-	requiredArguments := FindRequiredArguments(schemaCollection.ProviderFieldMap, argMapping)
+	var requiredArguments = FindRequiredArguments(schemaCollection.ProviderFieldMap, argMapping)
 
-	extractedArgs := ExtractRequiredArguments(requiredArguments, schemaCollection.Arguments)
+	var extractedArgs = ExtractRequiredArguments(requiredArguments, schemaCollection.Arguments)
 
 	// check whether there are variables in the request
 	if request.Variables != nil {
@@ -294,6 +297,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		pdpRequest.RequiredFields = requiredFields
 
 		pdpResponse, err = pdpClient.MakePdpRequest(pdpRequest)
+
 		if err != nil {
 			logger.Log.Info("PDP request failed", "error", err)
 			return graphql.Response{
@@ -396,6 +400,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		}
 
 		ceResp, err := ceClient.MakeConsentRequest(ceRequest)
+
 		if err != nil {
 			logger.Log.Info("CE request failed", "error", err)
 			return graphql.Response{
@@ -435,6 +440,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	logger.Log.Info("Consent approved, proceeding with query execution")
 
 	splitRequests, err := QueryBuilder(schemaCollection.ProviderFieldMap, extractedArgs)
+
 	if err != nil {
 		logger.Log.Error("Failed to build queries", "Error", err)
 		return graphql.Response{
@@ -481,7 +487,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	// Error handling is done above in the if block
 
 	// Transform the federated responses back to the original query structure using array-aware processing
-	response := AccumulateResponseWithSchemaInfo(doc, responses, schemaInfoMap)
+	var response = AccumulateResponseWithSchemaInfo(doc, responses, schemaInfoMap)
 
 	return response
 }
