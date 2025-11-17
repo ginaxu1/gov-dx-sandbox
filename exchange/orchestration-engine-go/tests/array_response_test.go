@@ -4,10 +4,15 @@ import (
 	"testing"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	logger.Init()
+}
 
 // TestArrayResponseHandling verifies that the orchestration engine can properly handle
 // both object and array responses. Focus on response structure, not array arguments.

@@ -41,7 +41,7 @@ func TestFindRequiredArguments(t *testing.T) {
 				},
 			},
 			expectedCount: 1,
-			expectedKeys:  []string{"drp.person"},
+			expectedKeys:  []string{"person"},
 			description:   "Should find single required argument",
 		},
 		{
@@ -87,7 +87,7 @@ func TestFindRequiredArguments(t *testing.T) {
 				},
 			},
 			expectedCount: 3,
-			expectedKeys:  []string{"drp.person", "rgd.getPersonInfo", "dmt.vehicle.getVehicleInfos"},
+			expectedKeys:  []string{"person", "getPersonInfo", "vehicle.getVehicleInfos"},
 			description:   "Should find multiple required arguments",
 		},
 		{
@@ -279,237 +279,14 @@ func TestExtractRequiredArguments(t *testing.T) {
 	}
 }
 
-//func TestPushArgumentsToProviderQueryAst(t *testing.T) {
-//	tests := []struct {
-//		name         string
-//		queryAst     *FederationServiceAST
-//		argSources   []*ArgSource
-//		expectedArgs int
-//		expectError  bool
-//		description  string
-//	}{
-//		{
-//			name: "Single String Argument",
-//			queryAst: createMockFederationServiceAST(t, `
-//				query {
-//					person {
-//						fullName
-//					}
-//				}
-//			`, "drp"),
-//			argSources: []*ArgSource{
-//				{
-//					ArgMapping: &graphql.ArgMapping{
-//						ProviderKey:   "drp",
-//						TargetArgName: "nic",
-//						SourceArgPath: "personInfo-nic",
-//						TargetArgPath: "drp.person",
-//					},
-//					Argument: &ast.Argument{
-//						Name:  &ast.Name{Value: "nic"},
-//						Value: &ast.StringValue{Value: "123456789V"},
-//					},
-//				},
-//			},
-//			expectedArgs: 1,
-//			expectError:  false,
-//			description:  "Should push single string argument to query AST",
-//		},
-//		{
-//			name: "Array Argument",
-//			queryAst: createMockFederationServiceAST(t, `
-//				query {
-//					vehicle {
-//						getVehicleInfos {
-//							regNo
-//						}
-//					}
-//				}
-//			`, "dmt"),
-//			argSources: []*ArgSource{
-//				{
-//					ArgMapping: &graphql.ArgMapping{
-//						ProviderKey:   "dmt",
-//						TargetArgName: "regNos",
-//						SourceArgPath: "vehicles-regNos",
-//						TargetArgPath: "dmt.vehicle.getVehicleInfos",
-//					},
-//					Argument: &ast.Argument{
-//						Name: &ast.Name{Value: "regNos"},
-//						Value: &ast.ListValue{
-//							Values: []ast.Value{
-//								&ast.StringValue{Value: "ABC123"},
-//								&ast.StringValue{Value: "XYZ789"},
-//							},
-//						},
-//					},
-//				},
-//			},
-//			expectedArgs: 1,
-//			expectError:  false,
-//			description:  "Should push array argument to query AST",
-//		},
-//		{
-//			name: "Multiple Arguments",
-//			queryAst: createMockFederationServiceAST(t, `
-//				query {
-//					person {
-//						fullName
-//					}
-//				}
-//			`, "drp"),
-//			argSources: []*ArgSource{
-//				{
-//					ArgMapping: &graphql.ArgMapping{
-//						ProviderKey:   "drp",
-//						TargetArgName: "nic",
-//						SourceArgPath: "personInfo-nic",
-//						TargetArgPath: "drp.person",
-//					},
-//					Argument: &ast.Argument{
-//						Name:  &ast.Name{Value: "nic"},
-//						Value: &ast.StringValue{Value: "123456789V"},
-//					},
-//				},
-//				{
-//					ArgMapping: &graphql.ArgMapping{
-//						ProviderKey:   "drp",
-//						TargetArgName: "includeVehicles",
-//						SourceArgPath: "personInfo-includeVehicles",
-//						TargetArgPath: "drp.person",
-//					},
-//					Argument: &ast.Argument{
-//						Name:  &ast.Name{Value: "includeVehicles"},
-//						Value: &ast.BooleanValue{Value: true},
-//					},
-//				},
-//			},
-//			expectedArgs: 2,
-//			expectError:  false,
-//			description:  "Should push multiple arguments to query AST",
-//		},
-//		{
-//			name:         "Empty Arguments",
-//			queryAst:     createMockFederationServiceAST(t, `query { person { fullName } }`, "drp"),
-//			argSources:   []*ArgSource{},
-//			expectedArgs: 0,
-//			expectError:  false,
-//			description:  "Should handle empty arguments",
-//		},
-//	}
-//
-//	for _, tt := range tests {
-//		t.Run(tt.name, func(t *testing.T) {
-//			PushArgumentsToProviderQueryAst(tt.argSources, tt.queryAst)
-//
-//			// Verify arguments were added to the query
-//			if len(tt.argSources) > 0 {
-//				operationDef := tt.queryAst.QueryAst.Definitions[0].(*ast.OperationDefinition)
-//				selectionSet := operationDef.SelectionSet
-//
-//				// Find the first field and check its arguments
-//				if len(selectionSet.Selections) > 0 {
-//					if field, ok := selectionSet.Selections[0].(*ast.Field); ok {
-//						assert.Len(t, field.Arguments, tt.expectedArgs, "Should have correct number of arguments")
-//					}
-//				}
-//			}
-//		})
-//	}
-//}
-
-//
-//func TestBasicArgumentHandling(t *testing.T) {
-//	t.Run("Single String Argument", func(t *testing.T) {
-//		// Test that single string arguments are handled correctly
-//		query := `
-//			query {
-//				personInfo(nic: "123456789V") {
-//					fullName
-//					name
-//				}
-//			}
-//		`
-//
-//		queryDoc := tests.ParseTestQuery(t, query)
-//		operationDef := queryDoc.Definitions[0].(*ast.OperationDefinition)
-//
-//		argMappings := []*graphql.ArgMapping{
-//			{
-//				ProviderKey:   "drp",
-//				TargetArgName: "nic",
-//				SourceArgPath: "personInfo-nic",
-//				TargetArgPath: "drp.person",
-//			},
-//		}
-//
-//		// Extract arguments from the query
-//		var arguments []*ast.Argument
-//		for _, selection := range operationDef.SelectionSet.Selections {
-//			if field, ok := selection.(*ast.Field); ok {
-//				arguments = append(arguments, field.Arguments...)
-//			}
-//		}
-//
-//		argSources := ExtractRequiredArguments(argMappings, arguments)
-//		assert.Len(t, argSources, 1, "Should extract one argument source")
-//
-//		// Verify the argument is a string value
-//		argSource := argSources[0]
-//		stringValue, ok := argSource.Argument.Value.(*ast.StringValue)
-//		assert.True(t, ok, "Should have string value")
-//		assert.Equal(t, "123456789V", stringValue.Value)
-//	})
-//
-//	t.Run("Multiple String Arguments", func(t *testing.T) {
-//		// Test that multiple string arguments are handled correctly
-//		query := `
-//			query {
-//				personInfo(nic: "123456789V") {
-//					fullName
-//				}
-//				vehicle(regNo: "ABC123") {
-//					make
-//				}
-//			}
-//		`
-//
-//		queryDoc := tests.ParseTestQuery(t, query)
-//		operationDef := queryDoc.Definitions[0].(*ast.OperationDefinition)
-//
-//		argMappings := []*graphql.ArgMapping{
-//			{
-//				ProviderKey:   "drp",
-//				TargetArgName: "nic",
-//				SourceArgPath: "personInfo-nic",
-//				TargetArgPath: "drp.person",
-//			},
-//			{
-//				ProviderKey:   "dmt",
-//				TargetArgName: "regNo",
-//				SourceArgPath: "vehicle-regNo",
-//				TargetArgPath: "dmt.vehicle",
-//			},
-//		}
-//
-//		// Extract arguments from the query
-//		var arguments []*ast.Argument
-//		for _, selection := range operationDef.SelectionSet.Selections {
-//			if field, ok := selection.(*ast.Field); ok {
-//				arguments = append(arguments, field.Arguments...)
-//			}
-//		}
-//
-//		argSources := ExtractRequiredArguments(argMappings, arguments)
-//		assert.Len(t, argSources, 2, "Should extract two argument sources")
-//
-//		// Verify both arguments are string values
-//		for _, argSource := range argSources {
-//			stringValue, ok := argSource.Argument.Value.(*ast.StringValue)
-//			assert.True(t, ok, "Should have string value")
-//			assert.True(t, stringValue.Value == "123456789V" || stringValue.Value == "ABC123", "Should have correct value")
-//		}
-//	})
-//}
+// TODO: Add tests for PushArgumentsToProviderQueryAst
+// The function PushArgumentsToProviderQueryAst is currently tested indirectly through integration tests.
+// Unit tests would require creating a mock FederationServiceAST helper function.
+// Consider implementing when:
+// 1. A helper function to create mock FederationServiceAST is available
+// 2. Direct unit test coverage for this function becomes a priority
+func TestPushArgumentsToProviderQueryAst(t *testing.T) {
+	t.Skip("TODO: Implement unit tests for PushArgumentsToProviderQueryAst. Requires mock FederationServiceAST helper function.")
+}
 
 // Helper functions
