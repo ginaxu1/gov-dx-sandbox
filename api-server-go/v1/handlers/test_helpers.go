@@ -10,7 +10,9 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/v1/utils"
 )
 
-// TestUser represents different test user personas
+// TestUser represents different test user personas for testing authorization scenarios.
+// These users represent successfully authenticated users with different role assignments.
+// For testing authentication failures (no user in context), use NewUnauthenticatedRequest instead.
 type TestUser struct {
 	IdpUserID string
 	Email     string
@@ -18,7 +20,7 @@ type TestUser struct {
 	User      *models.AuthenticatedUser
 }
 
-// Predefined test users with different roles
+// Predefined test users with different roles for testing authorization scenarios
 var (
 	// AdminUser has full admin privileges
 	AdminUser = TestUser{
@@ -40,14 +42,6 @@ var (
 		Email:     "system@test.com",
 		Roles:     []models.Role{models.RoleSystem},
 	}
-
-	// UnauthorizedUser has no roles (will be nil to represent rejected authentication)
-	UnauthorizedUser = TestUser{
-		IdpUserID: "unauthorized-test-user-000",
-		Email:     "unauthorized@test.com",
-		Roles:     []models.Role{},
-		User:      nil, // Will remain nil to represent authentication failure
-	}
 )
 
 // init initializes the test users with their AuthenticatedUser instances
@@ -55,7 +49,6 @@ func init() {
 	AdminUser.User = createTestUser(AdminUser.IdpUserID, AdminUser.Email, AdminUser.Roles)
 	MemberUser.User = createTestUser(MemberUser.IdpUserID, MemberUser.Email, MemberUser.Roles)
 	SystemUser.User = createTestUser(SystemUser.IdpUserID, SystemUser.Email, SystemUser.Roles)
-	// UnauthorizedUser.User remains nil to represent authentication failure
 }
 
 // createTestUser creates an AuthenticatedUser from test data
@@ -102,11 +95,6 @@ func WithSystemAuth(req *http.Request) *http.Request {
 	return WithAuth(req, SystemUser)
 }
 
-// WithUnauthorizedAuth is a convenience function to add unauthorized user context to a request
-func WithUnauthorizedAuth(req *http.Request) *http.Request {
-	return WithAuth(req, UnauthorizedUser)
-}
-
 // NewAuthenticatedRequest creates a new HTTP request with authentication context
 func NewAuthenticatedRequest(method, url string, body io.Reader, testUser TestUser) *http.Request {
 	req := httptest.NewRequest(method, url, body)
@@ -128,10 +116,12 @@ func NewSystemRequest(method, url string, body io.Reader) *http.Request {
 	return NewAuthenticatedRequest(method, url, body, SystemUser)
 }
 
-// NewUnauthenticatedRequest creates a new HTTP request without authentication (should fail)
+// NewUnauthenticatedRequest creates a new HTTP request without authentication context.
+// Use this to test authentication failure scenarios where no authenticated user exists.
+// This simulates a request from a user who hasn't provided valid JWT credentials.
 func NewUnauthenticatedRequest(method, url string, body io.Reader) *http.Request {
 	req := httptest.NewRequest(method, url, body)
-	// Intentionally don't add authentication context
+	// Intentionally don't add authentication context to simulate authentication failure
 	return req
 }
 

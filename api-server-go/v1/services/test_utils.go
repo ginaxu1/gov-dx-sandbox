@@ -20,9 +20,8 @@ func getEnvOrDefault(key, defaultValue string) string {
 // SetupPostgresTestDB creates a PostgreSQL test database connection
 // Uses environment variables for configuration (TEST_DB_*)
 //
-// Returns nil if the database connection cannot be established or if required
-// environment variables are not set. In this case, the test is automatically
-// skipped using t.Skipf().
+// Returns nil if the database connection cannot be established or if database
+// migration fails. In this case, the test is automatically skipped using t.Skipf().
 //
 // IMPORTANT: Callers MUST check for nil return value before using the database:
 //
@@ -32,10 +31,10 @@ func getEnvOrDefault(key, defaultValue string) string {
 //	}
 //
 // Environment variables:
-//   - TEST_DB_PASSWORD (required): Database password
 //   - TEST_DB_HOST (optional, default: "localhost"): Database host
 //   - TEST_DB_PORT (optional, default: "5432"): Database port
 //   - TEST_DB_USERNAME (optional, default: "postgres"): Database username
+//   - TEST_DB_PASSWORD (optional, default: "password"): Database password
 //   - TEST_DB_DATABASE (optional, default: "api_server_test"): Database name
 //   - TEST_DB_SSLMODE (optional, default: "disable"): SSL mode
 //
@@ -44,11 +43,7 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
 	port := getEnvOrDefault("TEST_DB_PORT", "5432")
 	user := getEnvOrDefault("TEST_DB_USERNAME", "postgres")
-	password := os.Getenv("TEST_DB_PASSWORD")
-	if password == "" {
-		t.Skipf("Skipping test: TEST_DB_PASSWORD environment variable must be set for test database connection")
-		return nil // IMPORTANT: Callers must check for nil before using the database
-	}
+	password := getEnvOrDefault("TEST_DB_PASSWORD", "password")
 	database := getEnvOrDefault("TEST_DB_DATABASE", "api_server_test")
 	sslmode := getEnvOrDefault("TEST_DB_SSLMODE", "disable")
 
