@@ -1,6 +1,6 @@
-# Government Data Exchange API Server
+# Data Exchange API Server
 
-A secure, scalable Go-based REST API server for managing government data exchange workflows, including member management, schema submissions, and application processing with comprehensive authentication and authorization.
+A secure, scalable Go-based REST API server for managing data exchange workflows, including member management, schema submissions, and application processing with comprehensive authentication and authorization.
 
 ## 🚀 Features
 
