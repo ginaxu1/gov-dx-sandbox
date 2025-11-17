@@ -1,12 +1,14 @@
-module github.com/gov-dx-sandbox/portal-backend
+module github.com/gov-dx-sandbox/api-server-go
 
 go 1.24.6
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0-00010101000000-000000000000
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
-	github.com/gov-dx-sandbox/portal-backend/shared/utils v0.0.0
+	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
+	github.com/gov-dx-sandbox/api-server-go/shared/utils v0.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.30
@@ -18,11 +20,27 @@ require (
 
 require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/go-logr/logr v1.4.1 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/prometheus/client_golang v1.19.1 // indirect
+	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/prometheus/common v0.53.0 // indirect
+	github.com/prometheus/procfs v0.15.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.49.0 // indirect
+	go.opentelemetry.io/otel v1.27.0 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.49.0 // indirect
+	go.opentelemetry.io/otel/metric v1.27.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.27.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
+	go.opentelemetry.io/otel/trace v1.27.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -39,6 +57,8 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 )
 
-replace github.com/gov-dx-sandbox/portal-backend/models => ./models
+replace github.com/gov-dx-sandbox/api-server-go/models => ./models
 
-replace github.com/gov-dx-sandbox/portal-backend/shared/utils => ./shared/utils
+replace github.com/gov-dx-sandbox/api-server-go/shared/utils => ./shared/utils
+
+replace github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring => ../exchange/pkg/monitoring
