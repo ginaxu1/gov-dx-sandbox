@@ -11,14 +11,16 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/middleware"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/provider"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/server"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/telemetry"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 )
 
 func main() {
 	logger.Init()
 
 	ctx := context.Background()
-	shutdown, err := telemetry.Init(ctx, "orchestration-engine")
+	shutdown, err := monitoring.Setup(ctx, monitoring.Config{
+		ServiceName: "orchestration-engine",
+	})
 	if err != nil {
 		log.Fatalf("Failed to initialize telemetry: %v", err)
 	}
