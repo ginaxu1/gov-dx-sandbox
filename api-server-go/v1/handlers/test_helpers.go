@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -40,11 +41,12 @@ var (
 		Roles:     []models.Role{models.RoleSystem},
 	}
 
-	// UnauthorizedUser has no roles (should fail most operations)
+	// UnauthorizedUser has no roles (will be nil to represent rejected authentication)
 	UnauthorizedUser = TestUser{
 		IdpUserID: "unauthorized-test-user-000",
 		Email:     "unauthorized@test.com",
 		Roles:     []models.Role{},
+		User:      nil, // Will remain nil to represent authentication failure
 	}
 )
 
@@ -53,7 +55,7 @@ func init() {
 	AdminUser.User = createTestUser(AdminUser.IdpUserID, AdminUser.Email, AdminUser.Roles)
 	MemberUser.User = createTestUser(MemberUser.IdpUserID, MemberUser.Email, MemberUser.Roles)
 	SystemUser.User = createTestUser(SystemUser.IdpUserID, SystemUser.Email, SystemUser.Roles)
-	UnauthorizedUser.User = createTestUser(UnauthorizedUser.IdpUserID, UnauthorizedUser.Email, UnauthorizedUser.Roles)
+	// UnauthorizedUser.User remains nil to represent authentication failure
 }
 
 // createTestUser creates an AuthenticatedUser from test data
@@ -72,7 +74,11 @@ func createTestUser(idpUserID, email string, roles []models.Role) *models.Authen
 		Roles:     models.FlexibleStringSlice(roleStrings),
 	}
 
-	return models.NewAuthenticatedUser(claims)
+	user, err := models.NewAuthenticatedUser(claims)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create test user: %v", err))
+	}
+	return user
 }
 
 // WithAuth creates a new HTTP request with the specified user authentication context

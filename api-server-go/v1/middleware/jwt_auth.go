@@ -60,6 +60,30 @@ type JWTAuthConfig struct {
 	Timeout        time.Duration
 }
 
+// Validate checks if the JWT configuration is valid
+func (c JWTAuthConfig) Validate() error {
+	if c.JWKSURL == "" {
+		return fmt.Errorf("JWKSURL is required for JWT authentication")
+	}
+
+	if c.ExpectedIssuer == "" {
+		return fmt.Errorf("ExpectedIssuer is required for JWT authentication")
+	}
+
+	if len(c.ValidClientIDs) == 0 {
+		return fmt.Errorf("at least one ValidClientID is required for JWT authentication")
+	}
+
+	// Check that all client IDs are non-empty
+	for i, clientID := range c.ValidClientIDs {
+		if strings.TrimSpace(clientID) == "" {
+			return fmt.Errorf("ValidClientID at index %d is empty", i)
+		}
+	}
+
+	return nil
+}
+
 // NewJWTAuthMiddleware creates a new JWT authentication middleware
 func NewJWTAuthMiddleware(config JWTAuthConfig) *JWTAuthMiddleware {
 	timeout := config.Timeout
@@ -189,7 +213,10 @@ func (j *JWTAuthMiddleware) validateToken(tokenString string) (*models.Authentic
 	}
 
 	// Create authenticated user from claims
-	user := models.NewAuthenticatedUser(claims)
+	user, err := models.NewAuthenticatedUser(claims)
+	if err != nil {
+		return nil, nil, fmt.Errorf("user creation failed: %w", err)
+	}
 
 	// Create auth context
 	authCtx := &models.AuthContext{

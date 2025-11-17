@@ -18,7 +18,10 @@ func TestAuthenticatedUser_GetPermissions_Caching(t *testing.T) {
 	}
 
 	// Create authenticated user
-	user := NewAuthenticatedUser(claims)
+	user, err := NewAuthenticatedUser(claims)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
 
 	// Get permissions multiple times
 	permissions1 := user.GetPermissions()
@@ -61,7 +64,10 @@ func TestAuthenticatedUser_GetPermissions_Immutability(t *testing.T) {
 		Roles:     FlexibleStringSlice{"OpenDIF_Member"},
 	}
 
-	user := NewAuthenticatedUser(claims)
+	user, err := NewAuthenticatedUser(claims)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
 
 	// Get permissions and modify the returned slice
 	permissions1 := user.GetPermissions()
@@ -70,7 +76,7 @@ func TestAuthenticatedUser_GetPermissions_Immutability(t *testing.T) {
 	// Try to modify the returned slice
 	if len(permissions1) > 0 {
 		permissions1[0] = "modified_permission"
-		permissions1 = append(permissions1, "extra_permission")
+		_ = append(permissions1, "extra_permission")
 	}
 
 	// Get permissions again and verify they're unchanged
@@ -94,7 +100,10 @@ func TestAuthenticatedUser_MultipleRoles_PermissionMerging(t *testing.T) {
 		Roles:     FlexibleStringSlice{"OpenDIF_Member", "OpenDIF_System"},
 	}
 
-	user := NewAuthenticatedUser(claims)
+	user, err := NewAuthenticatedUser(claims)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
 	permissions := user.GetPermissions()
 
 	// Should have permissions from both roles
@@ -171,7 +180,10 @@ func BenchmarkGetPermissions_Cached(b *testing.B) {
 		Roles:     FlexibleStringSlice{"OpenDIF_Admin"},
 	}
 
-	user := NewAuthenticatedUser(claims)
+	user, err := NewAuthenticatedUser(claims)
+	if err != nil {
+		b.Fatalf("Failed to create user: %v", err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -213,6 +225,6 @@ func BenchmarkUserCreation_WithPermissionCaching(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = NewAuthenticatedUser(claims)
+		_, _ = NewAuthenticatedUser(claims)
 	}
 }

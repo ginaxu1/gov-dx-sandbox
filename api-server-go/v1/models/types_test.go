@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -92,7 +93,7 @@ func TestSelectedFieldRecords_GormValue(t *testing.T) {
 		{FieldName: "field1", SchemaID: "sch1"},
 	}
 
-	expr := sfr.GormValue(nil, nil)
+	expr := sfr.GormValue(context.TODO(), nil)
 	assert.NotNil(t, expr)
 	assert.Contains(t, expr.SQL, "jsonb")
 	assert.Len(t, expr.Vars, 1)

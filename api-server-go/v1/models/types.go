@@ -188,24 +188,26 @@ type FlexibleStringSlice []string
 func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 	// Try to unmarshal as string array first
 	var strArray []string
-	if err := json.Unmarshal(data, &strArray); err == nil {
+	arrayErr := json.Unmarshal(data, &strArray)
+	if arrayErr == nil {
 		*f = FlexibleStringSlice(strArray)
 		return nil
 	}
 
 	// If that fails, try to unmarshal as single string
 	var str string
-	if err := json.Unmarshal(data, &str); err == nil {
+	stringErr := json.Unmarshal(data, &str)
+	if stringErr == nil {
 		*f = FlexibleStringSlice([]string{str})
 		return nil
 	}
 
-	// If both fail, return empty slice
-	*f = FlexibleStringSlice([]string{})
-	return nil
+	// If both fail, return a detailed error with both attempts
+	return fmt.Errorf("failed to unmarshal FlexibleStringSlice: cannot parse as []string (%v) or string (%v), data: %s",
+		arrayErr, stringErr, string(data))
 }
 
 // ToStringSlice converts to regular string slice
-func (f FlexibleStringSlice) ToStringSlice() []string {
-	return []string(f)
+func (f *FlexibleStringSlice) ToStringSlice() []string {
+	return []string(*f)
 }

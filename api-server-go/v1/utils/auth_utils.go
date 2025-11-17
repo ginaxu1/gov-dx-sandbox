@@ -19,6 +19,12 @@ const (
 
 // ExtractBearerToken extracts the Bearer token from the Authorization header
 func ExtractBearerToken(r *http.Request) (string, error) {
+	/*
+		- ExtractBearerToken extracts the Bearer token from the Authorization header of the HTTP request.
+		- It returns an error if the header is missing, does not start with "Bearer ", or if the token is empty.
+
+		TODO: If the request is hitting through an API Gateway that uses a different auth scheme, this function may need to be adjusted accordingly.
+	*/
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		return "", fmt.Errorf("authorization header is missing")

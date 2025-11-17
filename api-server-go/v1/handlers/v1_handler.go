@@ -25,6 +25,37 @@ type V1Handler struct {
 	schemaService      *services.SchemaService
 }
 
+// getUserMemberID gets the member ID for the authenticated user with caching
+// This avoids repeated database calls for the same user within the same request context
+func (h *V1Handler) getUserMemberID(r *http.Request, user *models.AuthenticatedUser) (string, error) {
+	// Check if we already have cached the member ID
+	if memberID, cached := user.GetCachedMemberID(); cached {
+		// Return cached error if the previous lookup failed
+		if err := user.GetCachedMemberIDError(); err != nil {
+			return "", err
+		}
+		return memberID, nil
+	}
+
+	// Not cached, perform the database lookup
+	members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
+	if err != nil {
+		user.SetCachedMemberID("", err)
+		return "", err
+	}
+
+	if len(members) == 0 {
+		err = fmt.Errorf("user member record not found")
+		user.SetCachedMemberID("", err)
+		return "", err
+	}
+
+	// Cache the successful result
+	memberID := members[0].MemberID
+	user.SetCachedMemberID(memberID, nil)
+	return memberID, nil
+}
+
 // NewV1Handler creates a new V1 handler
 func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 	// Get scopes from environment variable, fallback to default if not set
@@ -302,19 +333,20 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check permission - only admin users can create members
+	if !user.HasPermission(models.PermissionCreateMember) {
+		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
+		return
+	}
+
 	var req models.CreateMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// For non-admin users, ensure they can only create members for themselves
-	// For admin users, they can create members for any user if IdpUserID is provided in the request
-	if !user.IsAdmin() {
-		// Regular users can only create a member for themselves
-		// Override any IdpUserID in the request with the authenticated user's ID
-		// This prevents users from creating members for other users
-	}
+	// Only admin users should reach this point due to permission check above
+	// Admin users can create members for any user if IdpUserID is provided in the request
 
 	member, err := h.memberService.CreateMember(r.Context(), &req)
 	if err != nil {
@@ -444,13 +476,12 @@ func (h *V1Handler) getAllSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 		filteredMemberId = memberId
 	} else if user.HasPermission(models.PermissionReadSchemaSubmission) {
 		// Regular users can only see their own submissions
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberId, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
-		userMemberId := members[0].MemberID
 		filteredMemberId = &userMemberId
 	} else {
 		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
@@ -492,19 +523,18 @@ func (h *V1Handler) getSchemaSubmission(w http.ResponseWriter, r *http.Request, 
 
 	// For non-admin users, check ownership
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
-		// Check if submission belongs to the user (assuming submission has MemberID field)
-		// This would need to be adjusted based on your actual schema submission model structure
-		// if submission.MemberID != members[0].MemberID {
-		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
-		//     return
-		// }
+		// Check if submission belongs to the user
+		if submission.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
+			return
+		}
 	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
@@ -537,19 +567,23 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 
 	// For non-admin users, ensure they can only create submissions for themselves
 	if !user.IsAdmin() {
-		// Get the member to verify ownership
-		if req.MemberID != "" {
-			member, err := h.memberService.GetMember(r.Context(), req.MemberID)
-			if err != nil {
-				utils.RespondWithError(w, http.StatusNotFound, "Member not found")
-				return
-			}
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
+			return
+		}
 
-			// Check if the authenticated user owns this member record
-			if member.IdpUserID != user.IdpUserID {
+		// If MemberID is provided, validate ownership
+		if req.MemberID != "" {
+			// Check if the provided MemberID belongs to the authenticated user
+			if req.MemberID != userMemberID {
 				utils.RespondWithError(w, http.StatusForbidden, "Access denied: cannot create submission for another user")
 				return
 			}
+		} else {
+			// If no MemberID provided, set it to the authenticated user's member ID
+			req.MemberID = userMemberID
 		}
 	}
 
@@ -585,20 +619,18 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 
 	// For non-admin users, check ownership
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
-		// Check if submission belongs to the user (assuming submission has MemberID field)
-		// This would need to be adjusted based on your actual schema submission model structure
-		// if existingSubmission.MemberID != members[0].MemberID {
-		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to update this resource")
-		//     return
-		// }
-		_ = existingSubmission // Use the variable to avoid compiler error
+		// Check if submission belongs to the user
+		if existingSubmission.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to update this resource")
+			return
+		}
 	}
 
 	var req models.UpdateSchemaSubmissionRequest
@@ -633,13 +665,12 @@ func (h *V1Handler) getAllSchemas(w http.ResponseWriter, r *http.Request, member
 	// For non-admin users, filter results to only their own schemas
 	var filteredMemberId *string
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberId, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
-		userMemberId := members[0].MemberID
 		filteredMemberId = &userMemberId
 	} else {
 		// Admin can specify memberId or see all
@@ -681,19 +712,18 @@ func (h *V1Handler) getSchema(w http.ResponseWriter, r *http.Request, schemaId s
 
 	// For non-admin users, check ownership
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
-		// Check if schema belongs to the user (assuming schema has MemberID field)
-		// This would need to be adjusted based on your actual schema model structure
-		// if schema.MemberID != members[0].MemberID {
-		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
-		//     return
-		// }
+		// Check if schema belongs to the user
+		if schema.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
+			return
+		}
 	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
@@ -721,16 +751,15 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 
 	// For non-admin users, ensure they can only create schemas for themselves
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
 		// Set the member ID to the authenticated user's member ID
-		// This assumes the CreateSchemaRequest has a MemberID field
-		// req.MemberID = members[0].MemberID
+		req.MemberID = userMemberID
 	}
 
 	schema, err := h.schemaService.CreateSchema(&req)
@@ -758,19 +787,23 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 
 	// For non-admin users, check ownership by verifying schema exists and user has access
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
 		// Verify schema exists and user has access to it
-		// For now, we'll let the service layer handle ownership validation
-		// In a more complete implementation, you'd check schema ownership here
-		_, schemaErr := h.schemaService.GetSchema(schemaId)
+		schema, schemaErr := h.schemaService.GetSchema(schemaId)
 		if schemaErr != nil {
 			utils.RespondWithError(w, http.StatusNotFound, schemaErr.Error())
+			return
+		}
+
+		// Check ownership
+		if schema.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to update this resource")
 			return
 		}
 	}
@@ -809,15 +842,15 @@ func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.
 
 	// For non-admin users, force filtering to their own submissions only
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
 		// Force the memberId to the authenticated user's member ID
-		finalMemberId = &members[0].MemberID
+		finalMemberId = &userMemberID
 	}
 
 	submissions, err := h.applicationService.GetApplicationSubmissions(finalMemberId, statusFilter)
@@ -855,19 +888,18 @@ func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Requ
 
 	// For non-admin users, check ownership
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		_, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
 		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
-		// Check if submission belongs to the user (assuming submission has MemberID field)
-		// This would need to be adjusted based on your actual application submission model structure
-		// if submission.MemberID != members[0].MemberID {
-		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
-		//     return
-		// }
+		// Check if submission belongs to the user
+		if submission.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
+			return
+		}
 	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
@@ -900,19 +932,23 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 
 	// For non-admin users, ensure they can only create submissions for themselves
 	if !user.IsAdmin() {
-		// Get the member to verify ownership
-		if req.MemberID != "" {
-			member, err := h.memberService.GetMember(r.Context(), req.MemberID)
-			if err != nil {
-				utils.RespondWithError(w, http.StatusNotFound, "Member not found")
-				return
-			}
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
+			return
+		}
 
-			// Check if the authenticated user owns this member record
-			if member.IdpUserID != user.IdpUserID {
+		// If MemberID is provided, validate ownership
+		if req.MemberID != "" {
+			// Check if the provided MemberID belongs to the authenticated user
+			if req.MemberID != userMemberID {
 				utils.RespondWithError(w, http.StatusForbidden, "Access denied: cannot create submission for another user")
 				return
 			}
+		} else {
+			// If no MemberID provided, set it to the authenticated user's member ID
+			req.MemberID = userMemberID
 		}
 	}
 
@@ -941,26 +977,25 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 
 	// For non-admin users, check ownership before updating
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
 		// Get existing submission to check ownership
-		_, err = h.applicationService.GetApplicationSubmission(submissionId)
+		existingSubmission, err := h.applicationService.GetApplicationSubmission(submissionId)
 		if err != nil {
 			utils.RespondWithError(w, http.StatusNotFound, "Application submission not found")
 			return
 		}
 
-		// Check if submission belongs to the user (assuming submission has MemberID field)
-		// This would need to be adjusted based on your actual application submission model structure
-		// if existingSubmission.MemberID != members[0].MemberID {
-		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
-		//     return
-		// }
+		// Check if submission belongs to the user
+		if existingSubmission.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
+			return
+		}
 	}
 
 	var req models.UpdateApplicationSubmissionRequest
@@ -994,13 +1029,12 @@ func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, m
 		filteredMemberId = memberId
 	} else if user.HasPermission(models.PermissionReadApplication) {
 		// Regular users can only see their own applications
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberId, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
-		userMemberId := members[0].MemberID
 		filteredMemberId = &userMemberId
 	} else {
 		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
@@ -1042,19 +1076,18 @@ func (h *V1Handler) getApplication(w http.ResponseWriter, r *http.Request, appli
 
 	// For non-admin users, check ownership
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
-		// Check if application belongs to the user (assuming application has MemberID field)
-		// This would need to be adjusted based on your actual application model structure
-		// if application.MemberID != members[0].MemberID {
-		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
-		//     return
-		// }
+		// Check if application belongs to the user
+		if application.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to this resource")
+			return
+		}
 	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
@@ -1082,16 +1115,15 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 
 	// For non-admin users, ensure they can only create applications for themselves
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
 		// Set the member ID to the authenticated user's member ID
-		// This assumes the CreateApplicationRequest has a MemberID field
-		// req.MemberID = members[0].MemberID
+		req.MemberID = userMemberID
 	}
 
 	application, err := h.applicationService.CreateApplication(&req)
@@ -1126,20 +1158,18 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 
 	// For non-admin users, check ownership
 	if !user.IsAdmin() {
-		// Get member ID for the authenticated user
-		members, err := h.memberService.GetAllMembers(r.Context(), &user.IdpUserID, nil)
-		if err != nil || len(members) == 0 {
+		// Get member ID for the authenticated user (cached)
+		userMemberID, err := h.getUserMemberID(r, user)
+		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
 			return
 		}
 
-		// Check if application belongs to the user (assuming application has MemberID field)
-		// This would need to be adjusted based on your actual application model structure
-		// if existingApplication.MemberID != members[0].MemberID {
-		//     utils.RespondWithError(w, http.StatusForbidden, "Access denied to update this resource")
-		//     return
-		// }
-		_ = existingApplication // Use the variable to avoid compiler error
+		// Check if application belongs to the user
+		if existingApplication.MemberID != userMemberID {
+			utils.RespondWithError(w, http.StatusForbidden, "Access denied to update this resource")
+			return
+		}
 	}
 
 	var req models.UpdateApplicationRequest

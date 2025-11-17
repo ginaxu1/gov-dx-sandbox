@@ -51,19 +51,44 @@ func main() {
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
 	// Setup JWT Authentication middleware
+	// Validate required environment variables first
+	asgardeoBaseURL := os.Getenv("ASGARDEO_BASE_URL")
+	if asgardeoBaseURL == "" {
+		slog.Error("ASGARDEO_BASE_URL environment variable is required")
+		os.Exit(1)
+	}
+
 	// Support multiple valid client IDs for different portals
-	validClientIDs := []string{
-		os.Getenv("ASGARDEO_MEMBER_PORTAL_CLIENT_ID"),
-		os.Getenv("ASGARDEO_ADMIN_PORTAL_CLIENT_ID"),
+	memberPortalClientID := os.Getenv("ASGARDEO_MEMBER_PORTAL_CLIENT_ID")
+	adminPortalClientID := os.Getenv("ASGARDEO_ADMIN_PORTAL_CLIENT_ID")
+
+	if memberPortalClientID == "" && adminPortalClientID == "" {
+		slog.Error("At least one of ASGARDEO_MEMBER_PORTAL_CLIENT_ID or ASGARDEO_ADMIN_PORTAL_CLIENT_ID must be set")
+		os.Exit(1)
+	}
+
+	var validClientIDs []string
+	if memberPortalClientID != "" {
+		validClientIDs = append(validClientIDs, memberPortalClientID)
+	}
+	if adminPortalClientID != "" {
+		validClientIDs = append(validClientIDs, adminPortalClientID)
 	}
 
 	jwtConfig := v1middleware.JWTAuthConfig{
-		JWKSURL:        utils.GetEnvOrDefault("ASGARDEO_JWKS_URL", os.Getenv("ASGARDEO_BASE_URL")+"/oauth2/jwks"),
-		ExpectedIssuer: os.Getenv("ASGARDEO_BASE_URL") + "/oauth2/token",
+		JWKSURL:        utils.GetEnvOrDefault("ASGARDEO_JWKS_URL", asgardeoBaseURL+"/oauth2/jwks"),
+		ExpectedIssuer: utils.GetEnvOrDefault("ASGARDEO_TOKEN_URL", asgardeoBaseURL+"/oauth2/token"),
 		ValidClientIDs: validClientIDs,
 		OrgName:        utils.GetEnvOrDefault("ASGARDEO_ORG_NAME", ""),
 		Timeout:        10 * time.Second,
 	}
+
+	// Validate JWT configuration before proceeding
+	if err := jwtConfig.Validate(); err != nil {
+		slog.Error("Invalid JWT configuration", "error", err)
+		os.Exit(1)
+	}
+
 	jwtAuthMiddleware := v1middleware.NewJWTAuthMiddleware(jwtConfig)
 
 	// Setup Authorization middleware with configurable security policy
@@ -79,8 +104,8 @@ func main() {
 	case "fail_open_admin_system":
 		authConfig.Mode = v1models.AuthorizationModeFailOpenAdminSystem
 	default:
-		slog.Warn("Invalid authorization mode, defaulting to fail_open_admin_system", "mode", authMode)
-		authConfig.Mode = v1models.AuthorizationModeFailOpenAdminSystem
+		slog.Error("Invalid authorization mode. Valid options: fail_closed, fail_open_admin, fail_open_admin_system", "mode", authMode)
+		os.Exit(1)
 	}
 	authConfig.StrictMode = strictMode
 

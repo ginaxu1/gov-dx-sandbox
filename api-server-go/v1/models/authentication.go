@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -78,6 +79,10 @@ type AuthenticatedUser struct {
 
 	// Cached permissions - computed once during user creation for performance
 	permissions []Permission `json:"-"` // Don't expose in JSON, use GetPermissions() method
+
+	// Cached member ID - populated on first access to avoid repeated database queries
+	memberID      string `json:"-"` // Don't expose in JSON
+	memberIDError error  `json:"-"` // Cache the error state as well
 }
 
 // AuthContext represents the authentication context in HTTP requests
@@ -164,6 +169,22 @@ func (u *AuthenticatedUser) IsTokenExpired() bool {
 	return time.Now().After(u.ExpiresAt)
 }
 
+// GetCachedMemberID returns the cached member ID if available
+func (u *AuthenticatedUser) GetCachedMemberID() (string, bool) {
+	return u.memberID, u.memberID != ""
+}
+
+// SetCachedMemberID sets the cached member ID and error state
+func (u *AuthenticatedUser) SetCachedMemberID(memberID string, err error) {
+	u.memberID = memberID
+	u.memberIDError = err
+}
+
+// GetCachedMemberIDError returns the cached error from member ID lookup
+func (u *AuthenticatedUser) GetCachedMemberIDError() error {
+	return u.memberIDError
+}
+
 // computePermissions calculates all permissions for the given roles
 func computePermissions(roles []Role) []Permission {
 	permissionSet := make(map[Permission]bool)
@@ -185,7 +206,8 @@ func computePermissions(roles []Role) []Permission {
 }
 
 // NewAuthenticatedUser creates a new authenticated user from JWT claims
-func NewAuthenticatedUser(claims *UserClaims) *AuthenticatedUser {
+// Returns an error if no valid roles are found in the claims
+func NewAuthenticatedUser(claims *UserClaims) (*AuthenticatedUser, error) {
 	// Convert string roles to Role type
 	var roles []Role
 	for _, roleStr := range claims.Roles.ToStringSlice() {
@@ -195,10 +217,9 @@ func NewAuthenticatedUser(claims *UserClaims) *AuthenticatedUser {
 		}
 	}
 
-	// If no valid roles found, default to member
+	// If no valid roles found, deny access for security
 	if len(roles) == 0 {
-		roles = []Role{RoleMember}
-		// TODO: If no roles are found, consider restricting access or logging a warning
+		return nil, fmt.Errorf("access denied: no valid roles found in JWT claims for user %s", claims.IdpUserID)
 	}
 
 	// Compute permissions once during user creation for optimal performance
@@ -216,5 +237,5 @@ func NewAuthenticatedUser(claims *UserClaims) *AuthenticatedUser {
 		IssuedAt:    claims.IssuedAt,
 		ExpiresAt:   claims.ExpiresAt,
 		permissions: permissions,
-	}
+	}, nil
 }
