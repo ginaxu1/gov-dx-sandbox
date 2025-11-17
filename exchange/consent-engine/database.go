@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	_ "github.com/lib/pq"
 )
 
@@ -115,8 +116,11 @@ func ConnectDB(config *DatabaseConfig) (*sql.DB, error) {
 
 		// Test connection with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
+		start := time.Now()
 		err = db.PingContext(ctx)
+		duration := time.Since(start)
 		cancel()
+		monitoring.RecordExternalCall(context.Background(), "consent-db", "connect", duration, err)
 
 		if err != nil {
 			slog.Warn("Failed to ping database", "attempt", attempt, "error", err)
@@ -150,7 +154,10 @@ func ExecuteWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig,
 	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
 	defer cancel()
 
-	return db.ExecContext(queryCtx, query, args...)
+	start := time.Now()
+	result, err := db.ExecContext(queryCtx, query, args...)
+	monitoring.RecordDBLatency(ctx, "consent-db", "exec", time.Since(start))
+	return result, err
 }
 
 // QueryWithTimeout executes a query with timeout and returns rows
@@ -159,7 +166,10 @@ func QueryWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig, q
 	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
 	defer cancel()
 
-	return db.QueryContext(queryCtx, query, args...)
+	start := time.Now()
+	rows, err := db.QueryContext(queryCtx, query, args...)
+	monitoring.RecordDBLatency(ctx, "consent-db", "query", time.Since(start))
+	return rows, err
 }
 
 // QueryRowWithTimeout executes a query with timeout and returns a single row and a cleanup function.
@@ -173,7 +183,9 @@ func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig
 	// Create a timeout context for the query
 	queryCtx, cancel := context.WithTimeout(ctx, config.QueryTimeout)
 
+	start := time.Now()
 	row := db.QueryRowContext(queryCtx, query, args...)
+	monitoring.RecordDBLatency(ctx, "consent-db", "queryrow", time.Since(start))
 	return row, cancel
 }
 
