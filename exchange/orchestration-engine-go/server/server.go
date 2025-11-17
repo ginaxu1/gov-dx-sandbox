@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
+	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
@@ -14,6 +15,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/telemetry"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -26,6 +28,7 @@ const DefaultPort = "4000"
 // RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
 	mux := chi.NewRouter()
+	mux.Use(telemetry.HTTPMetricsMiddleware)
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
@@ -64,6 +67,9 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
+	// Metrics endpoint
+	mux.Handle("/metrics", telemetry.Handler())
+
 	// Schema management routes
 	mux.Get("/sdl", schemaHandler.GetActiveSchema)
 	mux.Post("/sdl", schemaHandler.CreateSchema)
@@ -76,6 +82,14 @@ func RunServer(f *federator.Federator) {
 
 	// Publicly accessible Endpoints
 	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {
+		const workflowName = "graphql_federation"
+		telemetry.WorkflowInFlightAdd(r.Context(), workflowName, 1)
+		workflowStart := time.Now()
+		defer func() {
+			telemetry.WorkflowInFlightAdd(r.Context(), workflowName, -1)
+			telemetry.RecordWorkflowDuration(r.Context(), workflowName, time.Since(workflowStart))
+		}()
+
 		// Parse request body
 		var req graphql.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -122,6 +136,8 @@ func RunServer(f *federator.Federator) {
 			logger.Log.Error("Failed to write response", "error", err)
 			return
 		}
+
+		telemetry.RecordBusinessEvent(r.Context(), "graphql_request", len(response.Errors) == 0)
 	})
 
 	// Start server
