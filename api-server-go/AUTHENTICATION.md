@@ -48,9 +48,9 @@ Extract & Validate JWT → Check Permissions → Access Resource
 
 | Role | Description | Access Level |
 |------|-------------|--------------|
-| `admin` | System administrators | Full access to all resources |
-| `member` | Regular users | Access to own resources only |
-| `system` | Internal services | Read-only access for system operations |
+| `OpenDIF_Admin` | System administrators | Full access to all resources |
+| `OpenDIF_Member` | Regular users | Access to own resources only |
+| `OpenDIF_System` | Internal services | Read-only access for system operations |
 
 ### Permission Model
 
@@ -97,7 +97,7 @@ The JWT token must include these claims:
   "email": "user@example.com",
   "given_name": "John",
   "family_name": "Doe",
-  "roles": ["member"],
+  "roles": ["OpenDIF_Member"],
   "org_name": "your_organization",
   "iss": "https://api.asgardeo.io/t/{organization}/oauth2/token",
   "aud": ["your_client_id"],

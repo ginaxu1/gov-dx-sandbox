@@ -1,5 +1,19 @@
 package models
 
+// AuthorizationMode defines how the system behaves when no explicit permission is defined for an endpoint
+type AuthorizationMode string
+
+const (
+	// AuthorizationModeFailClosed - Deny all access to undefined endpoints (most secure)
+	AuthorizationModeFailClosed AuthorizationMode = "fail_closed"
+
+	// AuthorizationModeFailOpenAdminSystem - Allow admin and system users, deny others (current behavior)
+	AuthorizationModeFailOpenAdminSystem AuthorizationMode = "fail_open_admin_system"
+
+	// AuthorizationModeFailOpenAdmin - Allow only admin users, deny others
+	AuthorizationModeFailOpenAdmin AuthorizationMode = "fail_open_admin"
+)
+
 // Role represents user roles in the system
 type Role string
 

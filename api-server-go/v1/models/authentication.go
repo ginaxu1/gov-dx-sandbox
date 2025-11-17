@@ -75,6 +75,9 @@ type AuthenticatedUser struct {
 	OrgName     string    `json:"orgName"`
 	IssuedAt    time.Time `json:"issuedAt"`
 	ExpiresAt   time.Time `json:"expiresAt"`
+
+	// Cached permissions - computed once during user creation for performance
+	permissions []Permission `json:"-"` // Don't expose in JSON, use GetPermissions() method
 }
 
 // AuthContext represents the authentication context in HTTP requests
@@ -148,10 +151,24 @@ func (u *AuthenticatedUser) GetPrimaryRole() Role {
 }
 
 // GetPermissions returns all permissions the user has based on their roles
+// Uses cached permissions computed during user creation for optimal performance
 func (u *AuthenticatedUser) GetPermissions() []Permission {
+	// Return a copy of the cached permissions to prevent external modification
+	result := make([]Permission, len(u.permissions))
+	copy(result, u.permissions)
+	return result
+}
+
+// IsTokenExpired checks if the user's token is expired
+func (u *AuthenticatedUser) IsTokenExpired() bool {
+	return time.Now().After(u.ExpiresAt)
+}
+
+// computePermissions calculates all permissions for the given roles
+func computePermissions(roles []Role) []Permission {
 	permissionSet := make(map[Permission]bool)
 
-	for _, role := range u.Roles {
+	for _, role := range roles {
 		if permissions, exists := RolePermissions[role]; exists {
 			for _, permission := range permissions {
 				permissionSet[permission] = true
@@ -165,11 +182,6 @@ func (u *AuthenticatedUser) GetPermissions() []Permission {
 	}
 
 	return permissions
-}
-
-// IsTokenExpired checks if the user's token is expired
-func (u *AuthenticatedUser) IsTokenExpired() bool {
-	return time.Now().After(u.ExpiresAt)
 }
 
 // NewAuthenticatedUser creates a new authenticated user from JWT claims
@@ -189,6 +201,9 @@ func NewAuthenticatedUser(claims *UserClaims) *AuthenticatedUser {
 		// TODO: If no roles are found, consider restricting access or logging a warning
 	}
 
+	// Compute permissions once during user creation for optimal performance
+	permissions := computePermissions(roles)
+
 	return &AuthenticatedUser{
 		IdpUserID:   claims.IdpUserID,
 		Email:       claims.Email,
@@ -200,5 +215,6 @@ func NewAuthenticatedUser(claims *UserClaims) *AuthenticatedUser {
 		OrgName:     claims.OrgName,
 		IssuedAt:    claims.IssuedAt,
 		ExpiresAt:   claims.ExpiresAt,
+		permissions: permissions,
 	}
 }

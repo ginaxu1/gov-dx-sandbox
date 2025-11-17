@@ -10,8 +10,8 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -36,14 +36,19 @@ type JWK struct {
 }
 
 // JWTAuthMiddleware provides JWT authentication functionality
+// Thread-safe: All methods can be called concurrently from multiple goroutines
 type JWTAuthMiddleware struct {
 	jwksURL        string
 	expectedIssuer string
 	validClientIDs []string
 	orgName        string
 	httpClient     *http.Client
-	keys           map[string]*rsa.PublicKey
-	lastFetch      time.Time
+
+	// Protected by keysMutex to prevent race conditions
+	// keysMutex guards both keys map and lastFetch time to ensure atomic updates
+	keysMutex sync.RWMutex
+	keys      map[string]*rsa.PublicKey
+	lastFetch time.Time
 }
 
 // JWTAuthConfig contains configuration for JWT authentication
@@ -143,15 +148,23 @@ func (j *JWTAuthMiddleware) validateToken(tokenString string) (*models.Authentic
 			return nil, fmt.Errorf("missing 'kid' in token header")
 		}
 
-		// Find the public key
+		// Find the public key with read lock
+		j.keysMutex.RLock()
 		publicKey, exists := j.keys[kid]
+		j.keysMutex.RUnlock()
+
 		if !exists {
 			// Try to refresh keys once
 			slog.Info("Key not found, refreshing JWKS", "kid", kid)
 			if err := j.fetchJWKS(); err != nil {
 				return nil, fmt.Errorf("failed to refresh JWKS: %w", err)
 			}
+
+			// Check again after refresh with read lock
+			j.keysMutex.RLock()
 			publicKey, exists = j.keys[kid]
+			j.keysMutex.RUnlock()
+
 			if !exists {
 				return nil, fmt.Errorf("no public key found for kid: %s", kid)
 			}
@@ -244,6 +257,7 @@ func (j *JWTAuthMiddleware) containsValidClientID(audiences []string) bool {
 }
 
 // fetchJWKS fetches the JWKS from the configured endpoint
+// Thread-safe: Updates keys and lastFetch atomically under write lock
 func (j *JWTAuthMiddleware) fetchJWKS() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -273,8 +287,8 @@ func (j *JWTAuthMiddleware) fetchJWKS() error {
 		return fmt.Errorf("failed to parse JWKS: %w", err)
 	}
 
-	// Clear existing keys
-	j.keys = make(map[string]*rsa.PublicKey)
+	// Build new keys map first, then update with write lock
+	newKeys := make(map[string]*rsa.PublicKey)
 
 	// Process each key
 	for _, key := range jwks.Keys {
@@ -284,12 +298,17 @@ func (j *JWTAuthMiddleware) fetchJWKS() error {
 				slog.Warn("Failed to build RSA public key", "kid", key.Kid, "error", err)
 				continue
 			}
-			j.keys[key.Kid] = publicKey
+			newKeys[key.Kid] = publicKey
 		}
 	}
 
+	// Update keys and lastFetch atomically with write lock
+	j.keysMutex.Lock()
+	j.keys = newKeys
 	j.lastFetch = time.Now()
-	slog.Info("Successfully fetched JWKS", "keys_count", len(j.keys))
+	j.keysMutex.Unlock()
+
+	slog.Info("Successfully fetched JWKS", "keys_count", len(newKeys))
 	return nil
 }
 
@@ -323,8 +342,14 @@ func (j *JWTAuthMiddleware) buildRSAPublicKey(nStr, eStr string) (*rsa.PublicKey
 }
 
 // ensureKeysFresh ensures we have fresh JWKS keys (refreshes if older than 1 hour)
+// Thread-safe: Uses read lock to check freshness, delegates to fetchJWKS for updates
 func (j *JWTAuthMiddleware) ensureKeysFresh() error {
-	if len(j.keys) == 0 || time.Since(j.lastFetch) > time.Hour {
+	// Check if refresh is needed with read lock
+	j.keysMutex.RLock()
+	needsRefresh := len(j.keys) == 0 || time.Since(j.lastFetch) > time.Hour
+	j.keysMutex.RUnlock()
+
+	if needsRefresh {
 		return j.fetchJWKS()
 	}
 	return nil
@@ -345,22 +370,4 @@ func (j *JWTAuthMiddleware) shouldSkipAuth(path string) bool {
 		}
 	}
 	return false
-}
-
-// parseUnixTimestamp converts a numeric claim to time.Time
-func parseUnixTimestamp(claim interface{}) (time.Time, error) {
-	switch v := claim.(type) {
-	case float64:
-		return time.Unix(int64(v), 0), nil
-	case int64:
-		return time.Unix(v, 0), nil
-	case string:
-		timestamp, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return time.Time{}, err
-		}
-		return time.Unix(timestamp, 0), nil
-	default:
-		return time.Time{}, fmt.Errorf("invalid timestamp format")
-	}
 }

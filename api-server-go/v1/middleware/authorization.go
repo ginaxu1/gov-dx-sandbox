@@ -10,14 +10,33 @@ import (
 	authutils "github.com/gov-dx-sandbox/api-server-go/v1/utils"
 )
 
-// AuthorizationMiddleware provides role-based access control functionality
-type AuthorizationMiddleware struct {
-	// Future: could add configuration for different authorization modes
+// AuthorizationConfig configures the authorization middleware behavior
+type AuthorizationConfig struct {
+	// Mode defines the behavior when no explicit permission is defined for an endpoint
+	Mode models.AuthorizationMode
+
+	// StrictMode when true, logs warnings about undefined endpoints in production
+	StrictMode bool
 }
 
-// NewAuthorizationMiddleware creates a new authorization middleware
+// AuthorizationMiddleware provides role-based access control functionality
+type AuthorizationMiddleware struct {
+	config AuthorizationConfig
+}
+
+// NewAuthorizationMiddleware creates a new authorization middleware with default configuration
 func NewAuthorizationMiddleware() *AuthorizationMiddleware {
-	return &AuthorizationMiddleware{}
+	return NewAuthorizationMiddlewareWithConfig(AuthorizationConfig{
+		Mode:       models.AuthorizationModeFailOpenAdminSystem, // Maintain backward compatibility
+		StrictMode: false,
+	})
+}
+
+// NewAuthorizationMiddlewareWithConfig creates a new authorization middleware with custom configuration
+func NewAuthorizationMiddlewareWithConfig(config AuthorizationConfig) *AuthorizationMiddleware {
+	return &AuthorizationMiddleware{
+		config: config,
+	}
 }
 
 // AuthorizeRequest returns a middleware function that checks user permissions for endpoints
@@ -40,15 +59,12 @@ func (a *AuthorizationMiddleware) AuthorizeRequest(next http.Handler) http.Handl
 		// Find the endpoint permission requirement
 		endpointPermission, found := authutils.FindEndpointPermission(r.Method, r.URL.Path)
 		if !found {
-			// If no specific permission is defined, allow admin and system users, deny others
-			if user.IsAdmin() || user.IsSystem() {
-				slog.Info("Access granted to undefined endpoint", "user", user.Email, "role", user.GetPrimaryRole(), "path", r.URL.Path, "method", r.Method)
-				next.ServeHTTP(w, r)
-				return
+			// Handle undefined endpoints based on configuration
+			if a.handleUndefinedEndpoint(w, r, user) {
+				return // Response already sent
 			}
-
-			slog.Warn("Access denied to undefined endpoint", "user", user.Email, "role", user.GetPrimaryRole(), "path", r.URL.Path, "method", r.Method)
-			sharedutils.RespondWithError(w, http.StatusForbidden, "Access denied")
+			// If handleUndefinedEndpoint returns false, continue to next handler
+			next.ServeHTTP(w, r)
 			return
 		}
 
@@ -188,6 +204,79 @@ func (a *AuthorizationMiddleware) RequireAdminOrSystemRole() func(http.Handler) 
 // CheckResourceOwnership is a helper function to be used in handlers to verify resource ownership
 func (a *AuthorizationMiddleware) CheckResourceOwnership(user *models.AuthenticatedUser, resourceOwnerIdpUserId string, permission models.Permission) bool {
 	return authutils.CanAccessResource(user, permission, resourceOwnerIdpUserId)
+}
+
+// handleUndefinedEndpoint handles access control for endpoints without explicit permission mappings
+// Returns true if response was sent (request should stop), false if request should continue
+func (a *AuthorizationMiddleware) handleUndefinedEndpoint(w http.ResponseWriter, r *http.Request, user *models.AuthenticatedUser) bool {
+	// Log warning if in strict mode - helps identify missing permission mappings
+	if a.config.StrictMode {
+		slog.Warn("SECURITY: Undefined endpoint accessed - consider adding explicit permission mapping",
+			"user", user.Email,
+			"role", user.GetPrimaryRole(),
+			"path", r.URL.Path,
+			"method", r.Method,
+			"mode", a.config.Mode)
+	}
+
+	switch a.config.Mode {
+	case models.AuthorizationModeFailClosed:
+		// Most secure: deny all access to undefined endpoints
+		slog.Warn("Access denied to undefined endpoint (fail-closed mode)",
+			"user", user.Email,
+			"role", user.GetPrimaryRole(),
+			"path", r.URL.Path,
+			"method", r.Method)
+		sharedutils.RespondWithError(w, http.StatusForbidden, "Endpoint access not explicitly permitted")
+		return true
+
+	case models.AuthorizationModeFailOpenAdmin:
+		// Allow only admin users
+		if user.IsAdmin() {
+			slog.Info("Access granted to undefined endpoint (admin-only mode)",
+				"user", user.Email,
+				"role", user.GetPrimaryRole(),
+				"path", r.URL.Path,
+				"method", r.Method)
+			return false // Continue to handler
+		}
+
+		slog.Warn("Access denied to undefined endpoint (admin-only mode)",
+			"user", user.Email,
+			"role", user.GetPrimaryRole(),
+			"path", r.URL.Path,
+			"method", r.Method)
+		sharedutils.RespondWithError(w, http.StatusForbidden, "Administrative access required")
+		return true
+
+	case models.AuthorizationModeFailOpenAdminSystem:
+		// Legacy behavior: allow admin and system users
+		if user.IsAdmin() || user.IsSystem() {
+			slog.Info("Access granted to undefined endpoint (admin/system mode)",
+				"user", user.Email,
+				"role", user.GetPrimaryRole(),
+				"path", r.URL.Path,
+				"method", r.Method)
+			return false // Continue to handler
+		}
+
+		slog.Warn("Access denied to undefined endpoint (admin/system mode)",
+			"user", user.Email,
+			"role", user.GetPrimaryRole(),
+			"path", r.URL.Path,
+			"method", r.Method)
+		sharedutils.RespondWithError(w, http.StatusForbidden, "Administrative or system access required")
+		return true
+
+	default:
+		// Fallback to most secure mode if configuration is invalid
+		slog.Error("Invalid authorization mode, defaulting to fail-closed",
+			"mode", a.config.Mode,
+			"path", r.URL.Path,
+			"method", r.Method)
+		sharedutils.RespondWithError(w, http.StatusForbidden, "Access denied")
+		return true
+	}
 }
 
 // shouldSkipAuthorization determines if authorization should be skipped for this path

@@ -15,6 +15,7 @@ import (
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
 	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
+	v1models "github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/joho/godotenv"
 )
 
@@ -65,8 +66,25 @@ func main() {
 	}
 	jwtAuthMiddleware := v1middleware.NewJWTAuthMiddleware(jwtConfig)
 
-	// Setup Authorization middleware
-	authorizationMiddleware := v1middleware.NewAuthorizationMiddleware()
+	// Setup Authorization middleware with configurable security policy
+	authMode := utils.GetEnvOrDefault("AUTHORIZATION_MODE", "fail_open_admin_system")
+	strictMode := utils.GetEnvOrDefault("AUTHORIZATION_STRICT_MODE", "false") == "true"
+
+	var authConfig v1middleware.AuthorizationConfig
+	switch authMode {
+	case "fail_closed":
+		authConfig.Mode = v1models.AuthorizationModeFailClosed
+	case "fail_open_admin":
+		authConfig.Mode = v1models.AuthorizationModeFailOpenAdmin
+	case "fail_open_admin_system":
+		authConfig.Mode = v1models.AuthorizationModeFailOpenAdminSystem
+	default:
+		slog.Warn("Invalid authorization mode, defaulting to fail_open_admin_system", "mode", authMode)
+		authConfig.Mode = v1models.AuthorizationModeFailOpenAdminSystem
+	}
+	authConfig.StrictMode = strictMode
+
+	authorizationMiddleware := v1middleware.NewAuthorizationMiddlewareWithConfig(authConfig)
 
 	// Setup Audit middleware, reading the correct connection variable
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
