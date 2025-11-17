@@ -252,8 +252,18 @@ func TestProcessArrayFieldSimple_NonArrayValue(t *testing.T) {
 
 	processArrayFieldSimple(responseData, path, fieldName, sourceArray, selectionSet, federatedResponse, nil)
 
-	// Should handle non-array gracefully (logs warning, doesn't crash)
+	// Should handle non-array gracefully without crashing
+	// The function logs a warning and returns early when sourceArray is not a []interface{}
 	assert.NotNil(t, responseData)
+	// Verify that the field was not added to responseData since the function returns early
+	personInfoVal, ok := responseData["personInfo"]
+	if ok {
+		personInfo, ok := personInfoVal.(map[string]interface{})
+		if ok {
+			_, hasField := personInfo["ownedVehicles"]
+			assert.False(t, hasField, "ownedVehicles should not be added when sourceArray is not an array")
+		}
+	}
 }
 
 func TestProcessSimpleField_Success(t *testing.T) {

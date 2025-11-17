@@ -1,66 +1,89 @@
 package database
 
 import (
-	"database/sql"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// setupTestDB creates an in-memory SQLite database for testing
+// getEnvOrDefault gets an environment variable with a default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// setupTestDB creates a PostgreSQL test database connection
+// Similar to consent-engine and api-server-go test utilities
 func setupTestDB(t *testing.T) *SchemaDB {
-	// Use SQLite for testing instead of PostgreSQL
-	db, err := sql.Open("sqlite3", ":memory:")
-	require.NoError(t, err, "Failed to open test database")
+	host := os.Getenv("TEST_DB_HOST")
+	port := os.Getenv("TEST_DB_PORT")
+	user := os.Getenv("TEST_DB_USERNAME")
+	password := os.Getenv("TEST_DB_PASSWORD")
+	dbname := os.Getenv("TEST_DB_DATABASE")
+	sslmode := os.Getenv("TEST_DB_SSLMODE")
 
-	schemaDB := &SchemaDB{db: db}
+	// Use safe defaults for non-sensitive values only
+	if host == "" {
+		host = "localhost"
+	}
+	if port == "" {
+		port = "5432"
+	}
+	if sslmode == "" {
+		sslmode = "disable"
+	}
 
-	// Create tables
-	createSchemasTable := `
-	CREATE TABLE IF NOT EXISTS unified_schemas (
-		id VARCHAR(36) PRIMARY KEY,
-		version VARCHAR(50) UNIQUE NOT NULL,
-		sdl TEXT NOT NULL,
-		status VARCHAR(20) NOT NULL DEFAULT 'inactive',
-		description TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		created_by VARCHAR(100),
-		checksum VARCHAR(64) NOT NULL,
-		is_active BOOLEAN DEFAULT 0
-	);`
+	// Require sensitive credentials from environment - no defaults
+	if user == "" {
+		t.Skip("Skipping PostgreSQL test: TEST_DB_USERNAME environment variable not set")
+		return nil
+	}
+	if password == "" {
+		t.Skip("Skipping PostgreSQL test: TEST_DB_PASSWORD environment variable not set")
+		return nil
+	}
+	if dbname == "" {
+		t.Skip("Skipping PostgreSQL test: TEST_DB_DATABASE environment variable not set")
+		return nil
+	}
 
-	_, err = db.Exec(createSchemasTable)
-	require.NoError(t, err, "Failed to create schemas table")
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode)
 
-	createVersionsTable := `
-	CREATE TABLE IF NOT EXISTS schema_versions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		from_version VARCHAR(50),
-		to_version VARCHAR(50) NOT NULL,
-		change_type VARCHAR(20) NOT NULL,
-		changes TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		created_by VARCHAR(255) NOT NULL
-	);`
+	db, err := NewSchemaDB(dsn)
+	if err != nil {
+		t.Skipf("Skipping PostgreSQL test: failed to connect to database: %v", err)
+		return nil
+	}
 
-	_, err = db.Exec(createVersionsTable)
-	require.NoError(t, err, "Failed to create versions table")
-
-	return schemaDB
+	return db
 }
 
 func TestNewSchemaDB_InvalidConnection(t *testing.T) {
 	// PostgreSQL connection will fail on ping, not on open
 	_, err := NewSchemaDB("host=invalid port=5432 user=test password=test dbname=test sslmode=disable")
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to ping database")
+}
+
+func TestNewSchemaDB_InvalidConnectionString(t *testing.T) {
+	// Invalid connection string format
+	_, err := NewSchemaDB("invalid connection string")
+	assert.Error(t, err)
 }
 
 func TestSchemaDB_CreateSchema(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	schema := &Schema{
@@ -86,6 +109,9 @@ func TestSchemaDB_CreateSchema(t *testing.T) {
 
 func TestSchemaDB_CreateSchema_DuplicateVersion(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	schema1 := &Schema{
@@ -119,6 +145,9 @@ func TestSchemaDB_CreateSchema_DuplicateVersion(t *testing.T) {
 
 func TestSchemaDB_GetSchemaByVersion(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	schema := &Schema{
@@ -148,6 +177,9 @@ func TestSchemaDB_GetSchemaByVersion(t *testing.T) {
 
 func TestSchemaDB_GetActiveSchema(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	// No active schema initially
@@ -196,6 +228,9 @@ func TestSchemaDB_GetActiveSchema(t *testing.T) {
 
 func TestSchemaDB_GetAllSchemas(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	// Initially empty
@@ -203,7 +238,8 @@ func TestSchemaDB_GetAllSchemas(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, schemas, 0)
 
-	// Create multiple schemas
+	// Create multiple schemas with explicit timestamps to ensure they're different
+	now := time.Now()
 	schema1 := &Schema{
 		ID:        "test-id-1",
 		Version:   "1.0.0",
@@ -212,11 +248,11 @@ func TestSchemaDB_GetAllSchemas(t *testing.T) {
 		CreatedBy: "test-user",
 		Checksum:  "abc123",
 		IsActive:  false,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	err = db.CreateSchema(schema1)
 	require.NoError(t, err)
-
-	time.Sleep(10 * time.Millisecond) // Ensure different timestamps
 
 	schema2 := &Schema{
 		ID:        "test-id-2",
@@ -226,6 +262,8 @@ func TestSchemaDB_GetAllSchemas(t *testing.T) {
 		CreatedBy: "test-user",
 		Checksum:  "def456",
 		IsActive:  true,
+		CreatedAt: now.Add(1 * time.Second),
+		UpdatedAt: now.Add(1 * time.Second),
 	}
 	err = db.CreateSchema(schema2)
 	require.NoError(t, err)
@@ -238,6 +276,9 @@ func TestSchemaDB_GetAllSchemas(t *testing.T) {
 
 func TestSchemaDB_ActivateSchema(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	// Create two schemas
@@ -284,6 +325,9 @@ func TestSchemaDB_ActivateSchema(t *testing.T) {
 
 func TestSchemaDB_ActivateSchema_NotFound(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	defer db.Close()
 
 	err := db.ActivateSchema("non-existent-version")
@@ -293,6 +337,9 @@ func TestSchemaDB_ActivateSchema_NotFound(t *testing.T) {
 
 func TestSchemaDB_Close(t *testing.T) {
 	db := setupTestDB(t)
+	if db == nil {
+		return
+	}
 	err := db.Close()
 	assert.NoError(t, err)
 

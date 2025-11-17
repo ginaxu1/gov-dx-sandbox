@@ -678,7 +678,7 @@ func isArrayFieldValue(fieldName string, value interface{}) bool {
 
 // isArrayFieldInSchema checks if a field is an array field based on the schema definition
 func isArrayFieldInSchema(schema *ast.Document, parentTypeName, fieldName string) bool {
-	if schema == nil || parentTypeName == "" {
+	if schema == nil || parentTypeName == "" || fieldName == "" {
 		return false
 	}
 

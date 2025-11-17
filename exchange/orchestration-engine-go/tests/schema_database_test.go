@@ -17,10 +17,10 @@ func TestDatabaseSchemaOperations(t *testing.T) {
 		t.Skip("Skipping database tests - no database connection")
 	}
 
-	// Create test database connection
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
+	// Create test database connection - use environment variables, no hardcoded credentials
+	db, err := setupTestDatabase()
 	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
+		t.Fatalf("Failed to connect to database: %v (set TEST_DB_* environment variables)", err)
 	}
 	defer db.Close()
 
@@ -151,10 +151,10 @@ func TestDatabaseErrorHandling(t *testing.T) {
 		t.Error("Expected error with invalid connection string")
 	}
 
-	// Test with valid connection but invalid operations
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
+	// Test with valid connection but invalid operations - use environment variables
+	db, err := setupTestDatabase()
 	if err != nil {
-		t.Skip("Skipping test - no database connection")
+		t.Skipf("Skipping test - no database connection: %v (set TEST_DB_* environment variables)", err)
 	}
 	defer db.Close()
 
@@ -171,16 +171,8 @@ func TestDatabaseErrorHandling(t *testing.T) {
 	}
 }
 
-// Helper function to check if database connection is available
-func hasDatabaseConnection() bool {
-	// Try to connect to database
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
-	if err != nil {
-		return false
-	}
-	defer db.Close()
-	return true
-}
+// hasDatabaseConnection is now defined in test_utils.go
+// Uses environment variables - no hardcoded credentials
 
 // TestSchemaVersioning tests schema versioning functionality
 func TestSchemaVersioning(t *testing.T) {

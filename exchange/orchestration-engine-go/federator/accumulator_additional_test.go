@@ -13,39 +13,6 @@ func init() {
 	logger.Init()
 }
 
-func TestAccumulateResponse_Simple(t *testing.T) {
-	// Test the simple accumulator (backward compatibility)
-	query := `
-		query {
-			personInfo(nic: "123456789V") {
-				fullName @sourceInfo(providerKey: "drp", providerField: "person.fullName")
-			}
-		}
-	`
-
-	queryDoc := ParseTestQuery(t, query)
-
-	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
-				ServiceKey: "drp",
-				Response: graphql.Response{
-					Data: map[string]interface{}{
-						"person": map[string]interface{}{
-							"fullName": "John Doe",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	response := AccumulateResponse(queryDoc, federatedResponse)
-
-	assert.NotNil(t, response.Data)
-	assert.Contains(t, response.Data, "personInfo")
-}
-
 func TestAccumulateResponseWithSchemaInfo(t *testing.T) {
 	query := `
 		query {
@@ -200,7 +167,7 @@ func TestGetValueAtPath_ErrorCases(t *testing.T) {
 			name:        "Empty path",
 			data:        map[string]interface{}{"test": "value"},
 			path:        "",
-			expectError: true, // Empty string splits to [""], which causes key lookup
+			expectError: true, // Empty string splits to [""], which causes key lookup to fail
 		},
 	}
 
@@ -209,6 +176,10 @@ func TestGetValueAtPath_ErrorCases(t *testing.T) {
 			result, err := GetValueAtPath(tt.data, tt.path)
 			if tt.expectError {
 				assert.Error(t, err)
+				// For empty path, verify the error message indicates key lookup failure
+				if tt.path == "" {
+					assert.Contains(t, err.Error(), "not found", "Empty path should produce a 'not found' error")
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)

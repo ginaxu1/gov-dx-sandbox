@@ -192,9 +192,14 @@ func getDatabaseConnectionString() string {
 		host = getEnv("DB_HOST", "localhost")
 		port = getEnv("DB_PORT", "5432")
 		user = getEnv("DB_USER", "postgres")
-		password = getEnv("DB_PASSWORD", "password")
+		password = getEnv("DB_PASSWORD", "")
 		dbname = getEnv("DB_NAME", "orchestration_engine")
 		sslmode = getEnv("DB_SSLMODE", "disable")
+
+		// Require password from environment - no default
+		if password == "" {
+			logger.Log.Warn("DB_PASSWORD not set - database connection may fail")
+		}
 	}
 
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",

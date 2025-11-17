@@ -271,9 +271,11 @@ func TestAuditService_SendAuditLog(t *testing.T) {
 }
 
 func TestAuditService_SendAuditLogAsync(t *testing.T) {
+	auditReceived := make(chan bool, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(models.Log{ID: "log-123", Status: "success"})
+		auditReceived <- true
 	}))
 	defer server.Close()
 
@@ -286,8 +288,13 @@ func TestAuditService_SendAuditLogAsync(t *testing.T) {
 	// Should not block
 	service.SendAuditLogAsync(auditReq)
 
-	// Give it a moment to process
-	time.Sleep(100 * time.Millisecond)
+	// Wait for async audit log to be received
+	select {
+	case <-auditReceived:
+		// Audit log was sent successfully
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timeout waiting for audit log to be sent")
+	}
 }
 
 // Helper type for testing read errors

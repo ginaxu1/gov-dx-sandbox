@@ -30,12 +30,12 @@ func TestBuildSchemaInfoMap_WithArrayAndSimpleFields(t *testing.T) {
 	`
 
 	querySDL := `
-		query {
+				query {
 			personInfo {
-				fullName
-				ownedVehicles {
-					regNo
-					make
+						fullName
+						ownedVehicles {
+							regNo
+							make
 				}
 			}
 		}

@@ -357,15 +357,3 @@ func TestExtractArrayRequiredArguments(t *testing.T) {
 	assert.Equal(t, "ids", second.Argument.Name.Value)
 	assert.Equal(t, "personInfo.allowList", second.ArgMapping.TargetArgPath)
 }
-
-// TODO: Add tests for PushArgumentsToProviderQueryAst
-// The function PushArgumentsToProviderQueryAst is currently tested indirectly through integration tests.
-// Unit tests would require creating a mock FederationServiceAST helper function.
-// Consider implementing when:
-// 1. A helper function to create mock FederationServiceAST is available
-// 2. Direct unit test coverage for this function becomes a priority
-func TestPushArgumentsToProviderQueryAst(t *testing.T) {
-	t.Skip("TODO: Implement unit tests for PushArgumentsToProviderQueryAst. Requires mock FederationServiceAST helper function.")
-}
-
-// Helper functions

@@ -653,7 +653,7 @@ func TestObjectAndArrayResponseSupport(t *testing.T) {
 			"address":  "123 Main St",
 		}
 
-		result, err := PushValue(obj, path, value)
+		result, err := federator.PushValue(obj, path, value)
 		assert.NoError(t, err, "Should not return error")
 		assert.NotNil(t, result, "Should return result")
 
@@ -681,7 +681,7 @@ func TestObjectAndArrayResponseSupport(t *testing.T) {
 			},
 		}
 
-		result, err := PushValue(obj, path, value)
+		result, err := federator.PushValue(obj, path, value)
 		assert.NoError(t, err, "Should not return error")
 		assert.NotNil(t, result, "Should return result")
 
@@ -844,7 +844,7 @@ func TestArrayResponseValidation(t *testing.T) {
 		}
 
 		// Extract array from path
-		value, err := GetValueAtPath(data, "personInfo.ownedVehicles")
+		value, err := federator.GetValueAtPath(data, "personInfo.ownedVehicles")
 		assert.NoError(t, err, "Should extract array value")
 
 		vehicles := value.([]interface{})

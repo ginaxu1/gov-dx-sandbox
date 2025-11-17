@@ -10,6 +10,7 @@ import (
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -28,6 +29,7 @@ func TestNewAuditMiddleware(t *testing.T) {
 func TestAuditMiddleware_AuditHandler_Success(t *testing.T) {
 	// Create a test server to capture audit requests
 	var capturedRequest *AuditLogRequest
+	auditReceived := make(chan bool, 1)
 	auditServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req AuditLogRequest
 		json.NewDecoder(r.Body).Decode(&req)
@@ -38,6 +40,7 @@ func TestAuditMiddleware_AuditHandler_Success(t *testing.T) {
 			Timestamp: time.Now(),
 			Status:    "success",
 		})
+		auditReceived <- true
 	}))
 	defer auditServer.Close()
 
@@ -56,19 +59,23 @@ func TestAuditMiddleware_AuditHandler_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "OK", w.Body.String())
 
-	// Wait a bit for async audit log
-	time.Sleep(100 * time.Millisecond)
-
-	// Verify audit request was sent
-	if capturedRequest != nil {
+	// Wait for async audit log to be received
+	select {
+	case <-auditReceived:
+		// Verify audit request was sent
+		require.NotNil(t, capturedRequest, "Audit request should have been captured")
 		assert.Equal(t, "success", capturedRequest.Status)
 		assert.Contains(t, capturedRequest.RequestedData, "query")
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timeout waiting for audit log to be sent")
 	}
 }
 
 func TestAuditMiddleware_AuditHandler_ErrorResponse(t *testing.T) {
+	auditReceived := make(chan bool, 1)
 	auditServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		auditReceived <- true
 	}))
 	defer auditServer.Close()
 
@@ -87,8 +94,13 @@ func TestAuditMiddleware_AuditHandler_ErrorResponse(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Equal(t, "Error", w.Body.String())
 
-	// Wait for async audit log
-	time.Sleep(100 * time.Millisecond)
+	// Wait for async audit log to be received
+	select {
+	case <-auditReceived:
+		// Audit log was sent successfully
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timeout waiting for audit log to be sent")
+	}
 }
 
 func TestAuditMiddleware_ExtractAuditInfo(t *testing.T) {
