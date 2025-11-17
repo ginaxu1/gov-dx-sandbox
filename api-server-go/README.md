@@ -49,7 +49,7 @@ The API implements fine-grained permissions including:
 ## 🛠️ Quick Start
 
 ### Prerequisites
-- Go 1.19+ 
+- Go 1.21+ 
 - PostgreSQL 13+
 - Docker (optional)
 
