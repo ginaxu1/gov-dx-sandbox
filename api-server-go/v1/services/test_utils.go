@@ -24,7 +24,11 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
 	port := getEnvOrDefault("TEST_DB_PORT", "5432")
 	user := getEnvOrDefault("TEST_DB_USERNAME", "postgres")
-	password := getEnvOrDefault("TEST_DB_PASSWORD", "oxsf")
+	password := os.Getenv("TEST_DB_PASSWORD")
+	if password == "" {
+		t.Skipf("Skipping test: TEST_DB_PASSWORD environment variable must be set for test database connection")
+		return nil
+	}
 	database := getEnvOrDefault("TEST_DB_DATABASE", "api_server_test")
 	sslmode := getEnvOrDefault("TEST_DB_SSLMODE", "disable")
 
