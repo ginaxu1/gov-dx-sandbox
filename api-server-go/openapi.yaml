@@ -1,9 +1,28 @@
 openapi: 3.0.3
 info:
-  title: API Server
+  title: Government Data Exchange API Server
   description: |
-    Government Data Exchange API Server for managing consumers, providers, and data access workflows.
-    This service handles consumer applications, provider submissions, schema management, and access control.
+    A secure, scalable Go-based REST API server for managing government data exchange workflows.
+    
+    ## Authentication
+    All API endpoints (except /health, /debug, and /debug/db) require JWT authentication using Bearer tokens 
+    from Asgardeo identity provider.
+    
+    ## Authorization  
+    The API implements role-based access control (RBAC) with the following roles:
+    - **OpenDIF_Admin**: Full system access and management capabilities
+    - **OpenDIF_Member**: Standard user access to own resources only
+    - **OpenDIF_System**: System-level operations with read access
+    
+    ## Features
+    - JWT authentication with Asgardeo integration
+    - Role-based access control with granular permissions
+    - Thread-safe caching for optimal performance
+    - Ownership-based resource access validation
+    - Comprehensive audit logging
+    
+    This service handles member management, schema submissions, application processing, and access control
+    with enterprise-grade security and performance optimizations.
   version: 1.0.0
   contact:
     name: OpenDIF Team
@@ -184,6 +203,47 @@ paths:
                   service:
                     type: string
                     example: api-server-v1
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /debug/db:
+    get:
+      summary: Database debug endpoint
+      description: Returns database connection information and pool statistics
+      operationId: getDebugDB
+      tags:
+        - Debug
+      security: []
+      responses:
+        '200':
+          description: Database debug information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  database:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: connected
+                      openConnections:
+                        type: integer
+                        example: 5
+                      maxOpenConnections:
+                        type: integer
+                        example: 25
+                      idleConnections:
+                        type: integer
+                        example: 3
+                      waitCount:
+                        type: integer
+                        example: 0
+                      waitDuration:
+                        type: string
+                        example: 0s
                   timestamp:
                     type: string
                     format: date-time

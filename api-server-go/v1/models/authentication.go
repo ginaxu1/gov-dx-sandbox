@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -81,8 +82,10 @@ type AuthenticatedUser struct {
 	permissions []Permission `json:"-"` // Don't expose in JSON, use GetPermissions() method
 
 	// Cached member ID - populated on first access to avoid repeated database queries
-	memberID      string `json:"-"` // Don't expose in JSON
-	memberIDError error  `json:"-"` // Cache the error state as well
+	// Protected by mutex for thread safety
+	memberIDMutex sync.RWMutex `json:"-"` // Protects memberID and memberIDError fields
+	memberID      string       `json:"-"` // Don't expose in JSON
+	memberIDError error        `json:"-"` // Cache the error state as well
 }
 
 // AuthContext represents the authentication context in HTTP requests
@@ -170,19 +173,36 @@ func (u *AuthenticatedUser) IsTokenExpired() bool {
 }
 
 // GetCachedMemberID returns the cached member ID if available
+// Thread-safe using read lock
 func (u *AuthenticatedUser) GetCachedMemberID() (string, bool) {
+	u.memberIDMutex.RLock()
+	defer u.memberIDMutex.RUnlock()
 	return u.memberID, u.memberID != ""
 }
 
 // SetCachedMemberID sets the cached member ID and error state
+// Thread-safe using write lock
 func (u *AuthenticatedUser) SetCachedMemberID(memberID string, err error) {
+	u.memberIDMutex.Lock()
+	defer u.memberIDMutex.Unlock()
 	u.memberID = memberID
 	u.memberIDError = err
 }
 
 // GetCachedMemberIDError returns the cached error from member ID lookup
+// Thread-safe using read lock
 func (u *AuthenticatedUser) GetCachedMemberIDError() error {
+	u.memberIDMutex.RLock()
+	defer u.memberIDMutex.RUnlock()
 	return u.memberIDError
+}
+
+// GetCachedMemberIDWithError atomically returns both the cached member ID and error state
+// This ensures consistency when reading both values together
+func (u *AuthenticatedUser) GetCachedMemberIDWithError() (memberID string, cached bool, err error) {
+	u.memberIDMutex.RLock()
+	defer u.memberIDMutex.RUnlock()
+	return u.memberID, u.memberID != "", u.memberIDError
 }
 
 // computePermissions calculates all permissions for the given roles
