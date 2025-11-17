@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/shared/config"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 
 	// V1 API imports
@@ -127,8 +128,9 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Apply CORS middleware and create server
-	handler := v1Router.ApplyCORS(mux)
+	// Wrap the mux with metrics (outermost) and then CORS from v1 router
+	// Metrics must be outermost to capture all requests, including CORS-blocked ones
+	handler := monitoring.HTTPMetricsMiddleware(v1Router.ApplyCORS(mux))
 	httpServer := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
