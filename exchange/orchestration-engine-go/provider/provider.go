@@ -10,7 +10,7 @@ import (
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/telemetry"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"golang.org/x/oauth2/clientcredentials"
 )
 
@@ -70,7 +70,7 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 
 			client := p.OAuth2Config.Client(ctx)
 			resp, err := client.Do(req) // Use context with request
-			telemetry.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
+			monitoring.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
 			return resp, err
 		case auth.AuthTypeAPIKey:
 			req.Header.Set(p.Auth.APIKeyName, p.Auth.APIKeyValue)
@@ -79,6 +79,6 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 
 	// Default client execution (for API Key or no auth)
 	resp, err := p.Client.Do(req)
-	telemetry.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
+	monitoring.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
 	return resp, err
 }

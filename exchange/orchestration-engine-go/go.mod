@@ -7,6 +7,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 )
 
+require github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
+
 require (
 	github.com/lib/pq v1.10.9
 	golang.org/x/oauth2 v0.32.0
@@ -40,3 +42,5 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring

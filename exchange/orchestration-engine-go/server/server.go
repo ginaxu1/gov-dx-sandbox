@@ -15,7 +15,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/telemetry"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -28,7 +28,7 @@ const DefaultPort = "4000"
 // RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
 	mux := chi.NewRouter()
-	mux.Use(telemetry.HTTPMetricsMiddleware)
+	mux.Use(monitoring.HTTPMetricsMiddleware)
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
@@ -68,7 +68,7 @@ func RunServer(f *federator.Federator) {
 	})
 
 	// Metrics endpoint
-	mux.Handle("/metrics", telemetry.Handler())
+	mux.Handle("/metrics", monitoring.Handler())
 
 	// Schema management routes
 	mux.Get("/sdl", schemaHandler.GetActiveSchema)
@@ -83,11 +83,11 @@ func RunServer(f *federator.Federator) {
 	// Publicly accessible Endpoints
 	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {
 		const workflowName = "graphql_federation"
-		telemetry.WorkflowInFlightAdd(r.Context(), workflowName, 1)
+		monitoring.WorkflowInFlightAdd(r.Context(), workflowName, 1)
 		workflowStart := time.Now()
 		defer func() {
-			telemetry.WorkflowInFlightAdd(r.Context(), workflowName, -1)
-			telemetry.RecordWorkflowDuration(r.Context(), workflowName, time.Since(workflowStart))
+			monitoring.WorkflowInFlightAdd(r.Context(), workflowName, -1)
+			monitoring.RecordWorkflowDuration(r.Context(), workflowName, time.Since(workflowStart))
 		}()
 
 		// Parse request body
@@ -137,7 +137,7 @@ func RunServer(f *federator.Federator) {
 			return
 		}
 
-		telemetry.RecordBusinessEvent(r.Context(), "graphql_request", len(response.Errors) == 0)
+		monitoring.RecordBusinessEvent(r.Context(), "graphql_request", len(response.Errors) == 0)
 	})
 
 	// Start server

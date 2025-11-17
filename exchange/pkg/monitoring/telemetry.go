@@ -1,4 +1,4 @@
-package telemetry
+package monitoring
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 var (
 	exporter               *prometheus.Exporter
 	meterProvider          *sdkmetric.MeterProvider
+	meterName              string
 	requestCounter         metric.Int64Counter
 	latencyHist            metric.Float64Histogram
 	externalCallCounter    metric.Int64Counter
@@ -28,12 +29,32 @@ var (
 	businessEventCounter   metric.Int64Counter
 	workflowDurationHist   metric.Float64Histogram
 	workflowInFlight       metric.Int64UpDownCounter
+	dbLatencyHist          metric.Float64Histogram
+	cacheEventCounter      metric.Int64Counter
+	decisionLatencyHist    metric.Float64Histogram
+	decisionFailureCounter metric.Int64Counter
 	initOnce               sync.Once
 	httpHandler            http.Handler
 )
 
-// Init configures OpenTelemetry metrics with a Prometheus exporter and runtime instrumentation.
-func Init(ctx context.Context, serviceName string) (func(context.Context) error, error) {
+// Config captures the minimal setup parameters shared across services.
+type Config struct {
+	ServiceName   string
+	ResourceAttrs map[string]string
+}
+
+// Setup configures OpenTelemetry metrics with a Prometheus exporter and runtime instrumentation.
+func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error) {
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = "unknown-service"
+	}
+
+	var attrs []attribute.KeyValue
+	attrs = append(attrs, semconv.ServiceName(cfg.ServiceName))
+	for k, v := range cfg.ResourceAttrs {
+		attrs = append(attrs, attribute.String(k, v))
+	}
+
 	var initErr error
 
 	initOnce.Do(func() {
@@ -45,15 +66,14 @@ func Init(ctx context.Context, serviceName string) (func(context.Context) error,
 
 		res, err := resource.Merge(
 			resource.Default(),
-			resource.NewSchemaless(
-				semconv.ServiceName(serviceName),
-			),
+			resource.NewSchemaless(attrs...),
 		)
 		if err != nil {
 			initErr = err
 			return
 		}
 
+		meterName = cfg.ServiceName
 		meterProvider = sdkmetric.NewMeterProvider(
 			sdkmetric.WithReader(exp),
 			sdkmetric.WithResource(res),
@@ -63,7 +83,7 @@ func Init(ctx context.Context, serviceName string) (func(context.Context) error,
 		exporter = exp
 		httpHandler = promhttp.Handler()
 
-		meter := meterProvider.Meter("orchestration-engine/server")
+		meter := meterProvider.Meter(meterName)
 		requestCounter, err = meter.Int64Counter(
 			"http_requests_total",
 			metric.WithDescription("Total number of HTTP requests processed"),
@@ -130,6 +150,42 @@ func Init(ctx context.Context, serviceName string) (func(context.Context) error,
 		workflowInFlight, err = meter.Int64UpDownCounter(
 			"workflow_inflight",
 			metric.WithDescription("Number of workflows currently processing"),
+		)
+		if err != nil {
+			initErr = err
+			return
+		}
+
+		dbLatencyHist, err = meter.Float64Histogram(
+			"db_latency_seconds",
+			metric.WithDescription("Database latency segmented by datastore and operation"),
+		)
+		if err != nil {
+			initErr = err
+			return
+		}
+
+		cacheEventCounter, err = meter.Int64Counter(
+			"cache_events_total",
+			metric.WithDescription("Cache hit/miss counts"),
+		)
+		if err != nil {
+			initErr = err
+			return
+		}
+
+		decisionLatencyHist, err = meter.Float64Histogram(
+			"decision_latency_seconds",
+			metric.WithDescription("Policy decision latency"),
+		)
+		if err != nil {
+			initErr = err
+			return
+		}
+
+		decisionFailureCounter, err = meter.Int64Counter(
+			"decision_failures_total",
+			metric.WithDescription("Policy decision failures grouped by reason"),
 		)
 		if err != nil {
 			initErr = err
@@ -261,5 +317,56 @@ func WorkflowInFlightAdd(ctx context.Context, workflow string, delta int64) {
 
 	workflowInFlight.Add(ctx, delta, metric.WithAttributes(
 		attribute.String("workflow.name", workflow),
+	))
+}
+
+// RecordDBLatency records datastore read/write duration.
+func RecordDBLatency(ctx context.Context, datastore, operation string, duration time.Duration) {
+	if dbLatencyHist == nil {
+		return
+	}
+
+	dbLatencyHist.Record(ctx, duration.Seconds(), metric.WithAttributes(
+		attribute.String("db.name", datastore),
+		attribute.String("db.operation", operation),
+	))
+}
+
+// RecordCacheEvent increments cache hit/miss counters.
+func RecordCacheEvent(ctx context.Context, cacheName string, hit bool) {
+	if cacheEventCounter == nil {
+		return
+	}
+
+	result := "miss"
+	if hit {
+		result = "hit"
+	}
+
+	cacheEventCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("cache.name", cacheName),
+		attribute.String("cache.result", result),
+	))
+}
+
+// RecordDecisionLatency tracks how long it took to evaluate a policy decision.
+func RecordDecisionLatency(ctx context.Context, decisionType string, duration time.Duration) {
+	if decisionLatencyHist == nil {
+		return
+	}
+
+	decisionLatencyHist.Record(ctx, duration.Seconds(), metric.WithAttributes(
+		attribute.String("decision.type", decisionType),
+	))
+}
+
+// RecordDecisionFailure increments failure counter with a reason label.
+func RecordDecisionFailure(ctx context.Context, reason string) {
+	if decisionFailureCounter == nil {
+		return
+	}
+
+	decisionFailureCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("failure.reason", reason),
 	))
 }
