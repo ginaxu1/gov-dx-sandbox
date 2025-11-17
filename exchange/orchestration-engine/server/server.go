@@ -15,7 +15,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/telemetry"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -56,7 +56,7 @@ func RunServer(f *federator.Federator) {
 // SetupRouter initializes the router and registers all endpoints
 func SetupRouter(f *federator.Federator) *chi.Mux {
 	mux := chi.NewRouter()
-	mux.Use(telemetry.HTTPMetricsMiddleware)
+	mux.Use(monitoring.HTTPMetricsMiddleware)
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
@@ -96,7 +96,7 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 	})
 
 	// Metrics endpoint
-	mux.Handle("/metrics", telemetry.Handler())
+	mux.Handle("/metrics", monitoring.Handler())
 
 	// Schema management routes
 	mux.Get("/sdl", schemaHandler.GetActiveSchema)
@@ -111,11 +111,11 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 	// Publicly accessible Endpoints
 	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {
 		const workflowName = "graphql_federation"
-		telemetry.WorkflowInFlightAdd(r.Context(), workflowName, 1)
+		monitoring.WorkflowInFlightAdd(r.Context(), workflowName, 1)
 		workflowStart := time.Now()
 		defer func() {
-			telemetry.WorkflowInFlightAdd(r.Context(), workflowName, -1)
-			telemetry.RecordWorkflowDuration(r.Context(), workflowName, time.Since(workflowStart))
+			monitoring.WorkflowInFlightAdd(r.Context(), workflowName, -1)
+			monitoring.RecordWorkflowDuration(r.Context(), workflowName, time.Since(workflowStart))
 		}()
 
 		// Parse request body
@@ -163,7 +163,7 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 			return
 		}
 
-		telemetry.RecordBusinessEvent(r.Context(), "graphql_request", len(response.Errors) == 0)
+		monitoring.RecordBusinessEvent(r.Context(), "graphql_request", len(response.Errors) == 0)
 	})
 
 	return mux
