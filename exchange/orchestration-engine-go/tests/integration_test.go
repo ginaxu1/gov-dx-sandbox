@@ -3,8 +3,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/stretchr/testify/assert"
 )

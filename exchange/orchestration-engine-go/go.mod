@@ -1,4 +1,4 @@
-module github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go
+module github.com/gov-dx-sandbox/exchange/orchestration-engine-go
 
 go 1.25.0
 
@@ -7,14 +7,17 @@ require (
 	github.com/stretchr/testify v1.11.1
 )
 
-require github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
+require github.com/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 
 require (
 	github.com/lib/pq v1.10.9
 	golang.org/x/oauth2 v0.32.0
 )
 
-require github.com/go-chi/chi/v5 v5.2.3
+require (
+	github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go v0.0.0-20251118155946-bf7e84662a7e
+	github.com/go-chi/chi/v5 v5.2.3
+)
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -45,4 +48,4 @@ require (
 
 replace github.com/gov-dx-sandbox/audit-service => ../../audit-service
 
-replace github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring
+replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring

@@ -3,14 +3,11 @@ module github.com/gov-dx-sandbox/portal-backend
 go 1.24.6
 
 require (
-	github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0-00010101000000-000000000000
-<<<<<<< HEAD
 	github.com/golang-jwt/jwt/v5 v5.2.1
-=======
->>>>>>> b1bb100 (Add metrics to PDP and CE too)
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/portal-backend/models v0.0.0
 	github.com/gov-dx-sandbox/portal-backend/shared/utils v0.0.0
+	github.com/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 	github.com/stretchr/testify v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.30
 	golang.org/x/oauth2 v0.32.0
@@ -61,4 +58,4 @@ replace github.com/gov-dx-sandbox/portal-backend/models => ./models
 
 replace github.com/gov-dx-sandbox/portal-backend/shared/utils => ./shared/utils
 
-replace github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring => ../exchange/pkg/monitoring
+replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../exchange/pkg/monitoring

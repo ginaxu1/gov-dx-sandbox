@@ -1,4 +1,4 @@
-module github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring
+module github.com/gov-dx-sandbox/exchange/pkg/monitoring
 
 go 1.21
 

@@ -3,8 +3,8 @@ module github.com/gov-dx-sandbox/exchange/policy-decision-point
 go 1.24.6
 
 require (
-	github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 	github.com/google/uuid v1.6.0
+	github.com/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
@@ -53,4 +53,4 @@ replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constant
 
 replace github.com/gov-dx-sandbox/exchange/shared/utils => ./shared/utils
 
-replace github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring
+replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring

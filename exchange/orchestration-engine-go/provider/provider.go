@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"golang.org/x/oauth2/clientcredentials"
 )
 

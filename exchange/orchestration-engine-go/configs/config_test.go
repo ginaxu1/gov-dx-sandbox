@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
 )
 
 func TestLoadConfigFromBytes_ValidJSON(t *testing.T) {
