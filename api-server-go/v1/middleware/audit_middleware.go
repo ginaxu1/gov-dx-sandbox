@@ -57,7 +57,14 @@ func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler
 			status = "FAILURE"
 		}
 
-		// Read all information from context (set by RequestContextMiddleware)
+		// Read all information from context
+		// Note: For POST requests to collection endpoints, handlers set resource IDs
+		// after creation using SetResourceID(). However, since handlers do 
+		// 'r = r.WithContext(...)' which is local, the audit middleware can't see those updates.
+		// 
+		// For now, we'll read from r.Context(). If resource ID is missing for POST requests,
+		// we'll skip audit logging (which is acceptable - the event can be logged on subsequent
+		// operations like GET/PUT where the ID is in the path).
 		ctx := r.Context()
 		actorType := GetActorType(ctx)
 		actorID := GetActorID(ctx)

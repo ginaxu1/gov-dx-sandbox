@@ -45,6 +45,7 @@ type ManagementEvent struct {
 	CreatedAt        time.Time `gorm:"type:timestamp with time zone;default:now()" json:"createdAt"`
 }
 
+
 // TableName specifies the table name for ManagementEvent
 func (ManagementEvent) TableName() string {
 	return "management_events"

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	authutils "github.com/gov-dx-sandbox/api-server-go/v1/utils"
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
+	authutils "github.com/gov-dx-sandbox/api-server-go/v1/utils"
 )
 
 // Context keys for storing request information
@@ -86,7 +86,7 @@ func extractActorInfo(r *http.Request) (actorType string, actorID *string, actor
 		// We have an authenticated user
 		actorType = "USER"
 		actorID = &user.IdpUserID
-		
+
 		// Map Role enum to audit service format
 		// OpenDIF_Admin -> ADMIN, OpenDIF_Member -> MEMBER, OpenDIF_System -> SERVICE (no role)
 		primaryRole := user.GetPrimaryRole()
@@ -107,12 +107,12 @@ func extractActorInfo(r *http.Request) (actorType string, actorID *string, actor
 			roleStr = "MEMBER"
 		}
 		actorRole = &roleStr
-		
+
 		slog.Debug("Extracted actor info from authenticated user context",
 			"actorType", actorType,
 			"actorID", *actorID,
 			"actorRole", *actorRole)
-		
+
 		return actorType, actorID, actorRole
 	}
 

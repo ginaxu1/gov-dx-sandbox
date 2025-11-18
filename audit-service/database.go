@@ -44,9 +44,9 @@ func NewDatabaseConfig() *DatabaseConfig {
 	retryDelay := parseDurationOrDefault("DB_RETRY_DELAY", "2s")
 
 	slog.Info("Database configuration",
-		"host", getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost"),
-		"port", getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432"),
-		"database", getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "gov_dx_sandbox"),
+		"host", getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost")),
+		"port", getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432")),
+		"database", getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "gov_dx_sandbox")),
 		"max_open_conns", maxOpenConns,
 		"max_idle_conns", maxIdleConns,
 		"conn_max_lifetime", connMaxLifetime,
@@ -57,11 +57,11 @@ func NewDatabaseConfig() *DatabaseConfig {
 		"retry_delay", retryDelay,
 	)
 	return &DatabaseConfig{
-		Host:            getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost"),
-		Port:            getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432"),
-		Username:        getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "user"),
-		Password:        getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password"),
-		Database:        getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "gov_dx_sandbox"),
+		Host:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", getEnvOrDefault("CHOREO_OPENDIF_DB_HOSTNAME", "localhost")),
+		Port:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", getEnvOrDefault("CHOREO_OPENDIF_DB_PORT", "5432")),
+		Username:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", getEnvOrDefault("CHOREO_OPENDIF_DB_USERNAME", "user")),
+		Password:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", getEnvOrDefault("CHOREO_OPENDIF_DB_PASSWORD", "password")),
+		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", getEnvOrDefault("CHOREO_OPENDIF_DB_DATABASENAME", "gov_dx_sandbox")),
 		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
 		MaxOpenConns:    maxOpenConns,
 		MaxIdleConns:    maxIdleConns,
