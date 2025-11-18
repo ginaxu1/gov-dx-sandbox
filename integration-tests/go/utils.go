@@ -76,8 +76,19 @@ func (tdb *TestDB) Query(ctx context.Context, query string, args ...interface{})
 
 // GetRowCount returns the number of rows in a table
 func (tdb *TestDB) GetRowCount(ctx context.Context, tableName string) (int, error) {
+	// Whitelist of allowed table names
+	allowedTables := map[string]bool{
+		"users":    true,
+		"orders":   true,
+		"products": true,
+		// Add other allowed table names here
+	}
+	if !allowedTables[tableName] {
+		return 0, fmt.Errorf("invalid table name: %s", tableName)
+	}
 	var count int
-	err := tdb.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+tableName).Scan(&count)
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+	err := tdb.db.QueryRowContext(ctx, query).Scan(&count)
 	return count, err
 }
 
