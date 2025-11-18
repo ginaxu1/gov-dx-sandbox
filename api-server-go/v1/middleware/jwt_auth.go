@@ -223,7 +223,7 @@ func (j *JWTAuthMiddleware) validateToken(tokenString string) (*models.Authentic
 		User:        user,
 		Token:       tokenString,
 		IssuedBy:    claims.Issuer,
-		Audience:    claims.Audience,
+		Audience:    claims.Audience.ToStringSlice(),
 		Permissions: user.GetPermissions(),
 	}
 
@@ -235,12 +235,12 @@ func (j *JWTAuthMiddleware) validateStandardClaims(claims *models.UserClaims) er
 	now := time.Now()
 
 	// Check if token is expired
-	if !claims.ExpiresAt.IsZero() && now.After(claims.ExpiresAt) {
+	if claims.ExpiresAt != 0 && now.After(time.Unix(claims.ExpiresAt, 0)) {
 		return fmt.Errorf("token is expired")
 	}
 
 	// Check not before time
-	if !claims.NotBefore.IsZero() && now.Before(claims.NotBefore) {
+	if claims.NotBefore != 0 && now.Before(time.Unix(claims.NotBefore, 0)) {
 		return fmt.Errorf("token is not valid yet")
 	}
 
@@ -272,8 +272,9 @@ func (j *JWTAuthMiddleware) validateStandardClaims(claims *models.UserClaims) er
 }
 
 // containsValidClientID checks if the audience list contains any of the valid client IDs
-func (j *JWTAuthMiddleware) containsValidClientID(audiences []string) bool {
-	for _, aud := range audiences {
+func (j *JWTAuthMiddleware) containsValidClientID(audiences models.FlexibleStringSlice) bool {
+	audienceSlice := audiences.ToStringSlice()
+	for _, aud := range audienceSlice {
 		for _, validClientID := range j.validClientIDs {
 			if aud == validClientID {
 				return true

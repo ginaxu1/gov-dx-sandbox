@@ -15,39 +15,39 @@ type UserClaims struct {
 	LastName    string              `json:"family_name"`
 	PhoneNumber string              `json:"phone_number"`
 	Roles       FlexibleStringSlice `json:"roles"`
-	Groups      []string            `json:"groups"`
+	Groups      FlexibleStringSlice `json:"groups"`
 	OrgName     string              `json:"org_name"`
 	IdpUserID   string              `json:"sub"` // Subject is typically the user ID from IdP
-	// Standard JWT claims
-	Issuer    string    `json:"iss"`
-	Audience  []string  `json:"aud"`
-	ExpiresAt time.Time `json:"exp"`
-	IssuedAt  time.Time `json:"iat"`
-	NotBefore time.Time `json:"nbf"`
+	// Standard JWT claims - using int64 for Unix timestamps
+	Issuer    string              `json:"iss"`
+	Audience  FlexibleStringSlice `json:"aud"`
+	ExpiresAt int64               `json:"exp"`
+	IssuedAt  int64               `json:"iat"`
+	NotBefore int64               `json:"nbf"`
 }
 
 // GetExpirationTime implements jwt.Claims interface
 func (c *UserClaims) GetExpirationTime() (*jwt.NumericDate, error) {
-	if c.ExpiresAt.IsZero() {
+	if c.ExpiresAt == 0 {
 		return nil, nil
 	}
-	return jwt.NewNumericDate(c.ExpiresAt), nil
+	return jwt.NewNumericDate(time.Unix(c.ExpiresAt, 0)), nil
 }
 
 // GetIssuedAt implements jwt.Claims interface
 func (c *UserClaims) GetIssuedAt() (*jwt.NumericDate, error) {
-	if c.IssuedAt.IsZero() {
+	if c.IssuedAt == 0 {
 		return nil, nil
 	}
-	return jwt.NewNumericDate(c.IssuedAt), nil
+	return jwt.NewNumericDate(time.Unix(c.IssuedAt, 0)), nil
 }
 
 // GetNotBefore implements jwt.Claims interface
 func (c *UserClaims) GetNotBefore() (*jwt.NumericDate, error) {
-	if c.NotBefore.IsZero() {
+	if c.NotBefore == 0 {
 		return nil, nil
 	}
-	return jwt.NewNumericDate(c.NotBefore), nil
+	return jwt.NewNumericDate(time.Unix(c.NotBefore, 0)), nil
 }
 
 // GetIssuer implements jwt.Claims interface
@@ -62,7 +62,7 @@ func (c *UserClaims) GetSubject() (string, error) {
 
 // GetAudience implements jwt.Claims interface
 func (c *UserClaims) GetAudience() (jwt.ClaimStrings, error) {
-	return jwt.ClaimStrings(c.Audience), nil
+	return jwt.ClaimStrings(c.Audience.ToStringSlice()), nil
 }
 
 // AuthenticatedUser represents the authenticated user context
@@ -245,6 +245,15 @@ func NewAuthenticatedUser(claims *UserClaims) (*AuthenticatedUser, error) {
 	// Compute permissions once during user creation for optimal performance
 	permissions := computePermissions(roles)
 
+	// Convert Unix timestamps to time.Time for AuthenticatedUser
+	var issuedAt, expiresAt time.Time
+	if claims.IssuedAt != 0 {
+		issuedAt = time.Unix(claims.IssuedAt, 0)
+	}
+	if claims.ExpiresAt != 0 {
+		expiresAt = time.Unix(claims.ExpiresAt, 0)
+	}
+
 	return &AuthenticatedUser{
 		IdpUserID:   claims.IdpUserID,
 		Email:       claims.Email,
@@ -252,10 +261,10 @@ func NewAuthenticatedUser(claims *UserClaims) (*AuthenticatedUser, error) {
 		LastName:    claims.LastName,
 		PhoneNumber: claims.PhoneNumber,
 		Roles:       roles,
-		Groups:      claims.Groups,
+		Groups:      claims.Groups.ToStringSlice(),
 		OrgName:     claims.OrgName,
-		IssuedAt:    claims.IssuedAt,
-		ExpiresAt:   claims.ExpiresAt,
+		IssuedAt:    issuedAt,
+		ExpiresAt:   expiresAt,
 		permissions: permissions,
 	}, nil
 }
