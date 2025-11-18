@@ -303,7 +303,7 @@ func TestMemberEndpoints(t *testing.T) {
 		setupMockIDPForMemberCreation(req.Email, userID)
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/members", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/members", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -322,7 +322,7 @@ func TestMemberEndpoints(t *testing.T) {
 	})
 
 	t.Run("POST /api/v1/members - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/members", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/members", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -334,13 +334,13 @@ func TestMemberEndpoints(t *testing.T) {
 	})
 
 	t.Run("PUT /api/v1/members/:id - UpdateMember_InvalidJSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/members/test-id", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/members/test-id", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("PUT /api/v1/members/:id - UpdateMember_NotFound", func(t *testing.T) {
@@ -349,17 +349,17 @@ func TestMemberEndpoints(t *testing.T) {
 			Name: &name,
 		}
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/members/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/members/non-existent-id", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("GET /api/v1/members - GetAllMembers", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/members", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/members", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -375,7 +375,7 @@ func TestMemberEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/members - WithQueryParams", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/members?email=test@example.com", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/members?email=test@example.com", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -386,7 +386,7 @@ func TestMemberEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/members/:memberId - NotFound", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/members/non-existent-id", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/members/non-existent-id", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -395,7 +395,7 @@ func TestMemberEndpoints(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 	t.Run("Method Not Allowed", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodDelete, "/api/v1/members", nil)
+		httpReq := NewAdminRequest(http.MethodDelete, "/api/v1/members", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -405,7 +405,7 @@ func TestMemberEndpoints(t *testing.T) {
 	})
 
 	t.Run("Invalid Path", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/members/invalid/path", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/members/invalid/path", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -437,7 +437,7 @@ func TestSchemaEndpoints(t *testing.T) {
 		}
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -456,7 +456,7 @@ func TestSchemaEndpoints(t *testing.T) {
 	})
 
 	t.Run("POST /api/v1/schemas - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBufferString("invalid"))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBufferString("invalid"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -468,7 +468,7 @@ func TestSchemaEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schemas - GetAllSchemas", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schemas", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schemas", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -484,7 +484,7 @@ func TestSchemaEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schemas - WithQueryParams", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schemas?memberId=test-member", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schemas?memberId=test-member", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -505,7 +505,7 @@ func TestSchemaEndpoints(t *testing.T) {
 		err := testHandler.db.Create(&schema).Error
 		assert.NoError(t, err)
 
-		httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/schemas/%s", schema.SchemaID), nil)
+		httpReq := NewAdminRequest(http.MethodGet, fmt.Sprintf("/api/v1/schemas/%s", schema.SchemaID), nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -519,7 +519,7 @@ func TestSchemaEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schemas/:schemaId - NotFound", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schemas/non-existent", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schemas/non-existent", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -548,7 +548,7 @@ func TestSchemaEndpoints(t *testing.T) {
 		}
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/schemas/%s", schema.SchemaID), bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, fmt.Sprintf("/api/v1/schemas/%s", schema.SchemaID), bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -564,7 +564,7 @@ func TestSchemaEndpoints(t *testing.T) {
 	})
 
 	t.Run("Method Not Allowed - Schemas", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodDelete, "/api/v1/schemas", nil)
+		httpReq := NewAdminRequest(http.MethodDelete, "/api/v1/schemas", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -586,7 +586,7 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 	testMemberID := "test-member-id"
 
 	t.Run("GET /api/v1/schema-submissions/:id - GetSchemaSubmission_NotFound", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schema-submissions/non-existent-id", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schema-submissions/non-existent-id", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -605,7 +605,7 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 		}
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schema-submissions", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/schema-submissions", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -623,7 +623,7 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schema-submissions - GetAllSchemaSubmissions", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schema-submissions", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schema-submissions", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -638,7 +638,7 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schema-submissions - WithQueryParams", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schema-submissions?memberId=test&status=pending", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schema-submissions?memberId=test&status=pending", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -663,7 +663,7 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 		err := testHandler.db.Create(&submission).Error
 		assert.NoError(t, err)
 
-		httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/schema-submissions/%s", submission.SubmissionID), nil)
+		httpReq := NewAdminRequest(http.MethodGet, fmt.Sprintf("/api/v1/schema-submissions/%s", submission.SubmissionID), nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -701,7 +701,7 @@ func TestSchemaSubmissionEndpoints(t *testing.T) {
 		}
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/schema-submissions/%s", submission.SubmissionID), bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, fmt.Sprintf("/api/v1/schema-submissions/%s", submission.SubmissionID), bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -742,7 +742,7 @@ func TestApplicationEndpoints(t *testing.T) {
 		}
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/applications", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/applications", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -760,7 +760,7 @@ func TestApplicationEndpoints(t *testing.T) {
 	})
 
 	t.Run("POST /api/v1/applications - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/applications", bytes.NewBufferString("invalid"))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/applications", bytes.NewBufferString("invalid"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -772,7 +772,7 @@ func TestApplicationEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/applications - GetAllApplications", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/applications", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/applications", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -788,7 +788,7 @@ func TestApplicationEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/applications - WithQueryParams", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/applications?memberId=test-member", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/applications?memberId=test-member", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -802,7 +802,7 @@ func TestApplicationEndpoints(t *testing.T) {
 		memberID := createTestMember(t, testHandler.db, fmt.Sprintf("test-%d@example.com", time.Now().UnixNano()))
 		applicationID := createTestApplication(t, testHandler.db, memberID)
 
-		httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/applications/%s", applicationID), nil)
+		httpReq := NewAdminRequest(http.MethodGet, fmt.Sprintf("/api/v1/applications/%s", applicationID), nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -816,7 +816,7 @@ func TestApplicationEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/applications/:applicationId - NotFound", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/applications/non-existent", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/applications/non-existent", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -838,7 +838,7 @@ func TestApplicationEndpoints(t *testing.T) {
 		}
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/applications/%s", applicationID), bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, fmt.Sprintf("/api/v1/applications/%s", applicationID), bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -854,7 +854,7 @@ func TestApplicationEndpoints(t *testing.T) {
 	})
 
 	t.Run("Method Not Allowed - Applications", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodDelete, "/api/v1/applications", nil)
+		httpReq := NewAdminRequest(http.MethodDelete, "/api/v1/applications", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -888,7 +888,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 		}
 
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/application-submissions", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/application-submissions", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -932,7 +932,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 			Review: &review,
 		}
 		updateReqBody, _ := json.Marshal(updateReq)
-		updateHttpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/application-submissions/%s", submission.SubmissionID), bytes.NewBuffer(updateReqBody))
+		updateHttpReq := NewAdminRequest(http.MethodPut, fmt.Sprintf("/api/v1/application-submissions/%s", submission.SubmissionID), bytes.NewBuffer(updateReqBody))
 		updateHttpReq.Header.Set("Content-Type", "application/json")
 		updateW := httptest.NewRecorder()
 		mux := http.NewServeMux()
@@ -947,7 +947,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("PUT /api/v1/application-submissions/:id - UpdateApplicationSubmission_InvalidJSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/application-submissions/test-id", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/application-submissions/test-id", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
@@ -962,7 +962,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 			Status: &status,
 		}
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/application-submissions/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/application-submissions/non-existent-id", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
@@ -972,7 +972,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/application-submissions - GetAllApplicationSubmissions", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/application-submissions", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/application-submissions", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -987,7 +987,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/application-submissions - WithQueryParams", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/application-submissions?memberId=test&status=pending", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/application-submissions?memberId=test&status=pending", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1016,7 +1016,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 		err := testHandler.db.Create(&submission).Error
 		assert.NoError(t, err)
 
-		httpReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/application-submissions/%s", submission.SubmissionID), nil)
+		httpReq := NewAdminRequest(http.MethodGet, fmt.Sprintf("/api/v1/application-submissions/%s", submission.SubmissionID), nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1030,7 +1030,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/application-submissions/:submissionId - NotFound", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/application-submissions/non-existent", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/application-submissions/non-existent", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1044,7 +1044,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	// The test at line 908 covers the same functionality with "rejected" status.
 
 	t.Run("Method Not Allowed - ApplicationSubmissions", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodDelete, "/api/v1/application-submissions", nil)
+		httpReq := NewAdminRequest(http.MethodDelete, "/api/v1/application-submissions", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1063,7 +1063,7 @@ func TestSchemaEndpoints_EdgeCases(t *testing.T) {
 	}
 
 	t.Run("POST /api/v1/schemas - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/schemas", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1075,7 +1075,7 @@ func TestSchemaEndpoints_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("PUT /api/v1/schemas/:id - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schemas/test-id", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/schemas/test-id", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1087,7 +1087,7 @@ func TestSchemaEndpoints_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schemas/:id - NotFound", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schemas/non-existent-id", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schemas/non-existent-id", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1102,7 +1102,7 @@ func TestSchemaEndpoints_EdgeCases(t *testing.T) {
 			SchemaName: &schemaName,
 		}
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schemas/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/schemas/non-existent-id", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1123,7 +1123,7 @@ func TestApplicationEndpoints_EdgeCases(t *testing.T) {
 	}
 
 	t.Run("POST /api/v1/applications - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/applications", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/applications", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1135,7 +1135,7 @@ func TestApplicationEndpoints_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("PUT /api/v1/applications/:id - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/applications/test-id", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/applications/test-id", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1143,11 +1143,11 @@ func TestApplicationEndpoints_EdgeCases(t *testing.T) {
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("GET /api/v1/applications/:id - NotFound", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/applications/non-existent-id", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/applications/non-existent-id", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1162,7 +1162,7 @@ func TestApplicationEndpoints_EdgeCases(t *testing.T) {
 			ApplicationName: &appName,
 		}
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/applications/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/applications/non-existent-id", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1170,7 +1170,7 @@ func TestApplicationEndpoints_EdgeCases(t *testing.T) {
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
 
@@ -1183,7 +1183,7 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 	}
 
 	t.Run("POST /api/v1/schema-submissions - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/schema-submissions", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/schema-submissions", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1195,7 +1195,7 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("PUT /api/v1/schema-submissions/:id - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schema-submissions/test-id", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/schema-submissions/test-id", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1203,7 +1203,7 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("PUT /api/v1/schema-submissions/:id - NotFound", func(t *testing.T) {
@@ -1212,7 +1212,7 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 			Status: &status,
 		}
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, "/api/v1/schema-submissions/non-existent-id", bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, "/api/v1/schema-submissions/non-existent-id", bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -1220,7 +1220,7 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
 
