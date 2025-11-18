@@ -1,162 +1,193 @@
-package tests
+package federator
 
 import (
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/kinds"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestProviderSchemaCollector(t *testing.T) {
-	t.Skip("Skipping mapper test - requires config initialization")
-	schema := CreateTestSchema(t)
+func TestBuildSchemaInfoMap_WithArrayAndSimpleFields(t *testing.T) {
+	schemaSDL := `
+		directive @sourceInfo(providerKey: String!, providerField: String!, schemaId: String) on FIELD_DEFINITION
 
-	tests := []struct {
-		name           string
-		query          string
-		expectedFields []string
-		expectedArgs   int
-		expectError    bool
-		description    string
-	}{
-		{
-			name: "Single Entity Query",
-			query: `
+		type Query {
+			personInfo: PersonInfo
+		}
+
+		type PersonInfo {
+			fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName")
+			ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data")
+		}
+
+		type VehicleInfo {
+			regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.registrationNumber")
+			make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.make")
+		}
+	`
+
+	querySDL := `
 				query {
-					personInfo(nic: "123456789V") {
-						fullName
-						name
-						address
-					}
-				}
-			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"rgd.getPersonInfo.name",
-				"drp.person.permanentAddress",
-			},
-			expectedArgs: 1,
-			expectError:  false,
-			description:  "Should extract source info directives for single entity query",
-		},
-		{
-			name: "Query with Array Field",
-			query: `
-				query {
-					personInfo(nic: "123456789V") {
+			personInfo {
 						fullName
 						ownedVehicles {
 							regNo
 							make
-							model
-						}
-					}
 				}
-			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"dmt.vehicle.getVehicleInfos.data",
-				"dmt.vehicle.getVehicleInfos.data.registrationNumber",
-				"dmt.vehicle.getVehicleInfos.data.make",
-				"dmt.vehicle.getVehicleInfos.data.model",
+			}
+		}
+	`
+
+	schema := ParseSchemaDoc(t, schemaSDL)
+	query := ParseQueryDoc(t, querySDL)
+
+	schemaInfoMap, err := BuildSchemaInfoMap(schema, query)
+	require.NoError(t, err)
+
+	require.Contains(t, schemaInfoMap, "personInfo.fullName")
+	fullNameInfo := schemaInfoMap["personInfo.fullName"]
+	assert.Equal(t, "drp", fullNameInfo.ProviderKey)
+	assert.Equal(t, "person.fullName", fullNameInfo.ProviderField)
+	assert.False(t, fullNameInfo.IsArray)
+
+	require.Contains(t, schemaInfoMap, "personInfo.ownedVehicles")
+	vehiclesInfo := schemaInfoMap["personInfo.ownedVehicles"]
+	assert.Equal(t, "dmt", vehiclesInfo.ProviderKey)
+	assert.True(t, vehiclesInfo.IsArray)
+	assert.Equal(t, "vehicle.getVehicleInfos.data", vehiclesInfo.ProviderArrayFieldPath)
+
+	require.Contains(t, vehiclesInfo.SubFieldSchemaInfos, "regNo")
+	regInfo := vehiclesInfo.SubFieldSchemaInfos["regNo"]
+	assert.Equal(t, "dmt", regInfo.ProviderKey)
+	assert.Equal(t, "registrationNumber", regInfo.ProviderField)
+
+	require.Contains(t, vehiclesInfo.SubFieldSchemaInfos, "make")
+	makeInfo := vehiclesInfo.SubFieldSchemaInfos["make"]
+	assert.Equal(t, "make", makeInfo.ProviderField)
+}
+
+func TestProcessNestedFieldsForArray(t *testing.T) {
+	schemaSDL := `
+		directive @sourceInfo(providerKey: String!, providerField: String!) on FIELD_DEFINITION
+
+		type VehicleInfo {
+			regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.registrationNumber")
+			make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.make")
+		}
+	`
+
+	querySDL := `
+		query {
+			personInfo {
+				ownedVehicles {
+					regNo
+					make
+				}
+			}
+		}
+	`
+
+	schema := ParseSchemaDoc(t, schemaSDL)
+	query := ParseQueryDoc(t, querySDL)
+
+	selectionSet := query.Definitions[0].(*ast.OperationDefinition).
+		SelectionSet.Selections[0].(*ast.Field).
+		SelectionSet.Selections[0].(*ast.Field).
+		SelectionSet
+
+	vehicleInfo := findTopLevelObjectDefinitionInSchema("VehicleInfo", schema)
+	require.NotNil(t, vehicleInfo)
+
+	subFields := make(map[string]*SourceSchemaInfo)
+	processNestedFieldsForArray(selectionSet, schema, vehicleInfo, subFields)
+
+	require.Len(t, subFields, 2)
+	assert.Equal(t, "registrationNumber", subFields["regNo"].ProviderField)
+	assert.Equal(t, "make", subFields["make"].ProviderField)
+}
+
+func TestPushVariablesFromVariableDefinition(t *testing.T) {
+	arg := &ast.Argument{
+		Name: &ast.Name{Value: "nic"},
+		Value: &ast.Variable{
+			Kind: kinds.Variable,
+			Name: &ast.Name{Value: "nicVar"},
+		},
+	}
+
+	argSource := &ArgSource{
+		ArgMapping: &graphql.ArgMapping{},
+		Argument:   arg,
+	}
+
+	request := graphql.Request{
+		Variables: map[string]interface{}{
+			"nicVar":  "123456789V",
+			"flagVar": true,
+		},
+	}
+
+	varDefs := []*ast.VariableDefinition{
+		{
+			Variable: &ast.Variable{Name: &ast.Name{Value: "nicVar"}},
+		},
+	}
+
+	PushVariablesFromVariableDefinition(request, []*ArgSource{argSource}, varDefs)
+
+	val, ok := argSource.Argument.Value.(*ast.StringValue)
+	require.True(t, ok, "Argument value should be converted to StringValue")
+	assert.Equal(t, "123456789V", val.Value)
+}
+
+func TestPushArgumentValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    interface{}
+		expected ast.Value
+	}{
+		{
+			name:  "String",
+			value: "hello",
+			expected: &ast.StringValue{
+				Kind:  kinds.StringValue,
+				Value: "hello",
 			},
-			expectedArgs: 1,
-			expectError:  false,
-			description:  "Should extract source info directives for query with array field",
 		},
 		{
-			name: "Bulk Query",
-			query: `
-				query {
-					personInfos(nics: ["123456789V", "987654321V"]) {
-						fullName
-						name
-					}
-				}
-			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"rgd.getPersonInfo.name",
+			name:  "Int",
+			value: 65,
+			expected: &ast.IntValue{
+				Kind:  kinds.IntValue,
+				Value: string(rune(65)),
 			},
-			expectedArgs: 1,
-			expectError:  false,
-			description:  "Should extract source info directives for bulk query",
 		},
 		{
-			name: "Query with Variables",
-			query: `
-				query GetPersonInfo($nic: String!) {
-					personInfo(nic: $nic) {
-						fullName
-						address
-					}
-				}
-			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"drp.person.permanentAddress",
+			name:  "Float",
+			value: 123.45,
+			expected: &ast.FloatValue{
+				Kind:  kinds.FloatValue,
+				Value: "123.45",
 			},
-			expectedArgs: 1,
-			expectError:  false,
-			description:  "Should extract source info directives for query with variables",
 		},
 		{
-			name: "Invalid Query - Mutation",
-			query: `
-				mutation {
-					updatePerson(nic: "123456789V") {
-						fullName
-					}
-				}
-			`,
-			expectedFields: nil,
-			expectedArgs:   0,
-			expectError:    true,
-			description:    "Should reject mutation queries",
-		},
-		{
-			name: "Invalid Query - Multiple Operations",
-			query: `
-				query Query1 {
-					personInfo(nic: "123456789V") {
-						fullName
-					}
-				}
-				query Query2 {
-					personInfo(nic: "987654321V") {
-						name
-					}
-				}
-			`,
-			expectedFields: nil,
-			expectedArgs:   0,
-			expectError:    true,
-			description:    "Should reject queries with multiple operations",
+			name:  "Bool",
+			value: true,
+			expected: &ast.BooleanValue{
+				Kind:  kinds.BooleanValue,
+				Value: true,
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queryDoc := ParseTestQuery(t, tt.query)
-
-			response, err := federator.ProviderSchemaCollector(schema, queryDoc)
-
-			if tt.expectError {
-				assert.Error(t, err, tt.description)
-				assert.Nil(t, response)
-			} else {
-				assert.NoError(t, err, tt.description)
-				assert.NotNil(t, response, "Response should not be nil")
-				assert.Len(t, response.ProviderFieldMap, len(tt.expectedFields), "Should extract correct number of fields")
-				assert.Len(t, response.Arguments, tt.expectedArgs, "Should extract correct number of arguments")
-
-				// Verify extracted fields
-				for _, expectedField := range tt.expectedFields {
-					assert.Contains(t, response.ProviderFieldMap, expectedField, "Should contain field: %s", expectedField)
-				}
-			}
+			arg := &ast.Argument{Name: &ast.Name{Value: "test"}}
+			PushArgumentValue(arg, tt.value)
+			assert.Equal(t, tt.expected, arg.Value)
 		})
 	}
 }
@@ -164,17 +195,28 @@ func TestProviderSchemaCollector(t *testing.T) {
 func TestQueryBuilder(t *testing.T) {
 	tests := []struct {
 		name          string
-		fieldsMap     []string
-		args          []*federator.ArgSource
+		fieldsMap     *[]ProviderLevelFieldRecord
+		args          []*ArgSource
 		expectedCount int
 		expectedKeys  []string
 		expectError   bool
 		description   string
 	}{
 		{
-			name:      "Single Provider Query",
-			fieldsMap: []string{"drp.person.fullName", "drp.person.address"},
-			args: []*federator.ArgSource{
+			name: "Single Provider Query",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema",
+					FieldPath:  "person.address",
+				},
+			},
+			args: []*ArgSource{
 				{
 					ArgMapping: &graphql.ArgMapping{
 						ProviderKey:   "drp",
@@ -194,9 +236,25 @@ func TestQueryBuilder(t *testing.T) {
 			description:   "Should build single provider query with arguments",
 		},
 		{
-			name:      "Multiple Provider Queries",
-			fieldsMap: []string{"drp.person.fullName", "rgd.getPersonInfo.name", "dmt.vehicle.data"},
-			args: []*federator.ArgSource{
+			name: "Multiple Provider Queries",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "rgd",
+					SchemaId:   "rgd-schema",
+					FieldPath:  "getPersonInfo.name",
+				},
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema",
+					FieldPath:  "vehicle.data",
+				},
+			},
+			args: []*ArgSource{
 				{
 					ArgMapping: &graphql.ArgMapping{
 						ProviderKey:   "drp",
@@ -229,17 +287,23 @@ func TestQueryBuilder(t *testing.T) {
 		},
 		{
 			name:          "Empty Fields Map",
-			fieldsMap:     []string{},
-			args:          []*federator.ArgSource{},
+			fieldsMap:     &[]ProviderLevelFieldRecord{},
+			args:          []*ArgSource{},
 			expectedCount: 0,
 			expectedKeys:  []string{},
 			expectError:   false,
 			description:   "Should handle empty fields map",
 		},
 		{
-			name:      "Query with Array Arguments",
-			fieldsMap: []string{"dmt.vehicle.data"},
-			args: []*federator.ArgSource{
+			name: "Query with Array Arguments",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema",
+					FieldPath:  "vehicle.getVehicleInfos.data",
+				},
+			},
+			args: []*ArgSource{
 				{
 					ArgMapping: &graphql.ArgMapping{
 						ProviderKey:   "dmt",
@@ -267,7 +331,7 @@ func TestQueryBuilder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			requests, err := federator.QueryBuilder(tt.fieldsMap, tt.args)
+			requests, err := QueryBuilder(tt.fieldsMap, tt.args)
 
 			if tt.expectError {
 				assert.Error(t, err, tt.description)
@@ -383,15 +447,15 @@ func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 			selectionSet := operationDef.SelectionSet
 
 			// Get query object definition from schema
-			queryObjectDef := federator.GetQueryObjectDefinition(schema)
+			queryObjectDef := GetQueryObjectDefinition(schema)
 			assert.NotNil(t, queryObjectDef, "Should find query object definition")
 
 			// Extract source schema info
-			directives, arguments := federator.RecursivelyExtractSourceSchemaInfo(
+			directives, arguments := RecursivelyExtractSourceSchemaInfo(
 				selectionSet, schema, queryObjectDef, nil, nil)
 
 			// Convert directives to field map
-			fieldMap := federator.ProviderFieldMap(directives)
+			fieldMap := ProviderFieldMap(directives)
 
 			assert.Len(t, fieldMap, len(tt.expectedFields), "Should extract correct number of fields")
 			assert.Len(t, arguments, tt.expectedArgs, "Should extract correct number of arguments")
@@ -446,7 +510,7 @@ func TestFindFieldDefinitionFromFieldName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fieldDef := federator.FindFieldDefinitionFromFieldName(tt.fieldName, schema, tt.parentObject)
+			fieldDef := FindFieldDefinitionFromFieldName(tt.fieldName, schema, tt.parentObject)
 
 			if tt.expectedExists {
 				assert.NotNil(t, fieldDef, tt.description)
@@ -461,7 +525,7 @@ func TestFindFieldDefinitionFromFieldName(t *testing.T) {
 func TestGetQueryObjectDefinition(t *testing.T) {
 	schema := CreateTestSchema(t)
 
-	queryDef := federator.GetQueryObjectDefinition(schema)
+	queryDef := GetQueryObjectDefinition(schema)
 	assert.NotNil(t, queryDef, "Should find query object definition")
 	assert.Equal(t, "Query", queryDef.Name.Value, "Should have correct name")
 	assert.Greater(t, len(queryDef.Fields), 0, "Should have fields")
