@@ -8,15 +8,15 @@ import (
 
 func TestFindEndpointPermission(t *testing.T) {
 	// Reset cache before each test to ensure clean state
-	endpointCache = nil
+	ResetEndpointCacheForTesting()
 
 	tests := []struct {
-		name           string
-		method         string
-		path           string
-		expectedFound  bool
-		expectedPerm   models.Permission
-		expectedOwner  bool
+		name          string
+		method        string
+		path          string
+		expectedFound bool
+		expectedPerm  models.Permission
+		expectedOwner bool
 	}{
 		{
 			name:          "Exact match - GET schemas collection",
@@ -93,7 +93,7 @@ func TestFindEndpointPermission(t *testing.T) {
 
 func TestFindEndpointPermissionCacheInitialization(t *testing.T) {
 	// Reset cache
-	endpointCache = nil
+	ResetEndpointCacheForTesting()
 
 	// First call should initialize cache
 	_, found1 := FindEndpointPermission("GET", "/api/v1/schemas")

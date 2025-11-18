@@ -258,10 +258,8 @@ func initializeEndpointCache() {
 // Uses an optimized lookup structure with O(1) for exact matches and minimal linear search for wildcards
 // Performance: ~36ns/op with 0 allocations (significant improvement over linear search as endpoints scale)
 func FindEndpointPermission(method, path string) (*models.EndpointPermission, bool) {
-	// Lazy initialization of the cache
-	if endpointCache == nil {
-		initializeEndpointCache()
-	}
+	// Ensure cache is initialized using sync.Once
+	initializeEndpointCache()
 
 	// First check exact matches (O(1) lookup)
 	key := method + ":" + path
@@ -278,4 +276,11 @@ func FindEndpointPermission(method, path string) (*models.EndpointPermission, bo
 	}
 
 	return nil, false
+}
+
+// ResetEndpointCacheForTesting resets the endpoint cache for testing purposes
+// This function should only be used in tests to reset the sync.Once state
+func ResetEndpointCacheForTesting() {
+	endpointCache = nil
+	initOnce = sync.Once{}
 }
