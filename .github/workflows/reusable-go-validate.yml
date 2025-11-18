@@ -1,0 +1,95 @@
+name: Reusable Go Service Validation
+
+on:
+  workflow_call:
+    inputs:
+      service-path:
+        description: 'Path to the service directory'
+        required: true
+        type: string
+      go-version:
+        description: 'Go version to use'
+        required: false
+        type: string
+        default: '1.22'
+      enable-database:
+        description: 'Whether to start PostgreSQL service for tests'
+        required: false
+        type: boolean
+        default: true
+      database-name:
+        description: 'Database name for tests'
+        required: false
+        type: string
+        default: 'test_db'
+      enable-tests:
+        description: 'Whether to run Go tests'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  TEST_DB_USER: postgres
+  TEST_DB_PASS: password
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    services:
+      postgres:
+        image: ${{ inputs.enable-database && 'postgres:15' || '' }}
+        env:
+          POSTGRES_USER: ${{ env.TEST_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.TEST_DB_PASS }}
+          POSTGRES_DB: ${{ inputs.database-name }}
+        ports:
+          - ${{ inputs.enable-database && '5432:5432' || '' }}
+        options: >-
+          ${{ inputs.enable-database && '--health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5' || '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Run Go Mod Tidy
+        run: cd ${{ inputs.service-path }} && go mod tidy
+
+      - name: Check for unclean Go Mod
+        run: |
+          if ! git diff --exit-code -- ${{ inputs.service-path }}/go.mod ${{ inputs.service-path }}/go.sum; then
+            echo "::error::go.mod or go.sum files have uncommitted changes. Please run 'go mod tidy' and commit."
+            git diff -- ${{ inputs.service-path }}/go.mod ${{ inputs.service-path }}/go.sum
+            exit 1
+          fi
+          echo "Go mod files are clean."
+
+      - name: Build application
+        run: cd ${{ inputs.service-path }} && go build .
+
+      - name: Run unit & integration tests
+        if: ${{ inputs.enable-tests }}
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5432
+          TEST_DB_USERNAME: ${{ env.TEST_DB_USER }}
+          TEST_DB_PASSWORD: ${{ env.TEST_DB_PASS }}
+          TEST_DB_DATABASE: ${{ inputs.database-name }}
+          TEST_DB_SSLMODE: disable
+        run: cd ${{ inputs.service-path }} && go test ./... -count=1
+
+      - name: Scan repository for secrets (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.before || 'main' }}
+          head: HEAD
+          extra_args: --only-verified

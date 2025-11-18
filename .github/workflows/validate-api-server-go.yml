@@ -1,0 +1,20 @@
+name: Validate API Server Go
+
+on:
+  pull_request:
+    paths:
+      - 'api-server-go/**'
+      - '.github/workflows/validate-api-server-go.yml'
+      - '.github/workflows/build-api-server-go.yml'
+      - '.github/workflows/reusable-go-validate.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    uses: ./.github/workflows/reusable-go-validate.yml
+    with:
+      service-path: 'api-server-go'
+      go-version: '1.22'
+      enable-database: true
+      database-name: 'api_server_test'
+      enable-tests: true

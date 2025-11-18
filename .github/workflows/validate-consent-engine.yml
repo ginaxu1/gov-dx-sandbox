@@ -1,0 +1,21 @@
+name: Validate Consent Engine
+
+on:
+  pull_request:
+    paths:
+      - 'exchange/consent-engine/**'
+      - 'exchange/shared/**'
+      - '.github/workflows/validate-consent-engine.yml'
+      - '.github/workflows/build-consent-engine.yml'
+      - '.github/workflows/reusable-go-validate.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    uses: ./.github/workflows/reusable-go-validate.yml
+    with:
+      service-path: 'exchange/consent-engine'
+      go-version: '1.24'
+      enable-database: true
+      database-name: 'consent_engine_test'
+      enable-tests: true

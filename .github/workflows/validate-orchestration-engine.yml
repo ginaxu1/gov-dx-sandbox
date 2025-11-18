@@ -1,0 +1,19 @@
+name: Validate Orchestration Engine
+
+on:
+  pull_request:
+    paths:
+      - 'exchange/orchestration-engine-go/**'
+      - '.github/workflows/validate-orchestration-engine.yml'
+      - '.github/workflows/build-orchestration-engine.yml'
+      - '.github/workflows/reusable-go-validate.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    uses: ./.github/workflows/reusable-go-validate.yml
+    with:
+      service-path: 'exchange/orchestration-engine-go'
+      go-version: '1.22'
+      enable-database: false
+      enable-tests: false
