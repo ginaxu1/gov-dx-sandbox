@@ -98,7 +98,8 @@ test_portal() {
     
     # Check if index.html is served
     echo -e "${YELLOW}Verifying index.html content...${NC}"
-    if curl -s "http://localhost:${port}/" | grep -q "<!DOCTYPE html\|<html"; then
+    if curl -s "http://localhost:${port}/" | grep -E -q "<!DOCTYPE html|<html"; then
+
         echo -e "${GREEN}✓ index.html is being served${NC}"
     else
         echo -e "${RED}✗ index.html not found or invalid${NC}"
