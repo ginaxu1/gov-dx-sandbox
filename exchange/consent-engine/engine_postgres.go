@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/lib/pq"
 )
 
@@ -58,8 +59,15 @@ func cloneConsentRecord(record *ConsentRecord) *ConsentRecord {
 	return &clone
 }
 
+// cacheKey generates a safe cache key that prevents collisions even if ownerID or appID
+// contains special characters. Uses base64 encoding to ensure the delimiter never appears
+// in the encoded values.
 func cacheKey(ownerID, appID string) string {
-	return ownerID + "|" + appID
+	// Use base64 encoding to safely encode both IDs, ensuring no delimiter collisions
+	encodedOwner := base64.URLEncoding.EncodeToString([]byte(ownerID))
+	encodedApp := base64.URLEncoding.EncodeToString([]byte(appID))
+	// Use "|" as delimiter - it's safe because base64 only uses A-Z, a-z, 0-9, +, /, and = (URL encoding uses - and _)
+	return encodedOwner + "|" + encodedApp
 }
 
 func (pce *postgresConsentEngine) loadPendingCache(ownerID, appID string) (*ConsentRecord, bool) {

@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	v1 "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/joho/godotenv"
