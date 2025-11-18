@@ -15,6 +15,7 @@ import (
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
 	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
+	v1models "github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"github.com/joho/godotenv"
 )
 
@@ -49,12 +50,79 @@ func main() {
 	// Setup CORS middleware
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
+	// Setup JWT Authentication middleware
+	// Validate required environment variables first
+	asgardeoBaseURL := os.Getenv("ASGARDEO_BASE_URL")
+	if asgardeoBaseURL == "" {
+		slog.Error("ASGARDEO_BASE_URL environment variable is required")
+		os.Exit(1)
+	}
+
+	// Support multiple valid client IDs for different portals
+	memberPortalClientID := os.Getenv("ASGARDEO_MEMBER_PORTAL_CLIENT_ID")
+	adminPortalClientID := os.Getenv("ASGARDEO_ADMIN_PORTAL_CLIENT_ID")
+
+	if memberPortalClientID == "" && adminPortalClientID == "" {
+		slog.Error("At least one of ASGARDEO_MEMBER_PORTAL_CLIENT_ID or ASGARDEO_ADMIN_PORTAL_CLIENT_ID must be set")
+		os.Exit(1)
+	}
+
+	var validClientIDs []string
+	if memberPortalClientID != "" {
+		validClientIDs = append(validClientIDs, memberPortalClientID)
+	}
+	if adminPortalClientID != "" {
+		validClientIDs = append(validClientIDs, adminPortalClientID)
+	}
+
+	jwtConfig := v1middleware.JWTAuthConfig{
+		JWKSURL:        utils.GetEnvOrDefault("ASGARDEO_JWKS_URL", asgardeoBaseURL+"/oauth2/jwks"),
+		ExpectedIssuer: utils.GetEnvOrDefault("ASGARDEO_TOKEN_URL", asgardeoBaseURL+"/oauth2/token"),
+		ValidClientIDs: validClientIDs,
+		OrgName:        utils.GetEnvOrDefault("ASGARDEO_ORG_NAME", ""),
+		Timeout:        10 * time.Second,
+	}
+
+	// Validate JWT configuration before proceeding
+	if err := jwtConfig.Validate(); err != nil {
+		slog.Error("Invalid JWT configuration", "error", err)
+		os.Exit(1)
+	}
+
+	jwtAuthMiddleware := v1middleware.NewJWTAuthMiddleware(jwtConfig)
+
+	// Setup Authorization middleware with configurable security policy
+	authMode := utils.GetEnvOrDefault("AUTHORIZATION_MODE", "fail_open_admin_system")
+	strictMode := utils.GetEnvOrDefault("AUTHORIZATION_STRICT_MODE", "false") == "true"
+
+	var authConfig v1middleware.AuthorizationConfig
+	switch authMode {
+	case "fail_closed":
+		authConfig.Mode = v1models.AuthorizationModeFailClosed
+	case "fail_open_admin":
+		authConfig.Mode = v1models.AuthorizationModeFailOpenAdmin
+	case "fail_open_admin_system":
+		authConfig.Mode = v1models.AuthorizationModeFailOpenAdminSystem
+	default:
+		slog.Error("Invalid authorization mode. Valid options: fail_closed, fail_open_admin, fail_open_admin_system", "mode", authMode)
+		os.Exit(1)
+	}
+	authConfig.StrictMode = strictMode
+
+	authorizationMiddleware := v1middleware.NewAuthorizationMiddlewareWithConfig(authConfig)
+
 	// Setup Audit middleware, reading the correct connection variable
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
 	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
 
-	// Apply middleware chain (CORS -> Audit) to the API mux ONLY
-	auditedAPIHandler := corsMiddleware(auditMiddleware.AuditLoggingMiddleware(apiMux))
+	// Apply middleware chain (CORS -> JWT Auth -> Authorization -> Audit) to the API mux ONLY
+	protectedAPIHandler := corsMiddleware(
+		jwtAuthMiddleware.AuthenticateJWT(
+			authorizationMiddleware.AuthorizeRequest(
+				auditMiddleware.AuditLoggingMiddleware(apiMux),
+			),
+		),
+	)
 
 	// Create the MAIN (top-level) mux for all incoming traffic
 	topLevelMux := http.NewServeMux()
@@ -171,9 +239,9 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
-	// Register the audited API routes to the top-level mux
-	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware
-	topLevelMux.Handle("/api/v1/", auditedAPIHandler)
+	// Register the protected API routes to the top-level mux
+	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware chain
+	topLevelMux.Handle("/api/v1/", protectedAPIHandler)
 
 	// Start server
 	port := os.Getenv("PORT")

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -92,7 +93,9 @@ func TestSelectedFieldRecords_GormValue(t *testing.T) {
 		{FieldName: "field1", SchemaID: "sch1"},
 	}
 
-	expr := sfr.GormValue(nil, nil)
+	// Using context.Background() for this unit test as no request context is available
+	// and the GormValue method doesn't perform any context-dependent operations
+	expr := sfr.GormValue(context.Background(), nil)
 	assert.NotNil(t, expr)
 	assert.Contains(t, expr.SQL, "jsonb")
 	assert.Len(t, expr.Vars, 1)
