@@ -6,13 +6,19 @@ This package centralizes OpenTelemetry setup and metric helpers that all Go serv
 
 ```bash
 # In the service directory
-go get github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring@v0.0.0
+go get github.com/gov-dx-sandbox/exchange/pkg/monitoring@v0.0.0
 ```
 
 In `go.mod` keep (or add) the replace so the module resolves locally:
 
+**For services inside `exchange/` directory** (e.g., `consent-engine`, `orchestration-engine-go`, `policy-decision-point`):
 ```
-replace github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring => ../exchange/pkg/monitoring
+replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../pkg/monitoring
+```
+
+**For services at the root level** (e.g., `api-server-go`):
+```
+replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../exchange/pkg/monitoring
 ```
 
 ### 2. Initialize OTEL
