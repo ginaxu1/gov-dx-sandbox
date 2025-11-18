@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	_ "github.com/lib/pq"
 )
 

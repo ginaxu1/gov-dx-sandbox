@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/database"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
 
 // TestDatabaseSchemaOperations tests database operations
