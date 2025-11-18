@@ -1,9 +1,8 @@
-package tests
+package federator
 
 import (
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -123,11 +122,11 @@ func TestQueryParsing(t *testing.T) {
 }
 
 func TestSchemaCollection(t *testing.T) {
-	t.Skip("Skipping schema collection test - requires config initialization")
 	// Create a mock schema with @sourceInfo directives
 	schemaSDL := `
 		directive @sourceInfo(
 			providerKey: String!
+			schemaId: String!
 			providerField: String!
 		) on FIELD_DEFINITION
 
@@ -137,16 +136,16 @@ func TestSchemaCollection(t *testing.T) {
 		}
 
 		type PersonInfo {
-			fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName")
-			name: String @sourceInfo(providerKey: "rgd", providerField: "getPersonInfo.name")
-			address: String @sourceInfo(providerKey: "drp", providerField: "person.permanentAddress")
-			ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data")
+			fullName: String @sourceInfo(providerKey: "drp", schemaId: "drp-schema-v1", providerField: "person.fullName")
+			name: String @sourceInfo(providerKey: "rgd", schemaId: "rgd-schema-v1", providerField: "getPersonInfo.name")
+			address: String @sourceInfo(providerKey: "drp", schemaId: "drp-schema-v1", providerField: "person.permanentAddress")
+			ownedVehicles: [VehicleInfo] @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.getVehicleInfos.data")
 		}
 
 		type VehicleInfo {
-			regNo: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.registrationNumber")
-			make: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.make")
-			model: String @sourceInfo(providerKey: "dmt", providerField: "vehicle.getVehicleInfos.data.model")
+			regNo: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.getVehicleInfos.data.registrationNumber")
+			make: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.getVehicleInfos.data.make")
+			model: String @sourceInfo(providerKey: "dmt", schemaId: "dmt-schema-v1", providerField: "vehicle.getVehicleInfos.data.model")
 		}
 	`
 
@@ -162,7 +161,7 @@ func TestSchemaCollection(t *testing.T) {
 	tests := []struct {
 		name           string
 		query          string
-		expectedFields []string
+		expectedFields *[]ProviderLevelFieldRecord
 		expectedArgs   int
 		description    string
 	}{
@@ -177,10 +176,22 @@ func TestSchemaCollection(t *testing.T) {
 					}
 				}
 			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"rgd.getPersonInfo.name",
-				"drp.person.permanentAddress",
+			expectedFields: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "rgd",
+					SchemaId:   "rgd-schema-v1",
+					FieldPath:  "getPersonInfo.name",
+				},
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.permanentAddress",
+				},
 			},
 			expectedArgs: 1,
 			description:  "Should extract source info directives for single entity query",
@@ -199,12 +210,32 @@ func TestSchemaCollection(t *testing.T) {
 					}
 				}
 			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"dmt.vehicle.getVehicleInfos.data",
-				"dmt.vehicle.getVehicleInfos.data.registrationNumber",
-				"dmt.vehicle.getVehicleInfos.data.make",
-				"dmt.vehicle.getVehicleInfos.data.model",
+			expectedFields: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema-v1",
+					FieldPath:  "vehicle.getVehicleInfos.data",
+				},
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema-v1",
+					FieldPath:  "vehicle.getVehicleInfos.data.registrationNumber",
+				},
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema-v1",
+					FieldPath:  "vehicle.getVehicleInfos.data.make",
+				},
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "dmt-schema-v1",
+					FieldPath:  "vehicle.getVehicleInfos.data.model",
+				},
 			},
 			expectedArgs: 1,
 			description:  "Should extract source info directives for query with array field",
@@ -219,9 +250,17 @@ func TestSchemaCollection(t *testing.T) {
 					}
 				}
 			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"rgd.getPersonInfo.name",
+			expectedFields: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "rgd",
+					SchemaId:   "rgd-schema-v1",
+					FieldPath:  "getPersonInfo.name",
+				},
 			},
 			expectedArgs: 1,
 			description:  "Should extract source info directives for bulk query",
@@ -236,9 +275,17 @@ func TestSchemaCollection(t *testing.T) {
 					}
 				}
 			`,
-			expectedFields: []string{
-				"drp.person.fullName",
-				"drp.person.permanentAddress",
+			expectedFields: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.permanentAddress",
+				},
 			},
 			expectedArgs: 1,
 			description:  "Should extract source info directives for query with variables",
@@ -257,17 +304,11 @@ func TestSchemaCollection(t *testing.T) {
 			require.NoError(t, err, "Should parse query successfully")
 
 			// Extract source info directives
-			response, err := federator.ProviderSchemaCollector(schema, queryDoc)
+			response, err := ProviderSchemaCollector(schema, queryDoc)
 
 			assert.NoError(t, err, tt.description)
 			assert.NotNil(t, response, "Response should not be nil")
-			assert.Len(t, response.ProviderFieldMap, len(tt.expectedFields), "Should extract correct number of fields")
-			assert.Len(t, response.Arguments, tt.expectedArgs, "Should extract correct number of arguments")
-
-			// Verify extracted fields
-			for _, expectedField := range tt.expectedFields {
-				assert.Contains(t, response.ProviderFieldMap, expectedField, "Should contain field: %s", expectedField)
-			}
+			assert.EqualValues(t, response.ProviderFieldMap, tt.expectedFields, "Should contain field: %s", tt.expectedFields)
 		})
 	}
 }
@@ -276,7 +317,7 @@ func TestProviderFieldMap(t *testing.T) {
 	tests := []struct {
 		name           string
 		directives     []*ast.Directive
-		expectedFields []string
+		expectedFields *[]ProviderLevelFieldRecord
 		description    string
 	}{
 		{
@@ -290,14 +331,24 @@ func TestProviderFieldMap(t *testing.T) {
 							Value: &ast.StringValue{Value: "drp"},
 						},
 						{
+							Name:  &ast.Name{Value: "schemaId"},
+							Value: &ast.StringValue{Value: "drp-schema-v1"},
+						},
+						{
 							Name:  &ast.Name{Value: "providerField"},
 							Value: &ast.StringValue{Value: "person.fullName"},
 						},
 					},
 				},
 			},
-			expectedFields: []string{"drp.person.fullName"},
-			description:    "Should map single source info directive correctly",
+			expectedFields: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.fullName",
+				},
+			},
+			description: "Should map single source info directive correctly",
 		},
 		{
 			name: "Multiple Source Info Directives",
@@ -308,6 +359,10 @@ func TestProviderFieldMap(t *testing.T) {
 						{
 							Name:  &ast.Name{Value: "providerKey"},
 							Value: &ast.StringValue{Value: "drp"},
+						},
+						{
+							Name:  &ast.Name{Value: "schemaId"},
+							Value: &ast.StringValue{Value: "drp-schema-v1"},
 						},
 						{
 							Name:  &ast.Name{Value: "providerField"},
@@ -323,19 +378,34 @@ func TestProviderFieldMap(t *testing.T) {
 							Value: &ast.StringValue{Value: "rgd"},
 						},
 						{
+							Name:  &ast.Name{Value: "schemaId"},
+							Value: &ast.StringValue{Value: "rgd-schema-v2"},
+						},
+						{
 							Name:  &ast.Name{Value: "providerField"},
 							Value: &ast.StringValue{Value: "getPersonInfo.name"},
 						},
 					},
 				},
 			},
-			expectedFields: []string{"drp.person.fullName", "rgd.getPersonInfo.name"},
-			description:    "Should map multiple source info directives correctly",
+			expectedFields: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "drp-schema-v1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "rgd",
+					SchemaId:   "rgd-schema-v2",
+					FieldPath:  "getPersonInfo.name",
+				},
+			},
+			description: "Should map multiple source info directives correctly",
 		},
 		{
 			name:           "Empty Directives",
 			directives:     []*ast.Directive{},
-			expectedFields: []string{},
+			expectedFields: &[]ProviderLevelFieldRecord{},
 			description:    "Should handle empty directives list",
 		},
 		{
@@ -351,14 +421,14 @@ func TestProviderFieldMap(t *testing.T) {
 					},
 				},
 			},
-			expectedFields: []string{},
+			expectedFields: &[]ProviderLevelFieldRecord{},
 			description:    "Should ignore non-source info directives",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := federator.ProviderFieldMap(tt.directives)
+			result := ProviderFieldMap(tt.directives)
 			assert.Equal(t, tt.expectedFields, result, tt.description)
 		})
 	}
@@ -367,14 +437,25 @@ func TestProviderFieldMap(t *testing.T) {
 func TestBuildProviderLevelQuery(t *testing.T) {
 	tests := []struct {
 		name           string
-		fieldsMap      []string
+		fieldsMap      *[]ProviderLevelFieldRecord
 		expectedKeys   []string
 		expectedFields map[string][]string
 		description    string
 	}{
 		{
-			name:         "Single Provider Fields",
-			fieldsMap:    []string{"drp.person.fullName", "drp.person.address"},
+			name: "Single Provider Fields",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "schema1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "drp",
+					SchemaId:   "schema1",
+					FieldPath:  "person.address",
+				},
+			},
 			expectedKeys: []string{"drp"},
 			expectedFields: map[string][]string{
 				"drp": {"person"},
@@ -382,8 +463,24 @@ func TestBuildProviderLevelQuery(t *testing.T) {
 			description: "Should group fields by single provider",
 		},
 		{
-			name:         "Multiple Provider Fields",
-			fieldsMap:    []string{"drp.person.fullName", "rgd.getPersonInfo.name", "dmt.vehicle.data"},
+			name: "Multiple Provider Fields",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "schema1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "rgd",
+					SchemaId:   "schema2",
+					FieldPath:  "getPersonInfo.name",
+				},
+				{
+					ServiceKey: "dmt",
+					SchemaId:   "schema3",
+					FieldPath:  "vehicle.data",
+				},
+			},
 			expectedKeys: []string{"drp", "rgd", "dmt"},
 			expectedFields: map[string][]string{
 				"drp": {"person"},
@@ -394,14 +491,30 @@ func TestBuildProviderLevelQuery(t *testing.T) {
 		},
 		{
 			name:           "Empty Fields Map",
-			fieldsMap:      []string{},
+			fieldsMap:      &[]ProviderLevelFieldRecord{},
 			expectedKeys:   []string{},
 			expectedFields: map[string][]string{},
 			description:    "Should handle empty fields map",
 		},
 		{
-			name:         "Nested Fields",
-			fieldsMap:    []string{"drp.person.fullName", "drp.person.address.street", "drp.person.address.city"},
+			name: "Nested Fields",
+			fieldsMap: &[]ProviderLevelFieldRecord{
+				{
+					ServiceKey: "drp",
+					SchemaId:   "schema1",
+					FieldPath:  "person.fullName",
+				},
+				{
+					ServiceKey: "drp",
+					SchemaId:   "schema1",
+					FieldPath:  "person.address.street",
+				},
+				{
+					ServiceKey: "drp",
+					SchemaId:   "schema1",
+					FieldPath:  "person.address.city",
+				},
+			},
 			expectedKeys: []string{"drp"},
 			expectedFields: map[string][]string{
 				"drp": {"person"},
@@ -412,7 +525,7 @@ func TestBuildProviderLevelQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queries := federator.BuildProviderLevelQuery(tt.fieldsMap)
+			queries := BuildProviderLevelQuery(tt.fieldsMap)
 
 			assert.Len(t, queries, len(tt.expectedKeys), "Should create correct number of provider queries")
 
