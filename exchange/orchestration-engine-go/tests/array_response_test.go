@@ -4,10 +4,15 @@ import (
 	"testing"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	logger.Init()
+}
 
 // TestArrayResponseHandling verifies that the orchestration engine can properly handle
 // both object and array responses. Focus on response structure, not array arguments.
@@ -648,7 +653,7 @@ func TestObjectAndArrayResponseSupport(t *testing.T) {
 			"address":  "123 Main St",
 		}
 
-		result, err := PushValue(obj, path, value)
+		result, err := federator.PushValue(obj, path, value)
 		assert.NoError(t, err, "Should not return error")
 		assert.NotNil(t, result, "Should return result")
 
@@ -676,7 +681,7 @@ func TestObjectAndArrayResponseSupport(t *testing.T) {
 			},
 		}
 
-		result, err := PushValue(obj, path, value)
+		result, err := federator.PushValue(obj, path, value)
 		assert.NoError(t, err, "Should not return error")
 		assert.NotNil(t, result, "Should return result")
 
@@ -839,7 +844,7 @@ func TestArrayResponseValidation(t *testing.T) {
 		}
 
 		// Extract array from path
-		value, err := GetValueAtPath(data, "personInfo.ownedVehicles")
+		value, err := federator.GetValueAtPath(data, "personInfo.ownedVehicles")
 		assert.NoError(t, err, "Should extract array value")
 
 		vehicles := value.([]interface{})

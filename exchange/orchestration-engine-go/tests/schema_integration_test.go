@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
@@ -19,10 +18,10 @@ func TestSchemaAPIEndpoints(t *testing.T) {
 		t.Skip("Skipping integration tests - no database connection")
 	}
 
-	// Setup
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
+	// Setup - use environment variables, no hardcoded credentials
+	db, err := setupTestDatabase()
 	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
+		t.Fatalf("Failed to connect to database: %v (set TEST_DB_* environment variables)", err)
 	}
 	defer db.Close()
 
@@ -191,9 +190,10 @@ func TestSchemaAPIErrorHandling(t *testing.T) {
 		t.Skip("Skipping integration tests - no database connection")
 	}
 
-	db, err := database.NewSchemaDB("host=localhost port=5432 user=postgres password=password dbname=orchestration_engine sslmode=disable")
+	// Use environment variables, no hardcoded credentials
+	db, err := setupTestDatabase()
 	if err != nil {
-		t.Fatalf("Failed to connect to database: %v", err)
+		t.Fatalf("Failed to connect to database: %v (set TEST_DB_* environment variables)", err)
 	}
 	defer db.Close()
 
