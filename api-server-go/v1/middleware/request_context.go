@@ -2,8 +2,12 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
+
+	authutils "github.com/gov-dx-sandbox/api-server-go/v1/utils"
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 )
 
 // Context keys for storing request information
@@ -32,8 +36,8 @@ func RequestContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Extract actor information from headers (set by authentication middleware)
-		// If no auth middleware exists, extract from headers directly
+		// Extract actor information from authenticated user context (set by JWT middleware)
+		// Fallback to headers if no authenticated user is found
 		actorType, actorID, actorRole := extractActorInfo(r)
 		if actorType != "" {
 			ctx = context.WithValue(ctx, contextKeyActorType, actorType)
@@ -73,10 +77,46 @@ func RequestContextMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// extractActorInfo extracts actor information from request headers
-// This should ideally be set by authentication middleware, but we provide a fallback
+// extractActorInfo extracts actor information from authenticated user context
+// Falls back to headers if no authenticated user is found
 func extractActorInfo(r *http.Request) (actorType string, actorID *string, actorRole *string) {
-	// Try to extract from headers (common patterns)
+	// First, try to extract from authenticated user context (set by JWT middleware)
+	user, err := authutils.GetAuthenticatedUser(r.Context())
+	if err == nil && user != nil {
+		// We have an authenticated user
+		actorType = "USER"
+		actorID = &user.IdpUserID
+		
+		// Map Role enum to audit service format
+		// OpenDIF_Admin -> ADMIN, OpenDIF_Member -> MEMBER, OpenDIF_System -> SERVICE (no role)
+		primaryRole := user.GetPrimaryRole()
+		var roleStr string
+		switch primaryRole {
+		case models.RoleAdmin:
+			roleStr = "ADMIN"
+		case models.RoleMember:
+			roleStr = "MEMBER"
+		case models.RoleSystem:
+			// System role is treated as SERVICE type, not USER
+			actorType = "SERVICE"
+			actorID = nil
+			actorRole = nil
+			return actorType, actorID, actorRole
+		default:
+			// Default to MEMBER for unknown roles
+			roleStr = "MEMBER"
+		}
+		actorRole = &roleStr
+		
+		slog.Debug("Extracted actor info from authenticated user context",
+			"actorType", actorType,
+			"actorID", *actorID,
+			"actorRole", *actorRole)
+		
+		return actorType, actorID, actorRole
+	}
+
+	// Fallback: Try to extract from headers (for backward compatibility or service-to-service calls)
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
 		userID = r.Header.Get("X-Auth-User-ID")
@@ -87,7 +127,7 @@ func extractActorInfo(r *http.Request) (actorType string, actorID *string, actor
 		role = r.Header.Get("X-Auth-Role")
 	}
 
-	// If we have user info, use USER type, otherwise use SERVICE
+	// If we have user info from headers, use USER type, otherwise use SERVICE
 	if userID != "" {
 		actorType = "USER"
 		actorID = &userID
@@ -98,10 +138,15 @@ func extractActorInfo(r *http.Request) (actorType string, actorID *string, actor
 			defaultRole := "MEMBER"
 			actorRole = &defaultRole
 		}
+		slog.Debug("Extracted actor info from headers (fallback)",
+			"actorType", actorType,
+			"actorID", *actorID,
+			"actorRole", *actorRole)
 	} else {
 		actorType = "SERVICE"
 		actorID = nil
 		actorRole = nil
+		slog.Debug("No actor info found, defaulting to SERVICE type")
 	}
 
 	return actorType, actorID, actorRole
