@@ -3,6 +3,15 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Declare build arguments for environment variables
+# These are needed at build time for Vite to embed them in the bundle
+ARG VITE_PORT=5173
+ARG VITE_BASE_PATH=/
+
+# Set as environment variables for the build process
+ENV VITE_PORT=${VITE_PORT}
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
+
 # Copy package files
 COPY package.json package-lock.json ./
 
@@ -12,7 +21,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (Vite will use the environment variables)
 RUN npm run build
 
 # Serve Stage
