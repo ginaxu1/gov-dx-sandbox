@@ -1,0 +1,20 @@
+name: Validate Audit Service
+
+on:
+  pull_request:
+    paths:
+      - 'audit-service/**'
+      - '.github/workflows/validate-audit-service.yml'
+      - '.github/workflows/build-audit-service.yml'
+      - '.github/workflows/reusable-go-validate.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    uses: ./.github/workflows/reusable-go-validate.yml
+    with:
+      service-path: 'audit-service'
+      go-version: '1.22'
+      enable-database: true
+      database-name: 'audit_service_test'
+      enable-tests: false
