@@ -431,23 +431,24 @@ func (h *V1Handler) getAllMembers(w http.ResponseWriter, r *http.Request, idpUse
 
 	// Check permission - admin can read all members, regular users need specific permission
 	var filteredIdpUserId *string
-	var filteredEmail *string
 
 	if user.HasPermission(models.PermissionReadAllMembers) {
 		// Admin can use provided filters or see all
 		filteredIdpUserId = idpUserId
-		filteredEmail = email
+		// Note: We still accept email parameter from query but don't use it
+		// since IdpUserID filtering is sufficient for uniqueness
 	} else if user.HasPermission(models.PermissionReadMember) {
 		// Regular users can only see their own member record
+		// IdpUserID is unique, so no need to also filter by email
 		filteredIdpUserId = &user.IdpUserID
-		filteredEmail = &user.Email
 	} else {
 		utils.RespondWithError(w, http.StatusForbidden, "Insufficient permissions")
 		return
 	}
 
 	// Pass request context to service for proper context propagation
-	members, err := h.memberService.GetAllMembers(r.Context(), filteredIdpUserId, filteredEmail)
+	// Since IdpUserID is unique, we don't need to pass email parameter
+	members, err := h.memberService.GetAllMembers(r.Context(), filteredIdpUserId, nil)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return

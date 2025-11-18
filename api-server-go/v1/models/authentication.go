@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -228,13 +229,21 @@ func computePermissions(roles []Role) []Permission {
 // NewAuthenticatedUser creates a new authenticated user from JWT claims
 // Returns an error if no valid roles are found in the claims
 func NewAuthenticatedUser(claims *UserClaims) (*AuthenticatedUser, error) {
-	// Convert string roles to Role type
+	// Convert string roles to Role type, tracking invalid ones for security logging
 	var roles []Role
+	var invalidRoles []string
 	for _, roleStr := range claims.Roles.ToStringSlice() {
 		role := Role(roleStr)
 		if role.IsValid() {
 			roles = append(roles, role)
+		} else {
+			invalidRoles = append(invalidRoles, roleStr)
 		}
+	}
+
+	// Log security-relevant event when invalid roles are filtered
+	if len(invalidRoles) > 0 {
+		slog.Warn("Invalid roles filtered from JWT claims", "user", claims.IdpUserID, "invalid_roles", invalidRoles)
 	}
 
 	// If no valid roles found, deny access for security

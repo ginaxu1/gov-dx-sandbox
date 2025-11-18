@@ -358,6 +358,11 @@ func (j *JWTAuthMiddleware) buildRSAPublicKey(nStr, eStr string) (*rsa.PublicKey
 	n := new(big.Int).SetBytes(nBytes)
 	e := new(big.Int).SetBytes(eBytes)
 
+	// Validate RSA modulus size for cryptographic strength
+	if n.BitLen() < 2048 {
+		return nil, fmt.Errorf("RSA modulus too small: %d bits, minimum 2048 required", n.BitLen())
+	}
+
 	// Validate exponent
 	if !e.IsInt64() || e.Int64() < 2 {
 		return nil, fmt.Errorf("invalid exponent")

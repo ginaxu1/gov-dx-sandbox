@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 )
@@ -223,33 +224,34 @@ type endpointLookupCache struct {
 var (
 	// endpointCache is the cached lookup structure, initialized lazily
 	endpointCache *endpointLookupCache
+	// initOnce ensures thread-safe single initialization of endpointCache
+	initOnce sync.Once
 )
 
 // initializeEndpointCache builds the optimized lookup cache from EndpointPermissions
+// Thread-safe: Uses sync.Once to ensure single initialization even with concurrent access
 func initializeEndpointCache() {
-	if endpointCache != nil {
-		return // Already initialized
-	}
-
-	cache := &endpointLookupCache{
-		exactMatches:    make(map[string]*models.EndpointPermission),
-		wildcardMatches: make([]models.EndpointPermission, 0),
-	}
-
-	for i := range models.EndpointPermissions {
-		ep := &models.EndpointPermissions[i]
-		key := ep.Method + ":" + ep.Path
-
-		if strings.Contains(ep.Path, "*") {
-			// Store wildcard patterns separately for linear search
-			cache.wildcardMatches = append(cache.wildcardMatches, *ep)
-		} else {
-			// Store exact matches in map for O(1) lookup
-			cache.exactMatches[key] = ep
+	initOnce.Do(func() {
+		cache := &endpointLookupCache{
+			exactMatches:    make(map[string]*models.EndpointPermission),
+			wildcardMatches: make([]models.EndpointPermission, 0),
 		}
-	}
 
-	endpointCache = cache
+		for i := range models.EndpointPermissions {
+			ep := &models.EndpointPermissions[i]
+			key := ep.Method + ":" + ep.Path
+
+			if strings.Contains(ep.Path, "*") {
+				// Store wildcard patterns separately for linear search
+				cache.wildcardMatches = append(cache.wildcardMatches, *ep)
+			} else {
+				// Store exact matches in map for O(1) lookup
+				cache.exactMatches[key] = ep
+			}
+		}
+
+		endpointCache = cache
+	})
 }
 
 // FindEndpointPermission finds the required permission for a given HTTP method and path

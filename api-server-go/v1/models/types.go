@@ -190,6 +190,10 @@ func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 	var strArray []string
 	arrayErr := json.Unmarshal(data, &strArray)
 	if arrayErr == nil {
+		// Validate each string in the array
+		if err := validateStringSlice(strArray); err != nil {
+			return fmt.Errorf("invalid string array: %v", err)
+		}
 		*f = FlexibleStringSlice(strArray)
 		return nil
 	}
@@ -198,6 +202,10 @@ func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 	var str string
 	stringErr := json.Unmarshal(data, &str)
 	if stringErr == nil {
+		// Validate the single string
+		if err := validateString(str); err != nil {
+			return fmt.Errorf("invalid string: %v", err)
+		}
 		*f = FlexibleStringSlice([]string{str})
 		return nil
 	}
@@ -210,4 +218,45 @@ func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
 // ToStringSlice converts to regular string slice
 func (f *FlexibleStringSlice) ToStringSlice() []string {
 	return []string(*f)
+}
+
+// validateString validates a single string for security concerns
+func validateString(s string) error {
+	// Check for empty strings (often used in bypass attempts)
+	if len(s) == 0 {
+		return fmt.Errorf("empty string not allowed")
+	}
+
+	// Check for excessively long strings (potential DoS or buffer overflow attempts)
+	const maxStringLength = 1024
+	if len(s) > maxStringLength {
+		return fmt.Errorf("string too long (max %d characters)", maxStringLength)
+	}
+
+	// Check for null bytes (potential injection attempts)
+	for i, b := range []byte(s) {
+		if b == 0 {
+			return fmt.Errorf("null byte found at position %d", i)
+		}
+	}
+
+	return nil
+}
+
+// validateStringSlice validates all strings in a slice
+func validateStringSlice(slice []string) error {
+	// Check for excessively large arrays (potential DoS)
+	const maxArrayLength = 100
+	if len(slice) > maxArrayLength {
+		return fmt.Errorf("array too large (max %d elements)", maxArrayLength)
+	}
+
+	// Validate each individual string
+	for i, s := range slice {
+		if err := validateString(s); err != nil {
+			return fmt.Errorf("invalid string at index %d: %v", i, err)
+		}
+	}
+
+	return nil
 }
