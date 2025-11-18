@@ -19,6 +19,25 @@ func getEnvOrDefault(key, defaultValue string) string {
 
 // SetupPostgresTestDB creates a PostgreSQL test database connection
 // Uses environment variables for configuration (TEST_DB_*)
+//
+// Returns nil if the database connection cannot be established or if database
+// migration fails. In this case, the test is automatically skipped using t.Skipf().
+//
+// IMPORTANT: Callers MUST check for nil return value before using the database:
+//
+//	db := SetupPostgresTestDB(t)
+//	if db == nil {
+//	    return // test was skipped
+//	}
+//
+// Environment variables:
+//   - TEST_DB_HOST (optional, default: "localhost"): Database host
+//   - TEST_DB_PORT (optional, default: "5432"): Database port
+//   - TEST_DB_USERNAME (optional, default: "postgres"): Database username
+//   - TEST_DB_PASSWORD (optional, default: "password"): Database password
+//   - TEST_DB_DATABASE (optional, default: "api_server_test"): Database name
+//   - TEST_DB_SSLMODE (optional, default: "disable"): SSL mode
+//
 // Exported for use in handler tests
 func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
@@ -35,7 +54,7 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 	})
 	if err != nil {
 		t.Skipf("Skipping test: could not connect to test database: %v", err)
-		return nil
+		return nil // IMPORTANT: Callers must check for nil before using the database
 	}
 
 	// Auto-migrate all models
@@ -48,7 +67,7 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 	)
 	if err != nil {
 		t.Skipf("Skipping test: could not migrate test database: %v", err)
-		return nil
+		return nil // IMPORTANT: Callers must check for nil before using the database
 	}
 
 	// Clean up test data before each test
@@ -76,4 +95,23 @@ func CleanupTestData(t *testing.T, db *gorm.DB) {
 	if err := db.Exec("DELETE FROM members").Error; err != nil {
 		t.Logf("Warning: failed to cleanup members: %v", err)
 	}
+}
+
+// RequireTestDB is a helper function that sets up a test database and fails the test
+// if the database cannot be established. This provides a cleaner API for tests that
+// absolutely require a database connection.
+//
+// Usage:
+//
+//	db := RequireTestDB(t)
+//	// No need to check for nil - test will fail if DB setup fails
+//
+// This is an alternative to SetupPostgresTestDB for tests that cannot proceed without
+// a database connection.
+func RequireTestDB(t *testing.T) *gorm.DB {
+	db := SetupPostgresTestDB(t)
+	if db == nil {
+		t.Fatal("Test database setup failed - cannot proceed with test")
+	}
+	return db
 }
