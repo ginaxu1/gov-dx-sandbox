@@ -1,155 +1,212 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
-	auditclient "github.com/gov-dx-sandbox/audit-service/client"
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 )
 
-// AuditMiddleware handles audit logging for requests
-// It reads information from request context (set by RequestContextMiddleware)
-// instead of doing brute force extraction
+// AuditMiddleware handles audit logging for CUD operations
 type AuditMiddleware struct {
-	auditClient auditclient.AuditClient
+	auditServiceURL string
+	httpClient      *http.Client
+}
+
+// Global audit middleware instance for easy access from handlers
+var globalAuditMiddleware *AuditMiddleware
+
+// ManagementEventRequest represents the audit service API structure
+type ManagementEventRequest struct {
+	EventType string `json:"eventType"`
+	Actor     Actor  `json:"actor"`
+	Target    Target `json:"target"`
+}
+
+// Actor represents who performed the action
+type Actor struct {
+	Type string  `json:"type"`           // USER or SERVICE
+	ID   *string `json:"id,omitempty"`   // User ID (required for USER type)
+	Role *string `json:"role,omitempty"` // MEMBER or ADMIN (required for USER type)
+}
+
+// Target represents what resource was acted upon
+type Target struct {
+	Resource   string `json:"resource"`   // MEMBERS, SCHEMAS, etc.
+	ResourceID string `json:"resourceId"` // Actual resource ID
 }
 
 // NewAuditMiddleware creates a new audit middleware
 func NewAuditMiddleware(auditServiceURL string) *AuditMiddleware {
-	auditClient := auditclient.NewAuditClient(auditServiceURL)
-	if auditClient != nil {
-		slog.Info("Audit middleware initialized", "auditServiceURL", auditServiceURL)
-	} else {
+	if auditServiceURL == "" {
 		slog.Warn("Audit middleware disabled (audit service URL not configured)")
+		return &AuditMiddleware{auditServiceURL: "", httpClient: nil}
 	}
 
-	return &AuditMiddleware{
-		auditClient: auditClient,
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
 	}
+
+	slog.Info("Audit middleware initialized", "auditServiceURL", auditServiceURL)
+	middleware := &AuditMiddleware{
+		auditServiceURL: auditServiceURL,
+		httpClient:      httpClient,
+	}
+
+	// Set global instance for easy access from handlers
+	globalAuditMiddleware = middleware
+	return middleware
 }
 
-// AuditLoggingMiddleware wraps an http.Handler with audit logging
-// It reads from context instead of extracting from path/body
+// AuditLoggingMiddleware wraps an http.Handler with audit logging (simplified)
 func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Track start time
-		startTime := time.Now()
-
-		// Create a response writer wrapper to capture status code
-		responseWrapper := &responseWriter{
-			ResponseWriter: w,
-			statusCode:     http.StatusOK,
-		}
-
-		// Call the next handler
-		next.ServeHTTP(responseWrapper, r)
-
-		// Only log write operations (POST, PUT, PATCH, DELETE)
-		if !isWriteOperation(r.Method) {
-			return
-		}
-
-		// Determine success/failure based on status code
-		status := "SUCCESS"
-		if responseWrapper.statusCode >= 400 {
-			status = "FAILURE"
-		}
-
-		// Read all information from context
-		// Note: For POST requests to collection endpoints, handlers set resource IDs
-		// after creation using SetResourceID(). However, since handlers do 
-		// 'r = r.WithContext(...)' which is local, the audit middleware can't see those updates.
-		// 
-		// For now, we'll read from r.Context(). If resource ID is missing for POST requests,
-		// we'll skip audit logging (which is acceptable - the event can be logged on subsequent
-		// operations like GET/PUT where the ID is in the path).
-		ctx := r.Context()
-		actorType := GetActorType(ctx)
-		actorID := GetActorID(ctx)
-		actorRole := GetActorRole(ctx)
-		targetResource := GetTargetResource(ctx)
-
-		// Get resource ID from context based on resource type
-		var targetResourceID string
-		switch targetResource {
-		case "SCHEMAS":
-			targetResourceID = GetSchemaID(ctx)
-		case "APPLICATIONS":
-			targetResourceID = GetApplicationID(ctx)
-		case "MEMBERS":
-			targetResourceID = GetMemberID(ctx)
-		case "SCHEMA-SUBMISSIONS":
-			targetResourceID = GetSchemaSubmissionID(ctx)
-		case "APPLICATION-SUBMISSIONS":
-			targetResourceID = GetApplicationSubmissionID(ctx)
-		}
-
-		// Only log if we have the required information
-		if targetResource == "" || targetResourceID == "" {
-			slog.Debug("Skipping audit log - missing resource information",
-				"targetResource", targetResource,
-				"targetResourceID", targetResourceID,
-				"path", r.URL.Path)
-			return
-		}
-
-		// Determine event type from HTTP method
-		eventType := determineEventType(r.Method)
-
-		// Log management event asynchronously (fire-and-forget)
-		m.logManagementEvent(ctx, eventType, actorType, actorID, actorRole, targetResource, targetResourceID, status, time.Since(startTime))
+		// Just pass through - actual audit logging is now done directly by handlers
+		next.ServeHTTP(w, r)
 	})
 }
 
-// logManagementEvent logs a management event using the audit client
-func (m *AuditMiddleware) logManagementEvent(
-	ctx context.Context,
-	eventType, actorType string,
-	actorID, actorRole *string,
-	targetResource, targetResourceID, status string,
-	duration time.Duration,
-) {
-	if m.auditClient == nil {
-		return // Audit client disabled
+// LogAudit - simplified function to log audit events directly from handlers
+func (m *AuditMiddleware) LogAudit(r *http.Request, resource, resourceID string) {
+	// Skip if audit service is not configured
+	if m.auditServiceURL == "" {
+		return
 	}
 
-	// Log asynchronously (fire-and-forget)
-	_ = m.auditClient.LogManagementEvent(ctx, auditclient.ManagementEventRequest{
+	// Only log write operations (POST, PUT, PATCH, DELETE)
+	if !isWriteOperation(r.Method) {
+		return
+	}
+
+	// Extract actor info directly from request
+	actorType, actorID, actorRole := extractActorInfoFromRequest(r)
+
+	// Determine event type from HTTP method
+	eventType := determineEventType(r.Method)
+	if eventType == "" {
+		return
+	}
+
+	// Create audit event
+	auditEvent := ManagementEventRequest{
 		EventType: eventType,
-		Actor: auditclient.Actor{
+		Actor: Actor{
 			Type: actorType,
 			ID:   actorID,
 			Role: actorRole,
 		},
-		Target: auditclient.Target{
-			Resource:   targetResource,
-			ResourceID: targetResourceID,
+		Target: Target{
+			Resource:   resource,
+			ResourceID: resourceID,
 		},
-	})
+	}
 
-	slog.Debug("Audit log sent",
-		"eventType", eventType,
-		"targetResource", targetResource,
-		"targetResourceID", targetResourceID,
-		"status", status,
-		"duration", duration)
+	// Log asynchronously (fire-and-forget) using background context
+	go m.logManagementEvent(context.Background(), auditEvent)
 }
 
-// responseWriter wraps http.ResponseWriter to capture status code
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
+// logManagementEvent sends the audit event to the audit service
+func (m *AuditMiddleware) logManagementEvent(ctx context.Context, event ManagementEventRequest) {
+	if m.httpClient == nil {
+		return
+	}
+
+	// Marshal the event
+	jsonData, err := json.Marshal(event)
+	if err != nil {
+		slog.Error("Failed to marshal audit event", "error", err)
+		return
+	}
+
+	// Create request to audit service
+	url := fmt.Sprintf("%s/api/events", m.auditServiceURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		slog.Error("Failed to create audit request", "error", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make the request
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		slog.Error("Failed to send audit event", "error", err, "url", url)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		slog.Error("Audit service returned error", "status", resp.StatusCode, "url", url)
+		return
+	}
+
+	slog.Debug("Audit event logged successfully",
+		"eventType", event.EventType,
+		"resource", event.Target.Resource,
+		"resourceId", event.Target.ResourceID)
 }
 
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
+// extractActorInfoFromRequest extracts actor information from the request
+func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *string, actorRole *string) {
+	// Try to get authenticated user first
+	user, err := GetUserFromRequest(r)
+	if err == nil && user != nil {
+		actorType = "USER"
+		userID := user.IdpUserID
+		actorID = &userID
+
+		// Get user role (simplified)
+		role := "MEMBER" // Default role
+		if user.HasPermission(models.PermissionCreateMember) {
+			role = "ADMIN"
+		}
+		actorRole = &role
+		return
+	}
+
+	// Fallback to headers
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		userID = r.Header.Get("X-Auth-User-ID")
+	}
+
+	role := r.Header.Get("X-User-Role")
+	if role == "" {
+		role = r.Header.Get("X-Auth-Role")
+	}
+
+	if userID != "" {
+		actorType = "USER"
+		actorID = &userID
+		if role != "" && (role == "MEMBER" || role == "ADMIN") {
+			actorRole = &role
+		} else {
+			defaultRole := "MEMBER"
+			actorRole = &defaultRole
+		}
+	} else {
+		actorType = "SERVICE"
+		actorID = nil
+		actorRole = nil
+	}
+
+	return
+}
+
+// LogAuditEvent - global function for easy access from handlers
+func LogAuditEvent(r *http.Request, resource, resourceID string) {
+	if globalAuditMiddleware != nil {
+		globalAuditMiddleware.LogAudit(r, resource, resourceID)
+	}
 }
 
 // Helper functions
-
 func isWriteOperation(method string) bool {
 	return method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch || method == http.MethodDelete
 }
@@ -165,24 +222,4 @@ func determineEventType(method string) string {
 	default:
 		return ""
 	}
-}
-
-// GetSchemaSubmissionID retrieves schema submission ID from context
-func GetSchemaSubmissionID(ctx context.Context) string {
-	if val := ctx.Value(contextKeySchemaSubmissionID); val != nil {
-		if s, ok := val.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-// GetApplicationSubmissionID retrieves application submission ID from context
-func GetApplicationSubmissionID(ctx context.Context) string {
-	if val := ctx.Value(contextKeyApplicationSubmissionID); val != nil {
-		if s, ok := val.(string); ok {
-			return s
-		}
-	}
-	return ""
 }

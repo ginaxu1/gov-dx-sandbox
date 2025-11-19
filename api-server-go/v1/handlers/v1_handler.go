@@ -355,8 +355,8 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "MEMBERS", member.MemberID))
+	// Log audit event (simplified approach)
+	middleware.LogAuditEvent(r, "MEMBERS", member.MemberID)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, member)
 }
@@ -397,7 +397,7 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 	}
 
 	// Set resource ID in context for audit middleware (path extraction may have missed it)
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "MEMBERS", member.MemberID))
+	middleware.LogAuditEvent(r, "MEMBERS", member.MemberID)
 
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
@@ -602,7 +602,7 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
+	middleware.LogAuditEvent(r, "SCHEMA-SUBMISSIONS", submission.SubmissionID)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -657,7 +657,7 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMA-SUBMISSIONS", submission.SubmissionID))
+	middleware.LogAuditEvent(r, "SCHEMA-SUBMISSIONS", submission.SubmissionID)
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -782,8 +782,8 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
+	// Set resource ID for audit middleware
+	middleware.LogAuditEvent(r, "SCHEMAS", schema.SchemaID)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
@@ -838,7 +838,7 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 	}
 
 	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "SCHEMAS", schema.SchemaID))
+	middleware.LogAuditEvent(r, "SCHEMAS", schema.SchemaID)
 
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
@@ -979,7 +979,7 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
+	middleware.LogAuditEvent(r, "APPLICATION-SUBMISSIONS", submission.SubmissionID)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -1035,7 +1035,7 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATION-SUBMISSIONS", submission.SubmissionID))
+	middleware.LogAuditEvent(r, "APPLICATION-SUBMISSIONS", submission.SubmissionID)
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -1159,7 +1159,7 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
+	middleware.LogAuditEvent(r, "APPLICATIONS", application.ApplicationID)
 
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
@@ -1214,7 +1214,7 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 	}
 
 	// Set resource ID in context for audit middleware
-	r = r.WithContext(middleware.SetResourceID(r.Context(), "APPLICATIONS", application.ApplicationID))
+	middleware.LogAuditEvent(r, "APPLICATIONS", application.ApplicationID)
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
 }
