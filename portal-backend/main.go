@@ -307,20 +307,10 @@ func main() {
 	slog.Info("Portal Backend exited")
 }
 
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (r *statusRecorder) WriteHeader(status int) {
-	r.status = status
-	r.ResponseWriter.WriteHeader(status)
-}
-
 func businessEventMiddleware(action string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		rec := &monitoring.StatusRecorder{ResponseWriter: w, Status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		monitoring.RecordBusinessEvent(r.Context(), action, rec.status < 400)
+		monitoring.RecordBusinessEvent(r.Context(), action, rec.Status < 400)
 	})
 }
