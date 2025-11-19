@@ -66,7 +66,7 @@ func cacheKey(ownerID, appID string) string {
 	// Use base64 encoding to safely encode both IDs, ensuring no delimiter collisions
 	encodedOwner := base64.URLEncoding.EncodeToString([]byte(ownerID))
 	encodedApp := base64.URLEncoding.EncodeToString([]byte(appID))
-	// Use "|" as delimiter - it's safe because base64 only uses A-Z, a-z, 0-9, +, /, and = (URL encoding uses - and _)
+	// Use "|" as delimiter - it's safe because base64.URLEncoding only uses A-Z, a-z, 0-9, '-', and '_', and typically omits padding '='
 	return encodedOwner + "|" + encodedApp
 }
 
