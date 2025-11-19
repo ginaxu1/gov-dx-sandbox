@@ -203,6 +203,8 @@ func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *st
 func LogAuditEvent(r *http.Request, resource, resourceID string) {
 	if globalAuditMiddleware != nil {
 		globalAuditMiddleware.LogAudit(r, resource, resourceID)
+	} else {
+		slog.Warn("Audit logging skipped: globalAuditMiddleware is not initialized")
 	}
 }
 
