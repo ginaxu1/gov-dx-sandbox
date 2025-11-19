@@ -48,7 +48,6 @@ func main() {
 
 	// Setup middleware chain
 	corsMiddleware := v1middleware.NewCORSMiddleware()
-	requestContextMiddleware := v1middleware.RequestContextMiddleware
 
 	// Setup JWT Authentication middleware
 	// Validate required environment variables first
@@ -111,16 +110,15 @@ func main() {
 
 	authorizationMiddleware := v1middleware.NewAuthorizationMiddlewareWithConfig(authConfig)
 
-	// Setup Audit middleware
+	// Initialize Audit system (creates global instance for direct LogAuditEvent calls from handlers)
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
-	auditMiddleware := v1middleware.NewAuditMiddleware(auditServiceURL)
+	_ = v1middleware.NewAuditMiddleware(auditServiceURL)
 
-	// Apply middleware chain (CORS -> JWT Auth -> Authorization -> Audit) to the API mux ONLY
+	// Apply middleware chain (CORS -> JWT Auth -> Authorization) to the API mux ONLY
+	// Note: Audit logging is done directly in handlers via LogAuditEvent calls, not through middleware
 	protectedAPIHandler := corsMiddleware(
 		jwtAuthMiddleware.AuthenticateJWT(
-			authorizationMiddleware.AuthorizeRequest(
-				requestContextMiddleware(auditMiddleware.AuditLoggingMiddleware(apiMux)),
-			),
+			authorizationMiddleware.AuthorizeRequest(apiMux),
 		),
 	)
 
