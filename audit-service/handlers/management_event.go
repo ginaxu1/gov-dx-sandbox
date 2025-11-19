@@ -59,12 +59,12 @@ func (h *ManagementEventHandler) CreateEvent(w http.ResponseWriter, r *http.Requ
 
 	// ResourceID is optional for CREATE failures (when status is FAILURE and eventType is CREATE)
 	// For other operations (UPDATE, DELETE) or SUCCESS status, ResourceID should be provided
-	if req.Target.ResourceID == "" {
+	if req.Target.ResourceID == nil || *req.Target.ResourceID == "" {
 		if req.EventType != "CREATE" || req.Status != "FAILURE" {
 			http.Error(w, "Missing required field: target.resourceId (required for UPDATE/DELETE operations or SUCCESS status)", http.StatusBadRequest)
 			return
 		}
-		// Allow empty ResourceID for CREATE failures
+		// Allow empty/nil ResourceID for CREATE failures
 	}
 
 	// Validate event type

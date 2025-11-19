@@ -75,11 +75,8 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 	}
 
 	// Create the event object
-	// Convert ResourceID to pointer (nullable) - empty string becomes nil
-	var targetResourceID *string
-	if req.Target.ResourceID != "" {
-		targetResourceID = &req.Target.ResourceID
-	}
+	// ResourceID is already a pointer, use it directly (can be nil for CREATE failures)
+	targetResourceID := req.Target.ResourceID
 
 	event := models.ManagementEvent{
 		EventID:          eventID,

@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stringPtr is a helper function to convert string to *string
+func stringPtr(s string) *string {
+	return &s
+}
+
 func TestNewManagementEventService(t *testing.T) {
 	db := SetupPostgresTestDB(t)
 	if db == nil {
@@ -38,7 +43,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -66,7 +71,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-789",
+				ResourceID: stringPtr("schema-789"),
 			},
 		}
 
@@ -89,7 +94,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "APPLICATIONS",
-				ResourceID: "app-012",
+				ResourceID: stringPtr("app-012"),
 			},
 		}
 
@@ -110,7 +115,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -131,7 +136,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -151,7 +156,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -172,7 +177,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -191,7 +196,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -214,7 +219,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "INVALID",
-				ResourceID: "resource-123",
+				ResourceID: stringPtr("resource-123"),
 			},
 		}
 
@@ -239,7 +244,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 			Metadata: &metadata,
 		}
@@ -273,7 +278,7 @@ func TestManagementEventService_GetManagementEvents(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-1",
+				ResourceID: stringPtr("member-1"),
 			},
 		},
 		{
@@ -285,7 +290,7 @@ func TestManagementEventService_GetManagementEvents(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-1",
+				ResourceID: stringPtr("schema-1"),
 			},
 		},
 		{
@@ -297,7 +302,7 @@ func TestManagementEventService_GetManagementEvents(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "APPLICATIONS",
-				ResourceID: "app-1",
+				ResourceID: stringPtr("app-1"),
 			},
 		},
 	}

@@ -10,6 +10,11 @@ import (
 	"github.com/gov-dx-sandbox/audit-service/models"
 )
 
+// stringPtr is a helper function to convert string to *string
+func stringPtr(s string) *string {
+	return &s
+}
+
 // TestManagementEventEndpoint tests the POST /api/events and GET /api/events endpoints
 func TestManagementEventEndpoint(t *testing.T) {
 	server := SetupTestServerWithGORM(t)
@@ -29,7 +34,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-456",
+				ResourceID: stringPtr("schema-456"),
 			},
 		}
 
@@ -88,7 +93,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "POLICY-METADATA",
-				ResourceID: "schema-789",
+				ResourceID: stringPtr("schema-789"),
 			},
 		}
 
@@ -144,7 +149,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-789",
+				ResourceID: stringPtr("schema-789"),
 			},
 			Metadata: &metadata,
 		}
@@ -177,7 +182,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 	t.Run("CreateEvent_MissingEventType", func(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
 			Actor:  models.Actor{Type: "USER"},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -199,7 +204,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 	t.Run("CreateEvent_MissingActorType", func(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
 			EventType: "CREATE",
-			Target:    models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target:    models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -227,7 +232,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 				ID:   &actorID,
 				// Role is missing
 			},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -256,7 +261,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 				ID:   &actorID,
 				Role: &actorRole,
 			},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -281,7 +286,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			Actor: models.Actor{
 				Type: "INVALID",
 			},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -312,7 +317,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "INVALID-RESOURCE",
-				ResourceID: "schema-123",
+				ResourceID: stringPtr("schema-123"),
 			},
 		}
 
@@ -492,7 +497,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "", // Empty ResourceID allowed for CREATE failures
+				ResourceID: nil, // Empty ResourceID allowed for CREATE failures
 			},
 		}
 
@@ -540,7 +545,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "", // Empty ResourceID should be rejected for UPDATE
+				ResourceID: nil, // Empty ResourceID should be rejected for UPDATE
 			},
 		}
 
@@ -579,7 +584,7 @@ func createTestEvents(t *testing.T, server *TestServerWithGORM) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-1",
+				ResourceID: stringPtr("schema-1"),
 			},
 		},
 		{
@@ -592,7 +597,7 @@ func createTestEvents(t *testing.T, server *TestServerWithGORM) {
 			},
 			Target: models.Target{
 				Resource:   "APPLICATIONS",
-				ResourceID: "app-1",
+				ResourceID: stringPtr("app-1"),
 			},
 		},
 		{
@@ -603,7 +608,7 @@ func createTestEvents(t *testing.T, server *TestServerWithGORM) {
 			},
 			Target: models.Target{
 				Resource:   "POLICY-METADATA",
-				ResourceID: "schema-2",
+				ResourceID: stringPtr("schema-2"),
 			},
 		},
 	}
