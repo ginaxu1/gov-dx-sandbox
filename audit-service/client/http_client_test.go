@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stringPtr is a helper function to convert string to *string
+func stringPtr(s string) *string {
+	return &s
+}
+
 func TestNewAuditClient(t *testing.T) {
 	t.Run("WithURL", func(t *testing.T) {
 		client := NewAuditClient("http://localhost:3001")
@@ -174,7 +179,7 @@ func TestHTTPClient_LogManagementEvent(t *testing.T) {
 			},
 			Target: Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -207,7 +212,7 @@ func TestHTTPClient_LogManagementEvent(t *testing.T) {
 			},
 			Target: Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -229,7 +234,7 @@ func TestHTTPClient_LogManagementEvent(t *testing.T) {
 			},
 			Target: Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -254,7 +259,7 @@ func TestHTTPClient_LogManagementEvent(t *testing.T) {
 			},
 			Target: Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 
@@ -285,7 +290,7 @@ func TestHTTPClient_LogManagementEvent(t *testing.T) {
 			},
 			Target: Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-789",
+				ResourceID: stringPtr("schema-789"),
 			},
 		}
 
@@ -322,7 +327,7 @@ func TestHTTPClient_LogManagementEvent(t *testing.T) {
 			},
 			Target: Target{
 				Resource:   "APPLICATIONS",
-				ResourceID: "app-012",
+				ResourceID: stringPtr("app-012"),
 			},
 		}
 
@@ -357,7 +362,7 @@ func TestHTTPClient_LogManagementEvent(t *testing.T) {
 			},
 			Target: Target{
 				Resource:   "MEMBERS",
-				ResourceID: "member-456",
+				ResourceID: stringPtr("member-456"),
 			},
 		}
 

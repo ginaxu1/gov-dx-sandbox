@@ -12,6 +12,7 @@ type ManagementEventRequest struct {
 	// Timestamp is optional - if not provided, will use current time
 	Timestamp *string                 `json:"timestamp,omitempty"` // ISO 8601 timestamp
 	EventType string                  `json:"eventType"`           // "CREATE", "UPDATE", "DELETE"
+	Status    string                  `json:"status"`              // "SUCCESS", "FAILURE"
 	Actor     Actor                   `json:"actor"`
 	Target    Target                  `json:"target"`
 	Metadata  *map[string]interface{} `json:"metadata,omitempty"` // Optional additional context
@@ -26,8 +27,8 @@ type Actor struct {
 
 // Target represents the resource that was acted upon
 type Target struct {
-	Resource   string `json:"resource"`   // "MEMBERS", "SCHEMAS", etc.
-	ResourceID string `json:"resourceId"` // The ID of the resource
+	Resource   string  `json:"resource"`   // "MEMBERS", "SCHEMAS", etc.
+	ResourceID *string `json:"resourceId"` // The ID of the resource (optional - can be empty for CREATE failures)
 }
 
 // ManagementEvent represents the database model for management events
@@ -35,16 +36,16 @@ type ManagementEvent struct {
 	ID               string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
 	EventID          string    `gorm:"type:uuid;uniqueIndex;not null" json:"eventId"`
 	EventType        string    `gorm:"type:varchar(10);not null;check:event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')" json:"eventType"`
+	Status           string    `gorm:"type:varchar(10);not null;check:status IN ('SUCCESS', 'FAILURE')" json:"status"`
 	Timestamp        time.Time `gorm:"type:timestamp with time zone;default:now()" json:"timestamp"`
 	ActorType        string    `gorm:"type:varchar(10);not null;check:actor_type IN ('USER', 'SERVICE')" json:"actorType"`
 	ActorID          *string   `gorm:"type:varchar(255)" json:"actorId"`
 	ActorRole        *string   `gorm:"type:varchar(10);check:actor_role IN ('MEMBER', 'ADMIN')" json:"actorRole"`
 	TargetResource   string    `gorm:"type:varchar(50);not null;check:target_resource IN ('MEMBERS', 'SCHEMAS', 'SCHEMA-SUBMISSIONS', 'APPLICATIONS', 'APPLICATION-SUBMISSIONS', 'POLICY-METADATA')" json:"targetResource"`
-	TargetResourceID string    `gorm:"type:varchar(255);not null" json:"targetResourceId"`
+	TargetResourceID *string   `gorm:"type:varchar(255)" json:"targetResourceId"` // NULL allowed for CREATE failures
 	Metadata         *Metadata `gorm:"type:jsonb" json:"metadata"`
 	CreatedAt        time.Time `gorm:"type:timestamp with time zone;default:now()" json:"createdAt"`
 }
-
 
 // TableName specifies the table name for ManagementEvent
 func (ManagementEvent) TableName() string {
@@ -80,6 +81,7 @@ func (m *Metadata) Scan(value interface{}) error {
 // ManagementEventFilter represents filter parameters for querying management events
 type ManagementEventFilter struct {
 	EventType        *string    `json:"eventType,omitempty"`
+	Status           *string    `json:"status,omitempty"`
 	ActorType        *string    `json:"actorType,omitempty"`
 	ActorID          *string    `json:"actorId,omitempty"`
 	ActorRole        *string    `json:"actorRole,omitempty"`

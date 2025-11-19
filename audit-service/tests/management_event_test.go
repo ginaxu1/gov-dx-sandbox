@@ -10,6 +10,11 @@ import (
 	"github.com/gov-dx-sandbox/audit-service/models"
 )
 
+// stringPtr is a helper function to convert string to *string
+func stringPtr(s string) *string {
+	return &s
+}
+
 // TestManagementEventEndpoint tests the POST /api/events and GET /api/events endpoints
 func TestManagementEventEndpoint(t *testing.T) {
 	server := SetupTestServerWithGORM(t)
@@ -21,6 +26,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
 			EventID:   "550e8400-e29b-41d4-a716-446655440010",
 			EventType: "CREATE",
+			Status:    "SUCCESS",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -28,7 +34,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-456",
+				ResourceID: stringPtr("schema-456"),
 			},
 		}
 
@@ -72,8 +78,8 @@ func TestManagementEventEndpoint(t *testing.T) {
 			t.Errorf("Expected targetResource 'SCHEMAS', got %s", response.TargetResource)
 		}
 
-		if response.TargetResourceID != "schema-456" {
-			t.Errorf("Expected targetResourceId 'schema-456', got %s", response.TargetResourceID)
+		if response.TargetResourceID == nil || *response.TargetResourceID != "schema-456" {
+			t.Errorf("Expected targetResourceId 'schema-456', got %v", response.TargetResourceID)
 		}
 	})
 
@@ -81,12 +87,13 @@ func TestManagementEventEndpoint(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
 			EventID:   "550e8400-e29b-41d4-a716-446655440011",
 			EventType: "UPDATE",
+			Status:    "SUCCESS",
 			Actor: models.Actor{
 				Type: "SERVICE",
 			},
 			Target: models.Target{
 				Resource:   "POLICY-METADATA",
-				ResourceID: "schema-789",
+				ResourceID: stringPtr("schema-789"),
 			},
 		}
 
@@ -134,6 +141,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
 			EventID:   "550e8400-e29b-41d4-a716-446655440012",
 			EventType: "UPDATE",
+			Status:    "SUCCESS",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -141,7 +149,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-789",
+				ResourceID: stringPtr("schema-789"),
 			},
 			Metadata: &metadata,
 		}
@@ -174,7 +182,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 	t.Run("CreateEvent_MissingEventType", func(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
 			Actor:  models.Actor{Type: "USER"},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -196,7 +204,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 	t.Run("CreateEvent_MissingActorType", func(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
 			EventType: "CREATE",
-			Target:    models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target:    models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -224,7 +232,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 				ID:   &actorID,
 				// Role is missing
 			},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -253,7 +261,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 				ID:   &actorID,
 				Role: &actorRole,
 			},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -278,7 +286,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			Actor: models.Actor{
 				Type: "INVALID",
 			},
-			Target: models.Target{Resource: "SCHEMAS", ResourceID: "schema-123"},
+			Target: models.Target{Resource: "SCHEMAS", ResourceID: stringPtr("schema-123")},
 		}
 
 		jsonBody, err := json.Marshal(reqBody)
@@ -309,7 +317,7 @@ func TestManagementEventEndpoint(t *testing.T) {
 			},
 			Target: models.Target{
 				Resource:   "INVALID-RESOURCE",
-				ResourceID: "schema-123",
+				ResourceID: stringPtr("schema-123"),
 			},
 		}
 
@@ -473,6 +481,89 @@ func TestManagementEventEndpoint(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("CreateEvent_CREATE_FAILURE_WithoutResourceID", func(t *testing.T) {
+		// Test that CREATE failures can be logged without ResourceID
+		actorID := "user-123"
+		actorRole := "ADMIN"
+		reqBody := models.ManagementEventRequest{
+			EventID:   "550e8400-e29b-41d4-a716-446655440013",
+			EventType: "CREATE",
+			Status:    "FAILURE",
+			Actor: models.Actor{
+				Type: "USER",
+				ID:   &actorID,
+				Role: &actorRole,
+			},
+			Target: models.Target{
+				Resource:   "SCHEMAS",
+				ResourceID: nil, // Empty ResourceID allowed for CREATE failures
+			},
+		}
+
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+
+		req := httptest.NewRequest("POST", "/api/events", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		server.ManagementEventHandler.CreateEvent(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusCreated, w.Code, w.Body.String())
+		}
+
+		var response models.ManagementEvent
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if response.Status != "FAILURE" {
+			t.Errorf("Expected status 'FAILURE', got %s", response.Status)
+		}
+
+		if response.TargetResourceID != nil {
+			t.Errorf("Expected targetResourceId to be nil for CREATE failure, got %v", response.TargetResourceID)
+		}
+	})
+
+	t.Run("CreateEvent_UPDATE_FAILURE_RequiresResourceID", func(t *testing.T) {
+		// Test that UPDATE failures still require ResourceID
+		actorID := "user-123"
+		actorRole := "ADMIN"
+		reqBody := models.ManagementEventRequest{
+			EventID:   "550e8400-e29b-41d4-a716-446655440014",
+			EventType: "UPDATE",
+			Status:    "FAILURE",
+			Actor: models.Actor{
+				Type: "USER",
+				ID:   &actorID,
+				Role: &actorRole,
+			},
+			Target: models.Target{
+				Resource:   "SCHEMAS",
+				ResourceID: nil, // Empty ResourceID should be rejected for UPDATE
+			},
+		}
+
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+
+		req := httptest.NewRequest("POST", "/api/events", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		server.ManagementEventHandler.CreateEvent(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusBadRequest, w.Code, w.Body.String())
+		}
+	})
 }
 
 // createTestEvents creates some test events for filtering tests
@@ -485,6 +576,7 @@ func createTestEvents(t *testing.T, server *TestServerWithGORM) {
 	events := []models.ManagementEventRequest{
 		{
 			EventType: "CREATE",
+			Status:    "SUCCESS",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID1,
@@ -492,11 +584,12 @@ func createTestEvents(t *testing.T, server *TestServerWithGORM) {
 			},
 			Target: models.Target{
 				Resource:   "SCHEMAS",
-				ResourceID: "schema-1",
+				ResourceID: stringPtr("schema-1"),
 			},
 		},
 		{
 			EventType: "UPDATE",
+			Status:    "SUCCESS",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID2,
@@ -504,17 +597,18 @@ func createTestEvents(t *testing.T, server *TestServerWithGORM) {
 			},
 			Target: models.Target{
 				Resource:   "APPLICATIONS",
-				ResourceID: "app-1",
+				ResourceID: stringPtr("app-1"),
 			},
 		},
 		{
 			EventType: "DELETE",
+			Status:    "SUCCESS",
 			Actor: models.Actor{
 				Type: "SERVICE",
 			},
 			Target: models.Target{
 				Resource:   "POLICY-METADATA",
-				ResourceID: "schema-2",
+				ResourceID: stringPtr("schema-2"),
 			},
 		},
 	}

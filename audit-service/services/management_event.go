@@ -75,6 +75,9 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 	}
 
 	// Create the event object
+	// ResourceID is already a pointer, use it directly (can be nil for CREATE failures)
+	targetResourceID := req.Target.ResourceID
+
 	event := models.ManagementEvent{
 		EventID:          eventID,
 		EventType:        req.EventType,
@@ -83,7 +86,7 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 		ActorID:          req.Actor.ID,
 		ActorRole:        req.Actor.Role,
 		TargetResource:   req.Target.Resource,
-		TargetResourceID: req.Target.ResourceID,
+		TargetResourceID: targetResourceID,
 	}
 
 	// Set metadata if provided

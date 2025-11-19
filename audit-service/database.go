@@ -355,6 +355,7 @@ func InitDatabase(db *sql.DB) error {
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		event_id UUID NOT NULL UNIQUE,
 		event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')),
+		status VARCHAR(10) NOT NULL CHECK (status IN ('SUCCESS', 'FAILURE')),
 		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		
 		-- Actor information
@@ -367,7 +368,7 @@ func InitDatabase(db *sql.DB) error {
 			'MEMBERS', 'SCHEMAS', 'SCHEMA-SUBMISSIONS', 
 			'APPLICATIONS', 'APPLICATION-SUBMISSIONS', 'POLICY-METADATA'
 		)),
-		target_resource_id VARCHAR(255) NOT NULL,
+		target_resource_id VARCHAR(255), -- NULL allowed for CREATE failures
 		
 		-- Additional metadata
 		metadata JSONB,
@@ -380,6 +381,7 @@ func InitDatabase(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_management_events_timestamp ON management_events(timestamp DESC);
 	CREATE INDEX IF NOT EXISTS idx_management_events_actor ON management_events(actor_type, actor_id);
 	CREATE INDEX IF NOT EXISTS idx_management_events_target ON management_events(target_resource, target_resource_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_status ON management_events(status);
 	CREATE INDEX IF NOT EXISTS idx_management_events_actor_target_time ON management_events(actor_type, actor_id, timestamp DESC);
 	`
 
