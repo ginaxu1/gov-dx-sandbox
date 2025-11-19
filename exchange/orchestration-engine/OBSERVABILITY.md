@@ -20,8 +20,8 @@ docker compose up -d
 
 What this does:
 * Prometheus listens on **http://localhost:9090** and scrapes `http://host.docker.internal:4000/metrics`.
-* Grafana listens on **http://localhost:3000** with user/pass `admin / admin`.
-* A dashboard named **“Orchestration Engine Metrics”** is auto-loaded with the most relevant charts.
+* Grafana listens on **http://localhost:3002** with user/pass `admin / admin`.
+* A dashboard named **"Orchestration Engine Metrics"** is auto-loaded with the most relevant charts.
 
 To stop the stack later: `docker compose down`.
 
@@ -36,7 +36,7 @@ If the job shows **DOWN**, double-check:
 * The monitoring stack can reach it (Docker Desktop on macOS uses `host.docker.internal` automatically; change the hostname in `exchange/monitoring/prometheus/prometheus.yml` if needed).
 
 ### 4. Explore Grafana
-1. Visit http://localhost:3000 and log in (`admin` / `admin`).
+1. Visit http://localhost:3002 and log in (`admin` / `admin`).
 2. Grafana automatically finds the Prometheus datasource and loads the dashboard (`Browse → Orchestration Engine → Orchestration Engine Metrics`).
 3. Panels you’ll see:
    - **HTTP Traffic**: request rate by method/route.
@@ -91,60 +91,4 @@ groups:
 - [ ] Alerts configured for latency/error spikes.
 - [ ] Runbooks or on-call docs reference these dashboards.
 
-Once the stack is running, you can confidently observe the service’s health without needing deep Prometheus or Grafana expertise.
-
-### Distributed Tracing (Jaeger OTLP)
-1. Run Jaeger all-in-one:
-   ```bash
-   docker run -d --name jaeger -p 16686:16686 -p 4317:4317 -p 4318:4318 \
-     jaegertracing/all-in-one:1.56
-   ```
-2. Update service env vars to export traces:
-   ```
-   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-   OTEL_TRACES_EXPORTER=otlp
-   ```
-3. View traces at http://localhost:16686.
-
-### Grafana Dashboards
-1. Deploy Grafana:
-   ```bash
-   docker run -d --name grafana -p 3000:3000 grafana/grafana
-   ```
-2. Add Prometheus datasource (`http://host.docker.internal:9090`).
-3. Import dashboards for:
-   - Four Golden Signals (latency, traffic, errors, saturation)
-   - Custom metrics (`external_calls_total`, `business_events_total`).
-4. Optionally add Jaeger/Tempo datasource for traces.
-
-### Alerting
-1. Configure Alertmanager with Prometheus or use Grafana Alerting.
-2. Example PromQL rules:
-   ```yaml
-   groups:
-     - name: orchestration-engine
-       rules:
-         - alert: HighP99Latency
-           expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
-           for: 5m
-           labels:
-             severity: warning
-           annotations:
-             summary: "P99 latency above 500ms"
-         - alert: HighExternalErrorRate
-           expr: rate(external_call_errors_total[5m]) > 5
-           for: 5m
-           labels:
-             severity: critical
-           annotations:
-             summary: "External dependency error rate is elevated"
-   ```
-3. Route alerts to Slack, email, or PagerDuty as needed.
-
-### Operational Checklist
-- [ ] `/metrics` scraped by Prometheus.
-- [ ] Runtime & dependency metrics visible in Grafana.
-- [ ] Jaeger shows traces for GraphQL requests.
-- [ ] Alerts configured for latency, dependency errors, and CPU saturation.
-- [ ] Runbooks link alerts to mitigation steps.
-
+Once the stack is running, you can confidently observe the service's health without needing deep Prometheus or Grafana expertise.
