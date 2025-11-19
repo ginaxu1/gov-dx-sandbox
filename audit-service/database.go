@@ -355,6 +355,7 @@ func InitDatabase(db *sql.DB) error {
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		event_id UUID NOT NULL UNIQUE,
 		event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')),
+		status VARCHAR(10) NOT NULL CHECK (status IN ('SUCCESS', 'FAILURE')),
 		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		
 		-- Actor information
@@ -380,12 +381,50 @@ func InitDatabase(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_management_events_timestamp ON management_events(timestamp DESC);
 	CREATE INDEX IF NOT EXISTS idx_management_events_actor ON management_events(actor_type, actor_id);
 	CREATE INDEX IF NOT EXISTS idx_management_events_target ON management_events(target_resource, target_resource_id);
+	CREATE INDEX IF NOT EXISTS idx_management_events_status ON management_events(status);
 	CREATE INDEX IF NOT EXISTS idx_management_events_actor_target_time ON management_events(actor_type, actor_id, timestamp DESC);
 	`
 
 	_, err = db.Exec(createManagementEventsTableSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create management_events table: %w", err)
+	}
+
+	// Check if status column exists in management_events (migration)
+	var hasStatusColumn bool
+	err = db.QueryRow(`
+		SELECT EXISTS (
+			SELECT FROM information_schema.columns 
+			WHERE table_schema = 'public' 
+			AND table_name = 'management_events' 
+			AND column_name = 'status'
+		)
+	`).Scan(&hasStatusColumn)
+	if err != nil {
+		return fmt.Errorf("failed to check for status column in management_events: %w", err)
+	}
+
+	if !hasStatusColumn {
+		slog.Info("Adding status column to management_events table")
+		// Add column allowing NULL initially to avoid issues with existing data
+		if _, err := db.Exec("ALTER TABLE management_events ADD COLUMN IF NOT EXISTS status VARCHAR(10) CHECK (status IN ('SUCCESS', 'FAILURE'))"); err != nil {
+			return fmt.Errorf("failed to add status column to management_events: %w", err)
+		}
+		
+		// Backfill existing records with 'SUCCESS' (assumption: existing records were successful)
+		if _, err := db.Exec("UPDATE management_events SET status = 'SUCCESS' WHERE status IS NULL"); err != nil {
+			slog.Warn("Failed to backfill status for existing management_events", "error", err)
+		}
+
+		// Now make it NOT NULL
+		if _, err := db.Exec("ALTER TABLE management_events ALTER COLUMN status SET NOT NULL"); err != nil {
+			slog.Warn("Failed to set status column to NOT NULL", "error", err)
+		}
+
+		// Create index
+		if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_management_events_status ON management_events(status)"); err != nil {
+			slog.Warn("Failed to create index for status", "error", err)
+		}
 	}
 
 	slog.Info("Database tables and view initialized successfully")

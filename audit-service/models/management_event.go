@@ -12,6 +12,7 @@ type ManagementEventRequest struct {
 	// Timestamp is optional - if not provided, will use current time
 	Timestamp *string                 `json:"timestamp,omitempty"` // ISO 8601 timestamp
 	EventType string                  `json:"eventType"`           // "CREATE", "UPDATE", "DELETE"
+	Status    string                  `json:"status"`              // "SUCCESS", "FAILURE"
 	Actor     Actor                   `json:"actor"`
 	Target    Target                  `json:"target"`
 	Metadata  *map[string]interface{} `json:"metadata,omitempty"` // Optional additional context
@@ -35,6 +36,7 @@ type ManagementEvent struct {
 	ID               string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
 	EventID          string    `gorm:"type:uuid;uniqueIndex;not null" json:"eventId"`
 	EventType        string    `gorm:"type:varchar(10);not null;check:event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')" json:"eventType"`
+	Status           string    `gorm:"type:varchar(10);not null;check:status IN ('SUCCESS', 'FAILURE')" json:"status"`
 	Timestamp        time.Time `gorm:"type:timestamp with time zone;default:now()" json:"timestamp"`
 	ActorType        string    `gorm:"type:varchar(10);not null;check:actor_type IN ('USER', 'SERVICE')" json:"actorType"`
 	ActorID          *string   `gorm:"type:varchar(255)" json:"actorId"`
@@ -80,6 +82,7 @@ func (m *Metadata) Scan(value interface{}) error {
 // ManagementEventFilter represents filter parameters for querying management events
 type ManagementEventFilter struct {
 	EventType        *string    `json:"eventType,omitempty"`
+	Status           *string    `json:"status,omitempty"`
 	ActorType        *string    `json:"actorType,omitempty"`
 	ActorID          *string    `json:"actorId,omitempty"`
 	ActorRole        *string    `json:"actorRole,omitempty"`

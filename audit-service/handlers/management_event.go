@@ -42,6 +42,11 @@ func (h *ManagementEventHandler) CreateEvent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if req.Status == "" {
+		http.Error(w, "Missing required field: status", http.StatusBadRequest)
+		return
+	}
+
 	if req.Actor.Type == "" {
 		http.Error(w, "Missing required field: actor.type", http.StatusBadRequest)
 		return
@@ -60,6 +65,12 @@ func (h *ManagementEventHandler) CreateEvent(w http.ResponseWriter, r *http.Requ
 	// Validate event type
 	if req.EventType != "CREATE" && req.EventType != "UPDATE" && req.EventType != "DELETE" && req.EventType != "READ" {
 		http.Error(w, "Invalid eventType. Must be CREATE, UPDATE, DELETE, or READ", http.StatusBadRequest)
+		return
+	}
+
+	// Validate status
+	if req.Status != "SUCCESS" && req.Status != "FAILURE" {
+		http.Error(w, "Invalid status. Must be SUCCESS or FAILURE", http.StatusBadRequest)
 		return
 	}
 
@@ -148,6 +159,10 @@ func (h *ManagementEventHandler) parseEventFilterParams(r *http.Request) *models
 	// Parse query parameters
 	if eventType := r.URL.Query().Get("eventType"); eventType != "" {
 		filter.EventType = &eventType
+	}
+
+	if status := r.URL.Query().Get("status"); status != "" {
+		filter.Status = &status
 	}
 
 	if actorType := r.URL.Query().Get("actorType"); actorType != "" {

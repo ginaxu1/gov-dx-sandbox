@@ -74,6 +74,139 @@ func TestLogAudit_ProcessesWriteOperations(t *testing.T) {
 	// This test passes if no panic occurs - we can't easily test HTTP calls without a mock server
 }
 
+// TestCreateRequest_AuditLogging verifies that a CREATE request triggers the audit logic.
+func TestCreateRequest_AuditLogging(t *testing.T) {
+	// Reset global state
+	ResetGlobalAuditMiddleware()
+	
+	// Setup a mock audit service server to verify the request is sent
+	auditServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify request method and path
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request to audit service, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/events" {
+			t.Errorf("Expected path /api/events, got %s", r.URL.Path)
+		}
+
+		// Decode body
+		var event ManagementEventRequest
+		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+			t.Errorf("Failed to decode audit event: %v", err)
+			return
+		}
+
+		// Verify event details
+		if event.EventType != "CREATE" {
+			t.Errorf("Expected EventType CREATE, got %s", event.EventType)
+		}
+		if event.Status != "SUCCESS" {
+			t.Errorf("Expected Status SUCCESS, got %s", event.Status)
+		}
+		if event.Target.Resource != "TEST_RESOURCE" {
+			t.Errorf("Expected Resource TEST_RESOURCE, got %s", event.Target.Resource)
+		}
+		if event.Target.ResourceID != "created-id-123" {
+			t.Errorf("Expected ResourceID created-id-123, got %s", event.Target.ResourceID)
+		}
+		if event.Actor.ID == nil || *event.Actor.ID != "test-user" {
+			t.Errorf("Expected Actor ID test-user, got %v", event.Actor.ID)
+		}
+
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer auditServer.Close()
+
+	// Initialize middleware with mock server URL
+	mw := NewAuditMiddleware(auditServer.URL)
+
+	// Create a handler that simulates a CREATE operation
+	createHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 1. Retrieve AuditInfo
+		auditInfo := GetAuditInfo(r.Context())
+		if auditInfo == nil {
+			t.Error("AuditInfo not found in context")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// 2. Simulate creating a resource
+		newID := "created-id-123"
+
+		// 3. Set the resource ID in AuditInfo
+		auditInfo.SetResourceID(newID)
+
+		w.WriteHeader(http.StatusCreated)
+	})
+
+	// Wrap with middleware
+	wrappedHandler := mw.WithAudit("TEST_RESOURCE")(createHandler)
+
+	// Create POST request
+	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
+	req.Header.Set("X-User-ID", "test-user")
+	req.Header.Set("X-User-Role", "ADMIN")
+	w := httptest.NewRecorder()
+
+	// Execute
+	wrappedHandler.ServeHTTP(w, req)
+
+	// Wait a bit for the goroutine to finish (since logManagementEvent is async)
+	time.Sleep(100 * time.Millisecond)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("Expected status 201, got %d", w.Code)
+	}
+}
+
+func TestFailureRequest_AuditLogging(t *testing.T) {
+	// Reset global state
+	ResetGlobalAuditMiddleware()
+	
+	// Setup a mock audit service server
+	auditServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var event ManagementEventRequest
+		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+			t.Errorf("Failed to decode audit event: %v", err)
+			return
+		}
+
+		// Verify status is FAILURE
+		if event.Status != "FAILURE" {
+			t.Errorf("Expected Status FAILURE, got %s", event.Status)
+		}
+		// Resource ID might be empty or partial depending on when failure occurred, 
+		// but here we expect it to be empty as handler failed before setting it
+		if event.Target.ResourceID != "" {
+			t.Errorf("Expected empty ResourceID for failure, got %s", event.Target.ResourceID)
+		}
+
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer auditServer.Close()
+
+	mw := NewAuditMiddleware(auditServer.URL)
+
+	// Create a handler that fails
+	failHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	})
+
+	wrappedHandler := mw.WithAudit("TEST_RESOURCE")(failHandler)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
+	req.Header.Set("X-User-ID", "test-user")
+	w := httptest.NewRecorder()
+
+	wrappedHandler.ServeHTTP(w, req)
+
+	time.Sleep(100 * time.Millisecond)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
 func TestAuditMiddleware_ThreadSafety(t *testing.T) {
 	// Reset global state for this test
 	ResetGlobalAuditMiddleware()
@@ -135,3 +268,4 @@ func TestLogAuditEvent_WithoutInitialization(t *testing.T) {
 	// This should not panic and should log a warning
 	LogAuditEvent(req, "TEST_RESOURCE", "test-id-no-init")
 }
+```

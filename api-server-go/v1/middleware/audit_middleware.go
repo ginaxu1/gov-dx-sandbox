@@ -27,9 +27,11 @@ var (
 
 // ManagementEventRequest represents the audit service API structure
 type ManagementEventRequest struct {
-	EventType string `json:"eventType"`
-	Actor     Actor  `json:"actor"`
-	Target    Target `json:"target"`
+	Timestamp *string `json:"timestamp,omitempty"` // ISO 8601 timestamp
+	EventType string  `json:"eventType"`           // "CREATE", "UPDATE", "DELETE"
+	Status    string  `json:"status"`              // "SUCCESS", "FAILURE"
+	Actor     Actor   `json:"actor"`
+	Target    Target  `json:"target"`
 }
 
 // Actor represents who performed the action
@@ -44,6 +46,17 @@ type Target struct {
 	Resource   string `json:"resource"`   // MEMBERS, SCHEMAS, etc.
 	ResourceID string `json:"resourceId"` // Actual resource ID
 }
+
+// AuditInfo holds information to be logged by the audit middleware
+type AuditInfo struct {
+	ResourceID string                 // The ID of the resource being acted upon
+	Metadata   map[string]interface{} // Additional metadata for the audit log
+}
+
+// auditInfoKey is a custom type for context keys to avoid collisions
+type auditInfoKeyType string
+
+const auditInfoKey auditInfoKeyType = "auditInfo"
 
 // NewAuditMiddleware creates a new audit middleware with thread-safe global initialization
 // This function should typically only be called once during application startup.
@@ -75,44 +88,97 @@ func NewAuditMiddleware(auditServiceURL string) *AuditMiddleware {
 	return middleware
 }
 
-// LogAudit - simplified function to log audit events directly from handlers
-func (m *AuditMiddleware) LogAudit(r *http.Request, resource, resourceID string) {
-	// Skip if audit service is not configured
-	if m.auditServiceURL == "" {
-		return
+// statusRecorder is a wrapper around http.ResponseWriter to capture the status code
+type statusRecorder struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (r *statusRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
+}
+
+// WithAudit is a middleware that enables audit logging for a handler
+func (m *AuditMiddleware) WithAudit(resource string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip if audit service is not configured
+			if m.auditServiceURL == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Only log write operations (POST, PUT, PATCH, DELETE)
+			if !isWriteOperation(r.Method) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Create AuditInfo and inject into context
+			auditInfo := &AuditInfo{
+				Metadata: make(map[string]interface{}),
+			}
+			ctx := context.WithValue(r.Context(), auditInfoKey, auditInfo)
+			r = r.WithContext(ctx)
+
+			// Wrap ResponseWriter to capture status code
+			recorder := &statusRecorder{
+				ResponseWriter: w,
+				statusCode:     http.StatusOK, // Default to 200 if WriteHeader is not called
+			}
+
+			// Call the next handler
+			next.ServeHTTP(recorder, r)
+
+			// After handler returns, log the audit event
+			// Extract actor info directly from request
+			actorType, actorID, actorRole := extractActorInfoFromRequest(r)
+
+			// Determine event type from HTTP method
+			eventType := determineEventType(r.Method)
+			if eventType == "" {
+				return
+			}
+
+			// Determine status based on status code
+			status := "SUCCESS"
+			if recorder.statusCode >= 400 {
+				status = "FAILURE"
+			}
+
+			// Get current timestamp in ISO 8601 format
+			now := time.Now().Format(time.RFC3339)
+
+			// Create audit event
+			auditEvent := ManagementEventRequest{
+				Timestamp: &now,
+				EventType: eventType,
+				Status:    status,
+				Actor: Actor{
+					Type: actorType,
+					ID:   actorID,
+					Role: actorRole,
+				},
+				Target: Target{
+					Resource:   resource,
+					ResourceID: auditInfo.ResourceID, // Retrieved from AuditInfo populated by handler
+				},
+			}
+
+			// Log asynchronously (fire-and-forget) using background context
+			go m.logManagementEvent(context.Background(), auditEvent)
+		})
 	}
+}
 
-	// Only log write operations (POST, PUT, PATCH, DELETE)
-	if !isWriteOperation(r.Method) {
-		return
+// GetAuditInfoFromContext retrieves the AuditInfo from the request context
+func GetAuditInfoFromContext(ctx context.Context) (*AuditInfo, error) {
+	auditInfo, ok := ctx.Value(auditInfoKey).(*AuditInfo)
+	if !ok {
+		return nil, fmt.Errorf("audit info not found in context")
 	}
-
-	// Extract actor info directly from request
-	actorType, actorID, actorRole := extractActorInfoFromRequest(r)
-
-	// Determine event type from HTTP method
-	eventType := determineEventType(r.Method)
-	if eventType == "" {
-		return
-	}
-
-	// Create audit event
-	auditEvent := ManagementEventRequest{
-		EventType: eventType,
-		Actor: Actor{
-			Type: actorType,
-			ID:   actorID,
-			Role: actorRole,
-		},
-		Target: Target{
-			Resource:   resource,
-			ResourceID: resourceID,
-		},
-	}
-
-	// Log asynchronously (fire-and-forget) using background context
-	// If this r.context is used, it may be cancelled before the audit log is sent
-	go m.logManagementEvent(context.Background(), auditEvent)
+	return auditInfo, nil
 }
 
 // logManagementEvent sends the audit event to the audit service
@@ -204,14 +270,6 @@ func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *st
 	return
 }
 
-// LogAuditEvent - global function for easy access from handlers
-func LogAuditEvent(r *http.Request, resource, resourceID string) {
-	if globalAuditMiddleware != nil {
-		globalAuditMiddleware.LogAudit(r, resource, resourceID)
-	} else {
-		slog.Warn("Audit logging skipped: globalAuditMiddleware is not initialized")
-	}
-}
 
 // ResetGlobalAuditMiddleware resets the global audit middleware instance for testing purposes
 // This should only be used in tests to reset state between test cases
