@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
@@ -19,7 +20,10 @@ type AuditMiddleware struct {
 }
 
 // Global audit middleware instance for easy access from handlers
-var globalAuditMiddleware *AuditMiddleware
+var (
+	globalAuditMiddleware *AuditMiddleware
+	globalAuditOnce       sync.Once
+)
 
 // ManagementEventRequest represents the audit service API structure
 type ManagementEventRequest struct {
@@ -41,34 +45,34 @@ type Target struct {
 	ResourceID string `json:"resourceId"` // Actual resource ID
 }
 
-// NewAuditMiddleware creates a new audit middleware
+// NewAuditMiddleware creates a new audit middleware with thread-safe global initialization
+// This function should typically only be called once during application startup.
+// Subsequent calls will return a new instance but won't update the global instance.
 func NewAuditMiddleware(auditServiceURL string) *AuditMiddleware {
+	var middleware *AuditMiddleware
+
 	if auditServiceURL == "" {
 		slog.Warn("Audit middleware disabled (audit service URL not configured)")
-		return &AuditMiddleware{auditServiceURL: "", httpClient: nil}
+		middleware = &AuditMiddleware{auditServiceURL: "", httpClient: nil}
+	} else {
+		httpClient := &http.Client{
+			Timeout: 10 * time.Second,
+		}
+
+		slog.Info("Audit middleware initialized", "auditServiceURL", auditServiceURL)
+		middleware = &AuditMiddleware{
+			auditServiceURL: auditServiceURL,
+			httpClient:      httpClient,
+		}
 	}
 
-	httpClient := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	slog.Info("Audit middleware initialized", "auditServiceURL", auditServiceURL)
-	middleware := &AuditMiddleware{
-		auditServiceURL: auditServiceURL,
-		httpClient:      httpClient,
-	}
-
-	// Set global instance for easy access from handlers
-	globalAuditMiddleware = middleware
-	return middleware
-}
-
-// AuditLoggingMiddleware wraps an http.Handler with audit logging (simplified)
-func (m *AuditMiddleware) AuditLoggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Just pass through - actual audit logging is now done directly by handlers
-		next.ServeHTTP(w, r)
+	// Set global instance for easy access from handlers (thread-safe, only once)
+	globalAuditOnce.Do(func() {
+		globalAuditMiddleware = middleware
+		slog.Debug("Global audit middleware instance set")
 	})
+
+	return middleware
 }
 
 // LogAudit - simplified function to log audit events directly from handlers
@@ -107,6 +111,7 @@ func (m *AuditMiddleware) LogAudit(r *http.Request, resource, resourceID string)
 	}
 
 	// Log asynchronously (fire-and-forget) using background context
+	// If this r.context is used, it may be cancelled before the audit log is sent
 	go m.logManagementEvent(context.Background(), auditEvent)
 }
 
@@ -206,6 +211,13 @@ func LogAuditEvent(r *http.Request, resource, resourceID string) {
 	} else {
 		slog.Warn("Audit logging skipped: globalAuditMiddleware is not initialized")
 	}
+}
+
+// ResetGlobalAuditMiddleware resets the global audit middleware instance for testing purposes
+// This should only be used in tests to reset state between test cases
+func ResetGlobalAuditMiddleware() {
+	globalAuditMiddleware = nil
+	globalAuditOnce = sync.Once{}
 }
 
 // Helper functions

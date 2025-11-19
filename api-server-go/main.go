@@ -110,12 +110,12 @@ func main() {
 
 	authorizationMiddleware := v1middleware.NewAuthorizationMiddlewareWithConfig(authConfig)
 
-	// Initialize Audit system (creates global instance for LogAuditEvent calls)
+	// Initialize Audit system (creates global instance for direct LogAuditEvent calls from handlers)
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
 	_ = v1middleware.NewAuditMiddleware(auditServiceURL)
 
 	// Apply middleware chain (CORS -> JWT Auth -> Authorization) to the API mux ONLY
-	// Audit logging is now done directly in handlers via LogAuditEvent calls
+	// Note: Audit logging is done directly in handlers via LogAuditEvent calls, not through middleware
 	protectedAPIHandler := corsMiddleware(
 		jwtAuthMiddleware.AuthenticateJWT(
 			authorizationMiddleware.AuthorizeRequest(apiMux),
