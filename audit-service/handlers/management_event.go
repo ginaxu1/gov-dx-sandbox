@@ -62,7 +62,7 @@ func (h *ManagementEventHandler) CreateEvent(w http.ResponseWriter, r *http.Requ
 	if req.Target.ResourceID == "" {
 		if req.EventType != "CREATE" || req.Status != "FAILURE" {
 			http.Error(w, "Missing required field: target.resourceId (required for UPDATE/DELETE operations or SUCCESS status)", http.StatusBadRequest)
-		return
+			return
 		}
 		// Allow empty ResourceID for CREATE failures
 	}

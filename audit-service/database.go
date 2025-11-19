@@ -390,64 +390,6 @@ func InitDatabase(db *sql.DB) error {
 		return fmt.Errorf("failed to create management_events table: %w", err)
 	}
 
-	// Check if status column exists in management_events (migration)
-	var hasStatusColumn bool
-	err = db.QueryRow(`
-		SELECT EXISTS (
-			SELECT FROM information_schema.columns 
-			WHERE table_schema = 'public' 
-			AND table_name = 'management_events' 
-			AND column_name = 'status'
-		)
-	`).Scan(&hasStatusColumn)
-	if err != nil {
-		return fmt.Errorf("failed to check for status column in management_events: %w", err)
-	}
-
-	if !hasStatusColumn {
-		slog.Info("Adding status column to management_events table")
-		// Add column allowing NULL initially to avoid issues with existing data
-		if _, err := db.Exec("ALTER TABLE management_events ADD COLUMN IF NOT EXISTS status VARCHAR(10) CHECK (status IN ('SUCCESS', 'FAILURE'))"); err != nil {
-			return fmt.Errorf("failed to add status column to management_events: %w", err)
-		}
-		
-		// Backfill existing records with 'SUCCESS' (assumption: existing records were successful)
-		if _, err := db.Exec("UPDATE management_events SET status = 'SUCCESS' WHERE status IS NULL"); err != nil {
-			slog.Warn("Failed to backfill status for existing management_events", "error", err)
-		}
-
-		// Now make it NOT NULL
-		if _, err := db.Exec("ALTER TABLE management_events ALTER COLUMN status SET NOT NULL"); err != nil {
-			slog.Warn("Failed to set status column to NOT NULL", "error", err)
-		}
-
-		// Create index
-		if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_management_events_status ON management_events(status)"); err != nil {
-			slog.Warn("Failed to create index for status", "error", err)
-		}
-	}
-
-	// Check if target_resource_id is nullable (migration to allow NULL for CREATE failures)
-	var isTargetResourceIDNullable bool
-	err = db.QueryRow(`
-		SELECT is_nullable = 'YES'
-		FROM information_schema.columns 
-		WHERE table_schema = 'public' 
-		AND table_name = 'management_events' 
-		AND column_name = 'target_resource_id'
-	`).Scan(&isTargetResourceIDNullable)
-	if err != nil {
-		return fmt.Errorf("failed to check if target_resource_id is nullable: %w", err)
-	}
-
-	if !isTargetResourceIDNullable {
-		slog.Info("Making target_resource_id nullable in management_events table to support CREATE failures")
-		// Make target_resource_id nullable to allow logging CREATE failures without resource ID
-		if _, err := db.Exec("ALTER TABLE management_events ALTER COLUMN target_resource_id DROP NOT NULL"); err != nil {
-			return fmt.Errorf("failed to make target_resource_id nullable: %w", err)
-		}
-	}
-
 	slog.Info("Database tables and view initialized successfully")
 	return nil
 }

@@ -27,8 +27,8 @@ type Actor struct {
 
 // Target represents the resource that was acted upon
 type Target struct {
-	Resource   string `json:"resource"`   // "MEMBERS", "SCHEMAS", etc.
-	ResourceID string `json:"resourceId"` // The ID of the resource (optional - can be empty for CREATE failures)
+	Resource   string  `json:"resource"`   // "MEMBERS", "SCHEMAS", etc.
+	ResourceID *string `json:"resourceId"` // The ID of the resource (optional - can be empty for CREATE failures)
 }
 
 // ManagementEvent represents the database model for management events
@@ -46,7 +46,6 @@ type ManagementEvent struct {
 	Metadata         *Metadata `gorm:"type:jsonb" json:"metadata"`
 	CreatedAt        time.Time `gorm:"type:timestamp with time zone;default:now()" json:"createdAt"`
 }
-
 
 // TableName specifies the table name for ManagementEvent
 func (ManagementEvent) TableName() string {
