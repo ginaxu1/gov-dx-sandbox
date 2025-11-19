@@ -133,7 +133,8 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateDataExchangeEvent_MissingConsumerID", func(t *testing.T) {
+	t.Run("CreateDataExchangeEvent_MissingConsumerID_Optional", func(t *testing.T) {
+		// ConsumerID is now optional - should succeed
 		reqBody := models.DataExchangeEvent{
 			EventID:          "550e8400-e29b-41d4-a716-446655440006",
 			ConsumerAppID:    "passport-app",
@@ -153,12 +154,13 @@ func TestDataExchangeEndpoint(t *testing.T) {
 
 		server.DataExchangeHandler.CreateDataExchangeEvent(w, req)
 
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusBadRequest, w.Code, w.Body.String())
+		if w.Code != http.StatusCreated {
+			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusCreated, w.Code, w.Body.String())
 		}
 	})
 
-	t.Run("CreateDataExchangeEvent_MissingProviderID", func(t *testing.T) {
+	t.Run("CreateDataExchangeEvent_MissingProviderID_Optional", func(t *testing.T) {
+		// ProviderID is now optional - should succeed
 		reqBody := models.DataExchangeEvent{
 			EventID:          "550e8400-e29b-41d4-a716-446655440007",
 			ConsumerAppID:    "passport-app",
@@ -178,8 +180,8 @@ func TestDataExchangeEndpoint(t *testing.T) {
 
 		server.DataExchangeHandler.CreateDataExchangeEvent(w, req)
 
-		if w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusBadRequest, w.Code, w.Body.String())
+		if w.Code != http.StatusCreated {
+			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusCreated, w.Code, w.Body.String())
 		}
 	})
 
@@ -187,8 +189,6 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		reqBody := models.DataExchangeEvent{
 			EventID:       "550e8400-e29b-41d4-a716-446655440003",
 			ConsumerAppID: "passport-app",
-			ConsumerID:    "member-consumer-123",
-			ProviderID:    "member-provider-456",
 			Status:        "SUCCESS",
 		}
 
@@ -212,9 +212,7 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		reqBody := models.DataExchangeEvent{
 			EventID:          "550e8400-e29b-41d4-a716-446655440004",
 			ConsumerAppID:    "passport-app",
-			ConsumerID:       "member-consumer-123",
 			ProviderSchemaID: "hospital-schema-v1",
-			ProviderID:       "member-provider-456",
 			Status:           "INVALID",
 		}
 
@@ -250,9 +248,7 @@ func TestDataExchangeEndpoint(t *testing.T) {
 		reqBody := models.DataExchangeEvent{
 			EventID:          "550e8400-e29b-41d4-a716-446655440005",
 			ConsumerAppID:    "passport-app",
-			ConsumerID:       "member-consumer-123",
 			ProviderSchemaID: "hospital-schema-v1",
-			ProviderID:       "member-provider-456",
 			RequestedFields:  []string{},
 			Status:           "SUCCESS",
 		}
@@ -270,6 +266,44 @@ func TestDataExchangeEndpoint(t *testing.T) {
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusCreated, w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("CreateDataExchangeEvent_BothConsumerIDAndProviderIDMissing_Optional", func(t *testing.T) {
+		// Both ConsumerID and ProviderID are now optional - should succeed
+		reqBody := models.DataExchangeEvent{
+			EventID:          "550e8400-e29b-41d4-a716-446655440008",
+			ConsumerAppID:    "passport-app",
+			ProviderSchemaID: "hospital-schema-v1",
+			Status:           "SUCCESS",
+		}
+
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+
+		req := httptest.NewRequest("POST", "/v1/audit/exchange", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		server.DataExchangeHandler.CreateDataExchangeEvent(w, req)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("Expected status %d, got %d. Body: %s", http.StatusCreated, w.Code, w.Body.String())
+		}
+
+		var response models.Log
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		// Verify that ConsumerID and ProviderID are empty strings (not set)
+		if response.ConsumerID != "" {
+			t.Errorf("Expected empty consumerId, got %s", response.ConsumerID)
+		}
+		if response.ProviderID != "" {
+			t.Errorf("Expected empty providerId, got %s", response.ProviderID)
 		}
 	})
 }

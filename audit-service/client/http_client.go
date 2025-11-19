@@ -44,9 +44,8 @@ func (c *httpClient) LogDataExchange(ctx context.Context, event DataExchangeEven
 		return fmt.Errorf("missing required fields: consumerAppId, providerSchemaId, or status")
 	}
 
-	if event.ConsumerID == "" || event.ProviderID == "" {
-		return fmt.Errorf("missing required fields: consumerId or providerId")
-	}
+	// ConsumerID and ProviderID are optional (can be NULL in database)
+	// They can be looked up later or tracked via ApplicationID/SchemaID
 
 	// Marshal request
 	reqBody, err := json.Marshal(event)

@@ -38,8 +38,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response for single object
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -50,7 +50,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "rgd",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -100,8 +100,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with array data
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -111,7 +111,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -207,8 +207,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with bulk array data
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -225,7 +225,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "rgd",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -286,8 +286,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with mixed data
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -297,7 +297,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -363,8 +363,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with empty array
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -374,7 +374,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -426,8 +426,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with nested arrays
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -437,7 +437,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -518,8 +518,8 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 
 		// Mock federated response with partial failure
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -532,7 +532,7 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "rgd",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -594,8 +594,8 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 
 		// Mock federated response with provider error
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -605,7 +605,7 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: nil,

@@ -122,15 +122,9 @@ func (h *AuditHandler) CreateDataExchangeEvent(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if req.ConsumerID == "" {
-		http.Error(w, "Missing required field: consumerId (member ID who owns the consumer application)", http.StatusBadRequest)
-		return
-	}
-
-	if req.ProviderID == "" {
-		http.Error(w, "Missing required field: providerId (member ID who owns the provider schema)", http.StatusBadRequest)
-		return
-	}
+	// ConsumerID and ProviderID are optional now (can be looked up later or tracked via ApplicationID)
+	// if req.ConsumerID == "" { ... }
+	// if req.ProviderID == "" { ... }
 
 	if req.Status == "" {
 		http.Error(w, "Missing required field: status", http.StatusBadRequest)
