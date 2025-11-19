@@ -28,7 +28,7 @@ type Actor struct {
 // Target represents the resource that was acted upon
 type Target struct {
 	Resource   string `json:"resource"`   // "MEMBERS", "SCHEMAS", etc.
-	ResourceID string `json:"resourceId"` // The ID of the resource
+	ResourceID string `json:"resourceId"` // The ID of the resource (optional - can be empty for CREATE failures)
 }
 
 // ManagementEvent represents the database model for management events
@@ -42,7 +42,7 @@ type ManagementEvent struct {
 	ActorID          *string   `gorm:"type:varchar(255)" json:"actorId"`
 	ActorRole        *string   `gorm:"type:varchar(10);check:actor_role IN ('MEMBER', 'ADMIN')" json:"actorRole"`
 	TargetResource   string    `gorm:"type:varchar(50);not null;check:target_resource IN ('MEMBERS', 'SCHEMAS', 'SCHEMA-SUBMISSIONS', 'APPLICATIONS', 'APPLICATION-SUBMISSIONS', 'POLICY-METADATA')" json:"targetResource"`
-	TargetResourceID string    `gorm:"type:varchar(255);not null" json:"targetResourceId"`
+	TargetResourceID *string   `gorm:"type:varchar(255)" json:"targetResourceId"` // NULL allowed for CREATE failures
 	Metadata         *Metadata `gorm:"type:jsonb" json:"metadata"`
 	CreatedAt        time.Time `gorm:"type:timestamp with time zone;default:now()" json:"createdAt"`
 }

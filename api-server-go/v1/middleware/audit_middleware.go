@@ -53,6 +53,11 @@ type AuditInfo struct {
 	Metadata   map[string]interface{} // Additional metadata for the audit log
 }
 
+// SetResourceID sets the resource ID in the AuditInfo
+func (a *AuditInfo) SetResourceID(resourceID string) {
+	a.ResourceID = resourceID
+}
+
 // auditInfoKey is a custom type for context keys to avoid collisions
 type auditInfoKeyType string
 
@@ -132,6 +137,11 @@ func (m *AuditMiddleware) WithAudit(resource string) func(http.Handler) http.Han
 			next.ServeHTTP(recorder, r)
 
 			// After handler returns, log the audit event
+			// IMPORTANT: We always log events, even for failures where ResourceID may be empty.
+			// This ensures we capture all failure scenarios, including CREATE failures that occur
+			// before a resource ID is generated (e.g., validation errors, authorization failures).
+			// The audit service accepts empty ResourceID for CREATE failures (eventType=CREATE, status=FAILURE).
+
 			// Extract actor info directly from request
 			actorType, actorID, actorRole := extractActorInfoFromRequest(r)
 
@@ -142,6 +152,7 @@ func (m *AuditMiddleware) WithAudit(resource string) func(http.Handler) http.Han
 			}
 
 			// Determine status based on status code
+			// Any status code >= 400 indicates a failure
 			status := "SUCCESS"
 			if recorder.statusCode >= 400 {
 				status = "FAILURE"
@@ -151,6 +162,8 @@ func (m *AuditMiddleware) WithAudit(resource string) func(http.Handler) http.Han
 			now := time.Now().Format(time.RFC3339)
 
 			// Create audit event
+			// Note: ResourceID may be empty for CREATE failures (when handler fails before creating resource)
+			// This is acceptable and will be validated by the audit service
 			auditEvent := ManagementEventRequest{
 				Timestamp: &now,
 				EventType: eventType,
@@ -162,11 +175,12 @@ func (m *AuditMiddleware) WithAudit(resource string) func(http.Handler) http.Han
 				},
 				Target: Target{
 					Resource:   resource,
-					ResourceID: auditInfo.ResourceID, // Retrieved from AuditInfo populated by handler
+					ResourceID: auditInfo.ResourceID, // May be empty for CREATE failures
 				},
 			}
 
 			// Log asynchronously (fire-and-forget) using background context
+			// This always executes, regardless of whether ResourceID is set
 			go m.logManagementEvent(context.Background(), auditEvent)
 		})
 	}
@@ -179,6 +193,27 @@ func GetAuditInfoFromContext(ctx context.Context) (*AuditInfo, error) {
 		return nil, fmt.Errorf("audit info not found in context")
 	}
 	return auditInfo, nil
+}
+
+// SetResourceID sets the resource ID in the AuditInfo from the request context
+func SetResourceID(r *http.Request, resourceID string) error {
+	auditInfo, err := GetAuditInfoFromContext(r.Context())
+	if err != nil {
+		return err
+	}
+	auditInfo.ResourceID = resourceID
+	return nil
+}
+
+// LogAuditEvent is a helper function for backward compatibility
+// It sets the ResourceID in the AuditInfo context, which will be logged by the middleware
+func LogAuditEvent(r *http.Request, resource string, resourceID string) {
+	// Try to set resource ID in context (if audit middleware is active)
+	if err := SetResourceID(r, resourceID); err != nil {
+		// If audit middleware is not active, just log a debug message
+		slog.Debug("Audit middleware not active, skipping audit log", "resource", resource, "resourceId", resourceID)
+		return
+	}
 }
 
 // logManagementEvent sends the audit event to the audit service
@@ -269,7 +304,6 @@ func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *st
 
 	return
 }
-
 
 // ResetGlobalAuditMiddleware resets the global audit middleware instance for testing purposes
 // This should only be used in tests to reset state between test cases

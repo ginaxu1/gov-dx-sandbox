@@ -104,8 +104,17 @@ func (c *httpClient) LogManagementEvent(ctx context.Context, event ManagementEve
 	}
 
 	// Validate required fields
-	if event.EventType == "" || event.Actor.Type == "" || event.Target.Resource == "" || event.Target.ResourceID == "" {
-		return fmt.Errorf("missing required fields: eventType, actor.type, target.resource, or target.resourceId")
+	if event.EventType == "" || event.Actor.Type == "" || event.Target.Resource == "" {
+		return fmt.Errorf("missing required fields: eventType, actor.type, or target.resource")
+	}
+
+	// ResourceID is optional for CREATE failures (when status is FAILURE and eventType is CREATE)
+	// For other operations (UPDATE, DELETE) or SUCCESS status, ResourceID should be provided
+	if event.Target.ResourceID == "" {
+		if event.EventType != "CREATE" || event.Status != "FAILURE" {
+			return fmt.Errorf("missing required field: target.resourceId (required for UPDATE/DELETE operations or SUCCESS status)")
+		}
+		// Allow empty ResourceID for CREATE failures
 	}
 
 	// Validate actor fields based on type

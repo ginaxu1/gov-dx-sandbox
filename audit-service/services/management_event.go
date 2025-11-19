@@ -75,6 +75,12 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 	}
 
 	// Create the event object
+	// Convert ResourceID to pointer (nullable) - empty string becomes nil
+	var targetResourceID *string
+	if req.Target.ResourceID != "" {
+		targetResourceID = &req.Target.ResourceID
+	}
+
 	event := models.ManagementEvent{
 		EventID:          eventID,
 		EventType:        req.EventType,
@@ -83,7 +89,7 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 		ActorID:          req.Actor.ID,
 		ActorRole:        req.Actor.Role,
 		TargetResource:   req.Target.Resource,
-		TargetResourceID: req.Target.ResourceID,
+		TargetResourceID: targetResourceID,
 	}
 
 	// Set metadata if provided

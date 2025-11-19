@@ -368,7 +368,7 @@ func InitDatabase(db *sql.DB) error {
 			'MEMBERS', 'SCHEMAS', 'SCHEMA-SUBMISSIONS', 
 			'APPLICATIONS', 'APPLICATION-SUBMISSIONS', 'POLICY-METADATA'
 		)),
-		target_resource_id VARCHAR(255) NOT NULL,
+		target_resource_id VARCHAR(255), -- NULL allowed for CREATE failures
 		
 		-- Additional metadata
 		metadata JSONB,
@@ -424,6 +424,27 @@ func InitDatabase(db *sql.DB) error {
 		// Create index
 		if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_management_events_status ON management_events(status)"); err != nil {
 			slog.Warn("Failed to create index for status", "error", err)
+		}
+	}
+
+	// Check if target_resource_id is nullable (migration to allow NULL for CREATE failures)
+	var isTargetResourceIDNullable bool
+	err = db.QueryRow(`
+		SELECT is_nullable = 'YES'
+		FROM information_schema.columns 
+		WHERE table_schema = 'public' 
+		AND table_name = 'management_events' 
+		AND column_name = 'target_resource_id'
+	`).Scan(&isTargetResourceIDNullable)
+	if err != nil {
+		return fmt.Errorf("failed to check if target_resource_id is nullable: %w", err)
+	}
+
+	if !isTargetResourceIDNullable {
+		slog.Info("Making target_resource_id nullable in management_events table to support CREATE failures")
+		// Make target_resource_id nullable to allow logging CREATE failures without resource ID
+		if _, err := db.Exec("ALTER TABLE management_events ALTER COLUMN target_resource_id DROP NOT NULL"); err != nil {
+			return fmt.Errorf("failed to make target_resource_id nullable: %w", err)
 		}
 	}
 
