@@ -34,8 +34,10 @@ const auditMetadataKey contextKey = "auditMetadata"
 
 // AuditMetadata holds metadata needed for audit logging
 type AuditMetadata struct {
-	ConsumerAppID    string
-	ProviderFieldMap *[]ProviderLevelFieldRecord
+	ConsumerAppID     string
+	ConsumerMemberID  string
+	ProviderMemberIDs map[string]string // Map of SchemaID -> MemberID
+	ProviderFieldMap  *[]ProviderLevelFieldRecord
 }
 
 // NewContextWithAuditMetadata creates a new context with audit metadata
@@ -478,9 +480,21 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// Inject audit metadata into context
 	auditMetadata := &AuditMetadata{
-		ConsumerAppID:    consumerInfo.ApplicationId,
-		ProviderFieldMap: schemaCollection.ProviderFieldMap,
+		ConsumerAppID:     consumerInfo.ApplicationId,
+		ConsumerMemberID:  f.lookupMemberIDFromApplication(consumerInfo.ApplicationId),
+		ProviderMemberIDs: make(map[string]string),
+		ProviderFieldMap:  schemaCollection.ProviderFieldMap,
 	}
+
+	// Lookup provider member IDs
+	if schemaCollection.ProviderFieldMap != nil {
+		for _, field := range *schemaCollection.ProviderFieldMap {
+			if _, exists := auditMetadata.ProviderMemberIDs[field.SchemaId]; !exists {
+				auditMetadata.ProviderMemberIDs[field.SchemaId] = f.lookupMemberIDFromSchema(field.SchemaId)
+			}
+		}
+	}
+
 	ctxWithAudit := NewContextWithAuditMetadata(ctx, auditMetadata)
 
 	responses := f.performFederation(ctxWithAudit, federationRequest)
@@ -602,11 +616,11 @@ func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, 
 	}
 
 	// Log the event
-	// Note: ConsumerID and ProviderID are not populated here to avoid expensive lookup calls
-	// The audit service can handle missing member IDs (they will be null/unknown)
 	event := auditclient.DataExchangeEvent{
 		ConsumerAppID:    metadata.ConsumerAppID,
+		ConsumerID:       metadata.ConsumerMemberID,
 		ProviderSchemaID: providerSchemaID,
+		ProviderID:       metadata.ProviderMemberIDs[providerSchemaID],
 		RequestedFields:  requestedFields,
 		Status:           status,
 	}
@@ -614,6 +628,70 @@ func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, 
 	if err := f.AuditClient.LogDataExchange(ctx, event); err != nil {
 		logger.Log.Error("Failed to log audit event", "error", err, "consumerAppID", metadata.ConsumerAppID, "providerSchemaID", providerSchemaID)
 	}
+}
+
+// lookupMemberIDFromApplication retrieves the member ID for a given application ID
+func (f *Federator) lookupMemberIDFromApplication(applicationID string) string {
+	apiServerURL := os.Getenv("API_SERVER_URL")
+	if apiServerURL == "" {
+		logger.Log.Debug("API_SERVER_URL not configured, cannot lookup member ID for application", "applicationID", applicationID)
+		return ""
+	}
+
+	url := fmt.Sprintf("%s/api/v1/applications/%s", apiServerURL, applicationID)
+	resp, err := f.Client.Get(url)
+	if err != nil {
+		logger.Log.Error("Failed to lookup application", "error", err, "applicationID", applicationID)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Log.Error("Failed to lookup application", "statusCode", resp.StatusCode, "applicationID", applicationID)
+		return ""
+	}
+
+	var appResp struct {
+		MemberID string `json:"memberId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&appResp); err != nil {
+		logger.Log.Error("Failed to decode application response", "error", err, "applicationID", applicationID)
+		return ""
+	}
+
+	return appResp.MemberID
+}
+
+// lookupMemberIDFromSchema retrieves the member ID for a given schema ID
+func (f *Federator) lookupMemberIDFromSchema(schemaID string) string {
+	apiServerURL := os.Getenv("API_SERVER_URL")
+	if apiServerURL == "" {
+		logger.Log.Debug("API_SERVER_URL not configured, cannot lookup member ID for schema", "schemaID", schemaID)
+		return ""
+	}
+
+	url := fmt.Sprintf("%s/api/v1/schemas/%s", apiServerURL, schemaID)
+	resp, err := f.Client.Get(url)
+	if err != nil {
+		logger.Log.Error("Failed to lookup schema", "error", err, "schemaID", schemaID)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Log.Error("Failed to lookup schema", "statusCode", resp.StatusCode, "schemaID", schemaID)
+		return ""
+	}
+
+	var schemaResp struct {
+		ProviderID string `json:"providerId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&schemaResp); err != nil {
+		logger.Log.Error("Failed to decode schema response", "error", err, "schemaID", schemaID)
+		return ""
+	}
+
+	return schemaResp.ProviderID
 }
 
 

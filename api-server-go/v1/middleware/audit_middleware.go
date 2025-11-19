@@ -45,6 +45,25 @@ type Target struct {
 	ResourceID string `json:"resourceId"` // Actual resource ID
 }
 
+// AuditInfo holds audit metadata that can be updated by handlers
+type AuditInfo struct {
+	ResourceID string
+	Metadata   map[string]interface{}
+	mu         sync.Mutex
+}
+
+// SetResourceID sets the resource ID for the audit event
+func (a *AuditInfo) SetResourceID(id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.ResourceID = id
+}
+
+// contextKey is a custom type for context keys
+type contextKey string
+
+const auditInfoKey contextKey = "auditInfo"
+
 // NewAuditMiddleware creates a new audit middleware with thread-safe global initialization
 // This function should typically only be called once during application startup.
 // Subsequent calls will return a new instance but won't update the global instance.
@@ -75,44 +94,71 @@ func NewAuditMiddleware(auditServiceURL string) *AuditMiddleware {
 	return middleware
 }
 
-// LogAudit - simplified function to log audit events directly from handlers
-func (m *AuditMiddleware) LogAudit(r *http.Request, resource, resourceID string) {
-	// Skip if audit service is not configured
-	if m.auditServiceURL == "" {
-		return
+// WithAudit is a middleware that enables audit logging for a handler
+func (m *AuditMiddleware) WithAudit(resource string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip if audit service is not configured
+			if m.auditServiceURL == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Only log write operations (POST, PUT, PATCH, DELETE)
+			if !isWriteOperation(r.Method) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Create AuditInfo and inject into context
+			auditInfo := &AuditInfo{
+				Metadata: make(map[string]interface{}),
+			}
+			ctx := context.WithValue(r.Context(), auditInfoKey, auditInfo)
+			r = r.WithContext(ctx)
+
+			// Call the next handler
+			next.ServeHTTP(w, r)
+
+			// After handler returns, log the audit event
+			// Extract actor info directly from request
+			actorType, actorID, actorRole := extractActorInfoFromRequest(r)
+
+			// Determine event type from HTTP method
+			eventType := determineEventType(r.Method)
+			if eventType == "" {
+				return
+			}
+
+			// Create audit event
+			auditEvent := ManagementEventRequest{
+				EventType: eventType,
+				Actor: Actor{
+					Type: actorType,
+					ID:   actorID,
+					Role: actorRole,
+				},
+				Target: Target{
+					Resource:   resource,
+					ResourceID: auditInfo.ResourceID, // Retrieved from AuditInfo populated by handler
+				},
+			}
+
+			// Log asynchronously (fire-and-forget) using background context
+			go m.logManagementEvent(context.Background(), auditEvent)
+		})
 	}
+}
 
-	// Only log write operations (POST, PUT, PATCH, DELETE)
-	if !isWriteOperation(r.Method) {
-		return
+// WithAudit is a helper to use the global audit middleware
+func WithAudit(resource string) func(http.Handler) http.Handler {
+	if globalAuditMiddleware == nil {
+		// Fallback or no-op if not initialized
+		return func(next http.Handler) http.Handler {
+			return next
+		}
 	}
-
-	// Extract actor info directly from request
-	actorType, actorID, actorRole := extractActorInfoFromRequest(r)
-
-	// Determine event type from HTTP method
-	eventType := determineEventType(r.Method)
-	if eventType == "" {
-		return
-	}
-
-	// Create audit event
-	auditEvent := ManagementEventRequest{
-		EventType: eventType,
-		Actor: Actor{
-			Type: actorType,
-			ID:   actorID,
-			Role: actorRole,
-		},
-		Target: Target{
-			Resource:   resource,
-			ResourceID: resourceID,
-		},
-	}
-
-	// Log asynchronously (fire-and-forget) using background context
-	// If this r.context is used, it may be cancelled before the audit log is sent
-	go m.logManagementEvent(context.Background(), auditEvent)
+	return globalAuditMiddleware.WithAudit(resource)
 }
 
 // logManagementEvent sends the audit event to the audit service
@@ -204,13 +250,15 @@ func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *st
 	return
 }
 
-// LogAuditEvent - global function for easy access from handlers
-func LogAuditEvent(r *http.Request, resource, resourceID string) {
-	if globalAuditMiddleware != nil {
-		globalAuditMiddleware.LogAudit(r, resource, resourceID)
-	} else {
-		slog.Warn("Audit logging skipped: globalAuditMiddleware is not initialized")
+// GetAuditInfo retrieves the AuditInfo from the context
+func GetAuditInfo(ctx context.Context) *AuditInfo {
+	if ctx == nil {
+		return nil
 	}
+	if auditInfo, ok := ctx.Value(auditInfoKey).(*AuditInfo); ok {
+		return auditInfo
+	}
+	return nil
 }
 
 // ResetGlobalAuditMiddleware resets the global audit middleware instance for testing purposes

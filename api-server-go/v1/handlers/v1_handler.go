@@ -101,24 +101,44 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 // SetupV1Routes configures all V1 API routes
 func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	// Schema routes
-	mux.Handle("/api/v1/schemas", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
-	mux.Handle("/api/v1/schemas/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemas)))
+	mux.Handle("/api/v1/schemas", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("SCHEMAS")(http.HandlerFunc(h.handleSchemas)),
+	))
+	mux.Handle("/api/v1/schemas/", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("SCHEMAS")(http.HandlerFunc(h.handleSchemas)),
+	))
 
 	// SchemaSubmission routes
-	mux.Handle("/api/v1/schema-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
-	mux.Handle("/api/v1/schema-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
+	mux.Handle("/api/v1/schema-submissions", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("SCHEMA-SUBMISSIONS")(http.HandlerFunc(h.handleSchemaSubmissions)),
+	))
+	mux.Handle("/api/v1/schema-submissions/", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("SCHEMA-SUBMISSIONS")(http.HandlerFunc(h.handleSchemaSubmissions)),
+	))
 
 	// Application routes
-	mux.Handle("/api/v1/applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
-	mux.Handle("/api/v1/applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
+	mux.Handle("/api/v1/applications", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("APPLICATIONS")(http.HandlerFunc(h.handleApplications)),
+	))
+	mux.Handle("/api/v1/applications/", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("APPLICATIONS")(http.HandlerFunc(h.handleApplications)),
+	))
 
 	// ApplicationSubmission routes
-	mux.Handle("/api/v1/application-submissions", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
-	mux.Handle("/api/v1/application-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplicationSubmissions)))
+	mux.Handle("/api/v1/application-submissions", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("APPLICATION-SUBMISSIONS")(http.HandlerFunc(h.handleApplicationSubmissions)),
+	))
+	mux.Handle("/api/v1/application-submissions/", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("APPLICATION-SUBMISSIONS")(http.HandlerFunc(h.handleApplicationSubmissions)),
+	))
 
 	// Member routes
-	mux.Handle("/api/v1/members", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleMembers)))
-	mux.Handle("/api/v1/members/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleMembers)))
+	mux.Handle("/api/v1/members", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("MEMBERS")(http.HandlerFunc(h.handleMembers)),
+	))
+	mux.Handle("/api/v1/members/", utils.PanicRecoveryMiddleware(
+		middleware.WithAudit("MEMBERS")(http.HandlerFunc(h.handleMembers)),
+	))
 }
 
 // handleMembers handles member-related routes
@@ -355,8 +375,10 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log audit event (simplified approach)
-	middleware.LogAuditEvent(r, "MEMBERS", member.MemberID)
+	// Set resource ID in context for audit middleware
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(member.MemberID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, member)
 }
@@ -396,8 +418,10 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 		return
 	}
 
-	// Set resource ID in context for audit middleware (path extraction may have missed it)
-	middleware.LogAuditEvent(r, "MEMBERS", member.MemberID)
+	// Set resource ID in context for audit middleware
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(member.MemberID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
@@ -602,7 +626,9 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMA-SUBMISSIONS", submission.SubmissionID)
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(submission.SubmissionID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -657,7 +683,10 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMA-SUBMISSIONS", submission.SubmissionID)
+	// Set resource ID in context for audit middleware
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(submission.SubmissionID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -782,8 +811,10 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set resource ID for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMAS", schema.SchemaID)
+	// Set resource ID in context for audit middleware
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(schema.SchemaID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
@@ -838,7 +869,9 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 	}
 
 	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMAS", schema.SchemaID)
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(schema.SchemaID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
@@ -979,7 +1012,9 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATION-SUBMISSIONS", submission.SubmissionID)
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(submission.SubmissionID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -1035,7 +1070,9 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATION-SUBMISSIONS", submission.SubmissionID)
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(submission.SubmissionID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -1159,7 +1196,9 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATIONS", application.ApplicationID)
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(application.ApplicationID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
@@ -1214,7 +1253,9 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 	}
 
 	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATIONS", application.ApplicationID)
+	if auditInfo := middleware.GetAuditInfo(r.Context()); auditInfo != nil {
+		auditInfo.SetResourceID(application.ApplicationID)
+	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
 }
