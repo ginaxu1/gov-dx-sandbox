@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+
+	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 )
 
 func TestAuditMiddleware_Initialization(t *testing.T) {
@@ -48,7 +50,8 @@ func TestLogAuditEvent_GlobalFunction(t *testing.T) {
 	req.Header.Set("X-User-Role", "ADMIN")
 
 	// This should not panic even if the audit service is not available
-	LogAuditEvent(req, "TEST_RESOURCE", "test-id-123")
+	resourceID := "test-id-123"
+	LogAuditEvent(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 }
 
 func TestLogAudit_SkipsReadOperations(t *testing.T) {
@@ -56,7 +59,8 @@ func TestLogAudit_SkipsReadOperations(t *testing.T) {
 
 	// GET request should be skipped
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
-	auditMiddleware.LogAudit(req, "TEST_RESOURCE", "test-id")
+	resourceID := "test-id"
+	auditMiddleware.LogAudit(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// This test passes if no panic occurs - we can't easily test HTTP calls without a mock server
 }
@@ -69,7 +73,8 @@ func TestLogAudit_ProcessesWriteOperations(t *testing.T) {
 	req.Header.Set("X-User-ID", "test-user")
 	req.Header.Set("X-User-Role", "MEMBER")
 
-	auditMiddleware.LogAudit(req, "TEST_RESOURCE", "test-id")
+	resourceID := "test-id"
+	auditMiddleware.LogAudit(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// This test passes if no panic occurs - we can't easily test HTTP calls without a mock server
 }
@@ -120,7 +125,8 @@ func TestAuditMiddleware_ThreadSafety(t *testing.T) {
 	req.Header.Set("X-User-Role", "ADMIN")
 
 	// This should not panic
-	LogAuditEvent(req, "TEST_RESOURCE", "test-id-concurrent")
+	resourceID := "test-id-concurrent"
+	LogAuditEvent(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 }
 
 func TestLogAuditEvent_WithoutInitialization(t *testing.T) {
@@ -133,5 +139,6 @@ func TestLogAuditEvent_WithoutInitialization(t *testing.T) {
 	req.Header.Set("X-User-Role", "ADMIN")
 
 	// This should not panic and should log a warning
-	LogAuditEvent(req, "TEST_RESOURCE", "test-id-no-init")
+	resourceID := "test-id-no-init"
+	LogAuditEvent(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 }
