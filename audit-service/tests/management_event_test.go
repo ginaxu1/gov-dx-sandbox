@@ -24,7 +24,6 @@ func TestManagementEventEndpoint(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		reqBody := models.ManagementEventRequest{
-			EventID:   "550e8400-e29b-41d4-a716-446655440010",
 			EventType: "CREATE",
 			Status:    "SUCCESS",
 			Actor: models.Actor{
@@ -85,7 +84,6 @@ func TestManagementEventEndpoint(t *testing.T) {
 
 	t.Run("CreateEvent_Success_ServiceActor", func(t *testing.T) {
 		reqBody := models.ManagementEventRequest{
-			EventID:   "550e8400-e29b-41d4-a716-446655440011",
 			EventType: "UPDATE",
 			Status:    "SUCCESS",
 			Actor: models.Actor{
@@ -139,7 +137,6 @@ func TestManagementEventEndpoint(t *testing.T) {
 		}
 
 		reqBody := models.ManagementEventRequest{
-			EventID:   "550e8400-e29b-41d4-a716-446655440012",
 			EventType: "UPDATE",
 			Status:    "SUCCESS",
 			Actor: models.Actor{
@@ -487,7 +484,6 @@ func TestManagementEventEndpoint(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		reqBody := models.ManagementEventRequest{
-			EventID:   "550e8400-e29b-41d4-a716-446655440013",
 			EventType: "CREATE",
 			Status:    "FAILURE",
 			Actor: models.Actor{
@@ -535,7 +531,6 @@ func TestManagementEventEndpoint(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		reqBody := models.ManagementEventRequest{
-			EventID:   "550e8400-e29b-41d4-a716-446655440014",
 			EventType: "UPDATE",
 			Status:    "FAILURE",
 			Actor: models.Actor{
