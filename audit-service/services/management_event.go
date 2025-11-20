@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/models"
 	"gorm.io/gorm"
 )
@@ -23,26 +22,19 @@ func NewManagementEventService(db *gorm.DB) *ManagementEventService {
 
 // CreateManagementEvent creates a new management event
 func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req *models.ManagementEventRequest) (*models.ManagementEvent, error) {
-	// Generate event ID if not provided
-	eventID := req.EventID
-	if eventID == "" {
-		eventID = uuid.New().String()
+	// Parse and validate timestamp
+	timestamp, err := time.Parse(time.RFC3339, req.Timestamp)
+	if err != nil {
+		return nil, fmt.Errorf("invalid timestamp format: %w", err)
 	}
 
-	// Parse timestamp if provided, otherwise use current time
-	var timestamp time.Time
-	if req.Timestamp != nil && *req.Timestamp != "" {
-		parsed, err := time.Parse(time.RFC3339, *req.Timestamp)
-		if err != nil {
-			return nil, fmt.Errorf("invalid timestamp format: %w", err)
-		}
-		timestamp = parsed
-	} else {
-		timestamp = time.Now()
+	// Validate status
+	if req.Status != "success" && req.Status != "failure" {
+		return nil, fmt.Errorf("invalid status: %s. Must be SUCCESS or FAILURE", req.Status)
 	}
 
 	// Validate event type
-	if req.EventType != "CREATE" && req.EventType != "UPDATE" && req.EventType != "DELETE" && req.EventType != "READ" {
+	if req.EventType != "CREATE" && req.EventType != "UPDATE" && req.EventType != "DELETE" {
 		return nil, fmt.Errorf("invalid event type: %s. Must be CREATE, UPDATE, DELETE, or READ", req.EventType)
 	}
 
@@ -74,19 +66,20 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 		return nil, fmt.Errorf("invalid target resource: %s", req.Target.Resource)
 	}
 
-	// Create the event object
-	// ResourceID is already a pointer, use it directly (can be nil for CREATE failures)
-	targetResourceID := req.Target.ResourceID
+	// Validate target resource ID presence for non-CREATE events
+	if req.EventType != "CREATE" && req.Target.ResourceID == nil {
+		return nil, fmt.Errorf("target resource ID is required for event type %s", req.EventType)
+	}
 
 	event := models.ManagementEvent{
-		EventID:          eventID,
 		EventType:        req.EventType,
 		Timestamp:        timestamp,
 		ActorType:        req.Actor.Type,
 		ActorID:          req.Actor.ID,
 		ActorRole:        req.Actor.Role,
 		TargetResource:   req.Target.Resource,
-		TargetResourceID: targetResourceID,
+		TargetResourceID: req.Target.ResourceID,
+		Status:           req.Status,
 	}
 
 	// Set metadata if provided
@@ -101,7 +94,7 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 	}
 
 	slog.Info("Management event created",
-		"eventId", eventID,
+		"eventID", event.ID,
 		"eventType", req.EventType,
 		"targetResource", req.Target.Resource,
 		"targetResourceId", req.Target.ResourceID)
