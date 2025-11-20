@@ -23,6 +23,9 @@ func NewManagementEventService(db *gorm.DB) *ManagementEventService {
 // CreateManagementEvent creates a new management event
 func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req *models.ManagementEventRequest) (*models.ManagementEvent, error) {
 	// Parse and validate timestamp
+	if req.Timestamp == "" {
+		return nil, fmt.Errorf("timestamp is required")
+	}
 	timestamp, err := time.Parse(time.RFC3339, req.Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("invalid timestamp format: %w", err)
@@ -30,12 +33,12 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 
 	// Validate status
 	if req.Status != "success" && req.Status != "failure" {
-		return nil, fmt.Errorf("invalid status: %s. Must be SUCCESS or FAILURE", req.Status)
+		return nil, fmt.Errorf("invalid status: %s. Must be success or failure", req.Status)
 	}
 
 	// Validate event type
 	if req.EventType != "CREATE" && req.EventType != "UPDATE" && req.EventType != "DELETE" {
-		return nil, fmt.Errorf("invalid event type: %s. Must be CREATE, UPDATE, DELETE, or READ", req.EventType)
+		return nil, fmt.Errorf("invalid event type: %s. Must be CREATE, UPDATE, or DELETE", req.EventType)
 	}
 
 	// Validate actor type
