@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -27,7 +28,9 @@ var (
 
 // ManagementEventRequest represents the audit service API structure
 type ManagementEventRequest struct {
+	Timestamp string `json:"timestamp"`
 	EventType string `json:"eventType"`
+	Status    string `json:"status"`
 	Actor     Actor  `json:"actor"`
 	Target    Target `json:"target"`
 }
@@ -41,8 +44,8 @@ type Actor struct {
 
 // Target represents what resource was acted upon
 type Target struct {
-	Resource   string `json:"resource"`   // MEMBERS, SCHEMAS, etc.
-	ResourceID string `json:"resourceId"` // Actual resource ID
+	Resource   string  `json:"resource"`             // MEMBERS, SCHEMAS, etc.
+	ResourceID *string `json:"resourceId,omitempty"` // Actual resource ID(not required when Failed CREATE request)
 }
 
 // NewAuditMiddleware creates a new audit middleware with thread-safe global initialization
@@ -75,8 +78,8 @@ func NewAuditMiddleware(auditServiceURL string) *AuditMiddleware {
 	return middleware
 }
 
-// LogAudit - simplified function to log audit events directly from handlers
-func (m *AuditMiddleware) LogAudit(r *http.Request, resource, resourceID string) {
+// LogAudit - function to log audit events directly from handlers
+func (m *AuditMiddleware) LogAudit(r *http.Request, resource string, resourceID *string, status string) {
 	// Skip if audit service is not configured
 	if m.auditServiceURL == "" {
 		return
@@ -98,7 +101,9 @@ func (m *AuditMiddleware) LogAudit(r *http.Request, resource, resourceID string)
 
 	// Create audit event
 	auditEvent := ManagementEventRequest{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		EventType: eventType,
+		Status:    status,
 		Actor: Actor{
 			Type: actorType,
 			ID:   actorID,
@@ -144,7 +149,12 @@ func (m *AuditMiddleware) logManagementEvent(ctx context.Context, event Manageme
 		slog.Error("Failed to send audit event", "error", err, "url", url)
 		return
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			slog.Error("Failed to close audit response body", "error", err)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusCreated {
 		slog.Error("Audit service returned error", "status", resp.StatusCode, "url", url)
@@ -205,9 +215,9 @@ func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *st
 }
 
 // LogAuditEvent - global function for easy access from handlers
-func LogAuditEvent(r *http.Request, resource, resourceID string) {
+func LogAuditEvent(r *http.Request, resource string, resourceID *string, status string) {
 	if globalAuditMiddleware != nil {
-		globalAuditMiddleware.LogAudit(r, resource, resourceID)
+		globalAuditMiddleware.LogAudit(r, resource, resourceID, status)
 	} else {
 		slog.Warn("Audit logging skipped: globalAuditMiddleware is not initialized")
 	}

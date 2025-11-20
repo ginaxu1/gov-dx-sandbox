@@ -351,12 +351,15 @@ func (h *V1Handler) createMember(w http.ResponseWriter, r *http.Request) {
 
 	member, err := h.memberService.CreateMember(r.Context(), &req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeMembers), nil, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Log audit event (simplified approach)
-	middleware.LogAuditEvent(r, "MEMBERS", member.MemberID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeMembers), &member.MemberID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, member)
 }
@@ -392,12 +395,15 @@ func (h *V1Handler) updateMember(w http.ResponseWriter, r *http.Request, memberI
 	// Pass request context to service for proper context propagation
 	member, err := h.memberService.UpdateMember(r.Context(), memberId, &req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeMembers), &existingMember.MemberID, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware (path extraction may have missed it)
-	middleware.LogAuditEvent(r, "MEMBERS", member.MemberID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeMembers), &member.MemberID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusOK, member)
 }
@@ -597,12 +603,15 @@ func (h *V1Handler) createSchemaSubmission(w http.ResponseWriter, r *http.Reques
 
 	submission, err := h.schemaService.CreateSchemaSubmission(&req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeSchemaSubmissions), nil, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMA-SUBMISSIONS", submission.SubmissionID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeSchemaSubmissions), &submission.SubmissionID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -652,12 +661,15 @@ func (h *V1Handler) updateSchemaSubmission(w http.ResponseWriter, r *http.Reques
 
 	submission, err := h.schemaService.UpdateSchemaSubmission(submissionId, &req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeSchemaSubmissions), &existingSubmission.SubmissionID, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMA-SUBMISSIONS", submission.SubmissionID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeSchemaSubmissions), &submission.SubmissionID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -778,12 +790,15 @@ func (h *V1Handler) createSchema(w http.ResponseWriter, r *http.Request) {
 
 	schema, err := h.schemaService.CreateSchema(&req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeSchemas), nil, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMAS", schema.SchemaID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeSchemas), &schema.SchemaID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, schema)
 }
@@ -802,7 +817,14 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 		return
 	}
 
-	// For non-admin users, check ownership by verifying schema exists and user has access
+	// Get existing schema to check ownership
+	existingSchema, err := h.schemaService.GetSchema(schemaId)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	// For non-admin users, check ownership
 	if !user.IsAdmin() {
 		// Get member ID for the authenticated user (cached)
 		userMemberID, err := h.getUserMemberID(r, user)
@@ -811,15 +833,8 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 			return
 		}
 
-		// Verify schema exists and user has access to it
-		schema, schemaErr := h.schemaService.GetSchema(schemaId)
-		if schemaErr != nil {
-			utils.RespondWithError(w, http.StatusNotFound, schemaErr.Error())
-			return
-		}
-
-		// Check ownership
-		if schema.MemberID != userMemberID {
+		// Check if schema belongs to the user
+		if existingSchema.MemberID != userMemberID {
 			utils.RespondWithError(w, http.StatusForbidden, "Access denied to update this resource")
 			return
 		}
@@ -833,12 +848,15 @@ func (h *V1Handler) updateSchema(w http.ResponseWriter, r *http.Request, schemaI
 
 	schema, err := h.schemaService.UpdateSchema(schemaId, &req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeSchemas), &existingSchema.SchemaID, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "SCHEMAS", schema.SchemaID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeSchemas), &schema.SchemaID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusOK, schema)
 }
@@ -974,12 +992,15 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 
 	submission, err := h.applicationService.CreateApplicationSubmission(&req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeApplicationSubmissions), nil, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATION-SUBMISSIONS", submission.SubmissionID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeApplicationSubmissions), &submission.SubmissionID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, submission)
 }
@@ -998,19 +1019,19 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Get existing submission to check ownership
+	existingSubmission, err := h.applicationService.GetApplicationSubmission(submissionId)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, "Application submission not found")
+		return
+	}
+
 	// For non-admin users, check ownership before updating
 	if !user.IsAdmin() {
 		// Get member ID for the authenticated user (cached)
 		userMemberID, err := h.getUserMemberID(r, user)
 		if err != nil {
 			utils.RespondWithError(w, http.StatusForbidden, "User member record not found")
-			return
-		}
-
-		// Get existing submission to check ownership
-		existingSubmission, err := h.applicationService.GetApplicationSubmission(submissionId)
-		if err != nil {
-			utils.RespondWithError(w, http.StatusNotFound, "Application submission not found")
 			return
 		}
 
@@ -1022,7 +1043,6 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	var req models.UpdateApplicationSubmissionRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -1030,12 +1050,15 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 
 	submission, err := h.applicationService.UpdateApplicationSubmission(submissionId, &req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeApplicationSubmissions), &existingSubmission.SubmissionID, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATION-SUBMISSIONS", submission.SubmissionID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeApplicationSubmissions), &submission.SubmissionID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusOK, submission)
 }
@@ -1154,12 +1177,15 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 
 	application, err := h.applicationService.CreateApplication(&req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeApplications), nil, string(models.AuditStatusFailure))
+
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATIONS", application.ApplicationID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeApplications), &application.ApplicationID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusCreated, application)
 }
@@ -1209,12 +1235,15 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 
 	application, err := h.applicationService.UpdateApplication(applicationId, &req)
 	if err != nil {
+		// Log audit event for failure
+		middleware.LogAuditEvent(r, string(models.ResourceTypeApplications), &existingApplication.ApplicationID, string(models.AuditStatusFailure))
+		
 		utils.RespondWithError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Set resource ID in context for audit middleware
-	middleware.LogAuditEvent(r, "APPLICATIONS", application.ApplicationID)
+	// Log audit event
+	middleware.LogAuditEvent(r, string(models.ResourceTypeApplications), &application.ApplicationID, string(models.AuditStatusSuccess))
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
 }
