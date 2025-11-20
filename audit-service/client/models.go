@@ -7,13 +7,3 @@ import "github.com/gov-dx-sandbox/audit-service/models"
 
 // DataExchangeEvent is re-exported from models package
 type DataExchangeEvent = models.DataExchangeEvent
-
-// ManagementEventRequest is re-exported from models package
-// Note: We use ManagementEventRequest (the API request type) instead of duplicating
-type ManagementEventRequest = models.ManagementEventRequest
-
-// Actor is re-exported from models package
-type Actor = models.Actor
-
-// Target is re-exported from models package
-type Target = models.Target
