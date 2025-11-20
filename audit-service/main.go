@@ -170,10 +170,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Gracefully close database connection
-	// if err := GracefulShutdown(db); err != nil {
-	// 	slog.Error("Error during database graceful shutdown", "error", err)
-	// }
-
 	slog.Info("Audit Service exited")
 }
