@@ -8,11 +8,9 @@ import (
 
 // ManagementEventRequest represents the request structure for management events
 type ManagementEventRequest struct {
-	EventID string `json:"eventId"` // UUID
-	// Timestamp is optional - if not provided, will use current time
-	Timestamp *string                 `json:"timestamp,omitempty"` // ISO 8601 timestamp
-	EventType string                  `json:"eventType"`           // "CREATE", "UPDATE", "DELETE"
-	Status    string                  `json:"status"`              // "SUCCESS", "FAILURE"
+	Timestamp string                  `json:"timestamp" validate:"required"` // ISO 8601 timestamp
+	EventType string                  `json:"eventType" validate:"required"` // "CREATE", "UPDATE", "DELETE"
+	Status    string                  `json:"status" validate:"required"`    // "success", "failure"
 	Actor     Actor                   `json:"actor"`
 	Target    Target                  `json:"target"`
 	Metadata  *map[string]interface{} `json:"metadata,omitempty"` // Optional additional context
@@ -20,24 +18,23 @@ type ManagementEventRequest struct {
 
 // Actor represents the actor who performed the action
 type Actor struct {
-	Type string  `json:"type"` // "USER" or "SERVICE"
-	ID   *string `json:"id"`   // User ID (null if SERVICE type)
-	Role *string `json:"role"` // "MEMBER" or "ADMIN" (null if SERVICE type)
+	Type string  `json:"type" validate:"required"` // "USER" or "SERVICE"
+	ID   *string `json:"id"`                       // User ID (null if SERVICE type)
+	Role *string `json:"role"`                     // "MEMBER" or "ADMIN" (null if SERVICE type)
 }
 
 // Target represents the resource that was acted upon
 type Target struct {
-	Resource   string  `json:"resource"`   // "MEMBERS", "SCHEMAS", etc.
-	ResourceID *string `json:"resourceId"` // The ID of the resource (optional - can be empty for CREATE failures)
+	Resource   string  `json:"resource" validate:"required"` // "MEMBERS", "SCHEMAS", etc.
+	ResourceID *string `json:"resourceId,omitempty"`         // The ID of the resource (optional - can be empty for CREATE failures)
 }
 
 // ManagementEvent represents the database model for management events
 type ManagementEvent struct {
 	ID               string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	EventID          string    `gorm:"type:uuid;uniqueIndex;not null" json:"eventId"`
-	EventType        string    `gorm:"type:varchar(10);not null;check:event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')" json:"eventType"`
-	Status           string    `gorm:"type:varchar(10);not null;check:status IN ('SUCCESS', 'FAILURE')" json:"status"`
-	Timestamp        time.Time `gorm:"type:timestamp with time zone;default:now()" json:"timestamp"`
+	EventType        string    `gorm:"type:varchar(10);not null;check:event_type IN ('CREATE', 'UPDATE', 'DELETE')" json:"eventType"`
+	Status           string    `gorm:"type:varchar(10);not null;check:status IN ('success', 'failure')" json:"status"`
+	Timestamp        time.Time `gorm:"type:timestamp with time zone;not null" json:"timestamp"`
 	ActorType        string    `gorm:"type:varchar(10);not null;check:actor_type IN ('USER', 'SERVICE')" json:"actorType"`
 	ActorID          *string   `gorm:"type:varchar(255)" json:"actorId"`
 	ActorRole        *string   `gorm:"type:varchar(10);check:actor_role IN ('MEMBER', 'ADMIN')" json:"actorRole"`

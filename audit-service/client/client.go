@@ -11,10 +11,6 @@ type AuditClient interface {
 	// LogDataExchange logs a data exchange event (Case 1) from Orchestration Engine
 	// This is called asynchronously (fire-and-forget) to avoid blocking
 	LogDataExchange(ctx context.Context, event DataExchangeEvent) error
-
-	// LogManagementEvent logs a management event (Case 2) from API Server
-	// This is called asynchronously (fire-and-forget) to avoid blocking
-	LogManagementEvent(ctx context.Context, event ManagementEventRequest) error
 }
 
 // NewAuditClient creates a new audit client

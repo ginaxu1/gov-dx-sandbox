@@ -1,13 +1,47 @@
 package services
 
 import (
+	"bufio"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gov-dx-sandbox/api-server-go/v1/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+// loadEnvFile loads environment variables from .env.test if it exists
+func loadEnvFile(filename string) {
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return // File doesn't exist, skip
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return // Can't open file, skip
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue // Skip empty lines and comments
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			// Only set if not already set
+			if os.Getenv(key) == "" {
+				os.Setenv(key, value)
+			}
+		}
+	}
+}
 
 // getEnvOrDefault returns the environment variable value or a default
 func getEnvOrDefault(key, defaultValue string) string {
@@ -40,6 +74,9 @@ func getEnvOrDefault(key, defaultValue string) string {
 //
 // Exported for use in handler tests
 func SetupPostgresTestDB(t *testing.T) *gorm.DB {
+	// Load .env.test file if it exists in the api-server-go directory
+	loadEnvFile(filepath.Join("..", "..", ".env.test"))
+
 	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
 	port := getEnvOrDefault("TEST_DB_PORT", "5432")
 	user := getEnvOrDefault("TEST_DB_USERNAME", "postgres")

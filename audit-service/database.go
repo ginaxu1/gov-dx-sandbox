@@ -353,10 +353,9 @@ func InitDatabase(db *sql.DB) error {
 	createManagementEventsTableSQL := `
 	CREATE TABLE IF NOT EXISTS management_events (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-		event_id UUID NOT NULL UNIQUE,
-		event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('CREATE', 'READ', 'UPDATE', 'DELETE')),
+		event_type VARCHAR(10) NOT NULL CHECK (event_type IN ('CREATE', 'UPDATE', 'DELETE')),
 		status VARCHAR(10) NOT NULL CHECK (status IN ('SUCCESS', 'FAILURE')),
-		timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
 		
 		-- Actor information
 		actor_type VARCHAR(10) NOT NULL CHECK (actor_type IN ('USER', 'SERVICE')),

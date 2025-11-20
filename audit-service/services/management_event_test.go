@@ -62,7 +62,6 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "MEMBER"
 		req := &models.ManagementEventRequest{
-			EventID:   "", // Empty, should be generated
 			EventType: "UPDATE",
 			Actor: models.Actor{
 				Type: "USER",
@@ -77,7 +76,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 
 		event, err := service.CreateManagementEvent(context.Background(), req)
 		require.NoError(t, err)
-		assert.NotEmpty(t, event.EventID)
+		assert.NotEmpty(t, event.ID)
 	})
 
 	t.Run("CustomTimestamp", func(t *testing.T) {
@@ -86,7 +85,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		timestamp := "2024-01-01T00:00:00Z"
 		req := &models.ManagementEventRequest{
 			EventType: "DELETE",
-			Timestamp: &timestamp,
+			Timestamp: timestamp,
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
