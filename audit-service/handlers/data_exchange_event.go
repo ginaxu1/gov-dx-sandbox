@@ -69,7 +69,7 @@ func (h *DataExchangeEventHandler) GetDataExchangeEvents(w http.ResponseWriter, 
 	// Get events
 	response, err := h.DataExchangeEventService.GetDataExchangeEvents(r.Context(), filter)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to retrive events: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to retrieve events: %v", err), http.StatusInternalServerError)
 		return
 	}
 

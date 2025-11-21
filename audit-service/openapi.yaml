@@ -51,9 +51,12 @@ paths:
               schema:
                 type: object
                 properties:
+                  service:
+                    type: string
+                    example: "audit-service"
                   status:
                     type: string
-                    example: healthy
+                    example: "healthy"
         '500':
           description: Service is unhealthy
           content:
@@ -68,7 +71,35 @@ paths:
                     type: string
                     example: "Service unavailable"
 
-
+  /version:
+    get:
+      summary: Version Information
+      description: Get version and build information for the audit service
+      operationId: getVersion
+      tags:
+        - Health
+      security: []
+      
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  buildTime:
+                    type: string
+                    example: "2024-01-15T10:30:00Z"
+                  gitCommit:
+                    type: string
+                    example: "abc123def"
+                  service:
+                    type: string
+                    example: "audit-service"
 
   /api/data-exchange-events:
     post:
@@ -99,7 +130,7 @@ paths:
                 summary: Successful Data Exchange
                 value:
                   timestamp: "2024-01-15T10:30:00Z"
-                  status: "SUCCESS"
+                  status: "success"
                   applicationId: "passport-app"
                   schemaId: "hospital-schema-v1"
                   requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
@@ -111,7 +142,7 @@ paths:
                 summary: Failed Data Exchange
                 value:
                   timestamp: "2024-01-15T10:35:00Z"
-                  status: "FAILURE"
+                  status: "failure"
                   applicationId: "passport-app"
                   schemaId: "hospital-schema-v1"
                   requestedData: {"fields": ["personInfo.name"]}
@@ -128,7 +159,7 @@ paths:
               example:
                 id: "550e8400-e29b-41d4-a716-446655440000"
                 timestamp: "2024-01-15T10:30:00Z"
-                status: "SUCCESS"
+                status: "success"
                 applicationId: "passport-app"
                 schemaId: "hospital-schema-v1"
                 requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
@@ -155,7 +186,7 @@ paths:
                     error: "Missing required field: timestamp"
                 invalid_status:
                   value:
-                    error: "Invalid status. Must be 'SUCCESS' or 'FAILURE'"
+                    error: "Invalid status. Must be 'success' or 'failure'"
         '500':
           description: Internal server error
           content:
@@ -261,7 +292,7 @@ paths:
                 events:
                   - id: "550e8400-e29b-41d4-a716-446655440000"
                     timestamp: "2024-01-15T10:30:00Z"
-                    status: "SUCCESS"
+                    status: "success"
                     applicationId: "passport-app"
                     schemaId: "hospital-schema-v1"
                     requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
@@ -271,7 +302,7 @@ paths:
                     createdAt: "2024-01-15T10:30:00Z"
                   - id: "550e8400-e29b-41d4-a716-446655440001"
                     timestamp: "2024-01-15T10:25:00Z"
-                    status: "FAILURE"
+                    status: "failure"
                     applicationId: "passport-app"
                     schemaId: "hospital-schema-v1"
                     requestedData: {"fields": ["personInfo.name"]}
@@ -601,7 +632,7 @@ components:
         
         **Required Fields:**
         - `timestamp`: ISO 8601 timestamp when the event occurred
-        - `status`: Whether the request succeeded or failed ("SUCCESS" or "FAILURE") 
+        - `status`: Whether the request succeeded or failed ("success" or "failure") 
         - `applicationId`: The consumer application that made the request
         - `schemaId`: The provider schema that was accessed
         - `requestedData`: JSON object containing the requested data/fields
@@ -619,9 +650,9 @@ components:
           example: "2024-01-15T10:30:00Z"
         status:
           type: string
-          enum: [SUCCESS, FAILURE]
+          enum: [success, failure]
           description: Whether the data exchange request succeeded or failed
-          example: "SUCCESS"
+          example: "success"
         applicationId:
           type: string
           description: Consumer application ID (e.g., "passport-app")
@@ -679,9 +710,9 @@ components:
           example: "2024-01-15T10:30:00Z"
         status:
           type: string
-          enum: [SUCCESS, FAILURE]
+          enum: [success, failure]
           description: Whether the data exchange request succeeded or failed
-          example: "SUCCESS"
+          example: "success"
         applicationId:
           type: string
           description: Consumer application ID 
