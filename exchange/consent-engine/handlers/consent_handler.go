@@ -220,30 +220,68 @@ func (h *ConsentHandler) patchConsentByID(w http.ResponseWriter, r *http.Request
 }
 
 func (h *ConsentHandler) getConsentsByDataOwner(w http.ResponseWriter, r *http.Request) {
-	utils.PathHandler(w, r, "/data-owner/", func(dataOwner string) (interface{}, int, error) {
-		records, err := h.engine.GetConsentsByDataOwner(dataOwner)
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentGetFailed+": %w", err)
-		}
-		return map[string]interface{}{
-			"owner_id": dataOwner,
-			"consents": records,
-			"count":    len(records),
-		}, http.StatusOK, nil
+	prefix := "/data-owner/"
+	path := r.URL.Path
+	if !strings.HasPrefix(path, prefix) {
+		utils.RespondWithJSON(w, http.StatusBadRequest, models.ErrorResponseWithCode{
+			Error:     "Invalid path",
+			ErrorCode: models.ErrorCodeInvalidRequest,
+		})
+		return
+	}
+	dataOwner := path[len(prefix):]
+	if dataOwner == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, models.ErrorResponseWithCode{
+			Error:     "Data owner ID is required",
+			ErrorCode: models.ErrorCodeMissingRequiredField,
+		})
+		return
+	}
+	records, err := h.engine.GetConsentsByDataOwner(dataOwner)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusInternalServerError, models.ErrorResponseWithCode{
+			Error:     models.ErrConsentGetFailed + ": " + err.Error(),
+			ErrorCode: models.ErrorCodeInternalError,
+		})
+		return
+	}
+	utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"owner_id": dataOwner,
+		"consents": records,
+		"count":    len(records),
 	})
 }
 
 func (h *ConsentHandler) getConsentsByConsumer(w http.ResponseWriter, r *http.Request) {
-	utils.PathHandler(w, r, "/consumer/", func(consumer string) (interface{}, int, error) {
-		records, err := h.engine.GetConsentsByConsumer(consumer)
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentGetFailed+": %w", err)
-		}
-		return map[string]interface{}{
-			"consumer": consumer,
-			"consents": records,
-			"count":    len(records),
-		}, http.StatusOK, nil
+	prefix := "/consumer/"
+	path := r.URL.Path
+	if !strings.HasPrefix(path, prefix) {
+		utils.RespondWithJSON(w, http.StatusBadRequest, models.ErrorResponseWithCode{
+			Error:     "Invalid path",
+			ErrorCode: models.ErrorCodeInvalidRequest,
+		})
+		return
+	}
+	consumer := path[len(prefix):]
+	if consumer == "" {
+		utils.RespondWithJSON(w, http.StatusBadRequest, models.ErrorResponseWithCode{
+			Error:     "Consumer ID is required",
+			ErrorCode: models.ErrorCodeMissingRequiredField,
+		})
+		return
+	}
+	records, err := h.engine.GetConsentsByConsumer(consumer)
+	if err != nil {
+		utils.RespondWithJSON(w, http.StatusInternalServerError, models.ErrorResponseWithCode{
+			Error:     models.ErrConsentGetFailed + ": " + err.Error(),
+			ErrorCode: models.ErrorCodeInternalError,
+		})
+		return
+	}
+	utils.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"consumer": consumer,
+		"consents": records,
+		"count":    len(records),
 	})
 }
 
@@ -418,7 +456,9 @@ func (h *ConsentHandler) updateConsentByID(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *ConsentHandler) DataInfoHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/data-info/")
+	// Remove /v1 prefix if present for path processing
+	path := strings.TrimPrefix(r.URL.Path, "/v1")
+	path = strings.TrimPrefix(path, "/data-info/")
 	if path == "" {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
 		return
@@ -432,7 +472,9 @@ func (h *ConsentHandler) DataInfoHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ConsentHandler) AdminHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/admin")
+	// Remove /v1 prefix if present for path processing
+	path := strings.TrimPrefix(r.URL.Path, "/v1")
+	path = strings.TrimPrefix(path, "/admin")
 	if path == "/expiry-check" && r.Method == http.MethodPost {
 		h.checkConsentExpiry(w, r)
 	} else {
