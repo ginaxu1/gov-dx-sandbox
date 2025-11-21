@@ -8,17 +8,6 @@ WORKDIR /app
 ARG VITE_PORT=5173
 ARG VITE_BASE_PATH=/
 
-# Declare build arguments for config.js injection
-# These will be used to generate config.js at build time
-ARG VITE_API_URL=""
-ARG VITE_LOGS_URL=""
-ARG VITE_IDP_CLIENT_ID=""
-ARG VITE_IDP_BASE_URL=""
-ARG VITE_IDP_SCOPE=""
-ARG VITE_IDP_ADMIN_ROLE=""
-ARG VITE_SIGN_IN_REDIRECT_URL=""
-ARG VITE_SIGN_OUT_REDIRECT_URL=""
-
 # Set as environment variables for the build process
 ENV VITE_PORT=${VITE_PORT}
 ENV VITE_BASE_PATH=${VITE_BASE_PATH}
@@ -35,21 +24,6 @@ COPY . .
 # Build the application (Vite will use the environment variables)
 RUN npm run build
 
-# Generate config.js file from build arguments
-# This file will be loaded by index.html and provide window.configs to the application
-RUN cat > /app/dist/config.js << EOF
-window.configs = {
-  VITE_API_URL: '${VITE_API_URL}',
-  VITE_LOGS_URL: '${VITE_LOGS_URL}',
-  VITE_IDP_CLIENT_ID: '${VITE_IDP_CLIENT_ID}',
-  VITE_IDP_BASE_URL: '${VITE_IDP_BASE_URL}',
-  VITE_IDP_SCOPE: '${VITE_IDP_SCOPE}',
-  VITE_IDP_ADMIN_ROLE: '${VITE_IDP_ADMIN_ROLE}',
-  VITE_SIGN_IN_REDIRECT_URL: '${VITE_SIGN_IN_REDIRECT_URL}',
-  VITE_SIGN_OUT_REDIRECT_URL: '${VITE_SIGN_OUT_REDIRECT_URL}'
-};
-EOF
-
 # Serve Stage
 FROM nginx:1.27-alpine
 
@@ -59,9 +33,23 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set default environment variables (can be overridden at runtime)
+ENV VITE_API_URL=""
+ENV VITE_LOGS_URL=""
+ENV VITE_IDP_CLIENT_ID=""
+ENV VITE_IDP_BASE_URL=""
+ENV VITE_IDP_SCOPE=""
+ENV VITE_IDP_ADMIN_ROLE=""
+ENV VITE_SIGN_IN_REDIRECT_URL=""
+ENV VITE_SIGN_OUT_REDIRECT_URL=""
+
 # Expose port 80
 EXPOSE 80
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Use entrypoint script to generate config.js at runtime
+ENTRYPOINT ["/entrypoint.sh"]
 
