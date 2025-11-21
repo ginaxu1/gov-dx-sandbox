@@ -28,6 +28,14 @@ func (s *DataExchangeEventService) CreateDataExchangeEvent(ctx context.Context, 
 		slog.Error("Invalid timestamp format", "error", err)
 		return nil, fmt.Errorf("invalid timestamp format: %w", err)
 	}
+
+	// Validate status
+	if req.Status != "success" && req.Status != "failure" {
+		slog.Error("Invalid status", "status", req.Status)
+		return nil, fmt.Errorf("invalid status: %s. Must be success or failure", req.Status)
+	}
+
+	// Create the event record
 	event := &models.DataExchangeEvent{
 		Timestamp:         timestamp,
 		Status:            req.Status,
@@ -49,7 +57,7 @@ func (s *DataExchangeEventService) CreateDataExchangeEvent(ctx context.Context, 
 	return event.ToResponse(), nil
 }
 
-// GetDataExchangeEvent retrieves a data exchang e event with optional filtering
+// GetDataExchangeEvent retrieves a data exchange event with optional filtering
 func (s *DataExchangeEventService) GetDataExchangeEvents(ctx context.Context, filter *models.DataExchangeEventFilter) (*models.DataExchangeEventListResponse, error) {
 	var events []models.DataExchangeEvent
 	var total int64
