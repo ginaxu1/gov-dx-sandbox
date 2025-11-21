@@ -9,3 +9,21 @@ scrape_configs:
       - targets:
           - host.docker.internal:4000
 
+  - job_name: api-server
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:3000
+
+  - job_name: consent-engine
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8081
+
+  - job_name: policy-decision-point
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8082
+

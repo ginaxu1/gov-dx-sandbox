@@ -68,7 +68,7 @@ func RunServer(f *federator.Federator) {
 	})
 
 	// Metrics endpoint
-	mux.Handle("/metrics", monitoring.Handler())
+	mux.Method("GET", "/metrics", monitoring.Handler())
 
 	// Schema management routes
 	mux.Get("/sdl", schemaHandler.GetActiveSchema)
