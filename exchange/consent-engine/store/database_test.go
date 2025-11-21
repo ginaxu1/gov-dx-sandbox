@@ -23,11 +23,21 @@ func TestNewDatabaseConfig(t *testing.T) {
 }
 
 func TestNewDatabaseConfig_WithEnvVars(t *testing.T) {
+	// Set environment variables for testing
 	os.Setenv("CHOREO_DB_CE_HOSTNAME", "test-host")
 	os.Setenv("CHOREO_DB_CE_PORT", "5433")
 	os.Setenv("CHOREO_DB_CE_USERNAME", "test-user")
 	os.Setenv("CHOREO_DB_CE_PASSWORD", "test-pass")
 	os.Setenv("CHOREO_DB_CE_DATABASENAME", "test-db")
+	
+	// Clean up after test
+	defer func() {
+		os.Unsetenv("CHOREO_DB_CE_HOSTNAME")
+		os.Unsetenv("CHOREO_DB_CE_PORT")
+		os.Unsetenv("CHOREO_DB_CE_USERNAME")
+		os.Unsetenv("CHOREO_DB_CE_PASSWORD")
+		os.Unsetenv("CHOREO_DB_CE_DATABASENAME")
+	}()
 	os.Setenv("DB_SSLMODE", "disable")
 	os.Setenv("DB_MAX_OPEN_CONNS", "50")
 	os.Setenv("DB_MAX_IDLE_CONNS", "10")
