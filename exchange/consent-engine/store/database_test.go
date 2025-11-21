@@ -1,7 +1,6 @@
 package store
 
 import (
-
 	"os"
 	"testing"
 	"time"
@@ -29,7 +28,7 @@ func TestNewDatabaseConfig_WithEnvVars(t *testing.T) {
 	os.Setenv("CHOREO_DB_CE_USERNAME", "test-user")
 	os.Setenv("CHOREO_DB_CE_PASSWORD", "test-pass")
 	os.Setenv("CHOREO_DB_CE_DATABASENAME", "test-db")
-	
+
 	// Clean up after test
 	defer func() {
 		os.Unsetenv("CHOREO_DB_CE_HOSTNAME")

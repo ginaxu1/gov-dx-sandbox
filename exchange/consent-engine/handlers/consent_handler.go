@@ -151,11 +151,7 @@ func (h *ConsentHandler) revokeConsentByID(w http.ResponseWriter, r *http.Reques
 
 	record, err := h.engine.RevokeConsent(consentID, req.Reason)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
-		} else {
-			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to revoke consent: " + err.Error()})
-		}
+		handleConsentError(w, err, "revoke consent")
 		return
 	}
 
@@ -182,11 +178,7 @@ func (h *ConsentHandler) patchConsentByID(w http.ResponseWriter, r *http.Request
 	// Get the existing record first
 	existingRecord, err := h.engine.GetConsentStatus(consentID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
-		} else {
-			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to get consent record: " + err.Error()})
-		}
+		handleConsentError(w, err, "get consent record")
 		return
 	}
 
@@ -217,11 +209,7 @@ func (h *ConsentHandler) patchConsentByID(w http.ResponseWriter, r *http.Request
 	// Update the record
 	updatedRecord, err := h.engine.UpdateConsent(consentID, updateReq)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
-		} else {
-			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent record: " + err.Error()})
-		}
+		handleConsentError(w, err, "update consent record")
 		return
 	}
 	slog.Info("Consent record updated", "consent_id", updatedRecord.ConsentID, "owner_id", updatedRecord.OwnerID, "owner_email", updatedRecord.OwnerEmail, "app_id", updatedRecord.AppID, "status", updatedRecord.Status, "type", updatedRecord.Type, "created_at", updatedRecord.CreatedAt, "updated_at", updatedRecord.UpdatedAt, "expires_at", updatedRecord.ExpiresAt, "grant_duration", updatedRecord.GrantDuration, "fields", updatedRecord.Fields, "session_id", updatedRecord.SessionID, "consent_portal_url", updatedRecord.ConsentPortalURL)
@@ -385,28 +373,14 @@ func (h *ConsentHandler) updateConsentByID(w http.ResponseWriter, r *http.Reques
 	// Get the existing consent record to extract owner information
 	existingRecord, err := h.engine.GetConsentStatus(consentID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
-		} else {
-			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to get consent record: " + err.Error()})
-		}
+		handleConsentError(w, err, "get consent record")
 		return
 	}
 
 	// Validate status if provided
 	var newStatus models.ConsentStatus
 	if req.Status != "" {
-		// Validate that the status is one of the valid consent statuses
-		validStatuses := []string{"pending", "approved", "rejected", "expired", "revoked"}
-		isValid := false
-		for _, validStatus := range validStatuses {
-			if req.Status == validStatus {
-				isValid = true
-				break
-			}
-		}
-		if !isValid {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be one of: pending, approved, rejected, expired, revoked"})
+		if !validateConsentStatus(w, req.Status) {
 			return
 		}
 		newStatus = models.ConsentStatus(req.Status)
@@ -418,20 +392,7 @@ func (h *ConsentHandler) updateConsentByID(w http.ResponseWriter, r *http.Reques
 	// Set default reason if not provided
 	reason := req.Reason
 	if reason == "" {
-		switch newStatus {
-		case models.StatusApproved:
-			reason = "Consent approved via API"
-		case models.StatusRejected:
-			reason = "Consent rejected via API"
-		case models.StatusExpired:
-			reason = "Consent expired via API"
-		case models.StatusRevoked:
-			reason = "Consent revoked via API"
-		case models.StatusPending:
-			reason = "Consent reset to pending via API"
-		default:
-			reason = "Consent updated via API"
-		}
+		reason = getDefaultReason(newStatus)
 	}
 
 	// Update the record
@@ -444,11 +405,7 @@ func (h *ConsentHandler) updateConsentByID(w http.ResponseWriter, r *http.Reques
 
 	updatedRecord, err := h.engine.UpdateConsent(consentID, updateReq)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
-		} else {
-			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to update consent record: " + err.Error()})
-		}
+		handleConsentError(w, err, "update consent record")
 		return
 	}
 
@@ -493,13 +450,7 @@ func (h *ConsentHandler) HandlePortalAction(w http.ResponseWriter, r *http.Reque
 
 	record, err := h.engine.ProcessConsentPortalRequest(req)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
-		} else if strings.Contains(err.Error(), "invalid action") {
-			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: err.Error()})
-		} else {
-			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to process portal request: " + err.Error()})
-		}
+		handleConsentError(w, err, "process portal request")
 		return
 	}
 
