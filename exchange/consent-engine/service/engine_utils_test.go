@@ -1,9 +1,10 @@
-package main
+package service
 
 import (
 	"testing"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/consent-engine/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -145,7 +146,7 @@ func TestParseComponent(t *testing.T) {
 }
 
 func TestGetAllFields(t *testing.T) {
-	dataFields := []DataField{
+	dataFields := []models.DataField{
 		{
 			OwnerType: "CITIZEN",
 			OwnerID:   "user1@example.com",
@@ -164,7 +165,7 @@ func TestGetAllFields(t *testing.T) {
 }
 
 func TestGetAllFields_Empty(t *testing.T) {
-	result := getAllFields([]DataField{})
+	result := getAllFields([]models.DataField{})
 	assert.Empty(t, result)
 }
 
@@ -248,38 +249,38 @@ func TestParseISO8601Duration_EdgeCases(t *testing.T) {
 func TestIsValidStatusTransition_EdgeCases(t *testing.T) {
 	t.Run("Invalid current status", func(t *testing.T) {
 		// Test with a status that doesn't exist in the map
-		invalidStatus := ConsentStatus("invalid")
-		result := isValidStatusTransition(invalidStatus, StatusApproved)
+		invalidStatus := models.ConsentStatus("invalid")
+		result := isValidStatusTransition(invalidStatus, models.StatusApproved)
 		assert.False(t, result)
 	})
 
 	t.Run("All valid transitions from pending", func(t *testing.T) {
-		assert.True(t, isValidStatusTransition(StatusPending, StatusApproved))
-		assert.True(t, isValidStatusTransition(StatusPending, StatusRejected))
-		assert.True(t, isValidStatusTransition(StatusPending, StatusExpired))
-		assert.False(t, isValidStatusTransition(StatusPending, StatusRevoked))
+		assert.True(t, isValidStatusTransition(models.StatusPending, models.StatusApproved))
+		assert.True(t, isValidStatusTransition(models.StatusPending, models.StatusRejected))
+		assert.True(t, isValidStatusTransition(models.StatusPending, models.StatusExpired))
+		assert.False(t, isValidStatusTransition(models.StatusPending, models.StatusRevoked))
 	})
 
 	t.Run("All valid transitions from approved", func(t *testing.T) {
-		assert.True(t, isValidStatusTransition(StatusApproved, StatusApproved))
-		assert.True(t, isValidStatusTransition(StatusApproved, StatusRejected))
-		assert.True(t, isValidStatusTransition(StatusApproved, StatusRevoked))
-		assert.True(t, isValidStatusTransition(StatusApproved, StatusExpired))
-		assert.False(t, isValidStatusTransition(StatusApproved, StatusPending))
+		assert.True(t, isValidStatusTransition(models.StatusApproved, models.StatusApproved))
+		assert.True(t, isValidStatusTransition(models.StatusApproved, models.StatusRejected))
+		assert.True(t, isValidStatusTransition(models.StatusApproved, models.StatusRevoked))
+		assert.True(t, isValidStatusTransition(models.StatusApproved, models.StatusExpired))
+		assert.False(t, isValidStatusTransition(models.StatusApproved, models.StatusPending))
 	})
 
 	t.Run("Terminal states", func(t *testing.T) {
 		// Rejected can only transition to expired
-		assert.True(t, isValidStatusTransition(StatusRejected, StatusExpired))
-		assert.False(t, isValidStatusTransition(StatusRejected, StatusApproved))
-		assert.False(t, isValidStatusTransition(StatusRejected, StatusPending))
+		assert.True(t, isValidStatusTransition(models.StatusRejected, models.StatusExpired))
+		assert.False(t, isValidStatusTransition(models.StatusRejected, models.StatusApproved))
+		assert.False(t, isValidStatusTransition(models.StatusRejected, models.StatusPending))
 
 		// Expired can only stay expired
-		assert.True(t, isValidStatusTransition(StatusExpired, StatusExpired))
-		assert.False(t, isValidStatusTransition(StatusExpired, StatusApproved))
+		assert.True(t, isValidStatusTransition(models.StatusExpired, models.StatusExpired))
+		assert.False(t, isValidStatusTransition(models.StatusExpired, models.StatusApproved))
 
 		// Revoked can only transition to expired
-		assert.True(t, isValidStatusTransition(StatusRevoked, StatusExpired))
-		assert.False(t, isValidStatusTransition(StatusRevoked, StatusApproved))
+		assert.True(t, isValidStatusTransition(models.StatusRevoked, models.StatusExpired))
+		assert.False(t, isValidStatusTransition(models.StatusRevoked, models.StatusApproved))
 	})
 }

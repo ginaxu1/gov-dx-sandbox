@@ -9,11 +9,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gov-dx-sandbox/exchange/consent-engine/handlers"
+	"github.com/gov-dx-sandbox/exchange/consent-engine/models"
+	"github.com/gov-dx-sandbox/exchange/consent-engine/service"
 )
 
 // createTestConsent is a helper function to create a consent record for testing
 // It reduces code duplication across test functions and ensures consistent test data setup
-func createTestConsent(t *testing.T, engine ConsentEngine, appID, ownerID string) *ConsentRecord {
+func createTestConsent(t *testing.T, engine service.ConsentEngine, appID, ownerID string) *models.ConsentRecord {
 	if appID == "" {
 		appID = "test-app"
 	}
@@ -21,13 +25,13 @@ func createTestConsent(t *testing.T, engine ConsentEngine, appID, ownerID string
 		ownerID = "user@example.com"
 	}
 
-	createReq := ConsentRequest{
+	createReq := models.ConsentRequest{
 		AppID: appID,
-		ConsentRequirements: []ConsentRequirement{
+		ConsentRequirements: []models.ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: ownerID,
-				Fields: []ConsentField{
+				Fields: []models.ConsentField{
 					{
 						FieldName: "personInfo.name",
 						SchemaID:  "schema-123",
@@ -66,7 +70,7 @@ func makeJSONRequest(t *testing.T, method, path string, body interface{}) *http.
 // TestPOSTConsents tests POST /consents endpoint
 func TestPOSTConsents(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -191,7 +195,7 @@ func TestPOSTConsents(t *testing.T) {
 			req := makeJSONRequest(t, http.MethodPost, "/consents", tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandler(w, req)
+			handler.ConsentHandler(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -212,7 +216,7 @@ func TestPOSTConsents(t *testing.T) {
 // TestGETConsentsByID tests GET /consents/{id} endpoint
 func TestGETConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	// Create a consent first
 	record := createTestConsent(t, engine, "test-app", "user@example.com")
@@ -248,7 +252,7 @@ func TestGETConsentsByID(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/consents/"+tt.consentID, nil)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			handler.ConsentHandlerWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -269,7 +273,7 @@ func TestGETConsentsByID(t *testing.T) {
 // TestPATCHConsentsByID tests PATCH /consents/{id} endpoint
 func TestPATCHConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -339,7 +343,7 @@ func TestPATCHConsentsByID(t *testing.T) {
 			req := makeJSONRequest(t, http.MethodPatch, "/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			handler.ConsentHandlerWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -360,7 +364,7 @@ func TestPATCHConsentsByID(t *testing.T) {
 // TestDELETEConsentsByID tests DELETE /consents/{id} endpoint
 func TestDELETEConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -403,8 +407,8 @@ func TestDELETEConsentsByID(t *testing.T) {
 
 				// Approve the consent first if needed (can't transition from pending to revoked)
 				if tt.approveFirst {
-					updateReq := UpdateConsentRequest{
-						Status:    StatusApproved,
+					updateReq := models.UpdateConsentRequest{
+						Status:    models.StatusApproved,
 						UpdatedBy: "user@example.com",
 						Reason:    "User approved",
 					}
@@ -418,7 +422,7 @@ func TestDELETEConsentsByID(t *testing.T) {
 			req := makeJSONRequest(t, http.MethodDelete, "/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			handler.ConsentHandlerWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -439,7 +443,7 @@ func TestDELETEConsentsByID(t *testing.T) {
 // TestGETConsentsByDataOwner tests GET /data-owner/{ownerId} endpoint
 func TestGETConsentsByDataOwner(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	// Create consents for a specific owner
 	_ = createTestConsent(t, engine, "test-app", "owner123@example.com")
@@ -487,7 +491,7 @@ func TestGETConsentsByDataOwner(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/data-owner/"+tt.ownerID, nil)
 			w := httptest.NewRecorder()
 
-			server.dataOwnerHandler(w, req)
+			handler.DataOwnerHandler(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -508,7 +512,7 @@ func TestGETConsentsByDataOwner(t *testing.T) {
 // TestGETConsentsByConsumer tests GET /consumer/{consumerId} endpoint
 func TestGETConsentsByConsumer(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	// Create consents for a specific consumer app
 	_ = createTestConsent(t, engine, "consumer-app-123", "user@example.com")
@@ -556,7 +560,7 @@ func TestGETConsentsByConsumer(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/consumer/"+tt.consumerID, nil)
 			w := httptest.NewRecorder()
 
-			server.consumerHandler(w, req)
+			handler.ConsumerHandler(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -577,7 +581,7 @@ func TestGETConsentsByConsumer(t *testing.T) {
 // TestGETDataInfo tests GET /data-info/{consentId} endpoint
 func TestGETDataInfo(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	// Create a consent first
 	record := createTestConsent(t, engine, "test-app", "owner@example.com")
@@ -616,7 +620,7 @@ func TestGETDataInfo(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/data-info/"+tt.consentID, nil)
 			w := httptest.NewRecorder()
 
-			server.dataInfoHandler(w, req)
+			handler.DataInfoHandler(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -639,27 +643,27 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 	testEngine := setupPostgresTestEngineWithDB(t)
 	engine := testEngine.engine
 	db := testEngine.db
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
 		method         string
-		setupFunc      func(t *testing.T, engine ConsentEngine, db *sql.DB) string
+		setupFunc      func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string
 		expectedStatus int
 		validateFunc   func(t *testing.T, response map[string]interface{})
 	}{
 		{
 			name:   "ExpiryCheck_NoExpiredRecords",
 			method: http.MethodPost,
-			setupFunc: func(t *testing.T, engine ConsentEngine, db *sql.DB) string {
+			setupFunc: func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string {
 				// Create a consent that won't expire soon
-				createReq := ConsentRequest{
+				createReq := models.ConsentRequest{
 					AppID: "test-app",
-					ConsentRequirements: []ConsentRequirement{
+					ConsentRequirements: []models.ConsentRequirement{
 						{
 							Owner:   "CITIZEN",
 							OwnerID: "user@example.com",
-							Fields: []ConsentField{
+							Fields: []models.ConsentField{
 								{
 									FieldName: "personInfo.name",
 									SchemaID:  "schema-123",
@@ -694,15 +698,15 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 		{
 			name:   "ExpiryCheck_WithExpiredRecords",
 			method: http.MethodPost,
-			setupFunc: func(t *testing.T, engine ConsentEngine, db *sql.DB) string {
+			setupFunc: func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string {
 				// Create a consent
-				createReq := ConsentRequest{
+				createReq := models.ConsentRequest{
 					AppID: "test-app",
-					ConsentRequirements: []ConsentRequirement{
+					ConsentRequirements: []models.ConsentRequirement{
 						{
 							Owner:   "CITIZEN",
 							OwnerID: "user@example.com",
-							Fields: []ConsentField{
+							Fields: []models.ConsentField{
 								{
 									FieldName: "personInfo.name",
 									SchemaID:  "schema-123",
@@ -717,8 +721,8 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 				}
 
 				// Approve the consent
-				updateReq := UpdateConsentRequest{
-					Status:        StatusApproved,
+				updateReq := models.UpdateConsentRequest{
+					Status:        models.StatusApproved,
 					UpdatedBy:     "user@example.com",
 					Reason:        "User approved",
 					GrantDuration: "1h", // Use normal duration
@@ -753,7 +757,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 		{
 			name:           "ExpiryCheck_InvalidMethod",
 			method:         http.MethodGet,
-			setupFunc:      func(t *testing.T, engine ConsentEngine, db *sql.DB) string { return "" },
+			setupFunc:      func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string { return "" },
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 	}
@@ -767,7 +771,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 			req := httptest.NewRequest(tt.method, "/admin/expiry-check", nil)
 			w := httptest.NewRecorder()
 
-			server.adminHandler(w, req)
+			handler.AdminHandler(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -788,7 +792,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 // TestPUTConsentsByID tests PUT /consents/{id} endpoint
 func TestPUTConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -853,7 +857,7 @@ func TestPUTConsentsByID(t *testing.T) {
 			req := makeJSONRequest(t, http.MethodPut, "/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			handler.ConsentHandlerWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -874,7 +878,7 @@ func TestPUTConsentsByID(t *testing.T) {
 // TestConsentHandlerRouting tests routing logic for consent handlers
 func TestConsentHandlerRouting(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	handler := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -932,9 +936,9 @@ func TestConsentHandlerRouting(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			if strings.HasSuffix(tt.path, "/consents") {
-				server.consentHandler(w, req)
+				handler.ConsentHandler(w, req)
 			} else {
-				server.consentHandlerWithID(w, req)
+				handler.ConsentHandlerWithID(w, req)
 			}
 
 			if w.Code != tt.expectedStatus {

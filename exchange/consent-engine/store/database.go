@@ -1,10 +1,11 @@
-package main
+package store
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -26,6 +27,14 @@ type DatabaseConfig struct {
 	ConnectTimeout  time.Duration // Timeout for initial connection
 	RetryAttempts   int           // Number of retry attempts for connection
 	RetryDelay      time.Duration // Delay between retry attempts
+}
+
+// getEnvOrDefault returns the environment variable value or a default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // NewDatabaseConfig creates a new database configuration from environment variables
@@ -60,7 +69,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 // parseIntOrDefault parses an integer from environment variable or returns default
 func parseIntOrDefault(key string, defaultValue int) int {
-	if value := getEnvOrDefault(key, ""); value != "" {
+	if value := os.Getenv(key); value != "" {
 		if parsed, err := fmt.Sscanf(value, "%d", &defaultValue); err == nil && parsed == 1 {
 			return defaultValue
 		}
@@ -70,10 +79,12 @@ func parseIntOrDefault(key string, defaultValue int) int {
 
 // parseDurationOrDefault parses a duration from environment variable or returns default
 func parseDurationOrDefault(key, defaultValue string) time.Duration {
-	if value := getEnvOrDefault(key, defaultValue); value != "" {
-		if parsed, err := time.ParseDuration(value); err == nil {
-			return parsed
-		}
+	value := os.Getenv(key)
+	if value == "" {
+		value = defaultValue
+	}
+	if parsed, err := time.ParseDuration(value); err == nil {
+		return parsed
 	}
 	// Fallback to parsing the default value
 	if parsed, err := time.ParseDuration(defaultValue); err == nil {

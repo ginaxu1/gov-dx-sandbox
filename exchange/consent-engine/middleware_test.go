@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gov-dx-sandbox/exchange/consent-engine/middleware"
 )
 
 // TestCORSMiddleware tests the CORS middleware
@@ -45,7 +47,7 @@ func TestCORSMiddleware(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			handler := corsMiddleware(nextHandler)
+			handler := middleware.CorsMiddleware(nextHandler)
 			req := httptest.NewRequest(tt.method, "/test", nil)
 			w := httptest.NewRecorder()
 
@@ -118,14 +120,14 @@ func TestUserAuthMiddleware(t *testing.T) {
 			})
 
 			// Create a real JWT verifier (will fail for invalid tokens, which is expected)
-			jwtVerifier := NewJWTVerifier("https://api.asgardeo.io/t/test/oauth2/jwks", "test-audience", "test-org")
-			userTokenConfig := UserTokenValidationConfig{
+			jwtVerifier := middleware.NewJWTVerifier("https://api.asgardeo.io/t/test/oauth2/jwks", "test-audience", "test-org")
+			userTokenConfig := middleware.UserTokenValidationConfig{
 				ExpectedIssuer:   "https://api.asgardeo.io/t/test/oauth2/token",
 				ExpectedAudience: "test-audience",
 				ExpectedOrgName:  "test-org",
 			}
 
-			handler := userAuthMiddleware(jwtVerifier, engine, userTokenConfig)(nextHandler)
+			handler := middleware.UserAuthMiddleware(jwtVerifier, engine, userTokenConfig)(nextHandler)
 
 			path := "/consents/" + tt.consentID
 			req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -188,14 +190,14 @@ func TestSelectiveAuthMiddleware(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			jwtVerifier := NewJWTVerifier("https://api.asgardeo.io/t/test/oauth2/jwks", "test-audience", "test-org")
-			userTokenConfig := UserTokenValidationConfig{
+			jwtVerifier := middleware.NewJWTVerifier("https://api.asgardeo.io/t/test/oauth2/jwks", "test-audience", "test-org")
+			userTokenConfig := middleware.UserTokenValidationConfig{
 				ExpectedIssuer:   "https://api.asgardeo.io/t/test/oauth2/token",
 				ExpectedAudience: "test-audience",
 				ExpectedOrgName:  "test-org",
 			}
 
-			handler := selectiveAuthMiddleware(jwtVerifier, engine, userTokenConfig, tt.requireAuthMethods)(nextHandler)
+			handler := middleware.SelectiveAuthMiddleware(jwtVerifier, engine, userTokenConfig, tt.requireAuthMethods)(nextHandler)
 
 			req := httptest.NewRequest(tt.method, "/consents/"+record.ConsentID, nil)
 			w := httptest.NewRecorder()

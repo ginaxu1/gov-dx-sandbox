@@ -1,12 +1,17 @@
-package main
+package service
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/exchange/consent-engine/models"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/lib/pq"
 )
 
@@ -25,7 +30,7 @@ func NewPostgresConsentEngine(db *sql.DB, consentPortalURL string) ConsentEngine
 }
 
 // ProcessConsentRequest processes a consent request and creates a consent record
-func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) ProcessConsentRequest(req models.ConsentRequest) (*models.ConsentRecord, error) {
 	// Validate required fields
 	if req.AppID == "" {
 		return nil, fmt.Errorf("app_id is required")
@@ -121,7 +126,7 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 	`
 
 	_, err = pce.db.Exec(insertSQL,
-		consentID, ownerID, ownerEmail, req.AppID, string(StatusPending), "realtime",
+		consentID, ownerID, ownerEmail, req.AppID, string(models.StatusPending), "realtime",
 		now, now, expiresAt, grantDuration, pq.Array(allFields),
 		"", // Intentionally passing empty string for session_id in the new format (session information not required)
 		consentPortalURL, ownerID)
@@ -130,12 +135,12 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 		return nil, fmt.Errorf("failed to create consent record: %w", err)
 	}
 
-	record := &ConsentRecord{
+	record := &models.ConsentRecord{
 		ConsentID:        consentID,
 		OwnerID:          ownerID,
 		OwnerEmail:       ownerEmail,
 		AppID:            req.AppID,
-		Status:           string(StatusPending),
+		Status:           models.StatusPending,
 		Type:             "realtime",
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -157,12 +162,12 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 }
 
 // CreateConsent creates a new consent record (alias for ProcessConsentRequest)
-func (pce *postgresConsentEngine) CreateConsent(req ConsentRequest) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) CreateConsent(req models.ConsentRequest) (*models.ConsentRecord, error) {
 	return pce.ProcessConsentRequest(req)
 }
 
 // GetConsentStatus retrieves a consent record by ID
-func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
@@ -173,7 +178,7 @@ func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*ConsentRe
 
 	row := pce.db.QueryRow(querySQL, consentID)
 
-	var record ConsentRecord
+	var record models.ConsentRecord
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
@@ -192,7 +197,7 @@ func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*ConsentRe
 }
 
 // UpdateConsent updates a consent record
-func (pce *postgresConsentEngine) UpdateConsent(consentID string, req UpdateConsentRequest) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) UpdateConsent(consentID string, req models.UpdateConsentRequest) (*models.ConsentRecord, error) {
 	// Get existing record
 	existingRecord, err := pce.GetConsentStatus(consentID)
 	if err != nil {
@@ -200,8 +205,8 @@ func (pce *postgresConsentEngine) UpdateConsent(consentID string, req UpdateCons
 	}
 
 	// Validate status transition
-	if !isValidStatusTransition(ConsentStatus(existingRecord.Status), req.Status) {
-		return nil, fmt.Errorf("invalid status transition from %s to %s", existingRecord.Status, string(req.Status))
+	if !isValidStatusTransition(existingRecord.Status, req.Status) {
+		return nil, fmt.Errorf("invalid status transition from %s to %s", string(existingRecord.Status), string(req.Status))
 	}
 
 	// Update the record
@@ -242,7 +247,7 @@ func (pce *postgresConsentEngine) UpdateConsent(consentID string, req UpdateCons
 
 	// Return updated record
 	updatedRecord := *existingRecord
-	updatedRecord.Status = string(req.Status)
+	updatedRecord.Status = req.Status
 	updatedRecord.UpdatedAt = now
 	updatedRecord.ExpiresAt = expiresAt
 	updatedRecord.GrantDuration = grantDuration
@@ -258,9 +263,9 @@ func (pce *postgresConsentEngine) UpdateConsent(consentID string, req UpdateCons
 }
 
 // RevokeConsent revokes a consent record
-func (pce *postgresConsentEngine) RevokeConsent(consentID string, reason string) (*ConsentRecord, error) {
-	updateReq := UpdateConsentRequest{
-		Status:    StatusRevoked,
+func (pce *postgresConsentEngine) RevokeConsent(consentID string, reason string) (*models.ConsentRecord, error) {
+	updateReq := models.UpdateConsentRequest{
+		Status:    models.StatusRevoked,
 		UpdatedBy: "system", // Could be enhanced to get from context
 		Reason:    reason,
 	}
@@ -268,7 +273,7 @@ func (pce *postgresConsentEngine) RevokeConsent(consentID string, reason string)
 }
 
 // CheckConsentExpiry checks for and updates expired consent records
-func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error) {
+func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*models.ConsentRecord, error) {
 	now := time.Now()
 
 	// Find expired approved records
@@ -286,10 +291,10 @@ func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error)
 	}
 	defer rows.Close()
 
-	var deletedRecords []*ConsentRecord
+	var deletedRecords []*models.ConsentRecord
 
 	for rows.Next() {
-		var record ConsentRecord
+		var record models.ConsentRecord
 
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
@@ -354,7 +359,7 @@ func (pce *postgresConsentEngine) StopBackgroundExpiryProcess() {
 
 // findExistingConsentByOwnerID finds existing consent for the given owner_id and app
 // Returns the most recent non-expired consent record (pending, approved, or rejected)
-func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID string) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID string) (*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
@@ -369,7 +374,7 @@ func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID st
 
 	row := pce.db.QueryRow(querySQL, ownerID, appID)
 
-	var record ConsentRecord
+	var record models.ConsentRecord
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
@@ -389,7 +394,7 @@ func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID st
 
 // findExistingPendingConsentByOwnerID finds existing pending consent for the given owner_id and app
 // This enforces the constraint that only one pending record can exist per (appId, ownerId) tuple
-func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, appID string) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, appID string) (*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
@@ -402,7 +407,7 @@ func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 
 	row := pce.db.QueryRow(querySQL, ownerID, appID)
 
-	var record ConsentRecord
+	var record models.ConsentRecord
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
@@ -421,7 +426,7 @@ func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 }
 
 // updateExistingConsentNewFormat updates an existing consent record with new format (consent_requirements)
-func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent *ConsentRecord, req ConsentRequest) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent *models.ConsentRecord, req models.ConsentRequest) (*models.ConsentRecord, error) {
 	// Convert ConsentFields to string array for storage (fieldName format)
 	var allFields []string
 	for _, requirement := range req.ConsentRequirements {
@@ -466,7 +471,7 @@ func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 }
 
 // FindExistingConsent finds an existing consent record by consumer app ID and owner ID
-func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID string) *ConsentRecord {
+func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID string) *models.ConsentRecord {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
@@ -479,7 +484,7 @@ func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID str
 
 	row := pce.db.QueryRow(querySQL, consumerAppID, ownerID)
 
-	var record ConsentRecord
+	var record models.ConsentRecord
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
@@ -499,22 +504,22 @@ func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID str
 }
 
 // ProcessConsentPortalRequest handles consent portal interactions
-func (pce *postgresConsentEngine) ProcessConsentPortalRequest(req ConsentPortalRequest) (*ConsentRecord, error) {
+func (pce *postgresConsentEngine) ProcessConsentPortalRequest(req models.ConsentPortalRequest) (*models.ConsentRecord, error) {
 	// Map action to status
-	var status ConsentStatus
+	var status models.ConsentStatus
 	switch req.Action {
 	case "approve":
-		status = StatusApproved
+		status = models.StatusApproved
 	case "deny":
-		status = StatusRejected
+		status = models.StatusRejected
 	case "revoke":
-		status = StatusRevoked
+		status = models.StatusRevoked
 	default:
 		return nil, fmt.Errorf("invalid action: %s", req.Action)
 	}
 
 	// Update the record based on portal action
-	updateReq := UpdateConsentRequest{
+	updateReq := models.UpdateConsentRequest{
 		Status:    status,
 		UpdatedBy: req.DataOwner,
 		Reason:    req.Reason,
@@ -524,7 +529,7 @@ func (pce *postgresConsentEngine) ProcessConsentPortalRequest(req ConsentPortalR
 }
 
 // GetConsentsByDataOwner retrieves all consent records for a data owner
-func (pce *postgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*ConsentRecord, error) {
+func (pce *postgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
@@ -540,10 +545,10 @@ func (pce *postgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*C
 	}
 	defer rows.Close()
 
-	var records []*ConsentRecord
+	var records []*models.ConsentRecord
 
 	for rows.Next() {
-		var record ConsentRecord
+		var record models.ConsentRecord
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
@@ -565,7 +570,7 @@ func (pce *postgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*C
 }
 
 // GetConsentsByConsumer retrieves all consent records for a consumer
-func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*ConsentRecord, error) {
+func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
 		       created_at, updated_at, expires_at, grant_duration, fields,
@@ -581,10 +586,10 @@ func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*Con
 	}
 	defer rows.Close()
 
-	var records []*ConsentRecord
+	var records []*models.ConsentRecord
 
 	for rows.Next() {
-		var record ConsentRecord
+		var record models.ConsentRecord
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
@@ -603,4 +608,186 @@ func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*Con
 	}
 
 	return records, nil
+}
+
+// Utility functions for consent management
+
+// generateConsentID generates a unique consent ID
+func generateConsentID() string {
+	return fmt.Sprintf("consent_%s", uuid.New().String()[:8])
+}
+
+// getDefaultGrantDuration returns the default grant duration
+func getDefaultGrantDuration(duration string) string {
+	if duration == "" {
+		return "1h" // Default to 1 hour
+	}
+	return duration
+}
+
+// calculateExpiresAt calculates the expiry time based on grant duration
+func calculateExpiresAt(grantDuration string, createdAt time.Time) (time.Time, error) {
+	duration, err := parseISODuration(grantDuration)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid grant duration format: %w", err)
+	}
+	return createdAt.Add(duration), nil
+}
+
+// parseISODuration parses an ISO 8601 duration string and returns the duration
+// Supports formats like: P30D, P1M, P1Y, PT1H, PT30M, P1Y2M3DT4H5M6S
+func parseISODuration(duration string) (time.Duration, error) {
+	if duration == "" {
+		// Default to 1 hour if no duration specified
+		return time.Hour, nil
+	}
+
+	// Check if it's ISO 8601 format (starts with 'P')
+	if len(duration) > 0 && duration[0] == 'P' {
+		return parseISO8601Duration(duration)
+	}
+
+	// Fallback to legacy format parsing
+	return utils.ParseExpiryTime(duration)
+}
+
+// parseISO8601Duration parses an ISO 8601 duration string into a time.Duration
+func parseISO8601Duration(duration string) (time.Duration, error) {
+	// Validate ISO 8601 duration format
+	if !isValidISODuration(duration) {
+		return 0, fmt.Errorf("invalid ISO 8601 duration format: %s", duration)
+	}
+
+	// Remove the 'P' prefix
+	if len(duration) == 0 || duration[0] != 'P' {
+		return 0, fmt.Errorf("duration must start with 'P'")
+	}
+	duration = duration[1:]
+
+	var total time.Duration
+	var err error
+
+	// Check if there's a time component (starts with 'T')
+	timeIndex := -1
+	for i, char := range duration {
+		if char == 'T' {
+			timeIndex = i
+			break
+		}
+	}
+
+	// Parse date components (before 'T' or entire string if no 'T')
+	datePart := duration
+	if timeIndex != -1 {
+		datePart = duration[:timeIndex]
+	}
+
+	// Parse years
+	years, datePart, err := parseComponent(datePart, "Y")
+	if err != nil {
+		return 0, err
+	}
+	total += time.Duration(years) * 365 * 24 * time.Hour
+
+	// Parse months
+	months, datePart, err := parseComponent(datePart, "M")
+	if err != nil {
+		return 0, err
+	}
+	total += time.Duration(months) * 30 * 24 * time.Hour // Approximate month as 30 days
+
+	// Parse days
+	days, _, err := parseComponent(datePart, "D")
+	if err != nil {
+		return 0, err
+	}
+	total += time.Duration(days) * 24 * time.Hour
+
+	// Parse time components (after 'T')
+	if timeIndex != -1 {
+		timePart := duration[timeIndex+1:]
+
+		// Parse hours
+		hours, timePart, err := parseComponent(timePart, "H")
+		if err != nil {
+			return 0, err
+		}
+		total += time.Duration(hours) * time.Hour
+
+		// Parse minutes
+		minutes, timePart, err := parseComponent(timePart, "M")
+		if err != nil {
+			return 0, err
+		}
+		total += time.Duration(minutes) * time.Minute
+
+		// Parse seconds
+		seconds, _, err := parseComponent(timePart, "S")
+		if err != nil {
+			return 0, err
+		}
+		total += time.Duration(seconds) * time.Second
+	}
+
+	return total, nil
+}
+
+// isValidISODuration validates if a string is a valid ISO 8601 duration
+func isValidISODuration(duration string) bool {
+	// ISO 8601 duration pattern: P(\d+Y)?(\d+M)?(\d+D)?(T(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?
+	pattern := `^P(?:\d+Y)?(?:\d+M)?(?:\d+D)?(?:T(?:\d+H)?(?:\d+M)?(?:\d+(?:\.\d+)?S)?)?$`
+	matched, _ := regexp.MatchString(pattern, duration)
+	return matched
+}
+
+// parseComponent extracts a numeric component from a duration string
+func parseComponent(duration, suffix string) (int, string, error) {
+	pattern := fmt.Sprintf(`(\d+)%s`, suffix)
+	re := regexp.MustCompile(pattern)
+	matches := re.FindStringSubmatch(duration)
+
+	if len(matches) == 0 {
+		return 0, duration, nil
+	}
+
+	value, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, duration, err
+	}
+
+	// Remove the matched part from the duration string
+	remaining := re.ReplaceAllString(duration, "")
+	return value, remaining, nil
+}
+
+// getAllFields extracts all fields from data fields
+func getAllFields(dataFields []models.DataField) []string {
+	var allFields []string
+	for _, field := range dataFields {
+		allFields = append(allFields, field.Fields...)
+	}
+	return allFields
+}
+
+// isValidStatusTransition checks if a status transition is valid
+func isValidStatusTransition(current, new models.ConsentStatus) bool {
+	validTransitions := map[models.ConsentStatus][]models.ConsentStatus{
+		models.StatusPending:  {models.StatusApproved, models.StatusRejected, models.StatusExpired},                // Initial decision
+		models.StatusApproved: {models.StatusApproved, models.StatusRejected, models.StatusRevoked, models.StatusExpired}, // Direct approval flow: approved->approved (success), approved->rejected (direct rejection), approved->revoked (user revocation), approved->expired (expiry)
+		models.StatusRejected: {models.StatusExpired},                                                // Terminal state - can only transition to expired
+		models.StatusExpired:  {models.StatusExpired},                                                // Terminal state - can only stay expired
+		models.StatusRevoked:  {models.StatusExpired},                                                // Terminal state - can only transition to expired
+	}
+
+	allowed, exists := validTransitions[current]
+	if !exists {
+		return false
+	}
+
+	for _, status := range allowed {
+		if status == new {
+			return true
+		}
+	}
+	return false
 }
