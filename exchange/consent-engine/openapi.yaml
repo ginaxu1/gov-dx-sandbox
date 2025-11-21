@@ -4,8 +4,8 @@ info:
   description: |
     Handles consent creation, approval, and management for the OpenDIF Data Exchange Platform. 
     It uses a hybrid security model:
-    - **User-facing endpoints** (GET/PUT/PATCH/DELETE /consents/{id}) are protected by User JWTs from an identity provider for consent-portal access.
-    - **Internal endpoints** (POST /consents) require no authentication for service-to-service communication.
+    - **User-facing endpoints** (GET/PUT /consents/{id}) are protected by User JWTs from an identity provider for consent-portal access.
+    - **Internal endpoints** (POST /consents, PATCH/DELETE /consents/{id}) require no authentication for service-to-service communication.
   version: 1.1.0
   contact:
     name: OpenDIF Team
@@ -199,13 +199,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
     patch:
-      summary: Partially Update Consent (User)
-      description: Partially updates a consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
+      summary: Partially Update Consent (Internal)
+      description: Partially updates a consent record. Internal/system use only - no authentication required. Used for service-to-service communication.
       operationId: patchConsentById
       tags:
         - Consents
-      security:
-        - UserJWTAuth: []
+      security: []
       parameters:
         - name: consentId
           in: path
@@ -270,13 +269,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
     delete:
-      summary: Revoke Consent (User)
-      description: Revokes an active consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
+      summary: Revoke Consent (Internal)
+      description: Revokes an active consent record. Internal/system use only - no authentication required. Used for service-to-service communication.
       operationId: revokeConsent
       tags:
         - Consents
-      security:
-        - UserJWTAuth: []
+      security: []
       parameters:
         - name: consentId
           in: path

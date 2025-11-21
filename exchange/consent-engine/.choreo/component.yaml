@@ -63,6 +63,62 @@ configurations:
           required: true
           type: string
           default: require
+
+    # --- Service Configuration ---
+    - name: LOG_LEVEL
+      valueFrom:
+        configForm:
+          displayName: Log Level
+          required: false
+          type: string
+          default: info
+    - name: CONSENT_PORTAL_URL
+      valueFrom:
+        configForm:
+          displayName: Consent Portal URL
+          required: false
+          type: string
+          default: http://localhost:3000
+    - name: CONSENT_EXPIRY_CHECK_INTERVAL
+      valueFrom:
+        configForm:
+          displayName: Consent Expiry Check Interval
+          required: false
+          type: string
+          default: 1h
+
+    # --- JWT Authentication Configuration (Asgardeo) ---
+    - name: ASGARDEO_BASE_URL
+      valueFrom:
+        configForm:
+          displayName: Asgardeo Base URL
+          required: false
+          type: string
+    - name: ASGARDEO_ISSUER
+      valueFrom:
+        configForm:
+          displayName: Asgardeo Issuer URL
+          required: false
+          type: string
+    - name: ASGARDEO_JWKS_URL
+      valueFrom:
+        configForm:
+          displayName: Asgardeo JWKS URL
+          required: false
+          type: string
+    - name: ASGARDEO_ORG_NAME
+      valueFrom:
+        configForm:
+          displayName: Asgardeo Organization Name
+          required: false
+          type: string
+    - name: ASGARDEO_AUDIENCE
+      valueFrom:
+        configForm:
+          displayName: Asgardeo Audience
+          required: false
+          type: string
+
 dependencies:
     connectionReferences:
     - name: DB_CE

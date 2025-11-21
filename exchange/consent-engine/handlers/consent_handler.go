@@ -482,3 +482,28 @@ func (h *ConsentHandler) AdminHandler(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithJSON(w, http.StatusMethodNotAllowed, utils.ErrorResponse{Error: constants.StatusMethodNotAllowed})
 	}
 }
+
+// HandlePortalAction handles POST /consents/portal/actions
+func (h *ConsentHandler) HandlePortalAction(w http.ResponseWriter, r *http.Request) {
+	var req models.ConsentPortalRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Invalid JSON format"})
+		return
+	}
+
+	record, err := h.engine.ProcessConsentPortalRequest(req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			utils.RespondWithJSON(w, http.StatusNotFound, utils.ErrorResponse{Error: "Consent record not found"})
+		} else if strings.Contains(err.Error(), "invalid action") {
+			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: err.Error()})
+		} else {
+			utils.RespondWithJSON(w, http.StatusInternalServerError, utils.ErrorResponse{Error: "Failed to process portal request: " + err.Error()})
+		}
+		return
+	}
+
+	// Return simplified response format
+	response := record.ToConsentResponse()
+	utils.RespondWithJSON(w, http.StatusOK, response)
+}

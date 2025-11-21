@@ -106,22 +106,16 @@ func main() {
 	// Public endpoints (no auth required)
 	// POST /consents - Create consent
 	mux.HandleFunc("/consents", consentHandler.ConsentHandler)
+	// POST /consents/portal/actions - Handle portal actions (approve/deny/revoke)
+	mux.HandleFunc("/consents/portal/actions", consentHandler.HandlePortalAction)
 
 	// Protected endpoints (require user authentication)
 	// GET /consents/{id} - Get consent status
 	// PUT /consents/{id} - Update consent
-	// PATCH /consents/{id} - Partial update consent
-	// DELETE /consents/{id} - Revoke consent
-	// Note: Some methods on /consents/{id} might be public or have different auth requirements
-	// We'll use a selective auth middleware wrapper
+	// PATCH /consents/{id} - Partial update consent (Internal/System use)
+	// DELETE /consents/{id} - Revoke consent (Internal/System use)
+	// GET and PUT require auth, PATCH and DELETE do not
 	consentIDHandler := http.HandlerFunc(consentHandler.ConsentHandlerWithID)
-	// GET and PUT require auth, PATCH and DELETE do not (based on original implementation)
-	// Wait, original implementation had:
-	// - GET /consents/{id}: User Auth
-	// - PUT /consents/{id}: User Auth
-	// - PATCH /consents/{id}: No Auth (Internal/System use?)
-	// - DELETE /consents/{id}: No Auth (Internal/System use?)
-	// Let's replicate that logic
 	protectedMethods := []string{http.MethodGet, http.MethodPut}
 	mux.Handle("/consents/", middleware.SelectiveAuthMiddleware(userJWTVerifier, consentEngine, userTokenConfig, protectedMethods)(consentIDHandler))
 
