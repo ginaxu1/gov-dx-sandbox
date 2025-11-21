@@ -3,8 +3,8 @@ package federator
 import (
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/database"
 )
 
 // getEnvOrDefault gets an environment variable with a default value

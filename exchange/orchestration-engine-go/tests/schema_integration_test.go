@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 )
 
 // TestSchemaAPIEndpoints tests the HTTP API endpoints

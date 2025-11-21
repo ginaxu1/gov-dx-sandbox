@@ -251,8 +251,6 @@ func main() {
 	// Register the protected API routes to the top-level mux
 	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware chain
 	topLevelMux.Handle("/api/v1/", protectedAPIHandler)
-	// Register metrics endpoint
-	topLevelMux.Handle("/metrics", monitoring.Handler())
 
 	// Start server
 	port := os.Getenv("PORT")
@@ -263,7 +261,7 @@ func main() {
 	addr := ":" + port
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      monitoring.HTTPMetricsMiddleware(topLevelMux),
+		Handler:      topLevelMux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -305,23 +303,4 @@ func main() {
 	}
 
 	slog.Info("Portal Backend exited")
-}
-
-// statusRecorder wraps http.ResponseWriter to capture status code
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (s *statusRecorder) WriteHeader(statusCode int) {
-	s.status = statusCode
-	s.ResponseWriter.WriteHeader(statusCode)
-}
-
-func businessEventMiddleware(action string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(rec, r)
-		monitoring.RecordBusinessEvent(r.Context(), action, rec.status < 400)
-	})
 }
