@@ -6,15 +6,17 @@ import (
 	"net/http"
 	"os"
 	"runtime/debug"
+	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/database"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/database"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 	"github.com/go-chi/chi/v5"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 )
 
 type Response struct {
@@ -26,6 +28,7 @@ const DefaultPort = "4000"
 // RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
 	mux := chi.NewRouter()
+	mux.Use(monitoring.HTTPMetricsMiddleware)
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
@@ -64,6 +67,9 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
+	// Metrics endpoint
+	mux.Method("GET", "/metrics", monitoring.Handler())
+
 	// Schema management routes
 	mux.Get("/sdl", schemaHandler.GetActiveSchema)
 	mux.Post("/sdl", schemaHandler.CreateSchema)
@@ -76,6 +82,14 @@ func RunServer(f *federator.Federator) {
 
 	// Publicly accessible Endpoints
 	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {
+		const workflowName = "graphql_federation"
+		monitoring.WorkflowInFlightAdd(r.Context(), workflowName, 1)
+		workflowStart := time.Now()
+		defer func() {
+			monitoring.WorkflowInFlightAdd(r.Context(), workflowName, -1)
+			monitoring.RecordWorkflowDuration(r.Context(), workflowName, time.Since(workflowStart))
+		}()
+
 		// Parse request body
 		var req graphql.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -122,6 +136,8 @@ func RunServer(f *federator.Federator) {
 			logger.Log.Error("Failed to write response", "error", err)
 			return
 		}
+
+		monitoring.RecordBusinessEvent(r.Context(), "graphql_request", len(response.Errors) == 0)
 	})
 
 	// Start server
@@ -198,6 +214,10 @@ func getDatabaseConnectionString() string {
 
 		// Require password from environment - no default
 		if password == "" {
+			// Ensure logger is initialized
+			if logger.Log == nil {
+				logger.Init()
+			}
 			logger.Log.Warn("DB_PASSWORD not set - database connection may fail")
 		}
 	}

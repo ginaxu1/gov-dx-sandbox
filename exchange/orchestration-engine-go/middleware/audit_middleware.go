@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 )
 
 // AuditMiddleware handles audit logging for requests
@@ -52,6 +52,11 @@ type AuditLogResponse struct {
 // AuditHandler wraps an http.HandlerFunc with audit logging
 func (am *AuditMiddleware) AuditHandler(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Ensure logger is initialized
+		if logger.Log == nil {
+			logger.Init()
+		}
+
 		// Read the request body
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -104,6 +109,11 @@ func (am *AuditMiddleware) AuditHandler(next http.HandlerFunc) http.HandlerFunc 
 
 // sendAuditLog sends the audit log to the audit service
 func (am *AuditMiddleware) sendAuditLog(auditRequest AuditLogRequest, startTime time.Time) {
+	// Ensure logger is initialized
+	if logger.Log == nil {
+		logger.Init()
+	}
+
 	// Marshal the audit request
 	requestBody, err := json.Marshal(auditRequest)
 	if err != nil {
