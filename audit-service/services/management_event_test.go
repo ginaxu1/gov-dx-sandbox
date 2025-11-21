@@ -34,7 +34,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "CREATE",
 			Actor: models.Actor{
 				Type: "USER",
@@ -61,7 +61,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	t.Run("AutoGenerateEventID", func(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "MEMBER"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "UPDATE",
 			Actor: models.Actor{
 				Type: "USER",
@@ -83,7 +83,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		timestamp := "2024-01-01T00:00:00Z"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "DELETE",
 			Timestamp: timestamp,
 			Actor: models.Actor{
@@ -105,7 +105,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	t.Run("InvalidEventType", func(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "INVALID",
 			Actor: models.Actor{
 				Type: "USER",
@@ -126,7 +126,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	t.Run("InvalidActorType", func(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "CREATE",
 			Actor: models.Actor{
 				Type: "INVALID",
@@ -146,7 +146,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 
 	t.Run("MissingActorRoleForUSER", func(t *testing.T) {
 		actorID := "user-123"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "CREATE",
 			Actor: models.Actor{
 				Type: "USER",
@@ -167,7 +167,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	t.Run("InvalidActorRole", func(t *testing.T) {
 		actorID := "user-123"
 		invalidRole := "INVALID"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "CREATE",
 			Actor: models.Actor{
 				Type: "USER",
@@ -186,7 +186,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	})
 
 	t.Run("SERVICEActorType", func(t *testing.T) {
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "CREATE",
 			Actor: models.Actor{
 				Type: "SERVICE",
@@ -209,7 +209,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	t.Run("InvalidTargetResource", func(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "CREATE",
 			Actor: models.Actor{
 				Type: "USER",
@@ -234,7 +234,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			"key1": "value1",
 			"key2": 123,
 		}
-		req := &models.ManagementEventRequest{
+		req := &models.CreateManagementEventRequest{
 			EventType: "CREATE",
 			Actor: models.Actor{
 				Type: "USER",
@@ -267,7 +267,7 @@ func TestManagementEventService_GetManagementEvents(t *testing.T) {
 	actorID2 := "user-2"
 	actorRole2 := "MEMBER"
 
-	events := []*models.ManagementEventRequest{
+	events := []*models.CreateManagementEventRequest{
 		{
 			EventType: "CREATE",
 			Actor: models.Actor{

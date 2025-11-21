@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// ManagementEventRequest represents the request structure for management events
-type ManagementEventRequest struct {
+// CreateManagementEventRequest represents the request structure for management events
+type CreateManagementEventRequest struct {
 	Timestamp string                  `json:"timestamp" validate:"required"` // ISO 8601 timestamp
 	EventType string                  `json:"eventType" validate:"required"` // "CREATE", "UPDATE", "DELETE"
 	Status    string                  `json:"status" validate:"required"`    // "success", "failure"

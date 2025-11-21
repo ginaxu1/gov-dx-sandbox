@@ -23,14 +23,14 @@ func NewManagementEventHandler(managementEventService *services.ManagementEventS
 	}
 }
 
-// CreateEvent handles POST /api/events (for creating new management events)
-func (h *ManagementEventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
+// CreateManagementEvent handles POST /api/management-events (for creating new management events)
+func (h *ManagementEventHandler) CreateManagementEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req models.ManagementEventRequest
+	var req models.CreateManagementEventRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
 		return
@@ -54,15 +54,15 @@ func (h *ManagementEventHandler) CreateEvent(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// GetEvents handles GET /api/events (for querying management events)
-func (h *ManagementEventHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
+// GetManagementEvents handles GET /api/management-events (for querying management events)
+func (h *ManagementEventHandler) GetManagementEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Parse filter parameters
-	filter := h.parseEventFilterParams(r)
+	filter := h.parseManagementEventFilterParams(r)
 
 	// Get events
 	response, err := h.managementEventService.GetManagementEvents(r.Context(), filter)
@@ -82,53 +82,55 @@ func (h *ManagementEventHandler) GetEvents(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// parseEventFilterParams parses filter parameters from query string for management events
-func (h *ManagementEventHandler) parseEventFilterParams(r *http.Request) *models.ManagementEventFilter {
+// parseManagementEventFilterParams parses filter parameters from query string for management events
+func (h *ManagementEventHandler) parseManagementEventFilterParams(r *http.Request) *models.ManagementEventFilter {
 	filter := &models.ManagementEventFilter{}
 
 	// Parse query parameters
-	if eventType := r.URL.Query().Get("eventType"); eventType != "" {
+	query := r.URL.Query()
+
+	if eventType := query.Get("eventType"); eventType != "" {
 		filter.EventType = &eventType
 	}
 
-	if status := r.URL.Query().Get("status"); status != "" {
+	if status := query.Get("status"); status != "" {
 		filter.Status = &status
 	}
 
-	if actorType := r.URL.Query().Get("actorType"); actorType != "" {
+	if actorType := query.Get("actorType"); actorType != "" {
 		filter.ActorType = &actorType
 	}
 
-	if actorID := r.URL.Query().Get("actorId"); actorID != "" {
+	if actorID := query.Get("actorId"); actorID != "" {
 		filter.ActorID = &actorID
 	}
 
-	if actorRole := r.URL.Query().Get("actorRole"); actorRole != "" {
+	if actorRole := query.Get("actorRole"); actorRole != "" {
 		filter.ActorRole = &actorRole
 	}
 
-	if targetResource := r.URL.Query().Get("targetResource"); targetResource != "" {
+	if targetResource := query.Get("targetResource"); targetResource != "" {
 		filter.TargetResource = &targetResource
 	}
 
-	if targetResourceID := r.URL.Query().Get("targetResourceId"); targetResourceID != "" {
+	if targetResourceID := query.Get("targetResourceId"); targetResourceID != "" {
 		filter.TargetResourceID = &targetResourceID
 	}
 
-	if startDateStr := r.URL.Query().Get("startDate"); startDateStr != "" {
+	if startDateStr := query.Get("startDate"); startDateStr != "" {
 		if startDate, err := time.Parse("2006-01-02", startDateStr); err == nil {
 			filter.StartDate = &startDate
 		}
 	}
 
-	if endDateStr := r.URL.Query().Get("endDate"); endDateStr != "" {
+	if endDateStr := query.Get("endDate"); endDateStr != "" {
 		if endDate, err := time.Parse("2006-01-02", endDateStr); err == nil {
 			filter.EndDate = &endDate
 		}
 	}
 
 	// Parse pagination parameters
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+	if limitStr := query.Get("limit"); limitStr != "" {
 		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 && limit <= 1000 {
 			filter.Limit = limit
 		}
@@ -136,7 +138,7 @@ func (h *ManagementEventHandler) parseEventFilterParams(r *http.Request) *models
 		filter.Limit = 50 // Default limit
 	}
 
-	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+	if offsetStr := query.Get("offset"); offsetStr != "" {
 		if offset, err := strconv.Atoi(offsetStr); err == nil && offset >= 0 {
 			filter.Offset = offset
 		}

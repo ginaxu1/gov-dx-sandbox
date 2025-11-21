@@ -21,7 +21,7 @@ func NewManagementEventService(db *gorm.DB) *ManagementEventService {
 }
 
 // CreateManagementEvent creates a new management event
-func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req *models.ManagementEventRequest) (*models.ManagementEvent, error) {
+func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req *models.CreateManagementEventRequest) (*models.ManagementEvent, error) {
 	// Parse and validate timestamp
 	if req.Timestamp == "" {
 		return nil, fmt.Errorf("timestamp is required")
@@ -171,10 +171,13 @@ func (s *ManagementEventService) GetManagementEvents(ctx context.Context, filter
 		return nil, fmt.Errorf("failed to query management events: %w", err)
 	}
 
-	return &models.ManagementEventResponse{
+	response := &models.ManagementEventResponse{
 		Events: events,
 		Total:  total,
 		Limit:  limit,
 		Offset: filter.Offset,
-	}, nil
+	}
+
+	slog.Debug("Retrieved management events", "count", len(events))
+	return response, nil
 }

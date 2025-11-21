@@ -7,19 +7,17 @@ info:
     This service provides endpoints for two distinct audit logging cases:
     
     **CASE 1: Data Exchange Auditing**
-    - Creating data exchange audit logs (POST /v1/audit/exchange)
+    - Creating data exchange audit logs (POST /api/data-exchange-events)
+    - Retrieving data exchange audit logs (GET /api/data-exchange-events)
     - Logs data access requests from Consumer Apps to Provider Data Sources via Orchestration Engine
     
     **CASE 2: Management Portal Auditing**
-    - Creating management event logs (POST /api/events)
-    - Retrieving management event logs (GET /api/events)
+    - Creating management event logs (POST /api/management-events)
+    - Retrieving management event logs (GET /api/management-events)
     - Logs administrative actions (Member/Admin operations on schemas, applications, members, etc.)
     
-    **Query Endpoints**
-    - Retrieving audit logs for different portals (GET /api/logs)
-    
     The service maintains a comprehensive audit trail of all data access requests
-    and management operations with simplified log structure for easy consumption by admin and entity portals.
+    and management operations with filtering and pagination support for admin and entity portals.
   version: 1.0.0
   contact:
     name: OpenDIF Team
@@ -53,9 +51,12 @@ paths:
               schema:
                 type: object
                 properties:
+                  service:
+                    type: string
+                    example: "audit-service"
                   status:
                     type: string
-                    example: healthy
+                    example: "healthy"
         '500':
           description: Service is unhealthy
           content:
@@ -70,36 +71,173 @@ paths:
                     type: string
                     example: "Service unavailable"
 
-  /api/logs:
+  /version:
     get:
-      summary: Get Logs
-      description: |
-        Retrieve audit logs with optional filtering. Supports filtering by consumerId, providerId, status, and date range.
-        
-        **For Admin Portal**: Call without parameters to get all logs
-        **For Entity Portal (Consumer)**: Call with `?consumerId={consumerId}` to get logs for a specific consumer
-        **For Entity Portal (Provider)**: Call with `?providerId={providerId}` to get logs for a specific provider
-      operationId: getLogs
+      summary: Version Information
+      description: Get version and build information for the audit service
+      operationId: getVersion
       tags:
-        - Logs
+        - Health
+      security: []
+      
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  buildTime:
+                    type: string
+                    example: "2024-01-15T10:30:00Z"
+                  gitCommit:
+                    type: string
+                    example: "abc123def"
+                  service:
+                    type: string
+                    example: "audit-service"
+
+  /api/data-exchange-events:
+    post:
+      summary: Create Data Exchange Event
+      description: |
+        Create a data exchange audit log entry. This endpoint is called by the Orchestration Engine
+        after receiving a response from each data provider during a GraphQL query federation.
+        
+        Each provider interaction is logged separately with:
+        - Which application requested the data (applicationId)
+        - Which member owns the consumer application (consumerId - optional)
+        - On behalf of whom (onBehalfOfOwnerId - the citizen/data owner)
+        - Which provider schema was accessed (schemaId)
+        - Which member owns the provider schema (providerId - optional)
+        - What data was requested (requestedData as JSON)
+        - Whether the request succeeded or failed (status)
+      operationId: createDataExchangeEvent
+      tags:
+        - Data Exchange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDataExchangeEventRequest'
+            examples:
+              success_event:
+                summary: Successful Data Exchange
+                value:
+                  timestamp: "2024-01-15T10:30:00Z"
+                  status: "success"
+                  applicationId: "passport-app"
+                  schemaId: "hospital-schema-v1"
+                  requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
+                  onBehalfOfOwnerId: "citizen-abc"
+                  consumerId: "member-consumer-123"
+                  providerId: "member-provider-456"
+                  additionalInfo: {"sourceIp": "192.168.1.1"}
+              failure_event:
+                summary: Failed Data Exchange
+                value:
+                  timestamp: "2024-01-15T10:35:00Z"
+                  status: "failure"
+                  applicationId: "passport-app"
+                  schemaId: "hospital-schema-v1"
+                  requestedData: {"fields": ["personInfo.name"]}
+                  onBehalfOfOwnerId: "citizen-abc"
+                  consumerId: "member-consumer-123"
+                  providerId: "member-provider-456"
+      responses:
+        '201':
+          description: Data exchange event logged successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataExchangeEventResponse'
+              example:
+                id: "550e8400-e29b-41d4-a716-446655440000"
+                timestamp: "2024-01-15T10:30:00Z"
+                status: "success"
+                applicationId: "passport-app"
+                schemaId: "hospital-schema-v1"
+                requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
+                onBehalfOfOwnerId: "citizen-abc"
+                consumerId: "member-consumer-123"
+                providerId: "member-provider-456"
+                additionalInfo: {"sourceIp": "192.168.1.1"}
+                createdAt: "2024-01-15T10:30:00Z"
+        '400':
+          description: Bad request - invalid event data (missing required fields or invalid status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_application_id:
+                  value:
+                    error: "Missing required field: applicationId"
+                missing_schema_id:
+                  value:
+                    error: "Missing required field: schemaId"
+                missing_timestamp:
+                  value:
+                    error: "Missing required field: timestamp"
+                invalid_status:
+                  value:
+                    error: "Invalid status. Must be 'success' or 'failure'"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: Get Data Exchange Events
+      description: |
+        Retrieve data exchange event logs with optional filtering. Supports filtering by applicationId, 
+        schemaId, consumerId, providerId, status, and date range.
+        
+        **For Admin Portal**: Call without parameters to get all events
+        **For Entity Portal (Consumer)**: Call with `?consumerId={consumerId}` to get events for a specific consumer
+        **For Entity Portal (Provider)**: Call with `?providerId={providerId}` to get events for a specific provider
+      operationId: getDataExchangeEvents
+      tags:
+        - Data Exchange
       parameters:
+        - name: applicationId
+          in: query
+          description: Filter by application ID
+          required: false
+          schema:
+            type: string
+            example: "passport-app"
+        - name: schemaId
+          in: query
+          description: Filter by schema ID
+          required: false
+          schema:
+            type: string
+            example: "hospital-schema-v1"
         - name: consumerId
           in: query
-          description: Filter logs by consumer ID
+          description: Filter by consumer ID (member)
           required: false
           schema:
             type: string
-            example: "consumer-123"
+            example: "member-consumer-123"
         - name: providerId
           in: query
-          description: Filter logs by provider ID
+          description: Filter by provider ID (member)
           required: false
           schema:
             type: string
-            example: "provider-456"
+            example: "member-provider-456"
         - name: status
           in: query
-          description: Filter logs by status
+          description: Filter by status
           required: false
           schema:
             type: string
@@ -107,7 +245,7 @@ paths:
             example: "success"
         - name: startDate
           in: query
-          description: Filter logs from this date (YYYY-MM-DD format)
+          description: Filter events from this date (YYYY-MM-DD format)
           required: false
           schema:
             type: string
@@ -115,7 +253,7 @@ paths:
             example: "2024-01-01"
         - name: endDate
           in: query
-          description: Filter logs until this date (YYYY-MM-DD format)
+          description: Filter events until this date (YYYY-MM-DD format)
           required: false
           schema:
             type: string
@@ -123,7 +261,7 @@ paths:
             example: "2024-12-31"
         - name: limit
           in: query
-          description: Maximum number of logs to return (default 50, max 1000)
+          description: Maximum number of events to return (default 50, max 1000)
           required: false
           schema:
             type: integer
@@ -133,7 +271,7 @@ paths:
           example: 100
         - name: offset
           in: query
-          description: Number of logs to skip for pagination
+          description: Number of events to skip for pagination
           required: false
           schema:
             type: integer
@@ -142,44 +280,35 @@ paths:
           example: 0
       responses:
         '200':
-          description: Successfully retrieved logs
+          description: Successfully retrieved data exchange events
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogResponse'
-              examples:
-                admin_portal:
-                  summary: Admin Portal Response
-                  value:
-                    logs:
-                      - id: "550e8400-e29b-41d4-a716-446655440000"
-                        timestamp: "2024-01-15T10:30:00Z"
-                        status: "success"
-                        requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
-                        consumerId: "consumer-123"
-                        providerId: "provider-456"
-                      - id: "550e8400-e29b-41d4-a716-446655440001"
-                        timestamp: "2024-01-15T10:25:00Z"
-                        status: "failure"
-                        requestedData: "query { vehicleInfo(plate: \"ABC-1234\") { model } }"
-                        consumerId: "consumer-789"
-                        providerId: "provider-456"
-                    total: 2
-                    limit: 50
-                    offset: 0
-                consumer_portal:
-                  summary: Consumer Portal Response
-                  value:
-                    logs:
-                      - id: "550e8400-e29b-41d4-a716-446655440000"
-                        timestamp: "2024-01-15T10:30:00Z"
-                        status: "success"
-                        requestedData: "query { personInfo(nic: \"199512345678\") { fullName } }"
-                        consumerId: "consumer-123"
-                        providerId: "provider-456"
-                    total: 1
-                    limit: 50
-                    offset: 0
+                $ref: '#/components/schemas/DataExchangeEventListResponse'
+              example:
+                total: 2
+                limit: 50
+                offset: 0
+                events:
+                  - id: "550e8400-e29b-41d4-a716-446655440000"
+                    timestamp: "2024-01-15T10:30:00Z"
+                    status: "success"
+                    applicationId: "passport-app"
+                    schemaId: "hospital-schema-v1"
+                    requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
+                    onBehalfOfOwnerId: "citizen-abc"
+                    consumerId: "member-consumer-123"
+                    providerId: "member-provider-456"
+                    createdAt: "2024-01-15T10:30:00Z"
+                  - id: "550e8400-e29b-41d4-a716-446655440001"
+                    timestamp: "2024-01-15T10:25:00Z"
+                    status: "failure"
+                    applicationId: "passport-app"
+                    schemaId: "hospital-schema-v1"
+                    requestedData: {"fields": ["personInfo.name"]}
+                    consumerId: "member-consumer-123"
+                    providerId: "member-provider-456"
+                    createdAt: "2024-01-15T10:25:00Z"
         '400':
           description: Bad request - invalid query parameters
           content:
@@ -193,103 +322,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /v1/audit/exchange:
-    post:
-      summary: Create Data Exchange Event
-      description: |
-        Create a data exchange audit log entry. This endpoint is called by the Orchestration Engine
-        after receiving a response from each data provider during a GraphQL query federation.
-        
-        Each provider interaction is logged separately with:
-        - Who requested the data (actorUserId, consumerAppId)
-        - Which member owns the consumer application (consumerId - REQUIRED)
-        - On behalf of whom (onBehalfOfOwnerId - the citizen/data owner)
-        - Which provider schema was accessed (providerSchemaId)
-        - Which member owns the provider schema (providerId - REQUIRED)
-        - What fields were requested (requestedFields)
-        - Whether the request succeeded or failed (status)
-      operationId: createDataExchangeEvent
-      tags:
-        - Data Exchange
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DataExchangeEvent'
-            examples:
-              success_event:
-                summary: Successful Data Exchange
-                value:
-                  eventId: "550e8400-e29b-41d4-a716-446655440000"
-                  timestamp: "2024-01-15T10:30:00Z"
-                  actorUserId: "user-123"
-                  consumerAppId: "passport-app"
-                  consumerId: "member-consumer-123"
-                  onBehalfOfOwnerId: "citizen-abc"
-                  providerSchemaId: "hospital-schema-v1"
-                  providerId: "member-provider-456"
-                  requestedFields:
-                    - "personInfo.name"
-                    - "personInfo.address"
-                  status: "SUCCESS"
-              failure_event:
-                summary: Failed Data Exchange
-                value:
-                  eventId: "550e8400-e29b-41d4-a716-446655440001"
-                  timestamp: "2024-01-15T10:35:00Z"
-                  actorUserId: "user-123"
-                  consumerAppId: "passport-app"
-                  consumerId: "member-consumer-123"
-                  onBehalfOfOwnerId: "citizen-abc"
-                  providerSchemaId: "hospital-schema-v1"
-                  providerId: "member-provider-456"
-                  requestedFields:
-                    - "personInfo.name"
-                  status: "FAILURE"
-      responses:
-        '201':
-          description: Data exchange event logged successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Log'
-              example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
-                timestamp: "2024-01-15T10:30:00Z"
-                status: "success"
-                requestedData: '["personInfo.name","personInfo.address"]'
-                applicationId: "passport-app"
-                schemaId: "hospital-schema-v1"
-                consumerId: "member-consumer-123"
-                providerId: "member-provider-456"
-        '400':
-          description: Bad request - invalid event data (missing required fields or invalid status)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                missing_consumer_app_id:
-                  value:
-                    error: "Missing required field: consumerAppId"
-                missing_consumer_id:
-                  value:
-                    error: "Missing required field: consumerId (member ID who owns the consumer application)"
-                missing_provider_id:
-                  value:
-                    error: "Missing required field: providerId (member ID who owns the provider schema)"
-                invalid_status:
-                  value:
-                    error: "Invalid status. Must be 'SUCCESS' or 'FAILURE'"
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/events:
+  /api/management-events:
     post:
       summary: Create Management Event
       description: |
@@ -314,12 +347,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ManagementEventRequest'
+              $ref: '#/components/schemas/CreateManagementEventRequest'
             examples:
               user_create_schema:
                 summary: User Creates Schema
                 value:
+                  timestamp: "2024-01-15T10:30:00Z"
                   eventType: "CREATE"
+                  status: "success"
                   actor:
                     type: "USER"
                     id: "user-123"
@@ -330,7 +365,9 @@ paths:
               user_update_application:
                 summary: User Updates Application
                 value:
+                  timestamp: "2024-01-15T10:30:00Z"  
                   eventType: "UPDATE"
+                  status: "success"
                   actor:
                     type: "USER"
                     id: "user-456"
@@ -344,7 +381,9 @@ paths:
               service_policy_update:
                 summary: Service Updates Policy Metadata
                 value:
+                  timestamp: "2024-01-15T10:30:00Z"
                   eventType: "UPDATE"
+                  status: "success"
                   actor:
                     type: "SERVICE"
                   target:
@@ -359,8 +398,8 @@ paths:
                 $ref: '#/components/schemas/ManagementEvent'
               example:
                 id: "550e8400-e29b-41d4-a716-446655440000"
-                eventId: "550e8400-e29b-41d4-a716-446655440001"
                 eventType: "CREATE"
+                status: "success"
                 timestamp: "2024-01-15T10:30:00Z"
                 actorType: "USER"
                 actorId: "user-123"
@@ -415,8 +454,16 @@ paths:
           required: false
           schema:
             type: string
-            enum: [CREATE, UPDATE, DELETE, READ]
+            enum: [CREATE, UPDATE, DELETE]
             example: "CREATE"
+        - name: status
+          in: query
+          description: Filter events by status
+          required: false
+          schema:
+            type: string
+            enum: [success, failure]
+            example: "success"
         - name: actorType
           in: query
           description: Filter events by actor type
@@ -503,8 +550,8 @@ paths:
                   value:
                     events:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
-                        eventId: "550e8400-e29b-41d4-a716-446655440001"
                         eventType: "CREATE"
+                        status: "success"
                         timestamp: "2024-01-15T10:30:00Z"
                         actorType: "USER"
                         actorId: "user-123"
@@ -514,8 +561,8 @@ paths:
                         metadata: null
                         createdAt: "2024-01-15T10:30:00Z"
                       - id: "550e8400-e29b-41d4-a716-446655440002"
-                        eventId: "550e8400-e29b-41d4-a716-446655440003"
                         eventType: "UPDATE"
+                        status: "success"
                         timestamp: "2024-01-15T10:25:00Z"
                         actorType: "SERVICE"
                         actorId: null
@@ -532,8 +579,8 @@ paths:
                   value:
                     events:
                       - id: "550e8400-e29b-41d4-a716-446655440000"
-                        eventId: "550e8400-e29b-41d4-a716-446655440001"
                         eventType: "CREATE"
+                        status: "success"
                         timestamp: "2024-01-15T10:30:00Z"
                         actorType: "USER"
                         actorId: "user-123"
@@ -560,83 +607,6 @@ paths:
 
 components:
   schemas:
-    Log:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
-        timestamp:
-          type: string
-          format: date-time
-          example: "2024-01-15T10:30:00Z"
-        status:
-          type: string
-          enum: [success, failure]
-          example: "success"
-        requestedData:
-          type: string
-          description: The GraphQL query that was requested
-          example: "query { personInfo(nic: \"199512345678\") { fullName } }"
-        consumerId:
-          type: string
-          example: "consumer-123"
-        providerId:
-          type: string
-          example: "provider-456"
-      required:
-        - id
-        - timestamp
-        - status
-        - requestedData
-
-    LogRequest:
-      type: object
-      properties:
-        status:
-          type: string
-          enum: [success, failure]
-          example: "success"
-        requestedData:
-          type: string
-          description: The GraphQL query that was requested
-          example: "query { personInfo(nic: \"199512345678\") { fullName } }"
-        consumerId:
-          type: string
-          example: "consumer-123"
-        providerId:
-          type: string
-          example: "provider-456"
-      required:
-        - status
-        - requestedData
-
-    LogResponse:
-      type: object
-      properties:
-        logs:
-          type: array
-          items:
-            $ref: '#/components/schemas/Log'
-        total:
-          type: integer
-          description: Total number of logs matching the filter
-          example: 150
-        limit:
-          type: integer
-          description: Maximum number of logs returned
-          example: 50
-        offset:
-          type: integer
-          description: Number of logs skipped for pagination
-          example: 0
-      required:
-        - logs
-        - total
-        - limit
-        - offset
-
     ErrorResponse:
       type: object
       properties:
@@ -655,106 +625,204 @@ components:
       required:
         - error
 
-    DataExchangeEvent:
+    CreateDataExchangeEventRequest:
       type: object
       description: |
-        Data exchange event structure - sent by Orchestration Engine.
+        Data exchange event request structure - sent by Orchestration Engine.
         
         **Required Fields:**
-        - `consumerAppId`: The consumer application that made the request
-        - `consumerId`: The member ID who owns the consumer application (REQUIRED for data exchange events)
-        - `providerSchemaId`: The provider schema that was accessed
-        - `providerId`: The member ID who owns the provider schema (REQUIRED for data exchange events)
-        - `status`: Whether the request succeeded or failed
+        - `timestamp`: ISO 8601 timestamp when the event occurred
+        - `status`: Whether the request succeeded or failed ("success" or "failure") 
+        - `applicationId`: The consumer application that made the request
+        - `schemaId`: The provider schema that was accessed
+        - `requestedData`: JSON object containing the requested data/fields
         
-        These member IDs are essential for answering the business question: "Show me all data exchanges where Consumer-Member-A accessed data from Provider-Member-B."
+        **Optional Fields:**
+        - `consumerId`: The member ID who owns the consumer application
+        - `providerId`: The member ID who owns the provider schema
+        - `onBehalfOfOwnerId`: Citizen ID (data owner) on whose behalf the data is requested
+        - `additionalInfo`: Additional context as JSON
       properties:
-        eventId:
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the event occurred
+          example: "2024-01-15T10:30:00Z"
+        status:
+          type: string
+          enum: [success, failure]
+          description: Whether the data exchange request succeeded or failed
+          example: "success"
+        applicationId:
+          type: string
+          description: Consumer application ID (e.g., "passport-app")
+          example: "passport-app"
+        schemaId:
+          type: string
+          description: Provider schema ID that was accessed
+          example: "hospital-schema-v1"
+        requestedData:
+          type: object
+          description: JSON object containing the requested data/fields
+          example:
+            fields: ["personInfo.name", "personInfo.address"]
+        onBehalfOfOwnerId:
+          type: string
+          nullable: true
+          description: Citizen ID (data owner) on whose behalf the data is requested
+          example: "citizen-abc"
+        consumerId:
+          type: string
+          nullable: true
+          description: Member ID who owns the consumer application
+          example: "member-consumer-123"
+        providerId:
+          type: string
+          nullable: true
+          description: Member ID who owns the provider schema
+          example: "member-provider-456"
+        additionalInfo:
+          type: object
+          nullable: true
+          description: Additional context as JSON
+          example:
+            sourceIp: "192.168.1.1"
+      required:
+        - timestamp
+        - status
+        - applicationId
+        - schemaId
+        - requestedData
+
+    DataExchangeEventResponse:
+      type: object
+      description: Data exchange event response structure
+      properties:
+        id:
           type: string
           format: uuid
-          description: Unique event identifier
+          description: Unique database identifier
           example: "550e8400-e29b-41d4-a716-446655440000"
         timestamp:
           type: string
           format: date-time
           description: ISO 8601 timestamp when the event occurred
           example: "2024-01-15T10:30:00Z"
-        actorUserId:
+        status:
           type: string
-          description: User ID who is requesting (consumer subscriber)
-          example: "user-123"
-        consumerAppId:
+          enum: [success, failure]
+          description: Whether the data exchange request succeeded or failed
+          example: "success"
+        applicationId:
           type: string
-          description: Consumer application ID (e.g., "passport-app")
+          description: Consumer application ID 
           example: "passport-app"
-        consumerId:
-          type: string
-          description: Member ID who owns the consumer application (REQUIRED for data exchange events)
-          example: "member-consumer-123"
-        onBehalfOfOwnerId:
-          type: string
-          description: Citizen ID (data owner) on whose behalf the data is requested
-          example: "citizen-abc"
-        providerSchemaId:
+        schemaId:
           type: string
           description: Provider schema ID that was accessed
           example: "hospital-schema-v1"
+        requestedData:
+          type: object
+          description: JSON object containing the requested data/fields
+          example:
+            fields: ["personInfo.name", "personInfo.address"]
+        onBehalfOfOwnerId:
+          type: string
+          nullable: true
+          description: Citizen ID (data owner) on whose behalf the data is requested
+          example: "citizen-abc"
+        consumerId:
+          type: string
+          nullable: true
+          description: Member ID who owns the consumer application
+          example: "member-consumer-123"
         providerId:
           type: string
-          description: Member ID who owns the provider schema (REQUIRED for data exchange events)
+          nullable: true
+          description: Member ID who owns the provider schema
           example: "member-provider-456"
-        requestedFields:
-          type: array
-          description: List of requested fields from the provider
-          items:
-            type: string
+        additionalInfo:
+          type: object
+          nullable: true
+          description: Additional context as JSON
           example:
-            - "personInfo.name"
-            - "personInfo.address"
-        status:
+            sourceIp: "192.168.1.1"
+        createdAt:
           type: string
-          enum: [SUCCESS, FAILURE]
-          description: Whether the data exchange request succeeded or failed
-          example: "SUCCESS"
+          format: date-time
+          description: When the record was created in the database
+          example: "2024-01-15T10:30:00Z"
       required:
-        - consumerAppId
-        - consumerId
-        - providerSchemaId
-        - providerId
+        - id
+        - timestamp
         - status
+        - applicationId
+        - schemaId
+        - requestedData
+        - createdAt
 
-    ManagementEventRequest:
+    DataExchangeEventListResponse:
+      type: object
+      description: Paginated list response for data exchange events
+      properties:
+        total:
+          type: integer
+          format: int64
+          description: Total number of events matching the filter
+          example: 150
+        limit:
+          type: integer
+          description: Maximum number of events returned
+          example: 50
+        offset:
+          type: integer
+          description: Number of events skipped for pagination
+          example: 0
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataExchangeEventResponse'
+      required:
+        - total
+        - limit
+        - offset
+        - events
+
+    CreateManagementEventRequest:
       type: object
       description: Management event request structure - sent by API Server
       properties:
-        eventId:
-          type: string
-          format: uuid
-          description: Unique event identifier (optional, auto-generated if not provided)
-          example: "550e8400-e29b-41d4-a716-446655440001"
         timestamp:
           type: string
           format: date-time
-          description: ISO 8601 timestamp when the event occurred (optional, uses current time if not provided)
+          description: ISO 8601 timestamp when the event occurred
           example: "2024-01-15T10:30:00Z"
         eventType:
           type: string
-          enum: [CREATE, UPDATE, DELETE, READ]
+          enum: [CREATE, UPDATE, DELETE]
           description: Type of event/operation performed
           example: "CREATE"
+        status:
+          type: string
+          enum: [success, failure]
+          description: Whether the operation succeeded or failed
+          example: "success"
         actor:
           $ref: '#/components/schemas/Actor'
         target:
           $ref: '#/components/schemas/Target'
         metadata:
           type: object
+          nullable: true
           description: Optional additional context (e.g., old values, new values for UPDATE operations)
           additionalProperties: true
           example:
             oldValue: "old-schema-name"
             newValue: "new-schema-name"
       required:
+        - timestamp
         - eventType
+        - status
         - actor
         - target
 
@@ -792,11 +860,11 @@ components:
           example: "SCHEMAS"
         resourceId:
           type: string
-          description: ID of the resource
+          nullable: true
+          description: ID of the resource (can be null for CREATE failures)
           example: "schema-456"
       required:
         - resource
-        - resourceId
 
     ManagementEvent:
       type: object
@@ -807,16 +875,16 @@ components:
           format: uuid
           description: Primary key (database ID)
           example: "550e8400-e29b-41d4-a716-446655440000"
-        eventId:
-          type: string
-          format: uuid
-          description: Unique event identifier
-          example: "550e8400-e29b-41d4-a716-446655440001"
         eventType:
           type: string
-          enum: [CREATE, UPDATE, DELETE, READ]
+          enum: [CREATE, UPDATE, DELETE]
           description: Type of event/operation performed
           example: "CREATE"
+        status:
+          type: string
+          enum: [success, failure]
+          description: Whether the operation succeeded or failed
+          example: "success"
         timestamp:
           type: string
           format: date-time
@@ -845,7 +913,8 @@ components:
           example: "SCHEMAS"
         targetResourceId:
           type: string
-          description: ID of the resource that was acted upon
+          nullable: true
+          description: ID of the resource that was acted upon (can be null for CREATE failures)
           example: "schema-456"
         metadata:
           type: object
@@ -862,17 +931,16 @@ components:
           example: "2024-01-15T10:30:00Z"
       required:
         - id
-        - eventId
         - eventType
+        - status
         - timestamp
         - actorType
         - targetResource
-        - targetResourceId
         - createdAt
 
     ManagementEventResponse:
       type: object
-      description: Response structure for GET /api/events
+      description: Response structure for GET /api/management-events
       properties:
         events:
           type: array
@@ -880,6 +948,7 @@ components:
             $ref: '#/components/schemas/ManagementEvent'
         total:
           type: integer
+          format: int64
           description: Total number of events matching the filter
           example: 150
         limit:
@@ -899,8 +968,7 @@ components:
 tags:
   - name: Health
     description: Health check endpoints
-  - name: Logs
-    description: Query endpoint for retrieving data exchange audit logs (for Admin Portal and Entity Portals)
+
   - name: Data Exchange
     description: Data exchange audit logging - called by Orchestration Engine
   - name: Management Events
