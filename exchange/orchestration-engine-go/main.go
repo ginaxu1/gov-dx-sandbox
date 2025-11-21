@@ -2,10 +2,12 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/server"
 )
@@ -18,6 +20,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// Initialize audit middleware
+	auditServiceURL := os.Getenv("CHOREO_AUDIT_CONNECTION_SERVICEURL")
+	middleware.NewAuditMiddleware(auditServiceURL)
 
 	var providerHandler = provider.NewProviderHandler(config.GetProviders())
 
