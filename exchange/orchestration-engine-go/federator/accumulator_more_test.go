@@ -25,8 +25,8 @@ func TestAccumulateResponse_SimpleBackwardCompatibility(t *testing.T) {
 	queryDoc := ParseTestQuery(t, query)
 
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
+		Responses: []*ProviderResponse{
+			&ProviderResponse{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -167,8 +167,8 @@ func TestAccumulateResponseWithSchema_NoSourceInfo(t *testing.T) {
 	schema := CreateTestSchema(t)
 
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
+		Responses: []*ProviderResponse{
+			&ProviderResponse{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -200,7 +200,7 @@ func TestAccumulateResponseWithSchema_EmptyResponse(t *testing.T) {
 	schema := CreateTestSchema(t)
 
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{},
+		Responses: []*ProviderResponse{},
 	}
 
 	response := AccumulateResponseWithSchema(queryDoc, federatedResponse, schema)
@@ -221,8 +221,8 @@ func TestAccumulateResponseWithSchema_MultipleProviders(t *testing.T) {
 	schema := CreateTestSchema(t)
 
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
+		Responses: []*ProviderResponse{
+			&ProviderResponse{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -232,7 +232,7 @@ func TestAccumulateResponseWithSchema_MultipleProviders(t *testing.T) {
 					},
 				},
 			},
-			{
+			&ProviderResponse{
 				ServiceKey: "rgd",
 				Response: graphql.Response{
 					Data: map[string]interface{}{

@@ -28,8 +28,8 @@ func TestAccumulateResponse_SingleObject(t *testing.T) {
 
 	// Mock federated response
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
+		Responses: []*ProviderResponse{
+			&ProviderResponse{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -40,7 +40,7 @@ func TestAccumulateResponse_SingleObject(t *testing.T) {
 					},
 				},
 			},
-			{
+			&ProviderResponse{
 				ServiceKey: "rgd",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -88,8 +88,8 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 
 	// Mock federated response with array data
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
+		Responses: []*ProviderResponse{
+			&ProviderResponse{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -99,7 +99,7 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 					},
 				},
 			},
-			{
+			&ProviderResponse{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -356,8 +356,8 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 
 	// Mock federated response with both object and array data
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
+		Responses: []*ProviderResponse{
+			&ProviderResponse{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -367,7 +367,7 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 					},
 				},
 			},
-			{
+			&ProviderResponse{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{

@@ -37,37 +37,6 @@ func (s *PDPService) setAuthHeader(req *http.Request) {
 	req.Header.Set("apikey", s.apiKey)
 }
 
-// HealthCheck checks the health of the PDP service
-func (s *PDPService) HealthCheck() error {
-	// Create request
-	url := s.baseURL + "/health"
-	httpReq, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create health check request: %w", err)
-	}
-
-	// Set auth header
-	s.setAuthHeader(httpReq)
-
-	// Send request
-	resp, err := s.HTTPClient.Do(httpReq)
-	if err != nil {
-		return err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			slog.Error("failed to close response body", "error", err)
-		}
-	}(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("PDP service health check failed with status: %s", resp.Status)
-	}
-
-	return nil
-}
-
 // CreatePolicyMetadata sends a request to create policy metadata in the PDP
 func (s *PDPService) CreatePolicyMetadata(schemaId string, sdl string) (*models.PolicyMetadataCreateResponse, error) {
 	// parse SDL and create policy metadata request

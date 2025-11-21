@@ -29,8 +29,8 @@ func TestAccumulateResponseWithSchemaInfo(t *testing.T) {
 	queryDoc := ParseTestQuery(t, query)
 
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{
-			{
+		Responses: []*ProviderResponse{
+			&ProviderResponse{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -98,7 +98,7 @@ func TestAccumulateArrayResponse_ErrorCases(t *testing.T) {
 	}
 
 	federatedResponse := &FederationResponse{
-		Responses: []ProviderResponse{},
+		Responses: []*ProviderResponse{},
 	}
 
 	response := AccumulateResponseWithSchemaInfo(queryDoc, federatedResponse, schemaInfoMap)

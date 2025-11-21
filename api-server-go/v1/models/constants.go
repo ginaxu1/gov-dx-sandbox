@@ -25,6 +25,25 @@ const (
 	DeprecatedVersion Version = "deprecated"
 )
 
+// AuditStatus represents the status of audit events
+type AuditStatus string
+
+const (
+	AuditStatusSuccess AuditStatus = "success"
+	AuditStatusFailure AuditStatus = "failure"
+)
+
+// ResourceType represents different resource types for auditing
+type ResourceType string
+
+const (
+	ResourceTypeMembers                ResourceType = "MEMBERS"
+	ResourceTypeSchemas                ResourceType = "SCHEMAS"
+	ResourceTypeSchemaSubmissions      ResourceType = "SCHEMA-SUBMISSIONS"
+	ResourceTypeApplications           ResourceType = "APPLICATIONS"
+	ResourceTypeApplicationSubmissions ResourceType = "APPLICATION-SUBMISSIONS"
+)
+
 // Field length constraints remain as regular constants
 const (
 	MaxNameLength        = 255

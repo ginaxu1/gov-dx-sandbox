@@ -20,11 +20,37 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
+	auditclient "github.com/gov-dx-sandbox/audit-service/client"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
 	"golang.org/x/oauth2/clientcredentials"
 )
+
+// Context key for audit metadata
+type contextKey string
+
+const auditMetadataKey contextKey = "auditMetadata"
+
+// AuditMetadata holds metadata needed for audit logging
+type AuditMetadata struct {
+	ConsumerAppID    string
+	ProviderFieldMap *[]ProviderLevelFieldRecord
+}
+
+// NewContextWithAuditMetadata creates a new context with audit metadata
+func NewContextWithAuditMetadata(ctx context.Context, metadata *AuditMetadata) context.Context {
+	return context.WithValue(ctx, auditMetadataKey, metadata)
+}
+
+// AuditMetadataFromContext retrieves audit metadata from context
+func AuditMetadataFromContext(ctx context.Context) *AuditMetadata {
+	metadata, ok := ctx.Value(auditMetadataKey).(*AuditMetadata)
+	if !ok {
+		return nil
+	}
+	return metadata
+}
 
 // Federator struct that includes all the context needed for federation.
 type Federator struct {
@@ -33,6 +59,7 @@ type Federator struct {
 	Client          *http.Client
 	Schema          *ast.Document
 	SchemaService   interface{} // Will be *services.SchemaService, using interface{} to avoid circular import
+	AuditClient     auditclient.AuditClient
 }
 
 type FederationServiceAST struct {
@@ -58,15 +85,15 @@ type ProviderResponse struct {
 }
 
 type FederationResponse struct {
-	ServiceKey string             `json:"ProviderKey"`
-	Responses  []ProviderResponse `json:"responses"`
+	ServiceKey string              `json:"ProviderKey"`
+	Responses  []*ProviderResponse `json:"responses"`
 }
 
 // GetProviderResponse Returns the specific provider response by service key
 func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderResponse {
 	for _, resp := range f.Responses {
 		if resp.ServiceKey == providerKey {
-			return &resp
+			return resp
 		}
 	}
 	return nil
@@ -113,6 +140,15 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 10,
 		},
+	}
+
+	// Initialize audit client if URL is configured
+	auditServiceURL := os.Getenv("CHOREO_AUDIT_CONNECTION_SERVICEURL")
+	if auditServiceURL != "" {
+		federator.AuditClient = auditclient.NewAuditClient(auditServiceURL)
+		logger.Log.Info("Audit client initialized", "url", auditServiceURL)
+	} else {
+		logger.Log.Info("Audit service URL not configured, audit logging disabled")
 	}
 
 	return federator
@@ -439,7 +475,15 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	federationRequest := &federationRequest{
 		FederationServiceRequest: splitRequests,
 	}
-	responses := f.performFederation(ctx, federationRequest)
+
+	// Inject audit metadata into context
+	auditMetadata := &AuditMetadata{
+		ConsumerAppID:    consumerInfo.ApplicationId,
+		ProviderFieldMap: schemaCollection.ProviderFieldMap,
+	}
+	ctxWithAudit := NewContextWithAuditMetadata(ctx, auditMetadata)
+
+	responses := f.performFederation(ctxWithAudit, federationRequest)
 
 	// Build schema info map for array-aware processing
 	var schemaInfoMap map[string]*SourceSchemaInfo
@@ -459,7 +503,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 func (f *Federator) performFederation(ctx context.Context, r *federationRequest) *FederationResponse {
 	FederationResponse := &FederationResponse{
-		Responses: make([]ProviderResponse, 0, len(r.FederationServiceRequest)),
+		Responses: make([]*ProviderResponse, 0, len(r.FederationServiceRequest)),
 	}
 
 	var wg sync.WaitGroup
@@ -476,15 +520,21 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 		go func(req *federationServiceRequest, prov *provider.Provider) {
 			defer wg.Done()
 
+			logAudit := func(status string, err error) {
+				f.logAuditEvent(ctx, req.SchemaID, req, status, err)
+			}
+
 			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
 				logger.Log.Info("Failed to marshal request", "Provider Key", req.ServiceKey, "Error", err)
+				logAudit("FAILURE", err)
 				return
 			}
 
 			response, err := prov.PerformRequest(ctx, reqBody)
 			if err != nil {
 				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
+				logAudit("FAILURE", err)
 				return
 			}
 			defer response.Body.Close()
@@ -492,6 +542,7 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
 				logger.Log.Error("Failed to read response body", "Provider Key", req.ServiceKey, "Error", err)
+				logAudit("FAILURE", err)
 				return
 			}
 
@@ -499,12 +550,22 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			err = json.Unmarshal(body, &bodyJson)
 			if err != nil {
 				logger.Log.Error("Failed to unmarshal response", "Provider Key", req.ServiceKey, "Error", err)
+				logAudit("FAILURE", err)
 				return
 			}
 
+			// Determine status based on response
+			status := "SUCCESS"
+			if len(bodyJson.Errors) > 0 || response.StatusCode >= 400 {
+				status = "FAILURE"
+			}
+
+			// Log audit event
+			logAudit(status, nil)
+
 			// Thread-safe append
 			mu.Lock()
-			FederationResponse.Responses = append(FederationResponse.Responses, ProviderResponse{
+			FederationResponse.Responses = append(FederationResponse.Responses, &ProviderResponse{
 				ServiceKey: req.ServiceKey,
 				Response:   bodyJson,
 			})
@@ -516,7 +577,47 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 	return FederationResponse
 }
 
-func (f *Federator) mergeResponses(responses []ProviderResponse) graphql.Response {
+// logAuditEvent logs a data exchange event to the audit service
+func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, req *federationServiceRequest, status string, err error) {
+	// Skip logging if audit client is not configured
+	if f.AuditClient == nil {
+		return
+	}
+
+	// Retrieve metadata from context
+	metadata := AuditMetadataFromContext(ctx)
+	if metadata == nil {
+		logger.Log.Warn("Audit metadata missing from context, skipping audit log")
+		return
+	}
+
+	// Extract requested fields for this provider
+	requestedFields := make([]string, 0)
+	if metadata.ProviderFieldMap != nil {
+		for _, field := range *metadata.ProviderFieldMap {
+			if field.SchemaId == req.SchemaID && field.ServiceKey == req.ServiceKey {
+				requestedFields = append(requestedFields, field.FieldPath)
+			}
+		}
+	}
+
+	// Log the event
+	// Note: ConsumerID and ProviderID are not populated here to avoid expensive lookup calls
+	// The audit service can handle missing member IDs (they will be null/unknown)
+	event := auditclient.DataExchangeEvent{
+		ConsumerAppID:    metadata.ConsumerAppID,
+		ProviderSchemaID: providerSchemaID,
+		RequestedFields:  requestedFields,
+		Status:           status,
+	}
+
+	if err := f.AuditClient.LogDataExchange(ctx, event); err != nil {
+		logger.Log.Error("Failed to log audit event", "error", err, "consumerAppID", metadata.ConsumerAppID, "providerSchemaID", providerSchemaID)
+	}
+}
+
+
+func (f *Federator) mergeResponses(responses []*ProviderResponse) graphql.Response {
 	merged := graphql.Response{
 		Data:   make(map[string]interface{}),
 		Errors: make([]interface{}, 0),
