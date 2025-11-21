@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
