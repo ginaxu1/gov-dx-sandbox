@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/pkg/monitoring"
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/gov-dx-sandbox/portal-backend/shared/utils"
 	v1 "github.com/gov-dx-sandbox/portal-backend/v1"
 	v1handlers "github.com/gov-dx-sandbox/portal-backend/v1/handlers"
@@ -30,7 +30,7 @@ func main() {
 
 	otelCtx := context.Background()
 	shutdownMetrics, err := monitoring.Setup(otelCtx, monitoring.Config{
-		ServiceName: "api-server-go",
+		ServiceName: "portal-backend",
 	})
 	if err != nil {
 		slog.Error("Failed to initialize monitoring", "error", err)
@@ -307,10 +307,21 @@ func main() {
 	slog.Info("Portal Backend exited")
 }
 
+// statusRecorder wraps http.ResponseWriter to capture status code
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(statusCode int) {
+	s.status = statusCode
+	s.ResponseWriter.WriteHeader(statusCode)
+}
+
 func businessEventMiddleware(action string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rec := &monitoring.StatusRecorder{ResponseWriter: w, Status: http.StatusOK}
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		monitoring.RecordBusinessEvent(r.Context(), action, rec.Status < 400)
+		monitoring.RecordBusinessEvent(r.Context(), action, rec.status < 400)
 	})
 }
