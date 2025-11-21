@@ -241,8 +241,8 @@ paths:
           required: false
           schema:
             type: string
-            enum: [SUCCESS, FAILURE]
-            example: "SUCCESS"
+            enum: [success, failure]
+            example: "success"
         - name: startDate
           in: query
           description: Filter events from this date (YYYY-MM-DD format)
