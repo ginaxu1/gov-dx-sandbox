@@ -219,6 +219,10 @@ func getDatabaseConnectionString() string {
 
 		// Require password from environment - no default
 		if password == "" {
+			// Ensure logger is initialized
+			if logger.Log == nil {
+				logger.Init()
+			}
 			logger.Log.Warn("DB_PASSWORD not set - database connection may fail")
 		}
 	}

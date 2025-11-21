@@ -14,10 +14,7 @@ require (
 	golang.org/x/oauth2 v0.32.0
 )
 
-require (
-	github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go v0.0.0-20251118155946-bf7e84662a7e
-	github.com/go-chi/chi/v5 v5.2.3
-)
+require github.com/go-chi/chi/v5 v5.2.3
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
