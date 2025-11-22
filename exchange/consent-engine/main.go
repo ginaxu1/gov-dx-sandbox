@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/consent-engine/models"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -243,7 +244,7 @@ func (s *apiServer) handleConsentPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
-	var req ConsentRequest
+	var req models.ConsentRequest
 
 	// Parse request body
 	body, err := utils.ReadRequestBody(r)
@@ -309,7 +310,7 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
-	var req UpdateConsentRequest
+	var req models.UpdateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
 		id, err := utils.ExtractIDFromPath(r, "/consents/")
 		if err != nil {
@@ -400,15 +401,15 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 	}
 
 	// Apply partial updates
-	updateReq := UpdateConsentRequest{
-		Status:    ConsentStatus(existingRecord.Status), // Keep existing status by default
-		UpdatedBy: existingRecord.OwnerID,               // Keep existing updated_by by default
-		Reason:    "",                                   // Will be set if provided
+	updateReq := models.UpdateConsentRequest{
+		Status:    models.ConsentStatus(existingRecord.Status), // Keep existing status by default
+		UpdatedBy: existingRecord.OwnerID,                      // Keep existing updated_by by default
+		Reason:    "",                                          // Will be set if provided
 	}
 
 	// Update only provided fields
 	if req.Status != "" {
-		updateReq.Status = ConsentStatus(req.Status)
+		updateReq.Status = models.ConsentStatus(req.Status)
 	}
 	if req.UpdatedBy != "" {
 		updateReq.UpdatedBy = req.UpdatedBy
@@ -482,7 +483,7 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 		)
 
 		// Ensure expired_records is always an array, never null
-		expiredRecordsList := make([]*ConsentRecord, 0)
+		expiredRecordsList := make([]*models.ConsentRecord, 0)
 		if expiredRecords != nil {
 			expiredRecordsList = expiredRecords
 		}
@@ -603,7 +604,7 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// Validate status if provided
-	var newStatus ConsentStatus
+	var newStatus models.ConsentStatus
 	if req.Status != "" {
 		// Validate that the status is one of the valid consent statuses
 		validStatuses := []string{"pending", "approved", "rejected", "expired", "revoked"}
@@ -618,25 +619,25 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be one of: pending, approved, rejected, expired, revoked"})
 			return
 		}
-		newStatus = ConsentStatus(req.Status)
+		newStatus = models.ConsentStatus(req.Status)
 	} else {
 		// Keep existing status if not provided
-		newStatus = ConsentStatus(existingRecord.Status)
+		newStatus = models.ConsentStatus(existingRecord.Status)
 	}
 
 	// Set default reason if not provided
 	reason := req.Reason
 	if reason == "" {
 		switch newStatus {
-		case StatusApproved:
+		case models.StatusApproved:
 			reason = "Consent approved via API"
-		case StatusRejected:
+		case models.StatusRejected:
 			reason = "Consent rejected via API"
-		case StatusExpired:
+		case models.StatusExpired:
 			reason = "Consent expired via API"
-		case StatusRevoked:
+		case models.StatusRevoked:
 			reason = "Consent revoked via API"
-		case StatusPending:
+		case models.StatusPending:
 			reason = "Consent reset to pending via API"
 		default:
 			reason = "Consent updated via API"
@@ -644,7 +645,7 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// Update the record
-	updateReq := UpdateConsentRequest{
+	updateReq := models.UpdateConsentRequest{
 		Status:        newStatus,
 		UpdatedBy:     existingRecord.OwnerID, // Use existing owner ID
 		Reason:        reason,
