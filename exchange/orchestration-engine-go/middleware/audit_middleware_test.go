@@ -1,140 +1,120 @@
 package middleware
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func init() {
-	logger.Init()
-}
+func TestLogAuditEvent(t *testing.T) {
+	// Reset global middleware before test
+	ResetGlobalAuditMiddleware()
 
-func TestNewAuditMiddleware(t *testing.T) {
-	middleware := NewAuditMiddleware("test-env", "http://audit-service.com", nil)
-	assert.NotNil(t, middleware)
-	assert.Equal(t, "test-env", middleware.environment)
-	assert.Equal(t, "http://audit-service.com", middleware.auditServiceURL)
-	assert.NotNil(t, middleware.httpClient)
-	assert.Equal(t, 10*time.Second, middleware.httpClient.Timeout)
-}
+	// Create a test server to mock the audit service
+	var receivedRequest *DataExchangeEventAuditRequest
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+		if r.URL.Path != "/data-exchange-events" {
+			t.Errorf("Expected path /data-exchange-events, got %s", r.URL.Path)
+		}
 
-func TestAuditMiddleware_AuditHandler_Success(t *testing.T) {
-	// Create a test server to capture audit requests
-	var capturedRequest *AuditLogRequest
-	auditReceived := make(chan bool, 1)
-	auditServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req AuditLogRequest
-		json.NewDecoder(r.Body).Decode(&req)
-		capturedRequest = &req
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(AuditLogResponse{
-			ID:        "audit-123",
-			Timestamp: time.Now(),
-			Status:    "success",
-		})
-		auditReceived <- true
+		var auditReq DataExchangeEventAuditRequest
+		if err := json.NewDecoder(r.Body).Decode(&auditReq); err != nil {
+			t.Fatalf("Failed to decode request body: %v", err)
+		}
+		receivedRequest = &auditReq
+
+		w.WriteHeader(http.StatusCreated)
 	}))
-	defer auditServer.Close()
+	defer testServer.Close()
 
-	middleware := NewAuditMiddleware("test-env", auditServer.URL, nil)
+	// Initialize audit middleware with test server URL
+	middleware := NewAuditMiddleware(testServer.URL)
+	if middleware == nil {
+		t.Fatal("Failed to create audit middleware")
+	}
 
-	handler := middleware.AuditHandler(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+	// Create test audit request
+	testRequest := &DataExchangeEventAuditRequest{
+		Timestamp:      time.Now().UTC().Format(time.RFC3339),
+		Status:         "success",
+		ApplicationID:  "test-app-123",
+		SchemaID:       "schema-456",
+		RequestedData:  json.RawMessage(`{"fields": ["field1", "field2"]}`),
+		AdditionalInfo: json.RawMessage(`{"serviceKey": "test-service"}`),
+	}
 
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(`{"query": "test"}`))
-	w := httptest.NewRecorder()
+	// Call LogAuditEvent
+	LogAuditEvent(testRequest)
 
-	handler(w, req)
+	// Give some time for the async operation to complete
+	time.Sleep(100 * time.Millisecond)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "OK", w.Body.String())
+	// Verify the request was received
+	if receivedRequest == nil {
+		t.Fatal("No request received by test server")
+	}
 
-	// Wait for async audit log to be received
-	select {
-	case <-auditReceived:
-		// Verify audit request was sent
-		require.NotNil(t, capturedRequest, "Audit request should have been captured")
-		assert.Equal(t, "success", capturedRequest.Status)
-		assert.Contains(t, capturedRequest.RequestedData, "query")
-	case <-time.After(1 * time.Second):
-		t.Fatal("Timeout waiting for audit log to be sent")
+	if receivedRequest.ApplicationID != testRequest.ApplicationID {
+		t.Errorf("Expected ApplicationID %s, got %s", testRequest.ApplicationID, receivedRequest.ApplicationID)
+	}
+
+	if receivedRequest.SchemaID != testRequest.SchemaID {
+		t.Errorf("Expected SchemaID %s, got %s", testRequest.SchemaID, receivedRequest.SchemaID)
+	}
+
+	if receivedRequest.Status != testRequest.Status {
+		t.Errorf("Expected Status %s, got %s", testRequest.Status, receivedRequest.Status)
 	}
 }
 
-func TestAuditMiddleware_AuditHandler_ErrorResponse(t *testing.T) {
-	auditReceived := make(chan bool, 1)
-	auditServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		auditReceived <- true
-	}))
-	defer auditServer.Close()
+func TestLogAuditEventWhenNotConfigured(t *testing.T) {
+	// Reset global middleware before test
+	ResetGlobalAuditMiddleware()
 
-	middleware := NewAuditMiddleware("test-env", auditServer.URL, nil)
-
-	handler := middleware.AuditHandler(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Error"))
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(`{"query": "test"}`))
-	w := httptest.NewRecorder()
-
-	handler(w, req)
-
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Equal(t, "Error", w.Body.String())
-
-	// Wait for async audit log to be received
-	select {
-	case <-auditReceived:
-		// Audit log was sent successfully
-	case <-time.After(1 * time.Second):
-		t.Fatal("Timeout waiting for audit log to be sent")
-	}
-}
-
-func TestAuditMiddleware_ExtractAuditInfo(t *testing.T) {
-	middleware := NewAuditMiddleware("test-env", "http://audit-service.com", nil)
-
-	req := httptest.NewRequest(http.MethodPost, "/test", bytes.NewBufferString(`{"query": "test"}`))
-
-	appID, schemaID := middleware.ExtractAuditInfo(req, []byte(`{"query": "test"}`))
-
-	// Should return fallback values when JWT extraction fails
-	assert.NotEmpty(t, appID)
-	assert.NotEmpty(t, schemaID)
-}
-
-func TestResponseWriter_WriteHeader(t *testing.T) {
-	rw := &responseWriter{
-		ResponseWriter: httptest.NewRecorder(),
-		statusCode:     http.StatusOK,
-		body:           &bytes.Buffer{},
+	// Initialize audit middleware without URL (disabled)
+	middleware := NewAuditMiddleware("")
+	if middleware == nil {
+		t.Fatal("Failed to create audit middleware")
 	}
 
-	rw.WriteHeader(http.StatusNotFound)
-	assert.Equal(t, http.StatusNotFound, rw.statusCode)
-}
-
-func TestResponseWriter_Write(t *testing.T) {
-	rw := &responseWriter{
-		ResponseWriter: httptest.NewRecorder(),
-		statusCode:     http.StatusOK,
-		body:           &bytes.Buffer{},
+	// Create test audit request
+	testRequest := &DataExchangeEventAuditRequest{
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Status:        "success",
+		ApplicationID: "test-app-123",
+		SchemaID:      "schema-456",
+		RequestedData: json.RawMessage(`{"fields": ["field1", "field2"]}`),
 	}
 
-	n, err := rw.Write([]byte("test data"))
-	assert.NoError(t, err)
-	assert.Equal(t, 9, n)
-	assert.Equal(t, "test data", rw.body.String())
+	// This should not panic or cause errors
+	LogAuditEvent(testRequest)
+
+	// Give some time for any potential async operation
+	time.Sleep(50 * time.Millisecond)
+
+	// Test passes if no panic occurs
+}
+
+func TestLogAuditEventWhenGlobalMiddlewareNotInitialized(t *testing.T) {
+	// Reset global middleware to simulate uninitialized state
+	ResetGlobalAuditMiddleware()
+
+	// Create test audit request
+	testRequest := &DataExchangeEventAuditRequest{
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Status:        "success",
+		ApplicationID: "test-app-123",
+		SchemaID:      "schema-456",
+		RequestedData: json.RawMessage(`{"fields": ["field1", "field2"]}`),
+	}
+
+	// This should not panic or cause errors
+	LogAuditEvent(testRequest)
+
+	// Test passes if no panic occurs
 }

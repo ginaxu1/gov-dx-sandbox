@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/middleware"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
@@ -43,11 +42,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create a mux just for API routes that need auditing
+	// Create a mux for API routes
 	apiMux := http.NewServeMux()
 	v1Handler.SetupV1Routes(apiMux) // All /api/v1/... routes go here
 
-	// Setup CORS middleware
+	// Setup middleware chain
 	corsMiddleware := v1middleware.NewCORSMiddleware()
 
 	// Setup JWT Authentication middleware
@@ -111,16 +110,15 @@ func main() {
 
 	authorizationMiddleware := v1middleware.NewAuthorizationMiddlewareWithConfig(authConfig)
 
-	// Setup Audit middleware, reading the correct connection variable
+	// Initialize Audit system (creates global instance for direct LogAuditEvent calls from handlers)
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
-	auditMiddleware := middleware.NewAuditMiddleware(auditServiceURL)
+	_ = v1middleware.NewAuditMiddleware(auditServiceURL)
 
-	// Apply middleware chain (CORS -> JWT Auth -> Authorization -> Audit) to the API mux ONLY
+	// Apply middleware chain (CORS -> JWT Auth -> Authorization) to the API mux ONLY
+	// Note: Audit logging is done directly in handlers via LogAuditEvent calls, not through middleware
 	protectedAPIHandler := corsMiddleware(
 		jwtAuthMiddleware.AuthenticateJWT(
-			authorizationMiddleware.AuthorizeRequest(
-				auditMiddleware.AuditLoggingMiddleware(apiMux),
-			),
+			authorizationMiddleware.AuthorizeRequest(apiMux),
 		),
 	)
 
