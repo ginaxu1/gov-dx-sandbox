@@ -17,7 +17,6 @@ import (
 	"github.com/gov-dx-sandbox/api-server-go/v1/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -953,7 +952,8 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		// Resource doesn't exist, so 404 is returned before JSON is parsed
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("PUT /api/v1/application-submissions/:id - UpdateApplicationSubmission_NotFound", func(t *testing.T) {
@@ -968,7 +968,8 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		// Resource doesn't exist, so 404 is the correct response
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("GET /api/v1/application-submissions - GetAllApplicationSubmissions", func(t *testing.T) {
@@ -1083,7 +1084,8 @@ func TestSchemaEndpoints_EdgeCases(t *testing.T) {
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		// Resource doesn't exist, so 404 is returned before JSON is parsed
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("GET /api/v1/schemas/:id - NotFound", func(t *testing.T) {
@@ -1110,7 +1112,8 @@ func TestSchemaEndpoints_EdgeCases(t *testing.T) {
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		// Resource doesn't exist, so 404 is the correct response
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
 
@@ -1245,10 +1248,8 @@ func TestNewV1Handler(t *testing.T) {
 		os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
 		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
 
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=api_server_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			t.Skip("Skipping test: could not connect to test database")
+		db := services.SetupPostgresTestDB(t)
+		if db == nil {
 			return
 		}
 
@@ -1277,10 +1278,8 @@ func TestNewV1Handler(t *testing.T) {
 		os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", "http://localhost:9999")
 		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
 
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=api_server_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			t.Skip("Skipping test: could not connect to test database")
+		db := services.SetupPostgresTestDB(t)
+		if db == nil {
 			return
 		}
 
@@ -1337,10 +1336,8 @@ func TestNewV1Handler(t *testing.T) {
 		os.Setenv("ASGARDEO_CLIENT_SECRET", "test-client-secret")
 		os.Setenv("ASGARDEO_SCOPES", "scope1 scope2 scope3")
 
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=api_server_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			t.Skip("Skipping test: could not connect to test database")
+		db := services.SetupPostgresTestDB(t)
+		if db == nil {
 			return
 		}
 
@@ -1399,10 +1396,8 @@ func TestNewV1Handler(t *testing.T) {
 		os.Setenv("ASGARDEO_CLIENT_SECRET", "test-client-secret")
 		os.Unsetenv("ASGARDEO_SCOPES")
 
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=api_server_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			t.Skip("Skipping test: could not connect to test database")
+		db := services.SetupPostgresTestDB(t)
+		if db == nil {
 			return
 		}
 
@@ -1414,10 +1409,8 @@ func TestNewV1Handler(t *testing.T) {
 
 // TestV1Handler_SetupV1Routes tests the SetupV1Routes method
 func TestV1Handler_SetupV1Routes(t *testing.T) {
-	dsn := "host=localhost port=5432 user=postgres password=password dbname=api_server_test sslmode=disable"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Skip("Skipping test: could not connect to test database")
+	db := services.SetupPostgresTestDB(t)
+	if db == nil {
 		return
 	}
 
