@@ -5,6 +5,7 @@
     {
       "providerKey": "drp",
       "providerUrl": "http://localhost:9091",
+      "schemaId": "drp-schema-v1",
       "auth": {
         "type": "apiKey",
         "apiKeyName": "Test-Key",
@@ -13,11 +14,14 @@
     },
     {
       "providerKey": "dmt",
-      "providerUrl": "http://localhost:9090"
+      "providerUrl": "http://localhost:9090",
+      "schemaId": "dmt-schema-v1",
+      "auth": null
     },
     {
       "providerKey": "rgd",
       "providerUrl": "http://localhost:8080/graphql",
+      "schemaId": "rgd-schema-v1",
       "auth": {
         "type": "oauth2",
         "tokenUrl": "https://example.com/oauth2/token",
@@ -29,18 +33,21 @@
   "argMappings": [
     {
       "providerKey": "drp",
+      "schemaId": "drp-schema-v1",
       "targetArgName": "nic",
       "sourceArgPath": "personInfo-nic",
       "targetArgPath": "drp.person"
     },
     {
       "providerKey": "rgd",
+      "schemaId": "rgd-schema-v1",
       "targetArgName": "nic",
       "sourceArgPath": "personInfo-nic",
       "targetArgPath": "rgd.getPersonInfo"
     },
     {
       "providerKey": "dmt",
+      "schemaId": "dmt-schema-v1",
       "targetArgName": "ownerNic",
       "sourceArgPath": "personInfo-nic",
       "targetArgPath": "dmt.vehicle.getVehicleInfos"
