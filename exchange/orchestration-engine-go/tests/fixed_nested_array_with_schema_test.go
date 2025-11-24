@@ -86,8 +86,8 @@ func TestFixedNestedArrayWithSchema(t *testing.T) {
 		// Create federated response
 		federatedResponse := &federator.FederationResponse{
 			ServiceKey: "test",
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: mockProviderResponse,
@@ -184,8 +184,8 @@ func TestFixedNestedArrayWithSchema(t *testing.T) {
 
 		federatedResponse := &federator.FederationResponse{
 			ServiceKey: "test",
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: mockProviderResponse,

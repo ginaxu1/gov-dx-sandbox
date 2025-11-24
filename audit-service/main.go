@@ -43,27 +43,20 @@ func main() {
 		"port", dbConfig.Port,
 		"database", dbConfig.Database)
 
-	db, err := ConnectDB(dbConfig)
+	// Initialize GORM connection for management events
+	gormDB, err := ConnectGORM(dbConfig)
 	if err != nil {
-		slog.Error("Failed to connect to database", "error", err)
+		slog.Error("Failed to connect to database via GORM", "error", err)
 		os.Exit(1)
-	}
-	// Note: We'll close the database connection in graceful shutdown, not with defer
-
-	// Initialize database tables
-	slog.Info("Initializing database tables and views")
-	if err := InitDatabase(db); err != nil {
-		slog.Error("Failed to initialize database", "error", err)
-		// Don't exit immediately - log the error and continue
-		// The service can still start and handle requests, database operations will fail gracefully
-		slog.Warn("Continuing with database initialization failure - some operations may not work")
 	}
 
 	// Initialize services
-	auditService := services.NewAuditService(db)
+	dataExchangeEventService := services.NewDataExchangeEventService(gormDB)
+	managementEventService := services.NewManagementEventService(gormDB)
 
 	// Initialize handlers
-	auditHandler := handlers.NewAuditHandler(auditService)
+	dataExchangeEventHandler := handlers.NewDataExchangeEventHandler(dataExchangeEventService)
+	managementEventHandler := handlers.NewManagementEventHandler(managementEventService)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -98,13 +91,25 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	// API endpoints for log access
-	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
+	// API endpoint for data exchange events from Orchestration Engine
+	mux.HandleFunc("/api/data-exchange-events", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodGet:
-			auditHandler.GetLogs(w, r)
 		case http.MethodPost:
-			auditHandler.CreateLog(w, r)
+			dataExchangeEventHandler.CreateDataExchangeEvent(w, r)
+		case http.MethodGet:
+			dataExchangeEventHandler.GetDataExchangeEvents(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// API endpoints for management events from API Server
+	mux.HandleFunc("/api/management-events", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			managementEventHandler.CreateManagementEvent(w, r)
+		case http.MethodGet:
+			managementEventHandler.GetManagementEvents(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -138,21 +143,10 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	slog.Info("Starting HTTP server", "address", server.Addr)
+
 	// Start server in a goroutine
 	go func() {
-		slog.Info("Audit Service starting",
-			"environment", *env,
-			"port", serverPort,
-			"version", Version,
-			"buildTime", BuildTime,
-			"gitCommit", GitCommit)
-		slog.Info("Database configuration",
-			"host", dbConfig.Host,
-			"port", dbConfig.Port,
-			"database", dbConfig.Database,
-			"choreoHost", os.Getenv("CHOREO_OPENDIF_DB_HOSTNAME"),
-		)
-
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Server failed to start", "error", err)
 			os.Exit(1)
@@ -174,11 +168,6 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		slog.Error("Server forced to shutdown", "error", err)
 		os.Exit(1)
-	}
-
-	// Gracefully close database connection
-	if err := GracefulShutdown(db); err != nil {
-		slog.Error("Error during database graceful shutdown", "error", err)
 	}
 
 	slog.Info("Audit Service exited")
