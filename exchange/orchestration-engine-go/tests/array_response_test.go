@@ -4,10 +4,15 @@ import (
 	"testing"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/stretchr/testify/assert"
 )
+
+func init() {
+	logger.Init()
+}
 
 // TestArrayResponseHandling verifies that the orchestration engine can properly handle
 // both object and array responses. Focus on response structure, not array arguments.
@@ -33,8 +38,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response for single object
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -45,7 +50,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "rgd",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -95,8 +100,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with array data
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -106,7 +111,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -202,8 +207,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with bulk array data
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -220,7 +225,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "rgd",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -281,8 +286,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with mixed data
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -292,7 +297,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -358,8 +363,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with empty array
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -369,7 +374,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -421,8 +426,8 @@ func TestArrayResponseHandling(t *testing.T) {
 
 		// Mock federated response with nested arrays
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -432,7 +437,7 @@ func TestArrayResponseHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -513,8 +518,8 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 
 		// Mock federated response with partial failure
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -527,7 +532,7 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "rgd",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -589,8 +594,8 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 
 		// Mock federated response with provider error
 		federatedResponse := &federator.FederationResponse{
-			Responses: []federator.ProviderResponse{
-				{
+			Responses: []*federator.ProviderResponse{
+				&federator.ProviderResponse{
 					ServiceKey: "drp",
 					Response: graphql.Response{
 						Data: map[string]interface{}{
@@ -600,7 +605,7 @@ func TestArrayResponseErrorHandling(t *testing.T) {
 						},
 					},
 				},
-				{
+				&federator.ProviderResponse{
 					ServiceKey: "dmt",
 					Response: graphql.Response{
 						Data: nil,
@@ -648,7 +653,7 @@ func TestObjectAndArrayResponseSupport(t *testing.T) {
 			"address":  "123 Main St",
 		}
 
-		result, err := PushValue(obj, path, value)
+		result, err := federator.PushValue(obj, path, value)
 		assert.NoError(t, err, "Should not return error")
 		assert.NotNil(t, result, "Should return result")
 
@@ -676,7 +681,7 @@ func TestObjectAndArrayResponseSupport(t *testing.T) {
 			},
 		}
 
-		result, err := PushValue(obj, path, value)
+		result, err := federator.PushValue(obj, path, value)
 		assert.NoError(t, err, "Should not return error")
 		assert.NotNil(t, result, "Should return result")
 
@@ -839,7 +844,7 @@ func TestArrayResponseValidation(t *testing.T) {
 		}
 
 		// Extract array from path
-		value, err := GetValueAtPath(data, "personInfo.ownedVehicles")
+		value, err := federator.GetValueAtPath(data, "personInfo.ownedVehicles")
 		assert.NoError(t, err, "Should extract array value")
 
 		vehicles := value.([]interface{})

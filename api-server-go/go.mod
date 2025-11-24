@@ -3,6 +3,7 @@ module github.com/gov-dx-sandbox/api-server-go
 go 1.24.6
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
 	github.com/gov-dx-sandbox/api-server-go/shared/utils v0.0.0
@@ -10,7 +11,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.30
 	golang.org/x/oauth2 v0.32.0
 	gorm.io/driver/postgres v1.6.0
-	gorm.io/gorm v1.31.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
