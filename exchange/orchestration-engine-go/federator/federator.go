@@ -16,11 +16,11 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/consent"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/internals/errors"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 	auth2 "github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
-	auditclient "github.com/gov-dx-sandbox/audit-service/client"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -59,7 +59,6 @@ type Federator struct {
 	Client          *http.Client
 	Schema          *ast.Document
 	SchemaService   interface{} // Will be *services.SchemaService, using interface{} to avoid circular import
-	AuditClient     auditclient.AuditClient
 }
 
 type FederationServiceAST struct {
@@ -140,15 +139,6 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 10,
 		},
-	}
-
-	// Initialize audit client if URL is configured
-	auditServiceURL := os.Getenv("CHOREO_AUDIT_CONNECTION_SERVICEURL")
-	if auditServiceURL != "" {
-		federator.AuditClient = auditclient.NewAuditClient(auditServiceURL)
-		logger.Log.Info("Audit client initialized", "url", auditServiceURL)
-	} else {
-		logger.Log.Info("Audit service URL not configured, audit logging disabled")
 	}
 
 	return federator
@@ -527,14 +517,14 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
 				logger.Log.Info("Failed to marshal request", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("FAILURE", err)
+				logAudit("failure", err)
 				return
 			}
 
 			response, err := prov.PerformRequest(ctx, reqBody)
 			if err != nil {
 				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("FAILURE", err)
+				logAudit("failure", err)
 				return
 			}
 			defer response.Body.Close()
@@ -542,7 +532,7 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
 				logger.Log.Error("Failed to read response body", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("FAILURE", err)
+				logAudit("failure", err)
 				return
 			}
 
@@ -550,14 +540,14 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			err = json.Unmarshal(body, &bodyJson)
 			if err != nil {
 				logger.Log.Error("Failed to unmarshal response", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("FAILURE", err)
+				logAudit("failure", err)
 				return
 			}
 
 			// Determine status based on response
-			status := "SUCCESS"
+			status := "success"
 			if len(bodyJson.Errors) > 0 || response.StatusCode >= 400 {
-				status = "FAILURE"
+				status = "failure"
 			}
 
 			// Log audit event
@@ -577,13 +567,8 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 	return FederationResponse
 }
 
-// logAuditEvent logs a data exchange event to the audit service
+// logAuditEvent logs a data exchange event to the audit service asynchronously
 func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, req *federationServiceRequest, status string, err error) {
-	// Skip logging if audit client is not configured
-	if f.AuditClient == nil {
-		return
-	}
-
 	// Retrieve metadata from context
 	metadata := AuditMetadataFromContext(ctx)
 	if metadata == nil {
@@ -601,21 +586,45 @@ func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, 
 		}
 	}
 
-	// Log the event
-	// Note: ConsumerID and ProviderID are not populated here to avoid expensive lookup calls
-	// The audit service can handle missing member IDs (they will be null/unknown)
-	event := auditclient.DataExchangeEvent{
-		ConsumerAppID:    metadata.ConsumerAppID,
-		ProviderSchemaID: providerSchemaID,
-		RequestedFields:  requestedFields,
-		Status:           status,
+	// Prepare requested data as JSON
+	requestedDataMap := map[string]interface{}{
+		"fields": requestedFields,
+		"query":  req.GraphQLRequest.Query,
+	}
+	requestedDataJSON, jsonErr := json.Marshal(requestedDataMap)
+	if jsonErr != nil {
+		logger.Log.Error("Failed to marshal requested data for audit", "error", jsonErr)
+		return
 	}
 
-	if err := f.AuditClient.LogDataExchange(ctx, event); err != nil {
-		logger.Log.Error("Failed to log audit event", "error", err, "consumerAppID", metadata.ConsumerAppID, "providerSchemaID", providerSchemaID)
+	// Prepare additional info for audit
+	additionalInfo := map[string]interface{}{
+		"serviceKey": req.ServiceKey,
 	}
+	if err != nil {
+		additionalInfo["error"] = err.Error()
+	}
+	additionalInfoJSON, jsonErr := json.Marshal(additionalInfo)
+	if jsonErr != nil {
+		logger.Log.Error("Failed to marshal additional info for audit", "error", jsonErr)
+		additionalInfoJSON = []byte("{}")
+	}
+
+	// Create audit request for data exchange event
+	auditRequest := &middleware.DataExchangeEventAuditRequest{
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		Status:        status,
+		ApplicationID: metadata.ConsumerAppID,
+		SchemaID:      providerSchemaID,
+		RequestedData: json.RawMessage(requestedDataJSON),
+		// Note: OnBehalfOfOwnerID, ConsumerID, and ProviderID are not populated here
+		// to avoid expensive lookup calls. The audit service can handle missing member IDs.
+		AdditionalInfo: json.RawMessage(additionalInfoJSON),
+	}
+
+	// Log the audit event asynchronously using the global middleware function
+	middleware.LogAuditEvent(auditRequest)
 }
-
 
 func (f *Federator) mergeResponses(responses []*ProviderResponse) graphql.Response {
 	merged := graphql.Response{
