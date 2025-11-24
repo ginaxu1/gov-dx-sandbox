@@ -149,6 +149,14 @@ func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
 	return response
 }
 
+// Legacy structures for backwards compatibility (deprecated)
+type DataField struct {
+	OwnerType  string   `json:"owner_type,omitempty"`
+	OwnerID    string   `json:"owner_id"`
+	OwnerEmail string   `json:"owner_email"`
+	Fields     []string `json:"fields"`
+}
+
 // UpdateConsentRequest defines the structure for updating a consent record
 type UpdateConsentRequest struct {
 	Status        ConsentStatus `json:"status"`
@@ -165,7 +173,3 @@ type ConsentPortalRequest struct {
 	DataOwner string `json:"data_owner"`
 	Reason    string `json:"reason,omitempty"`
 }
-
-// Legacy structures for backwards compatibility (deprecated)
-// Note: DataField is defined in consent_workflow.go
-
