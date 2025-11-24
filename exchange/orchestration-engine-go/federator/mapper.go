@@ -55,6 +55,7 @@ func QueryBuilder(maps *[]ProviderLevelFieldRecord, args []*ArgSource) ([]*feder
 
 		requests = append(requests, &federationServiceRequest{
 			ServiceKey: q.ServiceKey,
+			SchemaID:   q.SchemaID,
 			GraphQLRequest: graphql.Request{
 				Query:     query,
 				Variables: nil,
