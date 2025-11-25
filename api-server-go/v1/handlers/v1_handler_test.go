@@ -280,7 +280,9 @@ func createTestApplication(t *testing.T, db *gorm.DB, memberID string) string {
 	assert.NoError(t, err, "Failed to verify application was created properly")
 
 	return application.ApplicationID
-} // TestMemberEndpoints tests all member-related endpoints
+}
+
+// TestMemberEndpoints tests all member-related endpoints
 func TestMemberEndpoints(t *testing.T) {
 	testHandler := NewTestV1Handler(t)
 	if testHandler == nil {

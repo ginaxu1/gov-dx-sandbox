@@ -26,7 +26,6 @@ jobs:
     permissions:
       contents: read       # To check out the code
       packages: write      # To push images to GHCR
-      security-events: write # To upload Trivy SARIF results
 
     steps:
       - name: Checkout repository

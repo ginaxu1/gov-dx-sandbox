@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read       # To check out the code
-      security-events: write # To upload TruffleHog results
+      security-events: write # To upload Trivy SARIF results
 
     steps:
       - name: Checkout repository
