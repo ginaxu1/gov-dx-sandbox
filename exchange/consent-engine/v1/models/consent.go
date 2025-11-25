@@ -41,10 +41,14 @@ type ConsentRecord struct {
 	// ConsentPortalURL is the URL to redirect to for consent portal
 	ConsentPortalURL string `gorm:"column:consent_portal_url;type:text" json:"consent_portal_url"`
 	// UpdatedBy identifies who last updated the consent (audit field)
+<<<<<<< HEAD
 	UpdatedBy *string `gorm:"column:updated_by;type:varchar(255)" json:"updated_by,omitempty"`
 }
 
 // TableName specifies the table name for GORM
 func (*ConsentRecord) TableName() string {
 	return "consent_records"
+=======
+	UpdatedBy *string `json:"updated_by,omitempty"`
+>>>>>>> e5fec54 (Update exchange/consent-engine/v1/models/consent.go)
 }
