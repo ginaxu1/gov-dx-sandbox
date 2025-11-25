@@ -24,7 +24,7 @@ servers:
     description: Local Development Environment
 
 paths:
-  /health:
+  /v1/health:
     get:
       summary: Health Check
       description: Check if the service is running and healthy.
