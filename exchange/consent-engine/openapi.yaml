@@ -710,6 +710,10 @@ components:
     ErrorResponse:
       type: object
       properties:
+        code:
+          type: string
+          description: Error code
+          example: "CONSENT_NOT_FOUND"
         error:
           type: string
 
