@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/consent-engine/service"
+	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -108,12 +110,12 @@ type TokenInfo struct {
 }
 
 // User authentication middleware that handles user JWT authentication only
-func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
+func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine service.ConsentEngine, userTokenConfig UserTokenValidationConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract consent ID from the URL path
 			// Handle both /consents/{id} and /consents/{id}/ patterns
-			path := strings.TrimPrefix(r.URL.Path, "/consents")
+			path := strings.TrimPrefix(r.URL.Path, "/v1/consents")
 			path = strings.TrimPrefix(path, "/")
 			if path == "" {
 				utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
@@ -205,7 +207,7 @@ func userAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, user
 }
 
 // selectiveAuthMiddleware applies authentication only to specific HTTP methods
-func selectiveAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine, userTokenConfig UserTokenValidationConfig, requireAuthMethods []string) func(http.Handler) http.Handler {
+func selectiveAuthMiddleware(userJWTVerifier *JWTVerifier, engine service.ConsentEngine, userTokenConfig UserTokenValidationConfig, requireAuthMethods []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if this method requires authentication
@@ -232,7 +234,7 @@ func selectiveAuthMiddleware(userJWTVerifier *JWTVerifier, engine ConsentEngine,
 
 // apiServer holds dependencies for the HTTP handlers
 type apiServer struct {
-	engine ConsentEngine
+	engine service.ConsentEngine
 }
 
 // Consent handlers - organized for better readability
@@ -243,7 +245,7 @@ func (s *apiServer) handleConsentPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
-	var req ConsentRequest
+	var req models.ConsentRequest
 
 	// Parse request body
 	body, err := utils.ReadRequestBody(r)
@@ -309,9 +311,9 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
-	var req UpdateConsentRequest
+	var req models.UpdateConsentRequest
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id, err := utils.ExtractIDFromPath(r, "/consents/")
+		id, err := utils.ExtractIDFromPath(r, "/v1/consents/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -321,7 +323,7 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(err.Error(), "not found") {
 				return nil, http.StatusNotFound, err
 			}
-			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentUpdateFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentUpdateFailed+": %w", err)
 		}
 
 		// Return simplified response format
@@ -333,7 +335,7 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Reason string }
 	utils.JSONHandler(w, r, &req, func() (interface{}, int, error) {
-		id, err := utils.ExtractIDFromPath(r, "/consents/")
+		id, err := utils.ExtractIDFromPath(r, "/v1/consents/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -343,7 +345,7 @@ func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(err.Error(), "not found") {
 				return nil, http.StatusNotFound, err
 			}
-			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentRevokeFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentRevokeFailed+": %w", err)
 		}
 		return record, http.StatusOK, nil
 	})
@@ -400,15 +402,15 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 	}
 
 	// Apply partial updates
-	updateReq := UpdateConsentRequest{
-		Status:    ConsentStatus(existingRecord.Status), // Keep existing status by default
-		UpdatedBy: existingRecord.OwnerID,               // Keep existing updated_by by default
-		Reason:    "",                                   // Will be set if provided
+	updateReq := models.UpdateConsentRequest{
+		Status:    models.ConsentStatus(existingRecord.Status), // Keep existing status by default
+		UpdatedBy: existingRecord.OwnerID,                      // Keep existing updated_by by default
+		Reason:    "",                                          // Will be set if provided
 	}
 
 	// Update only provided fields
 	if req.Status != "" {
-		updateReq.Status = ConsentStatus(req.Status)
+		updateReq.Status = models.ConsentStatus(req.Status)
 	}
 	if req.UpdatedBy != "" {
 		updateReq.UpdatedBy = req.UpdatedBy
@@ -441,10 +443,10 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 }
 
 func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Request) {
-	utils.PathHandler(w, r, "/data-owner/", func(dataOwner string) (interface{}, int, error) {
+	utils.PathHandler(w, r, "/v1/data-owner/", func(dataOwner string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByDataOwner(dataOwner)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentGetFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentGetFailed+": %w", err)
 		}
 		return map[string]interface{}{
 			"owner_id": dataOwner,
@@ -455,10 +457,10 @@ func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *apiServer) getConsentsByConsumer(w http.ResponseWriter, r *http.Request) {
-	utils.PathHandler(w, r, "/consumer/", func(consumer string) (interface{}, int, error) {
+	utils.PathHandler(w, r, "/v1/consumer/", func(consumer string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByConsumer(consumer)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentGetFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentGetFailed+": %w", err)
 		}
 		return map[string]interface{}{
 			"consumer": consumer,
@@ -472,17 +474,17 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 	utils.GenericHandler(w, r, func() (interface{}, int, error) {
 		expiredRecords, err := s.engine.CheckConsentExpiry()
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentExpiryFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentExpiryFailed+": %w", err)
 		}
 
 		// Log the operation
 		slog.Info("Operation successful",
-			"operation", OpCheckConsentExpiry,
+			"operation", models.OpCheckConsentExpiry,
 			"expired_count", len(expiredRecords),
 		)
 
 		// Ensure expired_records is always an array, never null
-		expiredRecordsList := make([]*ConsentRecord, 0)
+		expiredRecordsList := make([]*models.ConsentRecord, 0)
 		if expiredRecords != nil {
 			expiredRecordsList = expiredRecords
 		}
@@ -497,7 +499,7 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 
 // Route handlers - organized for better readability
 func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/consents")
+	path := strings.TrimPrefix(r.URL.Path, "/v1/consents")
 	switch {
 	case path == "" && r.Method == http.MethodPost:
 		// POST /consents - create new consent record
@@ -509,7 +511,7 @@ func (s *apiServer) consentHandler(w http.ResponseWriter, r *http.Request) {
 
 // consentHandlerWithID handles operations on /consents/{id} with different auth requirements
 func (s *apiServer) consentHandlerWithID(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/consents")
+	path := strings.TrimPrefix(r.URL.Path, "/v1/consents")
 	switch {
 	case strings.HasPrefix(path, "/") && r.Method == http.MethodGet:
 		// GET /consents/{id} - get consent by ID (requires auth)
@@ -603,7 +605,7 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// Validate status if provided
-	var newStatus ConsentStatus
+	var newStatus models.ConsentStatus
 	if req.Status != "" {
 		// Validate that the status is one of the valid consent statuses
 		validStatuses := []string{"pending", "approved", "rejected", "expired", "revoked"}
@@ -618,25 +620,25 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 			utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "status must be one of: pending, approved, rejected, expired, revoked"})
 			return
 		}
-		newStatus = ConsentStatus(req.Status)
+		newStatus = models.ConsentStatus(req.Status)
 	} else {
 		// Keep existing status if not provided
-		newStatus = ConsentStatus(existingRecord.Status)
+		newStatus = models.ConsentStatus(existingRecord.Status)
 	}
 
 	// Set default reason if not provided
 	reason := req.Reason
 	if reason == "" {
 		switch newStatus {
-		case StatusApproved:
+		case models.StatusApproved:
 			reason = "Consent approved via API"
-		case StatusRejected:
+		case models.StatusRejected:
 			reason = "Consent rejected via API"
-		case StatusExpired:
+		case models.StatusExpired:
 			reason = "Consent expired via API"
-		case StatusRevoked:
+		case models.StatusRevoked:
 			reason = "Consent revoked via API"
-		case StatusPending:
+		case models.StatusPending:
 			reason = "Consent reset to pending via API"
 		default:
 			reason = "Consent updated via API"
@@ -644,7 +646,7 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// Update the record
-	updateReq := UpdateConsentRequest{
+	updateReq := models.UpdateConsentRequest{
 		Status:        newStatus,
 		UpdatedBy:     existingRecord.OwnerID, // Use existing owner ID
 		Reason:        reason,
@@ -670,7 +672,7 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 }
 
 func (s *apiServer) dataInfoHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/data-info/")
+	path := strings.TrimPrefix(r.URL.Path, "/v1/data-info/")
 	if path == "" {
 		utils.RespondWithJSON(w, http.StatusBadRequest, utils.ErrorResponse{Error: "Consent ID is required"})
 		return
@@ -684,7 +686,7 @@ func (s *apiServer) dataInfoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *apiServer) adminHandler(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/admin")
+	path := strings.TrimPrefix(r.URL.Path, "/v1/admin")
 	if path == "/expiry-check" && r.Method == http.MethodPost {
 		s.checkConsentExpiry(w, r)
 	} else {
@@ -709,8 +711,8 @@ func main() {
 	slog.Info("--- !!! DEBUG INFO !!! --- The application is configured with ASGARDEO_JWKS_URL", "jwks_url", jwksURL)
 
 	// Initialize database connection
-	dbConfig := NewDatabaseConfig()
-	db, err := ConnectDB(dbConfig)
+	dbConfig := service.NewDatabaseConfig()
+	db, err := service.ConnectDB(dbConfig)
 	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
@@ -718,7 +720,7 @@ func main() {
 	defer db.Close()
 
 	// Initialize database tables
-	if err := InitDatabase(db); err != nil {
+	if err := service.InitDatabase(db); err != nil {
 		slog.Error("Failed to initialize database", "error", err)
 		os.Exit(1)
 	}
@@ -728,7 +730,7 @@ func main() {
 
 	slog.Info("Using consent portal URL", "url", consentPortalUrl)
 
-	engine := NewPostgresConsentEngine(db, consentPortalUrl)
+	engine := service.NewPostgresConsentEngine(db, consentPortalUrl)
 	server := &apiServer{engine: engine}
 
 	// Start background expiry process with context cancellation
@@ -783,15 +785,15 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Routes that don't require authentication
-	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
-	mux.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))
-	mux.Handle("/consumer/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consumerHandler)))
-	mux.Handle("/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
-	mux.Handle("/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
-	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+	mux.Handle("/v1/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
+	mux.Handle("/v1/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))
+	mux.Handle("/v1/consumer/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consumerHandler)))
+	mux.Handle("/v1/admin/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.adminHandler)))
+	mux.Handle("/v1/data-info/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataInfoHandler)))
+	mux.Handle("/v1/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
 
 	// Routes for /consents/{id} with selective authentication (GET and PUT require auth, PATCH and DELETE don't)
-	mux.Handle("/consents/", utils.PanicRecoveryMiddleware(selectiveAuthMiddleware(userJWTVerifier, engine, userTokenConfig, []string{"GET", "PUT"})(http.HandlerFunc(server.consentHandlerWithID))))
+	mux.Handle("/v1/consents/", utils.PanicRecoveryMiddleware(selectiveAuthMiddleware(userJWTVerifier, engine, userTokenConfig, []string{"GET", "PUT"})(http.HandlerFunc(server.consentHandlerWithID))))
 
 	// Create server using utils
 	serverConfig := &utils.ServerConfig{
