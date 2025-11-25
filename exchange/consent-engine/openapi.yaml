@@ -4,8 +4,12 @@ info:
   description: |
     Handles consent creation, approval, and management for the OpenDIF Data Exchange Platform. 
     It uses a hybrid security model:
-    - **User-facing endpoints** (GET/PUT/PATCH/DELETE /consents/{id}) are protected by User JWTs from an identity provider for consent-portal access.
-    - **Internal endpoints** (POST /consents) require no authentication for service-to-service communication.
+    - **User-facing endpoints** (GET/PUT /v1/consents/{id}) are protected by User JWTs from an identity provider for consent-portal access.
+    - **Internal endpoints** (POST /v1/consents, GET /v1/data-owner/{id}, etc.) require no authentication for service-to-service communication.
+    
+    ## API Versioning
+    All API endpoints are versioned with the `/v1` prefix to allow for future API evolution while maintaining backward compatibility.
+    Health check endpoints remain at the root level (`/health`) as per common practice.
   version: 1.1.0
   contact:
     name: OpenDIF Team
@@ -41,7 +45,7 @@ paths:
                     type: string
                     example: healthy
 
-  /consents:
+  /v1/consents:
     post:
       summary: Create Consent (Internal)
       description: Creates a new consent record. This is an internal endpoint intended to be called by other services like the Orchestration Engine. No authentication required.
@@ -97,7 +101,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /consents/{consentId}:
+  /v1/consents/{consentId}:
     get:
       summary: Get Consent by ID (User)
       description: Retrieves a specific consent record. Requires an authenticated user JWT where the user's identity matches the consent owner. Used by consent-portal.
@@ -319,7 +323,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /data-owner/{ownerId}:
+  /v1/data-owner/{ownerId}:
     get:
       summary: Get Consents by Data Owner (Internal)
       description: Retrieves all consents for a specific data owner. Internal use only.
@@ -357,7 +361,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /consumer/{consumerId}:
+  /v1/consumer/{consumerId}:
     get:
       summary: Get Consents by Consumer (Internal)
       description: Retrieves all consents for a specific consumer application. Internal use only.
@@ -396,7 +400,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /data-info/{consentId}:
+  /v1/data-info/{consentId}:
     get:
       summary: Get Data Owner Info by Consent ID (Internal)
       description: Retrieves data owner information (owner_id and owner_email) for a specific consent. Internal use only.
@@ -441,7 +445,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /admin/expiry-check:
+  /v1/admin/expiry-check:
     post:
       summary: Check for Expired Consents (Internal)
       description: A protected admin endpoint to trigger a check for expired consents.
