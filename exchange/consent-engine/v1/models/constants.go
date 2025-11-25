@@ -1,13 +1,16 @@
 package models
 
-// Consent-engine log operations
+// ConsentEngineOperation represents the operation
+type ConsentEngineOperation string
+
+// ConsentEngineOperation constants
 const (
-	OpCreateConsent         = "create consent"
-	OpUpdateConsent         = "update consent"
-	OpRevokeConsent         = "revoke consent"
-	OpGetConsentStatus      = "get consent status"
-	OpGetConsentsByOwner    = "get consents by data owner"
-	OpGetConsentsByConsumer = "get consents by consumer"
-	OpCheckConsentExpiry    = "check consent expiry"
-	OpProcessPortalRequest  = "process consent portal"
+	OpCreateConsent         ConsentEngineOperation = "create consent"
+	OpUpdateConsent         ConsentEngineOperation = "update consent"
+	OpRevokeConsent         ConsentEngineOperation = "revoke consent"
+	OpGetConsentStatus      ConsentEngineOperation = "get consent status"
+	OpGetConsentsByOwner    ConsentEngineOperation = "get consents by data owner"
+	OpGetConsentsByConsumer ConsentEngineOperation = "get consents by consumer"
+	OpCheckConsentExpiry    ConsentEngineOperation = "check consent expiry"
+	OpProcessPortalRequest  ConsentEngineOperation = "process consent portal"
 )
