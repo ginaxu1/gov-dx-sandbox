@@ -44,6 +44,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set lowercase repository name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -83,7 +87,7 @@ jobs:
         with:
           context: ${{ env.SERVICE_PATH }}
           push: false  # Don't push, just validate build
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number || 'manual' }}
+          tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/audit-service:pr-${{ github.event.pull_request.number || 'manual' }}
           build-args: |
             SERVICE_PATH=${{ env.SERVICE_PATH }}
             BUILD_VERSION=${{ github.sha }}
