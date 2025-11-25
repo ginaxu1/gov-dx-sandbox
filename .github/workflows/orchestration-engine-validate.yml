@@ -5,7 +5,6 @@ on:
     paths:
       - 'exchange/orchestration-engine-go/**'
       - '.github/workflows/orchestration-engine-validate.yml'
-      - '.github/workflows/build-orchestration-engine.yml'
   workflow_dispatch:
 
 env:
@@ -58,11 +57,11 @@ jobs:
         with:
           context: ${{ env.SERVICE_PATH }}
           push: false  # Don't push, just validate build
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number || 'manual' }}
           build-args: |
             SERVICE_PATH=${{ env.SERVICE_PATH }}
             BUILD_VERSION=${{ github.sha }}
-            BUILD_TIME=${{ github.event.pull_request.updated_at || '2025-01-01T00:00:00Z' }}
+            BUILD_TIME=${{ github.event.pull_request.updated_at || github.run_id || '2025-01-01T00:00:00Z' }}
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -7,7 +7,6 @@ on:
     paths:
       - 'exchange/orchestration-engine-go/**'
       - '.github/workflows/orchestration-engine-publish.yml'
-      - '.github/workflows/build-orchestration-engine.yml'
     tags:
       - 'orchestration-engine-v*'
       - 'v*'

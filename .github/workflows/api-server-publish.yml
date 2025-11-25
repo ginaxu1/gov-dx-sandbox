@@ -7,7 +7,6 @@ on:
     paths:
       - 'api-server-go/**'
       - '.github/workflows/api-server-publish.yml'
-      - '.github/workflows/build-api-server-go.yml'
     tags:
       - 'api-server-go-v*'
       - 'v*'

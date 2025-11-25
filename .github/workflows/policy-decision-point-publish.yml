@@ -8,7 +8,6 @@ on:
       - 'exchange/policy-decision-point/**'
       - 'exchange/shared/**'
       - '.github/workflows/policy-decision-point-publish.yml'
-      - '.github/workflows/build-policy-decision-point.yml'
     tags:
       - 'policy-decision-point-v*'
       - 'v*'
