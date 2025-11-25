@@ -1,5 +1,5 @@
 ## Summary
-Brief description of what this PR accomplishes.
+Provide a brief description of what this PR accomplishes and why these changes are needed.
 
 ## Type of Change
 - [ ] Bug fix (non-breaking change which fixes an issue)
@@ -30,9 +30,9 @@ Brief description of what this PR accomplishes.
 - [ ] I have checked that there are no merge conflicts
 
 ## Related Issues
-Closes #(issue_number)
-Fixes #(issue_number)
-Related to #(issue_number)
+Closes #123 <!-- Replace 123 with the relevant issue number -->
+Fixes #123 <!-- Replace 123 with the relevant issue number -->
+Related to #123 <!-- Replace 123 with the relevant issue number -->
 
 ## Screenshots/Demo
 (If applicable, add screenshots or GIFs to help explain your changes)
