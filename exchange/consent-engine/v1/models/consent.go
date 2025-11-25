@@ -23,6 +23,7 @@ type ConsentRecord struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	// ExpiresAt is the timestamp when the consent expires
 	// Calculated by adding GrantDuration to the current time when consent is approved/denied
+	// To check if consent has expired: compare ExpiresAt < current_time
 	ExpiresAt time.Time `json:"expires_at"`
 	// GrantDuration is the duration to add to current time when approving/denying consent (e.g., "P30D", "1h")
 	// Used to calculate ExpiresAt: ExpiresAt = current_time + GrantDuration
