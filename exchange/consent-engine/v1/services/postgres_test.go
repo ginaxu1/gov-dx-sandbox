@@ -13,14 +13,18 @@ import (
 func TestPostgresConsentEngine_FindExistingConsent(t *testing.T) {
 	testEngine := SetupPostgresTestEngineWithDB(t)
 	engine := testEngine.Engine
+	db := testEngine.DB
 
-	// Create a consent first
+	// Ensure cleanup before test
+	CleanupTestData(t, db)
+
+	// Create a consent first with unique identifiers
 	createReq := models.ConsentRequest{
-		AppID: "test-app",
+		AppID: "test-app-find-existing",
 		ConsentRequirements: []models.ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
-				OwnerID: "user@example.com",
+				OwnerID: "user-find@example.com",
 				Fields: []models.ConsentField{
 					{
 						FieldName: "personInfo.name",
@@ -35,11 +39,11 @@ func TestPostgresConsentEngine_FindExistingConsent(t *testing.T) {
 	assert.NotNil(t, record)
 
 	// Test FindExistingConsent
-	found := engine.FindExistingConsent("test-app", "user@example.com")
+	found := engine.FindExistingConsent("test-app-find-existing", "user-find@example.com")
 	assert.NotNil(t, found)
 	assert.Equal(t, record.ConsentID, found.ConsentID)
-	assert.Equal(t, "test-app", found.AppID)
-	assert.Equal(t, "user@example.com", found.OwnerID)
+	assert.Equal(t, "test-app-find-existing", found.AppID)
+	assert.Equal(t, "user-find@example.com", found.OwnerID)
 
 	// Test with non-existent consent
 	notFound := engine.FindExistingConsent("non-existent-app", "user@example.com")
