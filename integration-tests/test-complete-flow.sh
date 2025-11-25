@@ -29,64 +29,24 @@ echo ""
 echo -e "${PURPLE}Step 3: DataCustodian checks consent with PDP${NC}"
 echo "DataCustodian sends 'check consent?' query to PDP"
 
-# First, create policy metadata for the fields we'll test
-echo "Creating policy metadata for test fields..."
-POLICY_METADATA_RESPONSE=$(curl -s -X POST http://localhost:8082/api/v1/policy/metadata \
-  -H "Content-Type: application/json" \
-  -d '{
-    "schemaId": "person_schema_v1",
-    "records": [
-      {
-        "fieldName": "person.fullName",
-        "displayName": "Full Name",
-        "description": "Person'\''s full name",
-        "source": "primary",
-        "isOwner": true,
-        "accessControlType": "public"
-      },
-      {
-        "fieldName": "person.nic",
-        "displayName": "NIC Number",
-        "description": "National Identity Card number",
-        "source": "primary",
-        "isOwner": false,
-        "accessControlType": "restricted",
-        "owner": "government"
-      },
-      {
-        "fieldName": "person.photo",
-        "displayName": "Photo",
-        "description": "Person'\''s photo",
-        "source": "primary",
-        "isOwner": false,
-        "accessControlType": "restricted",
-        "owner": "government"
-      }
-    ]
-  }')
-
-echo "Policy metadata created"
-
 # Test with consent-required fields
 echo "Testing with consent-required fields (person.nic, person.photo)..."
-PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/api/v1/policy/decide \
+PDP_RESPONSE=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "applicationId": "passport-app-v1",
-    "requiredFields": [
-      {"fieldName": "person.fullName", "schemaId": "person_schema_v1"},
-      {"fieldName": "person.nic", "schemaId": "person_schema_v1"},
-      {"fieldName": "person.photo", "schemaId": "person_schema_v1"}
-    ]
+    "consumer_id": "passport-app",
+    "app_id": "passport-app",
+    "request_id": "req_complete_flow",
+    "required_fields": ["person.fullName", "person.nic", "person.photo"]
   }')
 
 echo "PDP Decision:"
 echo "$PDP_RESPONSE" | jq '.'
 
-CONSENT_REQUIRED=$(echo "$PDP_RESPONSE" | jq -r '.appRequiresOwnerConsent // false')
-ALLOW=$(echo "$PDP_RESPONSE" | jq -r '.appAuthorized // false')
-CONSENT_FIELDS=$(echo "$PDP_RESPONSE" | jq -r '.consentRequiredFields // [] | length')
-DATA_OWNER=$(echo "$PDP_RESPONSE" | jq -r '.consentRequiredFields[0].owner // ""')
+CONSENT_REQUIRED=$(echo "$PDP_RESPONSE" | jq -r '.consent_required // false')
+ALLOW=$(echo "$PDP_RESPONSE" | jq -r '.allow // false')
+CONSENT_FIELDS=$(echo "$PDP_RESPONSE" | jq -r '.consent_required_fields // []')
+DATA_OWNER=$(echo "$PDP_RESPONSE" | jq -r '.data_owner // ""')
 
 if [ "$CONSENT_REQUIRED" = "true" ] && [ "$ALLOW" = "true" ]; then
     echo -e "${GREEN}✅ DataCustodian -> PDP: consent needed${NC}"
@@ -164,47 +124,26 @@ echo ""
 echo -e "${PURPLE}Step 9: App requests data again from DataCustodian${NC}"
 echo "App sends getData() request to DataCustodian again"
 
-# First create metadata for additional fields if not already created
-curl -s -X POST http://localhost:8082/api/v1/policy/metadata \
-  -H "Content-Type: application/json" \
-  -d '{
-    "schemaId": "person_schema_v1",
-    "records": [
-      {
-        "fieldName": "person.permanentAddress",
-        "displayName": "Permanent Address",
-        "description": "Person'\''s permanent address",
-        "source": "primary",
-        "isOwner": false,
-        "accessControlType": "public"
-      },
-      {
-        "fieldName": "person.birthDate",
-        "displayName": "Birth Date",
-        "description": "Person'\''s birth date",
-        "source": "primary",
-        "isOwner": false,
-        "accessControlType": "public"
-      }
-    ]
-  }' > /dev/null
-
 # Test the same request again (now with consent)
-PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8082/api/v1/policy/decide \
+PDP_RESPONSE_2=$(curl -s -X POST http://localhost:8082/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "applicationId": "passport-app-v1",
-    "requiredFields": [
-      {"fieldName": "person.fullName", "schemaId": "person_schema_v1"},
-      {"fieldName": "person.permanentAddress", "schemaId": "person_schema_v1"},
-      {"fieldName": "person.birthDate", "schemaId": "person_schema_v1"}
-    ]
+    "consumer": {
+      "id": "passport-app",
+      "name": "Passport Application Service",
+      "type": "government_service"
+    },
+    "request": {
+      "resource": "person_data",
+      "action": "read",
+      "data_fields": ["person.fullName", "person.permanentAddress", "person.birthDate"]
+    }
   }')
 
 echo "PDP Decision (after consent):"
 echo "$PDP_RESPONSE_2" | jq '.'
 
-ALLOW_2=$(echo "$PDP_RESPONSE_2" | jq -r '.appAuthorized // false')
+ALLOW_2=$(echo "$PDP_RESPONSE_2" | jq -r '.allow // false')
 
 if [ "$ALLOW_2" = "true" ]; then
     echo -e "${GREEN}✅ App -> DataCustodian: getData() request (with consent)${NC}"
