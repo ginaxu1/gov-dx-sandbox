@@ -37,21 +37,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('integration-tests/go/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('integration-tests/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
       - name: Install test dependencies
-        working-directory: integration-tests/go
+        working-directory: integration-tests
         run: |
           go mod download
           go mod tidy
 
       - name: Set up Docker Compose for Go tests
-        working-directory: integration-tests/go
+        working-directory: integration-tests
         run: |
           echo "Starting Docker Compose services for Go tests..."
-          docker compose up -d
+          docker compose -f docker-compose.test.yml up -d
           
           echo "Waiting for services to be ready..."
           sleep 15
@@ -64,7 +64,7 @@ jobs:
             
             while [ $attempt -le $max_attempts ]; do
               # Check for 'healthy' or 'running' (as a fallback)
-              if docker compose ps $service | grep -q "healthy\|running"; then
+              if docker compose -f docker-compose.test.yml ps $service | grep -q "healthy\|running"; then
                 echo "✅ $service is ready"
                 return 0
               fi
@@ -74,7 +74,7 @@ jobs:
             done
             
             echo "❌ $service failed to start"
-            docker compose logs $service
+            docker compose -f docker-compose.test.yml logs $service
             return 1
           }
           
@@ -86,7 +86,7 @@ jobs:
           echo "All infrastructure services are ready!"
 
       - name: Run Go Integration Tests
-        working-directory: integration-tests/go
+        working-directory: integration-tests
         env:
           GO_ENV: test
           USE_COMPOSE: "true"
@@ -97,10 +97,10 @@ jobs:
 
       - name: Cleanup Go test infrastructure
         if: always()
-        working-directory: integration-tests/go
+        working-directory: integration-tests
         run: |
           echo "Stopping test infrastructure..."
-          docker compose down -v
+          docker compose -f docker-compose.test.yml down -v
 
   #
   # JOB 2: Deploy and check the live environment
