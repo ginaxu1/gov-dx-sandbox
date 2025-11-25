@@ -11,12 +11,3 @@ const (
 	OpCheckConsentExpiry    = "check consent expiry"
 	OpProcessPortalRequest  = "process consent portal"
 )
-
-// Consent status constants
-const (
-	StatusPending  ConsentStatus = "pending"
-	StatusApproved ConsentStatus = "approved"
-	StatusRejected ConsentStatus = "rejected"
-	StatusExpired  ConsentStatus = "expired"
-	StatusRevoked  ConsentStatus = "revoked"
-)
