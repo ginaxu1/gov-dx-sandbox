@@ -127,7 +127,7 @@ func TestUserAuthMiddleware(t *testing.T) {
 
 			handler := userAuthMiddleware(jwtVerifier, engine, userTokenConfig)(nextHandler)
 
-			path := "/consents/" + tt.consentID
+			path := "/v1/consents/" + tt.consentID
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
@@ -197,7 +197,7 @@ func TestSelectiveAuthMiddleware(t *testing.T) {
 
 			handler := selectiveAuthMiddleware(jwtVerifier, engine, userTokenConfig, tt.requireAuthMethods)(nextHandler)
 
-			req := httptest.NewRequest(tt.method, "/consents/"+record.ConsentID, nil)
+			req := httptest.NewRequest(tt.method, "/v1/consents/"+record.ConsentID, nil)
 			w := httptest.NewRecorder()
 
 			handler.ServeHTTP(w, req)

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/consent-engine/handlers"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 	service "github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 )
@@ -66,10 +67,10 @@ func makeJSONRequest(t *testing.T, method, path string, body interface{}) *http.
 	return req
 }
 
-// TestPOSTConsents tests POST /consents endpoint
+// TestPOSTConsents tests POST /v1/consents endpoint
 func TestPOSTConsents(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -191,10 +192,10 @@ func TestPOSTConsents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := makeJSONRequest(t, http.MethodPost, "/consents", tt.requestBody)
+			req := makeJSONRequest(t, http.MethodPost, "/v1/consents", tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandler(w, req)
+			server.HandleConsents(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -212,10 +213,10 @@ func TestPOSTConsents(t *testing.T) {
 	}
 }
 
-// TestGETConsentsByID tests GET /consents/{id} endpoint
+// TestGETConsentsByID tests GET /v1/consents/{id} endpoint
 func TestGETConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	// Create a consent first
 	record := createTestConsent(t, engine, "test-app", "user@example.com")
@@ -248,10 +249,10 @@ func TestGETConsentsByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/consents/"+tt.consentID, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/consents/"+tt.consentID, nil)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			server.HandleConsentWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -272,7 +273,7 @@ func TestGETConsentsByID(t *testing.T) {
 // TestPATCHConsentsByID tests PATCH /consents/{id} endpoint
 func TestPATCHConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -339,10 +340,10 @@ func TestPATCHConsentsByID(t *testing.T) {
 				consentID = record.ConsentID
 			}
 
-			req := makeJSONRequest(t, http.MethodPatch, "/consents/"+consentID, tt.requestBody)
+			req := makeJSONRequest(t, http.MethodPatch, "/v1/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			server.HandleConsentWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -363,7 +364,7 @@ func TestPATCHConsentsByID(t *testing.T) {
 // TestDELETEConsentsByID tests DELETE /consents/{id} endpoint
 func TestDELETEConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -418,10 +419,10 @@ func TestDELETEConsentsByID(t *testing.T) {
 				}
 			}
 
-			req := makeJSONRequest(t, http.MethodDelete, "/consents/"+consentID, tt.requestBody)
+			req := makeJSONRequest(t, http.MethodDelete, "/v1/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			server.HandleConsentWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -442,7 +443,7 @@ func TestDELETEConsentsByID(t *testing.T) {
 // TestGETConsentsByDataOwner tests GET /data-owner/{ownerId} endpoint
 func TestGETConsentsByDataOwner(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	// Create consents for a specific owner
 	_ = createTestConsent(t, engine, "test-app", "owner123@example.com")
@@ -487,10 +488,10 @@ func TestGETConsentsByDataOwner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/data-owner/"+tt.ownerID, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/data-owner/"+tt.ownerID, nil)
 			w := httptest.NewRecorder()
 
-			server.dataOwnerHandler(w, req)
+			server.HandleDataOwner(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -511,7 +512,7 @@ func TestGETConsentsByDataOwner(t *testing.T) {
 // TestGETConsentsByConsumer tests GET /consumer/{consumerId} endpoint
 func TestGETConsentsByConsumer(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	// Create consents for a specific consumer app
 	_ = createTestConsent(t, engine, "consumer-app-123", "user@example.com")
@@ -556,10 +557,10 @@ func TestGETConsentsByConsumer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/consumer/"+tt.consumerID, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/consumer/"+tt.consumerID, nil)
 			w := httptest.NewRecorder()
 
-			server.consumerHandler(w, req)
+			server.HandleConsumer(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -580,7 +581,7 @@ func TestGETConsentsByConsumer(t *testing.T) {
 // TestGETDataInfo tests GET /data-info/{consentId} endpoint
 func TestGETDataInfo(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	// Create a consent first
 	record := createTestConsent(t, engine, "test-app", "owner@example.com")
@@ -616,10 +617,10 @@ func TestGETDataInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/data-info/"+tt.consentID, nil)
+			req := httptest.NewRequest(http.MethodGet, "/v1/data-info/"+tt.consentID, nil)
 			w := httptest.NewRecorder()
 
-			server.dataInfoHandler(w, req)
+			server.HandleDataInfo(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -642,7 +643,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 	testEngine := setupPostgresTestEngineWithDB(t)
 	engine := testEngine.engine
 	db := testEngine.db
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -767,10 +768,10 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 				tt.setupFunc(t, engine, db)
 			}
 
-			req := httptest.NewRequest(tt.method, "/admin/expiry-check", nil)
+			req := httptest.NewRequest(tt.method, "/v1/admin/expiry-check", nil)
 			w := httptest.NewRecorder()
 
-			server.adminHandler(w, req)
+			server.HandleAdmin(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -791,7 +792,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 // TestPUTConsentsByID tests PUT /consents/{id} endpoint
 func TestPUTConsentsByID(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -853,10 +854,10 @@ func TestPUTConsentsByID(t *testing.T) {
 				consentID = record.ConsentID
 			}
 
-			req := makeJSONRequest(t, http.MethodPut, "/consents/"+consentID, tt.requestBody)
+			req := makeJSONRequest(t, http.MethodPut, "/v1/consents/"+consentID, tt.requestBody)
 			w := httptest.NewRecorder()
 
-			server.consentHandlerWithID(w, req)
+			server.HandleConsentWithID(w, req)
 
 			if w.Code != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d. Response: %s", tt.expectedStatus, w.Code, w.Body.String())
@@ -877,7 +878,7 @@ func TestPUTConsentsByID(t *testing.T) {
 // TestConsentHandlerRouting tests routing logic for consent handlers
 func TestConsentHandlerRouting(t *testing.T) {
 	engine := setupPostgresTestEngine(t)
-	server := &apiServer{engine: engine}
+	server := handlers.NewConsentHandler(engine)
 
 	tests := []struct {
 		name           string
@@ -886,39 +887,39 @@ func TestConsentHandlerRouting(t *testing.T) {
 		expectedStatus int
 	}{
 		{
-			name:           "POST /consents",
+			name:           "POST /v1/consents",
 			method:         http.MethodPost,
-			path:           "/consents",
+			path:           "/v1/consents",
 			expectedStatus: http.StatusBadRequest, // Invalid body, but endpoint exists
 		},
 		{
-			name:           "GET /consents - Method not allowed",
+			name:           "GET /v1/consents - Method not allowed",
 			method:         http.MethodGet,
-			path:           "/consents",
+			path:           "/v1/consents",
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
-			name:           "GET /consents/{id}",
+			name:           "GET /v1/consents/{id}",
 			method:         http.MethodGet,
-			path:           "/consents/test-id",
+			path:           "/v1/consents/test-id",
 			expectedStatus: http.StatusNotFound, // ID doesn't exist, but endpoint exists
 		},
 		{
-			name:           "PUT /consents/{id}",
+			name:           "PUT /v1/consents/{id}",
 			method:         http.MethodPut,
-			path:           "/consents/test-id",
+			path:           "/v1/consents/test-id",
 			expectedStatus: http.StatusNotFound, // ID doesn't exist, but endpoint exists
 		},
 		{
-			name:           "PATCH /consents/{id}",
+			name:           "PATCH /v1/consents/{id}",
 			method:         http.MethodPatch,
-			path:           "/consents/test-id",
+			path:           "/v1/consents/test-id",
 			expectedStatus: http.StatusNotFound, // ID doesn't exist, but endpoint exists
 		},
 		{
-			name:           "DELETE /consents/{id}",
+			name:           "DELETE /v1/consents/{id}",
 			method:         http.MethodDelete,
-			path:           "/consents/test-id",
+			path:           "/v1/consents/test-id",
 			expectedStatus: http.StatusNotFound, // ID doesn't exist, but endpoint exists
 		},
 	}
@@ -934,10 +935,10 @@ func TestConsentHandlerRouting(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			if strings.HasSuffix(tt.path, "/consents") {
-				server.consentHandler(w, req)
+			if strings.HasSuffix(tt.path, "/v1/consents") || tt.path == "/v1/consents" {
+				server.HandleConsents(w, req)
 			} else {
-				server.consentHandlerWithID(w, req)
+				server.HandleConsentWithID(w, req)
 			}
 
 			if w.Code != tt.expectedStatus {
