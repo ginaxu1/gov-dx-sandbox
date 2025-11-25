@@ -26,6 +26,8 @@ type ConsentRequirement struct {
 type ConsentField struct {
 	FieldName string `json:"fieldName"`
 	SchemaID  string `json:"schemaId"`
+	DisplayName *string `json:"displayName,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
 // UpdateConsentRequest defines the structure for updating a consent record
