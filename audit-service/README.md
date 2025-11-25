@@ -101,6 +101,39 @@ go build -o audit-service
 ./audit-service
 ```
 
+## Local Testing Setup
+
+For local testing, create a `.env.local` file with your PostgreSQL credentials:
+
+```bash
+# .env.local (this file should not be committed to git)
+TEST_DB_USER=postgres
+TEST_DB_PASS=your_password
+TEST_DB_HOST=localhost
+TEST_DB_PORT=5432
+TEST_DB_DATABASE=audit_service_test
+TEST_DB_SSLMODE=disable
+```
+
+Run tests:
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with verbose output
+go test ./... -v
+
+# Run tests with coverage
+go test ./... -cover
+```
+
+**Note**: The test setup will automatically:
+- Load credentials from `.env.local` if available
+- Try common credential combinations as fallback
+- Create the test database if it doesn't exist
+- Skip tests gracefully if PostgreSQL is not available
+
 ## Health Check
 
 - `GET /health` - Returns service health status
