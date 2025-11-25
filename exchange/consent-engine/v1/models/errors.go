@@ -1,30 +1,27 @@
 package models
 
-// Error codes for consent-engine API responses
-// These codes align with orchestration-engine error code patterns
+// Consent-engine error messages
 const (
-	// Consent not found
-	ErrorCodeConsentNotFound = "CONSENT_NOT_FOUND"
-
-	// Consent validation errors
-	ErrorCodeInvalidAction        = "INVALID_ACTION"
-	ErrorCodeInvalidStatus        = "INVALID_STATUS"
-	ErrorCodeInvalidRequest       = "INVALID_REQUEST"
-	ErrorCodeMissingRequiredField = "MISSING_REQUIRED_FIELD"
-
-	// Consent state errors
-	ErrorCodeConsentExpired  = "CONSENT_EXPIRED"
-	ErrorCodeConsentRevoked  = "CONSENT_REVOKED"
-	ErrorCodeConsentRejected = "CONSENT_REJECTED"
-
-	// Service errors
-	ErrorCodeInternalError      = "INTERNAL_ERROR"
-	ErrorCodeDatabaseError      = "DATABASE_ERROR"
-	ErrorCodeServiceUnavailable = "SERVICE_UNAVAILABLE"
+	ErrConsentNotFound     = "consent record not found"
+	ErrConsentCreateFailed = "failed to create consent record"
+	ErrConsentUpdateFailed = "failed to update consent record"
+	ErrConsentRevokeFailed = "failed to revoke consent record"
+	ErrConsentGetFailed    = "failed to get consent records"
+	ErrConsentExpiryFailed = "failed to check consent expiry"
+	ErrPortalRequestFailed = "failed to process consent portal request"
 )
 
-// ErrorResponseWithCode represents an error response with a standardized error code
+// Error codes
+const (
+	ErrorCodeConsentNotFound = "CONSENT_NOT_FOUND"
+	ErrorCodeInternalError   = "INTERNAL_ERROR"
+	ErrorCodeBadRequest      = "BAD_REQUEST"
+	ErrorCodeUnauthorized    = "UNAUTHORIZED"
+	ErrorCodeForbidden       = "FORBIDDEN"
+)
+
+// ErrorResponseWithCode represents an error response with a code
 type ErrorResponseWithCode struct {
-	Error     string `json:"error"`
-	ErrorCode string `json:"error_code,omitempty"`
+	Code  string `json:"code,omitempty"`
+	Error string `json:"error"`
 }
