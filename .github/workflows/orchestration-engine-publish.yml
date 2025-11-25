@@ -1,4 +1,4 @@
-name: Build and Push Orchestration Engine Docker Image
+name: Publish Orchestration Engine Image
 
 on:
   push:
@@ -6,14 +6,10 @@ on:
       - main
     paths:
       - 'exchange/orchestration-engine-go/**'
-      - '.github/workflows/build-orchestration-engine.yml'
+      - '.github/workflows/orchestration-engine-publish.yml'
     tags:
       - 'orchestration-engine-v*'
       - 'v*'
-  pull_request:
-    paths:
-      - 'exchange/orchestration-engine-go/**'
-      - '.github/workflows/build-orchestration-engine.yml'
   workflow_dispatch:
 
 env:
@@ -22,64 +18,13 @@ env:
   IMAGE_NAME: ${{ github.repository }}/orchestration-engine
   # ================================
   REGISTRY: ghcr.io
-  GO_VERSION: '1.22'
 
 jobs:
-  # ----------------------------------------------------
-  # JOB 1: VALIDATE (Runs on PRs and on push)
-  # ----------------------------------------------------
-  validate:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read       # To check out the code
-      security-events: write # To upload TruffleHog results
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Run Go Mod Tidy
-        run: cd ${{ env.SERVICE_PATH }} && go mod tidy
-
-      - name: Check for unclean Go Mod
-        run: |
-          if ! git diff --exit-code -- ${{ env.SERVICE_PATH }}/go.mod ${{ env.SERVICE_PATH }}/go.sum; then
-            echo "::error::go.mod or go.sum files have uncommitted changes. Please run 'go mod tidy' and commit."
-            git diff -- ${{ env.SERVICE_PATH }}/go.mod ${{ env.SERVICE_PATH }}/go.sum
-            exit 1
-          fi
-          echo "Go mod files are clean."
-
-      - name: Build application
-        run: cd ${{ env.SERVICE_PATH }} && go build .
-
-      - name: Run unit & integration tests
-        run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
-
-      - name: Scan repository for secrets (TruffleHog)
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event.before || 'main' }}
-          head: HEAD
-          extra_args: --only-verified
-
-  # ----------------------------------------------------
-  # JOB 2: PUBLISH (Runs ONLY on push to main)
-  # ----------------------------------------------------
   publish:
     runs-on: ubuntu-latest
-    needs: [validate] # Depends on the 'validate' job
-    if: github.event_name == 'push' # Only run this job on a push
     permissions:
       contents: read       # To check out the code
       packages: write      # To push images to GHCR
-      security-events: write # To upload Trivy SARIF results
 
     steps:
       - name: Checkout repository
@@ -102,7 +47,6 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            # Removed 'type=ref,event=pr' - this job only runs on push
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
