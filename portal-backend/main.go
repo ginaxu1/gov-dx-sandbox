@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
 	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
 	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
