@@ -11,14 +11,10 @@ pkill -f "orchestration-engine-go" || true
 pkill -f "policy-decision-point" || true
 sleep 2
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
 # Start Policy Decision Point
 echo "Starting Policy Decision Point..."
-cd "${PROJECT_ROOT}/exchange/policy-decision-point"
-go run main.go &
+cd /Users/tmp/gov-dx-sandbox/exchange/policy-decision-point
+go run main.go policy-evaluator.go &
 PDP_PID=$!
 echo "Policy Decision Point started with PID: $PDP_PID"
 
@@ -31,8 +27,8 @@ curl -s http://localhost:8082/health || echo "PDP not responding"
 
 # Start Consent Engine
 echo "Starting Consent Engine..."
-cd "${PROJECT_ROOT}/exchange/consent-engine"
-go run main.go &
+cd /Users/tmp/gov-dx-sandbox/exchange/consent-engine
+go run main.go engine.go &
 CE_PID=$!
 echo "Consent Engine started with PID: $CE_PID"
 
@@ -45,7 +41,7 @@ curl -s http://localhost:8081/health || echo "CE not responding"
 
 # Start Orchestration Engine
 echo "Starting Orchestration Engine..."
-cd "${PROJECT_ROOT}/exchange/orchestration-engine-go"
+cd /Users/tmp/gov-dx-sandbox/exchange/orchestration-engine-go
 go run main.go &
 OE_PID=$!
 echo "Orchestration Engine started with PID: $OE_PID"

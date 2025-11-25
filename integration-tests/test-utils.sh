@@ -233,7 +233,7 @@ test_pdp_request() {
     echo "Expected: $expected"
     echo ""
     
-    RESPONSE=$(curl -s -X POST "$PDP_URL/api/v1/policy/decide" \
+    RESPONSE=$(curl -s -X POST "$PDP_URL/decide" \
         -H "Content-Type: application/json" \
         -d "$data")
     
@@ -241,10 +241,10 @@ test_pdp_request() {
     echo "$RESPONSE" | jq '.'
     echo "---"
     
-    # Check if response matches expected (v1 API uses appAuthorized)
-    if echo "$RESPONSE" | jq -e ".appAuthorized == true" > /dev/null 2>&1; then
+    # Check if response matches expected
+    if echo "$RESPONSE" | jq -e ".allowed == true" > /dev/null 2>&1; then
         log_success "PDP Decision: ALLOWED"
-    elif echo "$RESPONSE" | jq -e ".appAuthorized == false" > /dev/null 2>&1; then
+    elif echo "$RESPONSE" | jq -e ".allowed == false" > /dev/null 2>&1; then
         log_warning "PDP Decision: DENIED"
     else
         log_error "PDP Decision: UNKNOWN"
@@ -295,15 +295,15 @@ test_pdp_decision() {
     log_info "Expected: allow=$expected_allow, consent_required=$expected_consent"
     echo ""
     
-    local response=$(curl -s -X POST "$PDP_URL/api/v1/policy/decide" \
+    local response=$(curl -s -X POST "$PDP_URL/decide" \
         -H "Content-Type: application/json" \
         -d "$test_data")
     
     echo "PDP Response:"
     echo "$response" | jq '.'
     
-    local actual_allow=$(echo "$response" | jq -r '.appAuthorized // false')
-    local actual_consent=$(echo "$response" | jq -r '.appRequiresOwnerConsent // false')
+    local actual_allow=$(echo "$response" | jq -r '.allow // false')
+    local actual_consent=$(echo "$response" | jq -r '.consent_required // false')
     
     if [ "$actual_allow" = "$expected_allow" ] && [ "$actual_consent" = "$expected_consent" ]; then
         log_success "✅ PASSED"

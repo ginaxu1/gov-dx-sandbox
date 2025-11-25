@@ -1,95 +1,20 @@
 # Integration Tests
 
-Comprehensive integration tests for the OpenDIF data exchange platform, with both shell-based and Go-based test suites.
+Comprehensive integration tests for the Data Exchange Platform covering end-to-end workflows, consent management, and policy decision scenarios.
 
 ## Overview
 
 The integration tests validate the complete data exchange workflow from data request to consent management, ensuring all components work together correctly.
 
-## Two Test Suites
-
-### 1. **Go-based Integration Tests** (New)
-
-A comprehensive integration test suite written in Go that focuses on validating the interactions between services and their backing infrastructure (databases, Redis, OPA).
-
-**Location**: `integration-tests/go/`
-
-**Features**:
-- Database and infrastructure validation
-- Authentication & authorization testing
-- Audit logging verification
-- Data exchange flow validation
-- GraphQL API testing
-
-### 2. **Shell-based Integration Tests** (Existing)
-
-Quick smoke tests and manual validation scripts for end-to-end workflows.
-
-**Location**: `integration-tests/*.sh`
-
-**Features**:
-- End-to-end workflow testing
-- Service health checks
-- Consent flow validation
-- Policy Decision Point testing
-
-## Directory Structure
+## Test Structure
 
 ```
 integration-tests/
 ├── README.md                    # This file
-│
-├── go/                          # Go-based integration tests
-│   ├── main_test.go             # Test runner and setup/teardown
-│   ├── utils.go                 # Test utilities (DB, Redis, OPA helpers)
-│   ├── auth_test.go             # Authentication & authorization tests
-│   ├── audit_stream_test.go     # Audit logging tests
-│   ├── data_exchange_flow_test.go # Data exchange flow tests
-│   ├── graphql_api_test.go      # GraphQL API tests
-│   ├── docker-compose.yml       # Docker Compose configuration
-│   ├── go.mod                   # Go module definition
-│   ├── Makefile                 # Build automation
-│   ├── README.md                # Detailed Go tests documentation
-│   └── testdata/                # Test fixtures
-│       ├── init-db.sql          # Database schema initialization
-│       ├── seed-data.sql        # Seed data for tests
-│       └── policies/            # OPA test policies
-│
-└── *.sh                         # Shell-based integration tests
-    ├── run-all-tests.sh         # Run all integration tests
-    ├── test-complete-flow.sh    # Complete end-to-end workflow test
-    ├── test-consent-flow.sh     # Consent management workflow test
-    └── test-pdp.sh              # Policy Decision Point test
-```
-
-## Quick Start
-
-### Go-based Tests
-
-```bash
-cd integration-tests/go
-
-# Install dependencies
-make deps
-
-# Run tests (requires services running)
-make test
-
-# Or use Docker Compose
-make run-compose
-USE_COMPOSE=true make test
-```
-
-### Shell-based Tests
-
-```bash
-cd integration-tests
-
-# Run all shell tests
-./run-all-tests.sh
-
-# Run specific test
-./test-consent-flow.sh
+├── run-all-tests.sh            # Run all integration tests
+├── test-complete-flow.sh       # Complete end-to-end workflow test
+├── test-consent-flow.sh        # Consent management workflow test
+└── test-pdp.sh                 # Policy Decision Point test
 ```
 
 ## Prerequisites
@@ -99,8 +24,6 @@ Before running integration tests, ensure all services are running:
 1. **Consent Engine** (Port 8081) 
 2. **Policy Decision Point** (Port 8082)
 3. **Orchestration Engine** (Port 4000)
-4. **API Server** (Port 3000)
-5. **Audit Service** (Port 3001)
 
 ### Starting Services
 
@@ -111,52 +34,25 @@ make start-exchange
 
 # Or start individual services:
 # Terminal 1 - Consent Engine
-cd exchange/consent-engine
+cd /Users/tmp/gov-dx-sandbox/exchange/consent-engine
 go run main.go
 
 # Terminal 2 - Policy Decision Point
-cd exchange/policy-decision-point
+cd /Users/tmp/gov-dx-sandbox/exchange/policy-decision-point
 go run main.go
 
 # Terminal 3 - Orchestration Engine
-cd exchange/orchestration-engine-go
+cd /Users/tmp/gov-dx-sandbox/exchange/orchestration-engine-go
 go run main.go
 ```
 
-## Go-based Test Coverage
-
-### Scenario 1: Authentication & Authorization
-- OPA connectivity tests
-- Database authentication queries  
-- Policy metadata validation
-- JWT validation (placeholder)
-- Allow-list enforcement
-
-### Scenario 2: Audit Logging
-- Audit log creation in database
-- Redis stream message processing
-- Audit log filtering
-- Audit middleware integration
-
-### Scenario 3: Data Exchange Flow
-- Provider metadata queries
-- Consumer grants verification
-- Provider schemas validation
-- Consent workflow testing
-
-### Scenario 4: GraphQL API
-- Schema availability checks
-- Schema introspection
-- Federation capabilities
-- Version tracking
-
-## Shell-based Test Scenarios
+## Test Scenarios
 
 ### 1. Complete Data Exchange Flow (`test-complete-flow.sh`)
 
 Tests the complete end-to-end workflow from data request to data retrieval.
 
-**Test Steps**:
+**Test Steps:**
 1. Create provider profile
 2. Submit and approve schema
 3. Create consumer application
@@ -164,73 +60,179 @@ Tests the complete end-to-end workflow from data request to data retrieval.
 5. Handle consent workflow (if required)
 6. Retrieve authorized data
 
+**Expected Outcome:**
+- All services respond correctly
+- Data access is properly authorized
+- Consent workflow functions as expected
+
 ### 2. Consent Management Workflow (`test-consent-flow.sh`)
 
 Tests consent management scenarios including different data ownership patterns.
 
+**Test Scenarios:**
+
 #### Scenario A: Data Owner is NOT the Provider
 - **Setup**: Provider (DRP) requests data owned by RGD
+- **Fields**: `person.permanentAddress`, `person.photo`
 - **Expected**: Consent required, SMS OTP sent to data owner
+- **Workflow**:
+  1. PDP determines consent required
+  2. Consent Engine creates consent record
+  3. Data owner receives SMS OTP
+  4. Data owner approves/denies consent
+  5. Data access proceeds based on consent decision
 
 #### Scenario B: Data Owner IS the Provider
 - **Setup**: Provider (DRP) requests data owned by DRP
+- **Fields**: `person.fullName`, `person.nic`
 - **Expected**: No consent required, direct access
+- **Workflow**:
+  1. PDP determines no consent required
+  2. Data access proceeds immediately
+  3. No consent record created
+
+#### Scenario C: Mixed Ownership
+- **Setup**: Provider requests data from multiple owners
+- **Fields**: `person.fullName` (DRP), `person.birthDate` (RGD)
+- **Expected**: Consent required only for RGD fields
+- **Workflow**:
+  1. PDP determines consent required for RGD fields
+  2. Consent Engine creates consent record for RGD data
+  3. DRP data accessed immediately
+  4. RGD data accessed after consent approval
 
 ### 3. Policy Decision Point Tests (`test-pdp.sh`)
 
 Tests authorization decisions and consent requirements.
 
-**Test Cases**:
-- Public field access
-- Restricted field access (authorized)
-- Restricted field access (consent required)
-- Unauthorized access
+**Test Cases:**
+
+#### Public Field Access
+```bash
+# Request: person.fullName (public field)
+# Expected: ALLOWED, no consent required
+```
+
+#### Restricted Field Access (Authorized)
+```bash
+# Request: person.birthDate (restricted, app in allow_list)
+# Expected: ALLOWED, no consent required
+```
+
+#### Restricted Field Access (Consent Required)
+```bash
+# Request: person.permanentAddress (restricted, cross-provider)
+# Expected: ALLOWED, consent required
+```
+
+#### Unauthorized Access
+```bash
+# Request: person.nic (restricted, app not in allow_list)
+# Expected: DENIED
+```
 
 ## Running Tests
 
-### Run All Shell Tests
+### Run All Tests
 ```bash
-cd integration-tests
+cd /Users/tmp/gov-dx-sandbox/integration-tests
 ./run-all-tests.sh
 ```
 
-### Run All Go Tests
+### Run Specific Test
 ```bash
-cd integration-tests/go
-make test
+# Complete flow test
+./test-complete-flow.sh
+
+# Consent workflow test
+./test-consent-flow.sh
+
+# Policy Decision Point test
+./test-pdp.sh
 ```
-
-### Run Specific Tests
-```bash
-# Shell tests
-./integration-tests/test-consent-flow.sh
-./integration-tests/test-pdp.sh
-
-# Go tests
-cd integration-tests/go
-go test -v -run TestAuthentication
-go test -v -run TestAuditStream
-```
-
-## Configuration
-
-### Go Test Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `USE_COMPOSE` | Use Docker Compose mode | `false` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://test_user:test_password@localhost:5432/opendif_test` |
-| `REDIS_URL` | Redis connection string | `localhost:6379` |
 
 ## Test Data
 
-The Go tests use a predefined set of test data stored in `integration-tests/go/testdata/seed-data.sql`:
+### Provider Metadata
+The tests use the following provider metadata structure:
 
-- **Entities**: `entity-1`, `entity-2`, `entity-3`
-- **Consumers**: `passport-app`, `test-consumer`, `unauthorized-app`
-- **Providers**: `provider-drp`, `provider-rgd`
-- **Schemas**: Sample GraphQL schemas
-- **Policy Metadata**: Field-level access control policies
+```json
+{
+  "fields": {
+    "person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.birthDate": {
+      "owner": "rgd",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "person.permanentAddress": {
+      "owner": "rgd",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumerId": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "person.nic": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": []
+    }
+  }
+}
+```
+
+### Allow List Construction
+
+The `allow_list` is constructed through the following process:
+
+1. **Schema Submission**: Provider submits GraphQL SDL schema
+2. **Admin Approval**: Admin approves schema, triggering metadata generation
+3. **Consumer Authorization**: Consumers are added to allow_list through:
+   - Direct admin action
+   - Consent approval workflow
+   - Pre-approved MOUs (Memorandum of Understanding)
+   - API integration
+
+4. **Allow List Entry**: Each entry contains:
+   - `consumerId`: Authorized application ID
+   - `expires_at`: Epoch timestamp for expiry
+   - `grant_duration`: Human-readable duration
+
+### Test Data Setup
+
+Before running tests, ensure the following data is set up:
+
+1. **Provider Profile**: DRP provider profile exists
+2. **Approved Schema**: Schema is approved and metadata generated
+3. **Consumer Authorization**: `passport-app` is in allow_list for restricted fields
+4. **Test Consumers**: Various test consumers with different authorization levels
+
+### Test Applications
+- **passport-app**: Authorized consumer for restricted fields
+- **unauthorized-app**: Consumer not in allow_list
+- **test-app**: General test consumer
 
 ## Expected Test Results
 
@@ -240,87 +242,115 @@ The Go tests use a predefined set of test data stored in `integration-tests/go/t
 ✅ Complete data exchange flow passed
 ✅ Consent workflow (data owner ≠ provider) passed
 ✅ Consent workflow (data owner = provider) passed
+✅ Mixed ownership consent workflow passed
 ✅ Policy Decision Point authorization tests passed
-✅ Go integration tests passed
 ✅ All integration tests completed successfully
 ```
 
-## Troubleshooting
+### Common Issues and Solutions
 
-### Service Not Running
+#### Service Not Running
 ```
-❌ Error: Service not responding on port 8081
+❌ Error: Orchestration Engine not responding on port 4000
 ```
-**Solution**: Start the service: `make start-exchange`
+**Solution**: Start the services: `make start-exchange`
 
-### Database Connection Issues
+#### Consent Engine Error
 ```
-❌ Error: Cannot connect to database
+❌ Error: Consent Engine not responding on port 8081
 ```
-**Solution**: 
+**Solution**: Start the Consent Engine: `cd consent-engine && go run main.go`
+
+#### Policy Decision Point Error
+```
+❌ Error: Policy Decision Point not responding on port 8082
+```
+**Solution**: Start the PDP: `cd policy-decision-point && go run main.go`
+
+#### Test Data Issues
+```
+❌ Error: Provider profile not found
+```
+**Solution**: Ensure test data is properly set up in provider-metadata.json
+
+## Test Coverage
+
+The integration tests cover:
+
+1. **Service Health Checks**: All services are running and responsive
+2. **API Endpoints**: All major endpoints are functional
+3. **Data Flow**: Complete request-to-response workflow
+4. **Authorization**: Proper access control enforcement
+5. **Consent Management**: Consent creation, approval, and tracking
+6. **Error Handling**: Proper error responses and status codes
+7. **Edge Cases**: Invalid requests, missing data, unauthorized access
+8. **Cross-Service Communication**: Services communicate correctly
+
+## Debugging
+
+### Enable Verbose Logging
 ```bash
-cd integration-tests/go
-docker-compose up -d postgres
+# Set log level to debug
+export LOG_LEVEL=debug
+./run-all-tests.sh
 ```
 
-### Test Timeout Issues
+### Check Service Logs
 ```bash
-# Increase timeout for Go tests
-export TEST_TIMEOUT=20m
-cd integration-tests/go
-make test
+# Check API Server logs
+tail -f /tmp/api-server.log
+
+# Check Consent Engine logs
+tail -f /tmp/consent-engine.log
+
+# Check PDP logs
+tail -f /tmp/pdp.log
 ```
 
-## CI/CD Integration
+### Manual Testing
+```bash
+# Test Orchestration Engine health
+curl http://localhost:4000/health
 
-Both test suites can be integrated into CI/CD pipelines:
+# Test Consent Engine health
+curl http://localhost:8081/health
 
-```yaml
-# Example GitHub Actions
-name: Integration Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.24'
-      
-      - name: Run shell tests
-        run: |
-          cd integration-tests
-          ./run-all-tests.sh
-      
-      - name: Run Go tests
-        run: |
-          cd integration-tests/go
-          make deps
-          make test
+# Test PDP health
+curl http://localhost:8082/health
 ```
 
 ## Contributing
 
-When adding new tests:
+When adding new integration tests:
 
-1. **For Shell Tests**: Follow naming convention: `test-{feature}-{scenario}.sh`
-2. **For Go Tests**: Follow Go testing best practices and naming conventions
-3. **Include error handling**: Check for service availability
-4. **Add documentation**: Update this README
-5. **Test edge cases**: Include both success and failure scenarios
-6. **Clean up**: Ensure tests don't leave test data in the system
+1. **Follow naming convention**: `test-{feature}-{scenario}.sh`
+2. **Include error handling**: Check for service availability
+3. **Add documentation**: Update this README with new test scenarios
+4. **Test edge cases**: Include both success and failure scenarios
+5. **Clean up**: Ensure tests don't leave test data in the system
 
-## Best Practices
+## Troubleshooting
 
-1. **Keep Tests Independent**: Each test should be able to run in isolation
-2. **Clean State**: Always start with a clean database state
-3. **Idempotent**: Running tests multiple times should produce the same results
-4. **Fast**: Integration tests should complete in reasonable time
-5. **Document**: Add comments explaining complex test scenarios
+### Port Conflicts
+If you get port conflicts, check what's running:
+```bash
+lsof -i :4000  # Orchestration Engine
+lsof -i :8081  # Consent Engine
+lsof -i :8082  # Policy Decision Point
+```
 
-## License
+### Permission Issues
+Make sure test scripts are executable:
+```bash
+chmod +x *.sh
+```
 
-This project is part of the OpenDIF platform.
+### Test Data Cleanup
+If tests fail and leave test data, clean up:
+```bash
+# Reset API Server data (if using in-memory storage)
+curl -X DELETE http://localhost:8080/admin/reset
+
+# Reset Consent Engine data
+curl -X DELETE http://localhost:8081/admin/reset
+```
