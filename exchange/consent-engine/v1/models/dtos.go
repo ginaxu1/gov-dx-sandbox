@@ -8,6 +8,13 @@ import (
 	"golang.org/x/text/language"
 )
 
+// Owner represents the owner enum (matches PolicyDecisionPoint Owner type)
+type Owner string
+
+const (
+	OwnerCitizen Owner = "citizen"
+)
+
 // ConsentRequest defines the structure for creating a consent record
 type ConsentRequest struct {
 	AppID               string               `json:"app_id"`
@@ -23,11 +30,13 @@ type ConsentRequirement struct {
 }
 
 // ConsentField represents a field that requires consent
+// Matches PolicyDecisionResponseFieldRecord structure from PolicyDecisionPoint
 type ConsentField struct {
-	FieldName string `json:"fieldName"`
-	SchemaID  string `json:"schemaId"`
+	FieldName   string  `json:"fieldName"`
+	SchemaID    string  `json:"schemaId"`
 	DisplayName *string `json:"displayName,omitempty"`
 	Description *string `json:"description,omitempty"`
+	Owner       *Owner  `json:"owner,omitempty"`
 }
 
 // UpdateConsentRequest defines the structure for updating a consent record
@@ -55,14 +64,15 @@ type ConsentResponse struct {
 }
 
 // ConsentPortalView represents the user-facing consent object for the UI.
+// Uses rich field information for better UX in the consent portal
 type ConsentPortalView struct {
-	AppDisplayName string    `json:"app_display_name"`
-	CreatedAt      time.Time `json:"created_at"`
-	Fields         []string  `json:"fields"`
-	OwnerName      string    `json:"owner_name"`
-	OwnerEmail     string    `json:"owner_email"`
-	Status         string    `json:"status"`
-	Type           string    `json:"type"`
+	AppDisplayName string         `json:"app_display_name"`
+	CreatedAt      time.Time      `json:"created_at"`
+	Fields         []ConsentField `json:"fields"` // Rich field information with display names and descriptions
+	OwnerName      string         `json:"owner_name"`
+	OwnerEmail     string         `json:"owner_email"`
+	Status         string         `json:"status"`
+	Type           string         `json:"type"`
 }
 
 // Legacy structures for backwards compatibility (deprecated)
@@ -91,6 +101,7 @@ func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
 }
 
 // ToConsentPortalView converts an internal ConsentRecord to a user-facing view.
+// Returns rich field information including display names and descriptions for better UX
 func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
 	// Simple mapping for app_id to a human-readable name.
 	// You may need a more robust mapping or database lookup for this in a real application.
@@ -105,7 +116,7 @@ func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
 	return &ConsentPortalView{
 		AppDisplayName: appDisplayName,
 		CreatedAt:      cr.CreatedAt,
-		Fields:         cr.Fields,
+		Fields:         cr.Fields, // Now includes DisplayName, Description, and Owner for rich UI rendering
 		OwnerName:      ownerName,
 		OwnerEmail:     cr.OwnerEmail,
 		Status:         cr.Status,

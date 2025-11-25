@@ -5,15 +5,6 @@ import "time"
 // ConsentStatus represents the status of a consent record
 type ConsentStatus string
 
-// ConsentStatus constants
-const (
-	StatusPending  ConsentStatus = "pending"
-	StatusApproved ConsentStatus = "approved"
-	StatusRejected ConsentStatus = "rejected"
-	StatusExpired  ConsentStatus = "expired"
-	StatusRevoked  ConsentStatus = "revoked"
-)
-
 // ConsentRecord represents a consent record in the system
 type ConsentRecord struct {
 	// ConsentID is the unique identifier for the consent record
@@ -30,11 +21,14 @@ type ConsentRecord struct {
 	Type      string    `json:"type"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	// ExpiresAt is the timestamp when the consent expires
+	// Calculated by adding GrantDuration to the current time when consent is approved/denied
 	ExpiresAt time.Time `json:"expires_at"`
-	// GrantDuration is the duration of consent grant (e.g., "30d", "1h")
+	// GrantDuration is the duration to add to current time when approving/denying consent (e.g., "P30D", "1h")
+	// Used to calculate ExpiresAt: ExpiresAt = current_time + GrantDuration
 	GrantDuration string `json:"grant_duration"`
-	// Fields is the list of data fields that require consent
-	Fields []string `json:"fields"`
+	// Fields is the list of data fields that require consent with rich metadata
+	Fields []ConsentField `json:"fields"`
 	// SessionID is the session identifier for tracking the consent flow
 	SessionID string `json:"session_id"`
 	// ConsentPortalURL is the URL to redirect to for consent portal
