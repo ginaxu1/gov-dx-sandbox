@@ -9,11 +9,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
+	service "github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 )
 
 // createTestConsent is a helper function to create a consent record for testing
 // It reduces code duplication across test functions and ensures consistent test data setup
-func createTestConsent(t *testing.T, engine ConsentEngine, appID, ownerID string) *ConsentRecord {
+func createTestConsent(t *testing.T, engine service.ConsentEngine, appID, ownerID string) *models.ConsentRecord {
 	if appID == "" {
 		appID = "test-app"
 	}
@@ -21,13 +24,13 @@ func createTestConsent(t *testing.T, engine ConsentEngine, appID, ownerID string
 		ownerID = "user@example.com"
 	}
 
-	createReq := ConsentRequest{
+	createReq := models.ConsentRequest{
 		AppID: appID,
-		ConsentRequirements: []ConsentRequirement{
+		ConsentRequirements: []models.ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: ownerID,
-				Fields: []ConsentField{
+				Fields: []models.ConsentField{
 					{
 						FieldName: "personInfo.name",
 						SchemaID:  "schema-123",
@@ -403,8 +406,8 @@ func TestDELETEConsentsByID(t *testing.T) {
 
 				// Approve the consent first if needed (can't transition from pending to revoked)
 				if tt.approveFirst {
-					updateReq := UpdateConsentRequest{
-						Status:    StatusApproved,
+					updateReq := models.UpdateConsentRequest{
+						Status:    models.StatusApproved,
 						UpdatedBy: "user@example.com",
 						Reason:    "User approved",
 					}
@@ -644,22 +647,22 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 	tests := []struct {
 		name           string
 		method         string
-		setupFunc      func(t *testing.T, engine ConsentEngine, db *sql.DB) string
+		setupFunc      func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string
 		expectedStatus int
 		validateFunc   func(t *testing.T, response map[string]interface{})
 	}{
 		{
 			name:   "ExpiryCheck_NoExpiredRecords",
 			method: http.MethodPost,
-			setupFunc: func(t *testing.T, engine ConsentEngine, db *sql.DB) string {
+			setupFunc: func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string {
 				// Create a consent that won't expire soon
-				createReq := ConsentRequest{
+				createReq := models.ConsentRequest{
 					AppID: "test-app",
-					ConsentRequirements: []ConsentRequirement{
+					ConsentRequirements: []models.ConsentRequirement{
 						{
 							Owner:   "CITIZEN",
 							OwnerID: "user@example.com",
-							Fields: []ConsentField{
+							Fields: []models.ConsentField{
 								{
 									FieldName: "personInfo.name",
 									SchemaID:  "schema-123",
@@ -694,15 +697,15 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 		{
 			name:   "ExpiryCheck_WithExpiredRecords",
 			method: http.MethodPost,
-			setupFunc: func(t *testing.T, engine ConsentEngine, db *sql.DB) string {
+			setupFunc: func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string {
 				// Create a consent
-				createReq := ConsentRequest{
+				createReq := models.ConsentRequest{
 					AppID: "test-app",
-					ConsentRequirements: []ConsentRequirement{
+					ConsentRequirements: []models.ConsentRequirement{
 						{
 							Owner:   "CITIZEN",
 							OwnerID: "user@example.com",
-							Fields: []ConsentField{
+							Fields: []models.ConsentField{
 								{
 									FieldName: "personInfo.name",
 									SchemaID:  "schema-123",
@@ -717,8 +720,8 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 				}
 
 				// Approve the consent
-				updateReq := UpdateConsentRequest{
-					Status:        StatusApproved,
+				updateReq := models.UpdateConsentRequest{
+					Status:        models.StatusApproved,
 					UpdatedBy:     "user@example.com",
 					Reason:        "User approved",
 					GrantDuration: "1h", // Use normal duration
@@ -753,7 +756,7 @@ func TestPOSTAdminExpiryCheck(t *testing.T) {
 		{
 			name:           "ExpiryCheck_InvalidMethod",
 			method:         http.MethodGet,
-			setupFunc:      func(t *testing.T, engine ConsentEngine, db *sql.DB) string { return "" },
+			setupFunc:      func(t *testing.T, engine service.ConsentEngine, db *sql.DB) string { return "" },
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 	}
