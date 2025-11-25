@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	service "github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 	_ "github.com/lib/pq"
 )
 
@@ -19,7 +20,7 @@ const (
 )
 
 // SetupTestEngine creates a test engine based on environment configuration
-func SetupTestEngine(t *testing.T) ConsentEngine {
+func SetupTestEngine(t *testing.T) service.ConsentEngine {
 	// Check if we should use PostgreSQL for testing
 	usePostgres := os.Getenv("TEST_USE_POSTGRES") == "true"
 
@@ -32,20 +33,20 @@ func SetupTestEngine(t *testing.T) ConsentEngine {
 }
 
 // setupPostgresTestEngine creates a PostgreSQL test engine
-func setupPostgresTestEngine(t *testing.T) ConsentEngine {
+func setupPostgresTestEngine(t *testing.T) service.ConsentEngine {
 	return setupPostgresTestEngineWithDB(t).engine
 }
 
 // postgresTestEngineWithDB holds both the engine and database connection for tests
 type postgresTestEngineWithDB struct {
-	engine ConsentEngine
+	engine service.ConsentEngine
 	db     *sql.DB
 }
 
 // setupPostgresTestEngineWithDB creates a PostgreSQL test engine and returns both engine and DB
 func setupPostgresTestEngineWithDB(t *testing.T) *postgresTestEngineWithDB {
 	// Use test database configuration
-	config := &DatabaseConfig{
+	config := &service.DatabaseConfig{
 		Host:            getEnvOrDefault("TEST_DB_HOST", "localhost"),
 		Port:            getEnvOrDefault("TEST_DB_PORT", "5432"),
 		Username:        getEnvOrDefault("TEST_DB_USERNAME", "postgres"),
@@ -62,13 +63,13 @@ func setupPostgresTestEngineWithDB(t *testing.T) *postgresTestEngineWithDB {
 		RetryDelay:      1 * time.Second,
 	}
 
-	db, err := ConnectDB(config)
+	db, err := service.ConnectDB(config)
 	if err != nil {
 		t.Skipf("Skipping PostgreSQL test: failed to connect to database: %v", err)
 	}
 
 	// Initialize database tables
-	if err := InitDatabase(db); err != nil {
+	if err := service.InitDatabase(db); err != nil {
 		t.Fatalf("Failed to initialize test database: %v", err)
 	}
 
@@ -76,7 +77,7 @@ func setupPostgresTestEngineWithDB(t *testing.T) *postgresTestEngineWithDB {
 	cleanupTestData(t, db)
 
 	return &postgresTestEngineWithDB{
-		engine: NewPostgresConsentEngine(db, "http://localhost:5173"),
+		engine: service.NewPostgresConsentEngine(db, "http://localhost:5173"),
 		db:     db,
 	}
 }
@@ -100,7 +101,7 @@ func updateConsentExpiry(t *testing.T, db *sql.DB, consentID string, expiresAt t
 }
 
 // TestWithPostgresEngine runs a test function with PostgreSQL engine
-func TestWithPostgresEngine(t *testing.T, testName string, testFunc func(t *testing.T, engine ConsentEngine)) {
+func TestWithPostgresEngine(t *testing.T, testName string, testFunc func(t *testing.T, engine service.ConsentEngine)) {
 	// Only run PostgreSQL tests if explicitly enabled
 	if os.Getenv("TEST_USE_POSTGRES") == "true" {
 		t.Run("PostgreSQL_"+testName, func(t *testing.T) {

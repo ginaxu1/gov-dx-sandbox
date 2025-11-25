@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/consent-engine/service"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
+	service "github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
