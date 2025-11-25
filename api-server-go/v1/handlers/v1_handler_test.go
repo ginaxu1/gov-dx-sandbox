@@ -262,22 +262,23 @@ func createTestApplication(t *testing.T, db *gorm.DB, memberID string) string {
 	selectedFields := models.SelectedFieldRecords{
 		{FieldName: "field1", SchemaID: "schema-123"},
 	}
-	selectedFieldsJSON, _ := json.Marshal(selectedFields)
 	application := models.Application{
 		ApplicationID:   "app_" + fmt.Sprintf("%d", time.Now().UnixNano()),
 		ApplicationName: "Test Application",
-		SelectedFields:  models.SelectedFieldRecords(selectedFields),
+		SelectedFields:  selectedFields,
 		MemberID:        memberID,
 		Version:         "1.0.0",
 	}
-	// Manually set the JSONB field
-	err := db.Exec("INSERT INTO applications (application_id, application_name, selected_fields, member_id, version) VALUES (?, ?, ?::jsonb, ?, ?)",
-		application.ApplicationID, application.ApplicationName, string(selectedFieldsJSON), application.MemberID, application.Version).Error
-	if err != nil {
-		// Fallback to GORM if manual insert fails
-		err = db.Create(&application).Error
-	}
+
+	// Use GORM Create which handles JSONB fields properly across different environments
+	err := db.Create(&application).Error
 	assert.NoError(t, err)
+
+	// Ensure the record is properly committed and readable
+	var verifyApp models.Application
+	err = db.First(&verifyApp, "application_id = ?", application.ApplicationID).Error
+	assert.NoError(t, err, "Failed to verify application was created properly")
+
 	return application.ApplicationID
 }
 
@@ -829,6 +830,13 @@ func TestApplicationEndpoints(t *testing.T) {
 		memberID := createTestMember(t, testHandler.db, fmt.Sprintf("test-%d@example.com", time.Now().UnixNano()))
 		applicationID := createTestApplication(t, testHandler.db, memberID)
 
+		// Verify the application exists before attempting to update
+		var existingApp models.Application
+		err := testHandler.db.First(&existingApp, "application_id = ?", applicationID).Error
+		if err != nil {
+			t.Fatalf("Application was not found in database after creation: %v", err)
+		}
+
 		appName := "Updated Application Name"
 		appDesc := "Updated Description"
 		req := models.UpdateApplicationRequest{
@@ -845,9 +853,14 @@ func TestApplicationEndpoints(t *testing.T) {
 		testHandler.handler.SetupV1Routes(mux)
 		mux.ServeHTTP(w, httpReq)
 
+		// Add debug output if test fails
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d. Response body: %s", w.Code, w.Body.String())
+		}
+
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response models.ApplicationResponse
-		err := json.Unmarshal(w.Body.Bytes(), &response)
+		err = json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, appName, response.ApplicationName)
 	})
