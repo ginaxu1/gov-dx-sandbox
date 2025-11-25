@@ -40,5 +40,5 @@ type ConsentRecord struct {
 	// ConsentPortalURL is the URL to redirect to for consent portal
 	ConsentPortalURL string `json:"consent_portal_url"`
 	// UpdatedBy identifies who last updated the consent (audit field)
-	UpdatedBy string `json:"updated_by,omitempty"`
+	UpdatedBy *string `json:"updated_by,omitempty"`
 }
