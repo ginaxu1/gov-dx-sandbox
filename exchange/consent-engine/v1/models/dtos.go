@@ -105,12 +105,9 @@ func (cr *ConsentRecord) ToConsentResponse() ConsentResponse {
 // Returns rich field information including display names and descriptions for better UX
 func (cr *ConsentRecord) ToConsentPortalView() *ConsentPortalView {
 	// Simple mapping for app_id to a human-readable name.
-	// You may need a more robust mapping or database lookup for this in a real application.
 	appDisplayName := strings.ReplaceAll(cr.AppID, "-", " ")
 	appDisplayName = cases.Title(language.English).String(appDisplayName)
 
-	// Simple mapping for owner_id to a human-readable name.
-	// In a real application, this would be a database lookup or API call.
 	ownerName := strings.ReplaceAll(cr.OwnerID, "-", " ")
 	ownerName = cases.Title(language.English).String(ownerName)
 
