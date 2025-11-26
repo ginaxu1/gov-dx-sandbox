@@ -14,8 +14,8 @@ import (
 // Utility functions for consent management
 
 // generateConsentID generates a unique consent ID
-func generateConsentID() string {
-	return fmt.Sprintf("consent_%s", uuid.New().String()[:8])
+func generateConsentID() uuid.UUID {
+	return uuid.New()
 }
 
 // getDefaultGrantDuration returns the default grant duration
