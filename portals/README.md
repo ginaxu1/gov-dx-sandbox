@@ -8,57 +8,49 @@ React-based portals for the OpenDIF platform.
 - **Consent Portal** - User-facing consent management interface
 - **Member Portal** - Member/provider portal for data exchange
 
-## Quick Start
+## Configuration (`config.js`)
 
-### Setup Configuration
+Each portal relies on a `config.js` file for runtime configuration. This file is:
+1.  **Generated at runtime** in Docker (via `entrypoint.sh`).
+2.  **Created manually** (or via script) for local development in the `public/` directory.
+3.  **Loaded in HTML** (`<script src="/config.js">`) before the main app.
+4.  **Accessed via `window.configs`** in the application.
 
-All portals require a `config.js` file for runtime configuration. Use the setup script:
+### Locations & Variables
+
+| Portal | Config Path | Required Variables |
+|--------|------------|-------------------|
+| **Admin** | `admin-portal/public/config.js` | `VITE_API_URL`, `VITE_LOGS_URL`, `VITE_IDP_CLIENT_ID`, `VITE_IDP_BASE_URL`, ... |
+| **Consent** | `consent-portal/public/config.js` | `apiUrl`, `VITE_CLIENT_ID`, `VITE_BASE_URL`, `VITE_SCOPE`, ... |
+| **Member** | `member-portal/public/config.js` | `apiUrl`, `logsUrl`, `VITE_CLIENT_ID`, `VITE_BASE_URL`, ... |
+
+## Local Development Setup
+
+Use the helper script to generate `config.js` files with test values for all portals:
 
 ```bash
 cd portals
 ./setup-portals.sh
 ```
 
-This script will:
-- Create `config.js` files for all portals
-- Validate configuration
-- Check dependencies
-- Provide test commands
+This script creates the files, validates dependencies, and ensures correct HTML references.
 
-### Run a Portal
+## Running & Testing
 
+### 1. Start a Portal
 ```bash
-# Admin Portal
+# Example: Admin Portal
 cd admin-portal
 VITE_PORT=5174 npm run dev
-
-# Consent Portal
-cd consent-portal
-VITE_PORT=5175 npm run dev
-
-# Member Portal
-cd member-portal
-VITE_PORT=5176 npm run dev
 ```
 
-## Configuration
+### 2. Verify Configuration Loading
+To confirm `config.js` is loaded correctly:
 
-Each portal uses a `config.js` file that is:
-- **Generated at runtime** in Docker (via `entrypoint.sh`)
-- **Created manually** for local development (in `public/` directory)
-- **Loaded in HTML** before the main application script
-- **Accessed via `window.configs`** in the application code
+1.  Open the portal (e.g., `http://localhost:5174`).
+2.  Open **DevTools** (F12) -> **Console**.
+3.  Look for the log: `Window configs: { ... }`.
+4.  Type `window.configs` in the console to inspect values.
+5.  Check **Network** tab: Ensure `config.js` loads with status `200`.
 
-### Config File Locations
-
-| Portal | Config Path | HTML Reference |
-|--------|------------|----------------|
-| Admin Portal | `admin-portal/public/config.js` | `./config.js` |
-| Consent Portal | `consent-portal/public/config.js` | `./config.js` |
-| Member Portal | `member-portal/public/config.js` | `./config.js` |
-
-**Note**: Vite serves files from `public/` at the root (`/`), so `public/config.js` is accessible as `/config.js`.
-
-## Testing
-
-See [PORTAL_TESTING.md](./PORTAL_TESTING.md) for comprehensive testing instructions.
+> **Troubleshooting:** If `window.configs` is undefined, check that `public/config.js` exists and is referenced in `index.html`.
