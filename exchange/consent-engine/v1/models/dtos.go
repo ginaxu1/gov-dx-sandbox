@@ -17,10 +17,11 @@ const (
 )
 
 // ConsentRequest defines the structure for creating a consent record
+// GrantDuration is optional - nil means not provided and will use default value
 type ConsentRequest struct {
 	AppID               string               `json:"app_id"`
 	ConsentRequirements []ConsentRequirement `json:"consent_requirements"`
-	GrantDuration       string               `json:"grant_duration,omitempty"`
+	GrantDuration       *string              `json:"grant_duration,omitempty"`
 }
 
 // ConsentRequirement represents a consent requirement for a specific owner
@@ -41,20 +42,23 @@ type ConsentField struct {
 }
 
 // UpdateConsentRequest defines the structure for updating a consent record
+// Status is optional (omitempty) to support PATCH operations where status may not be provided
+// Optional fields use pointers to distinguish between "not provided" (nil) and "provided as empty" (pointer to empty value)
 type UpdateConsentRequest struct {
-	Status        ConsentStatus `json:"status"`
-	UpdatedBy     string        `json:"updated_by,omitempty"`
-	GrantDuration string        `json:"grant_duration,omitempty"`
-	Fields        []string      `json:"fields,omitempty"`
-	Reason        string        `json:"reason,omitempty"`
+	Status        ConsentStatus `json:"status,omitempty"`         // Required for PUT, optional for PATCH
+	UpdatedBy     *string       `json:"updated_by,omitempty"`     // Optional - nil means not provided
+	GrantDuration *string       `json:"grant_duration,omitempty"` // Optional - nil means not provided
+	Fields        *[]string     `json:"fields,omitempty"`         // Optional - nil means not provided
+	Reason        *string       `json:"reason,omitempty"`         // Optional - nil means not provided
 }
 
 // ConsentPortalRequest defines the structure for consent portal interactions
+// Reason is optional - nil means not provided, pointer allows distinguishing from empty string
 type ConsentPortalRequest struct {
 	ConsentID uuid.UUID `json:"consent_id"`
 	Action    string    `json:"action"` // "approve" or "reject"
 	DataOwner string    `json:"data_owner"`
-	Reason    string    `json:"reason,omitempty"`
+	Reason    *string   `json:"reason,omitempty"`
 }
 
 // ConsentResponse represents the simplified response for consent operations
