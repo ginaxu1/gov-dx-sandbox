@@ -14,7 +14,11 @@ import (
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	return testhelpers.SetupTestDB(t)
+	db := testhelpers.SetupPostgresTestDB(t)
+	if db == nil {
+		t.SkipNow()
+	}
+	return db
 }
 
 func TestHandler_CreatePolicyMetadata_InvalidJSON(t *testing.T) {

@@ -11,15 +11,26 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const (
 	pdpBaseURL = "http://127.0.0.1:8083/api/v1/policy"
 )
 
+var testDB *gorm.DB
+
 func TestMain(m *testing.M) {
 	// Simple wait for service availability
 	waitForService(pdpBaseURL + "/metadata") // This endpoint might 405 on GET, but connection should work
+
+	// Optionally connect to database for verification
+	// This allows tests to verify database state if needed
+	// Set TEST_VERIFY_DB=true to enable database verification
+	if os.Getenv("TEST_VERIFY_DB") == "true" {
+		// We'll set up the DB connection in individual tests if needed
+		// This is optional - integration tests can work without direct DB access
+	}
 
 	code := m.Run()
 	os.Exit(code)
@@ -42,6 +53,16 @@ func TestPDP_Flow(t *testing.T) {
 	schemaID := "schema-test-123"
 	fieldName := "email"
 	appID := "consumer-app-1"
+
+	// Optionally set up database connection for verification
+	// This is optional - the test works without it, but enables DB state verification
+	var db *gorm.DB
+	if os.Getenv("TEST_VERIFY_DB") == "true" {
+		db = SetupPostgresTestDB(t)
+		if db != nil {
+			defer CleanupTestData(t, db)
+		}
+	}
 
 	// 1. Create Policy Metadata
 	reqBody := map[string]interface{}{
@@ -73,6 +94,12 @@ func TestPDP_Flow(t *testing.T) {
 	assert.NotEmpty(t, record["id"])
 	assert.Equal(t, schemaID, record["schemaId"])
 	assert.Equal(t, fieldName, record["fieldName"])
+
+	// Verify database state if DB connection is available
+	if db != nil {
+		assert.True(t, VerifyPolicyMetadataExists(t, db, schemaID, fieldName),
+			"Policy metadata should exist in database after creation")
+	}
 
 	// 2. Update Allowlist
 	t.Run("UpdateAllowlist", func(t *testing.T) {
