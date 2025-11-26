@@ -14,7 +14,7 @@ env:
   TEST_DB_NAME: audit_service_test
   # ================================
   REGISTRY: ghcr.io
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.24'
   TEST_DB_USER: postgres
   TEST_DB_PASS: password
 
