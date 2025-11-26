@@ -1,4 +1,4 @@
-package service
+package main
 
 import (
 	"context"
@@ -6,26 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPostgresConsentEngine_FindExistingConsent(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
-	db := testEngine.DB
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
-	// Ensure cleanup before test
-	CleanupTestData(t, db)
-
-	// Create a consent first with unique identifiers
-	createReq := models.ConsentRequest{
-		AppID: "test-app-find-existing",
-		ConsentRequirements: []models.ConsentRequirement{
+	// Create a consent first
+	createReq := ConsentRequest{
+		AppID: "test-app",
+		ConsentRequirements: []ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
-				OwnerID: "user-find@example.com",
-				Fields: []models.ConsentField{
+				OwnerID: "user@example.com",
+				Fields: []ConsentField{
 					{
 						FieldName: "personInfo.name",
 						SchemaID:  "schema-123",
@@ -39,11 +34,11 @@ func TestPostgresConsentEngine_FindExistingConsent(t *testing.T) {
 	assert.NotNil(t, record)
 
 	// Test FindExistingConsent
-	found := engine.FindExistingConsent("test-app-find-existing", "user-find@example.com")
+	found := engine.FindExistingConsent("test-app", "user@example.com")
 	assert.NotNil(t, found)
 	assert.Equal(t, record.ConsentID, found.ConsentID)
-	assert.Equal(t, "test-app-find-existing", found.AppID)
-	assert.Equal(t, "user-find@example.com", found.OwnerID)
+	assert.Equal(t, "test-app", found.AppID)
+	assert.Equal(t, "user@example.com", found.OwnerID)
 
 	// Test with non-existent consent
 	notFound := engine.FindExistingConsent("non-existent-app", "user@example.com")
@@ -51,17 +46,17 @@ func TestPostgresConsentEngine_FindExistingConsent(t *testing.T) {
 }
 
 func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	// Create a consent first
-	createReq := models.ConsentRequest{
+	createReq := ConsentRequest{
 		AppID: "test-app",
-		ConsentRequirements: []models.ConsentRequirement{
+		ConsentRequirements: []ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: "user@example.com",
-				Fields: []models.ConsentField{
+				Fields: []ConsentField{
 					{
 						FieldName: "personInfo.name",
 						SchemaID:  "schema-123",
@@ -75,7 +70,7 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 	assert.NotNil(t, record)
 
 	t.Run("Approve action", func(t *testing.T) {
-		portalReq := models.ConsentPortalRequest{
+		portalReq := ConsentPortalRequest{
 			ConsentID: record.ConsentID,
 			Action:    "approve",
 			DataOwner: "user@example.com",
@@ -85,18 +80,18 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 		result, err := engine.ProcessConsentPortalRequest(portalReq)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, string(models.StatusApproved), result.Status)
+		assert.Equal(t, string(StatusApproved), result.Status)
 	})
 
 	t.Run("Deny action", func(t *testing.T) {
 		// Create a fresh consent for deny test
-		createReq := models.ConsentRequest{
+		createReq := ConsentRequest{
 			AppID: "test-app-deny",
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: "user-deny@example.com",
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -108,7 +103,7 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 		testRecord, err := engine.ProcessConsentRequest(createReq)
 		assert.NoError(t, err)
 
-		portalReq := models.ConsentPortalRequest{
+		portalReq := ConsentPortalRequest{
 			ConsentID: testRecord.ConsentID,
 			Action:    "deny",
 			DataOwner: "user-deny@example.com",
@@ -118,18 +113,18 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 		result, err := engine.ProcessConsentPortalRequest(portalReq)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, string(models.StatusRejected), result.Status)
+		assert.Equal(t, string(StatusRejected), result.Status)
 	})
 
 	t.Run("Revoke action", func(t *testing.T) {
 		// Create a fresh consent with unique app ID and approve it first, then revoke
-		createReq := models.ConsentRequest{
+		createReq := ConsentRequest{
 			AppID: "test-app-revoke-unique",
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: "user-revoke@example.com",
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -142,7 +137,7 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Approve first
-		approveReq := models.ConsentPortalRequest{
+		approveReq := ConsentPortalRequest{
 			ConsentID: testRecord.ConsentID,
 			Action:    "approve",
 			DataOwner: "user-revoke@example.com",
@@ -150,10 +145,10 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 		}
 		approved, err := engine.ProcessConsentPortalRequest(approveReq)
 		assert.NoError(t, err)
-		assert.Equal(t, string(models.StatusApproved), approved.Status)
+		assert.Equal(t, string(StatusApproved), approved.Status)
 
 		// Now revoke (approved can transition to revoked)
-		revokeReq := models.ConsentPortalRequest{
+		revokeReq := ConsentPortalRequest{
 			ConsentID: testRecord.ConsentID,
 			Action:    "revoke",
 			DataOwner: "user-revoke@example.com",
@@ -163,11 +158,11 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 		result, err := engine.ProcessConsentPortalRequest(revokeReq)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, string(models.StatusRevoked), result.Status)
+		assert.Equal(t, string(StatusRevoked), result.Status)
 	})
 
 	t.Run("Invalid action", func(t *testing.T) {
-		portalReq := models.ConsentPortalRequest{
+		portalReq := ConsentPortalRequest{
 			ConsentID: record.ConsentID,
 			Action:    "invalid",
 			DataOwner: "user@example.com",
@@ -182,8 +177,8 @@ func TestPostgresConsentEngine_ProcessConsentPortalRequest(t *testing.T) {
 }
 
 func TestPostgresConsentEngine_StartBackgroundExpiryProcess(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -205,8 +200,8 @@ func TestPostgresConsentEngine_StartBackgroundExpiryProcess(t *testing.T) {
 }
 
 func TestPostgresConsentEngine_StopBackgroundExpiryProcess(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	// This should not panic
 	engine.StopBackgroundExpiryProcess()
@@ -214,16 +209,16 @@ func TestPostgresConsentEngine_StopBackgroundExpiryProcess(t *testing.T) {
 
 // TestPostgresConsentEngine_CreateConsent tests the CreateConsent wrapper method
 func TestPostgresConsentEngine_CreateConsent(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
-	req := models.ConsentRequest{
+	req := ConsentRequest{
 		AppID: "test-app-create",
-		ConsentRequirements: []models.ConsentRequirement{
+		ConsentRequirements: []ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: "user-create@example.com",
-				Fields: []models.ConsentField{
+				Fields: []ConsentField{
 					{
 						FieldName: "personInfo.name",
 						SchemaID:  "schema-123",
@@ -238,22 +233,22 @@ func TestPostgresConsentEngine_CreateConsent(t *testing.T) {
 	assert.NotNil(t, record)
 	assert.Equal(t, "test-app-create", record.AppID)
 	assert.Equal(t, "user-create@example.com", record.OwnerID)
-	assert.Equal(t, string(models.StatusPending), record.Status)
+	assert.Equal(t, string(StatusPending), record.Status)
 }
 
 // TestPostgresConsentEngine_ProcessConsentRequest_ValidationErrors tests validation error cases
 func TestPostgresConsentEngine_ProcessConsentRequest_ValidationErrors(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	t.Run("Empty AppID", func(t *testing.T) {
-		req := models.ConsentRequest{
+		req := ConsentRequest{
 			AppID: "",
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: "user@example.com",
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -269,9 +264,9 @@ func TestPostgresConsentEngine_ProcessConsentRequest_ValidationErrors(t *testing
 	})
 
 	t.Run("Empty ConsentRequirements", func(t *testing.T) {
-		req := models.ConsentRequest{
+		req := ConsentRequest{
 			AppID:               "test-app",
-			ConsentRequirements: []models.ConsentRequirement{},
+			ConsentRequirements: []ConsentRequirement{},
 		}
 		record, err := engine.ProcessConsentRequest(req)
 		assert.Error(t, err)
@@ -282,8 +277,8 @@ func TestPostgresConsentEngine_ProcessConsentRequest_ValidationErrors(t *testing
 
 // TestPostgresConsentEngine_GetConsentStatus_NotFound tests GetConsentStatus with non-existent ID
 func TestPostgresConsentEngine_GetConsentStatus_NotFound(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	record, err := engine.GetConsentStatus("non-existent-consent-id")
 	assert.Error(t, err)
@@ -293,12 +288,12 @@ func TestPostgresConsentEngine_GetConsentStatus_NotFound(t *testing.T) {
 
 // TestPostgresConsentEngine_UpdateConsent_EdgeCases tests UpdateConsent edge cases
 func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	t.Run("Non-existent consent", func(t *testing.T) {
-		updateReq := models.UpdateConsentRequest{
-			Status: models.StatusApproved,
+		updateReq := UpdateConsentRequest{
+			Status: StatusApproved,
 		}
 		record, err := engine.UpdateConsent("non-existent-id", updateReq)
 		assert.Error(t, err)
@@ -308,13 +303,13 @@ func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
 
 	t.Run("Invalid status transition", func(t *testing.T) {
 		// Create a consent
-		createReq := models.ConsentRequest{
+		createReq := ConsentRequest{
 			AppID: "test-app-update",
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: "user-update@example.com",
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -327,8 +322,8 @@ func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Try invalid transition: pending -> revoked (not allowed)
-		updateReq := models.UpdateConsentRequest{
-			Status: models.StatusRevoked,
+		updateReq := UpdateConsentRequest{
+			Status: StatusRevoked,
 		}
 		updated, err := engine.UpdateConsent(record.ConsentID, updateReq)
 		assert.Error(t, err)
@@ -338,14 +333,14 @@ func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
 
 	t.Run("Update with empty grant duration uses existing", func(t *testing.T) {
 		// Create a consent with specific grant duration
-		createReq := models.ConsentRequest{
+		createReq := ConsentRequest{
 			AppID:         "test-app-grant",
 			GrantDuration: "P2D",
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: "user-grant@example.com",
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -358,8 +353,8 @@ func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Update with empty grant duration - should use existing
-		updateReq := models.UpdateConsentRequest{
-			Status:        models.StatusApproved,
+		updateReq := UpdateConsentRequest{
+			Status:        StatusApproved,
 			GrantDuration: "", // Empty - should use existing
 		}
 		updated, err := engine.UpdateConsent(record.ConsentID, updateReq)
@@ -370,13 +365,13 @@ func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
 
 	t.Run("Update with empty fields uses existing", func(t *testing.T) {
 		// Create a consent with fields
-		createReq := models.ConsentRequest{
+		createReq := ConsentRequest{
 			AppID: "test-app-fields",
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: "user-fields@example.com",
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -390,8 +385,8 @@ func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
 		originalFields := record.Fields
 
 		// Update with empty fields - should use existing
-		updateReq := models.UpdateConsentRequest{
-			Status: models.StatusApproved,
+		updateReq := UpdateConsentRequest{
+			Status: StatusApproved,
 			Fields: []string{}, // Empty - should use existing
 		}
 		updated, err := engine.UpdateConsent(record.ConsentID, updateReq)
@@ -403,19 +398,19 @@ func TestPostgresConsentEngine_UpdateConsent_EdgeCases(t *testing.T) {
 
 // TestPostgresConsentEngine_GetConsentsByDataOwner tests GetConsentsByDataOwner
 func TestPostgresConsentEngine_GetConsentsByDataOwner(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	// Create multiple consents for the same owner
 	ownerID := "owner@example.com"
 	for i := 0; i < 3; i++ {
-		createReq := models.ConsentRequest{
+		createReq := ConsentRequest{
 			AppID: fmt.Sprintf("test-app-%d", i),
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: ownerID,
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -444,19 +439,19 @@ func TestPostgresConsentEngine_GetConsentsByDataOwner(t *testing.T) {
 
 // TestPostgresConsentEngine_GetConsentsByConsumer tests GetConsentsByConsumer
 func TestPostgresConsentEngine_GetConsentsByConsumer(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	// Create multiple consents for the same consumer app
 	appID := "consumer-app"
 	for i := 0; i < 3; i++ {
-		createReq := models.ConsentRequest{
+		createReq := ConsentRequest{
 			AppID: appID,
-			ConsentRequirements: []models.ConsentRequirement{
+			ConsentRequirements: []ConsentRequirement{
 				{
 					Owner:   "CITIZEN",
 					OwnerID: fmt.Sprintf("owner-%d@example.com", i),
-					Fields: []models.ConsentField{
+					Fields: []ConsentField{
 						{
 							FieldName: "personInfo.name",
 							SchemaID:  "schema-123",
@@ -485,17 +480,17 @@ func TestPostgresConsentEngine_GetConsentsByConsumer(t *testing.T) {
 
 // TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingPending tests updating existing pending consent
 func TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingPending(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	// Create initial pending consent
-	createReq := models.ConsentRequest{
+	createReq := ConsentRequest{
 		AppID: "test-app-pending",
-		ConsentRequirements: []models.ConsentRequirement{
+		ConsentRequirements: []ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: "user-pending@example.com",
-				Fields: []models.ConsentField{
+				Fields: []ConsentField{
 					{
 						FieldName: "personInfo.name",
 						SchemaID:  "schema-123",
@@ -509,13 +504,13 @@ func TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingPending(t *te
 	firstConsentID := firstRecord.ConsentID
 
 	// Process same request again - should update existing pending consent
-	updateReq := models.ConsentRequest{
+	updateReq := ConsentRequest{
 		AppID: "test-app-pending",
-		ConsentRequirements: []models.ConsentRequirement{
+		ConsentRequirements: []ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: "user-pending@example.com",
-				Fields: []models.ConsentField{
+				Fields: []ConsentField{
 					{
 						FieldName: "personInfo.email",
 						SchemaID:  "schema-456",
@@ -534,17 +529,17 @@ func TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingPending(t *te
 
 // TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingNonPending tests updating existing non-pending consent
 func TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingNonPending(t *testing.T) {
-	testEngine := SetupPostgresTestEngineWithDB(t)
-	engine := testEngine.Engine
+	testEngine := setupPostgresTestEngineWithDB(t)
+	engine := testEngine.engine
 
 	// Create and approve a consent
-	createReq := models.ConsentRequest{
+	createReq := ConsentRequest{
 		AppID: "test-app-approved",
-		ConsentRequirements: []models.ConsentRequirement{
+		ConsentRequirements: []ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: "user-approved@example.com",
-				Fields: []models.ConsentField{
+				Fields: []ConsentField{
 					{
 						FieldName: "personInfo.name",
 						SchemaID:  "schema-123",
@@ -557,7 +552,7 @@ func TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingNonPending(t 
 	assert.NoError(t, err)
 
 	// Approve it
-	approveReq := models.ConsentPortalRequest{
+	approveReq := ConsentPortalRequest{
 		ConsentID: record.ConsentID,
 		Action:    "approve",
 		DataOwner: "user-approved@example.com",
@@ -566,13 +561,13 @@ func TestPostgresConsentEngine_ProcessConsentRequest_UpdateExistingNonPending(t 
 	assert.NoError(t, err)
 
 	// Process same request again - should update existing approved consent
-	updateReq := models.ConsentRequest{
+	updateReq := ConsentRequest{
 		AppID: "test-app-approved",
-		ConsentRequirements: []models.ConsentRequirement{
+		ConsentRequirements: []ConsentRequirement{
 			{
 				Owner:   "CITIZEN",
 				OwnerID: "user-approved@example.com",
-				Fields: []models.ConsentField{
+				Fields: []ConsentField{
 					{
 						FieldName: "personInfo.email",
 						SchemaID:  "schema-456",
