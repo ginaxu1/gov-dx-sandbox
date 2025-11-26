@@ -182,15 +182,16 @@ func QueryRowWithTimeout(ctx context.Context, db *sql.DB, config *DatabaseConfig
 func InitDatabase(db *sql.DB) error {
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS consent_records (
-		consent_id VARCHAR(255) PRIMARY KEY,
+		consent_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		owner_id VARCHAR(255) NOT NULL,
 		owner_email VARCHAR(255) NOT NULL,
 		app_id VARCHAR(255) NOT NULL,
 		status VARCHAR(50) NOT NULL,
 		type VARCHAR(50) NOT NULL,
-		created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-		updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-		expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		pending_expires_at TIMESTAMP WITH TIME ZONE,
+		grant_expires_at TIMESTAMP WITH TIME ZONE,
 		grant_duration VARCHAR(50) NOT NULL,
 		fields TEXT[] NOT NULL,
 		session_id VARCHAR(255) NOT NULL,
@@ -204,7 +205,8 @@ func InitDatabase(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_consent_records_app_id ON consent_records(app_id);
 	CREATE INDEX IF NOT EXISTS idx_consent_records_status ON consent_records(status);
 	CREATE INDEX IF NOT EXISTS idx_consent_records_created_at ON consent_records(created_at);
-	CREATE INDEX IF NOT EXISTS idx_consent_records_expires_at ON consent_records(expires_at);
+	CREATE INDEX IF NOT EXISTS idx_consent_records_pending_expires_at ON consent_records(pending_expires_at);
+	CREATE INDEX IF NOT EXISTS idx_consent_records_grant_expires_at ON consent_records(grant_expires_at);
 	
 	-- Create composite index for finding existing pending consents
 	CREATE INDEX IF NOT EXISTS idx_consent_records_pending_lookup ON consent_records(owner_id, owner_email, app_id, status) 

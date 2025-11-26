@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 	"github.com/lib/pq"
 )
@@ -455,12 +456,14 @@ func (pce *PostgresConsentEngine) StopBackgroundExpiryProcess() {
 func (pce *PostgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID string) (*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
-		       created_at, updated_at, expires_at, grant_duration, fields,
+		       created_at, updated_at, pending_expires_at, grant_expires_at, grant_duration, fields,
 		       session_id, consent_portal_url, updated_by
 		FROM consent_records 
 		WHERE owner_id = $1 AND app_id = $2 
 		AND status IN ('pending', 'approved', 'rejected')
-		AND expires_at > NOW()
+		AND ((status = 'pending' AND pending_expires_at > NOW())
+		     OR (status = 'approved' AND grant_expires_at > NOW())
+		     OR (status = 'rejected'))
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
@@ -468,12 +471,34 @@ func (pce *PostgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID st
 	row := pce.db.QueryRow(querySQL, ownerID, appID)
 
 	var record models.ConsentRecord
+	var pendingExpiresAt, grantExpiresAt sql.NullTime
+	var updatedBy sql.NullString
+	var fieldsArray []string
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
-		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
+		&pendingExpiresAt, &grantExpiresAt, &record.GrantDuration, pq.Array(&fieldsArray),
+		&record.SessionID, &record.ConsentPortalURL, &updatedBy)
+
+	if pendingExpiresAt.Valid {
+		record.PendingExpiresAt = &pendingExpiresAt.Time
+	}
+	if grantExpiresAt.Valid {
+		record.GrantExpiresAt = &grantExpiresAt.Time
+	}
+	if updatedBy.Valid {
+		updatedByStr := updatedBy.String
+		record.UpdatedBy = &updatedByStr
+	}
+
+	// Convert string array to ConsentField array
+	record.Fields = make([]models.ConsentField, len(fieldsArray))
+	for i, fieldName := range fieldsArray {
+		record.Fields[i] = models.ConsentField{
+			FieldName: fieldName,
+		}
+	}
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -490,7 +515,7 @@ func (pce *PostgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID st
 func (pce *PostgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, appID string) (*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
-		       created_at, updated_at, expires_at, grant_duration, fields,
+		       created_at, updated_at, pending_expires_at, grant_expires_at, grant_duration, fields,
 		       session_id, consent_portal_url, updated_by
 		FROM consent_records 
 		WHERE owner_id = $1 AND app_id = $2 AND status = 'pending'
@@ -501,12 +526,34 @@ func (pce *PostgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 	row := pce.db.QueryRow(querySQL, ownerID, appID)
 
 	var record models.ConsentRecord
+	var pendingExpiresAt, grantExpiresAt sql.NullTime
+	var updatedBy sql.NullString
+	var fieldsArray []string
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
-		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
+		&pendingExpiresAt, &grantExpiresAt, &record.GrantDuration, pq.Array(&fieldsArray),
+		&record.SessionID, &record.ConsentPortalURL, &updatedBy)
+
+	if pendingExpiresAt.Valid {
+		record.PendingExpiresAt = &pendingExpiresAt.Time
+	}
+	if grantExpiresAt.Valid {
+		record.GrantExpiresAt = &grantExpiresAt.Time
+	}
+	if updatedBy.Valid {
+		updatedByStr := updatedBy.String
+		record.UpdatedBy = &updatedByStr
+	}
+
+	// Convert string array to ConsentField array
+	record.Fields = make([]models.ConsentField, len(fieldsArray))
+	for i, fieldName := range fieldsArray {
+		record.Fields[i] = models.ConsentField{
+			FieldName: fieldName,
+		}
+	}
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -522,32 +569,43 @@ func (pce *PostgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 func (pce *PostgresConsentEngine) updateExistingConsentNewFormat(existingConsent *models.ConsentRecord, req models.ConsentRequest) (*models.ConsentRecord, error) {
 	// Convert ConsentFields to string array for storage (fieldName format)
 	var allFields []string
+	var consentFields []models.ConsentField
 	for _, requirement := range req.ConsentRequirements {
 		for _, field := range requirement.Fields {
 			// Store as "fieldName" format
 			allFields = append(allFields, field.FieldName)
+			consentFields = append(consentFields, field)
 		}
 	}
 
 	// Use default grant duration if not provided
 	grantDuration := getDefaultGrantDuration(req.GrantDuration)
 
-	// Calculate new expires_at
+	// Calculate pending_expires_at if status is pending
 	now := time.Now()
-	expiresAt, err := calculateExpiresAt(grantDuration, now)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate expiry time: %w", err)
+	var pendingExpiresAt *time.Time
+	if existingConsent.Status == string(models.StatusPending) {
+		expiresAt, err := calculateExpiresAt(models.DefaultPendingTimeoutDuration, now)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate pending expiry time: %w", err)
+		}
+		pendingExpiresAt = &expiresAt
 	}
 
 	// Update the existing consent record (session_id is not in new format, keep existing or empty)
 	updateSQL := `
 		UPDATE consent_records 
-		SET fields = $1, updated_at = $2, grant_duration = $3, expires_at = $4, updated_by = $5
+		SET fields = $1, updated_at = $2, grant_duration = $3, pending_expires_at = $4, updated_by = $5
 		WHERE consent_id = $6
 	`
 
-	_, err = pce.db.Exec(updateSQL,
-		pq.Array(allFields), now, grantDuration, expiresAt, existingConsent.OwnerID, existingConsent.ConsentID)
+	updatedByStr := existingConsent.OwnerID
+	if existingConsent.UpdatedBy != nil {
+		updatedByStr = *existingConsent.UpdatedBy
+	}
+
+	_, err := pce.db.Exec(updateSQL,
+		pq.Array(allFields), now, grantDuration, pendingExpiresAt, updatedByStr, existingConsent.ConsentID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update existing consent record: %w", err)
@@ -555,9 +613,9 @@ func (pce *PostgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 
 	// Return updated consent record
 	updatedRecord := *existingConsent
-	updatedRecord.Fields = allFields
+	updatedRecord.Fields = consentFields
 	updatedRecord.GrantDuration = grantDuration
-	updatedRecord.ExpiresAt = expiresAt
+	updatedRecord.PendingExpiresAt = pendingExpiresAt
 	updatedRecord.UpdatedAt = now
 
 	return &updatedRecord, nil
@@ -567,7 +625,7 @@ func (pce *PostgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 func (pce *PostgresConsentEngine) FindExistingConsent(consumerAppID, ownerID string) *models.ConsentRecord {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
-		       created_at, updated_at, expires_at, grant_duration, fields,
+		       created_at, updated_at, pending_expires_at, grant_expires_at, grant_duration, fields,
 		       session_id, consent_portal_url, updated_by
 		FROM consent_records 
 		WHERE app_id = $1 AND owner_id = $2
@@ -578,12 +636,34 @@ func (pce *PostgresConsentEngine) FindExistingConsent(consumerAppID, ownerID str
 	row := pce.db.QueryRow(querySQL, consumerAppID, ownerID)
 
 	var record models.ConsentRecord
+	var pendingExpiresAt, grantExpiresAt sql.NullTime
+	var updatedBy sql.NullString
+	var fieldsArray []string
 
 	err := row.Scan(
 		&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
-		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
+		&pendingExpiresAt, &grantExpiresAt, &record.GrantDuration, pq.Array(&fieldsArray),
+		&record.SessionID, &record.ConsentPortalURL, &updatedBy)
+
+	if pendingExpiresAt.Valid {
+		record.PendingExpiresAt = &pendingExpiresAt.Time
+	}
+	if grantExpiresAt.Valid {
+		record.GrantExpiresAt = &grantExpiresAt.Time
+	}
+	if updatedBy.Valid {
+		updatedByStr := updatedBy.String
+		record.UpdatedBy = &updatedByStr
+	}
+
+	// Convert string array to ConsentField array
+	record.Fields = make([]models.ConsentField, len(fieldsArray))
+	for i, fieldName := range fieldsArray {
+		record.Fields[i] = models.ConsentField{
+			FieldName: fieldName,
+		}
+	}
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -618,14 +698,15 @@ func (pce *PostgresConsentEngine) ProcessConsentPortalRequest(req models.Consent
 		Reason:    req.Reason,
 	}
 
-	return pce.UpdateConsent(req.ConsentID, updateReq)
+	// Convert UUID to string for the interface
+	return pce.UpdateConsent(req.ConsentID.String(), updateReq)
 }
 
 // GetConsentsByDataOwner retrieves all consent records for a data owner
 func (pce *PostgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
-		       created_at, updated_at, expires_at, grant_duration, fields,
+		       created_at, updated_at, pending_expires_at, grant_expires_at, grant_duration, fields,
 		       session_id, consent_portal_url, updated_by
 		FROM consent_records 
 		WHERE owner_id = $1
@@ -642,11 +723,34 @@ func (pce *PostgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*m
 
 	for rows.Next() {
 		var record models.ConsentRecord
+		var pendingExpiresAt, grantExpiresAt sql.NullTime
+		var updatedBy sql.NullString
+		var fieldsArray []string
+
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
-			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
+			&pendingExpiresAt, &grantExpiresAt, &record.GrantDuration, pq.Array(&fieldsArray),
+			&record.SessionID, &record.ConsentPortalURL, &updatedBy)
+
+		if pendingExpiresAt.Valid {
+			record.PendingExpiresAt = &pendingExpiresAt.Time
+		}
+		if grantExpiresAt.Valid {
+			record.GrantExpiresAt = &grantExpiresAt.Time
+		}
+		if updatedBy.Valid {
+			updatedByStr := updatedBy.String
+			record.UpdatedBy = &updatedByStr
+		}
+
+		// Convert string array to ConsentField array
+		record.Fields = make([]models.ConsentField, len(fieldsArray))
+		for i, fieldName := range fieldsArray {
+			record.Fields[i] = models.ConsentField{
+				FieldName: fieldName,
+			}
+		}
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
@@ -666,7 +770,7 @@ func (pce *PostgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*m
 func (pce *PostgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*models.ConsentRecord, error) {
 	querySQL := `
 		SELECT consent_id, owner_id, owner_email, app_id, status, type,
-		       created_at, updated_at, expires_at, grant_duration, fields,
+		       created_at, updated_at, pending_expires_at, grant_expires_at, grant_duration, fields,
 		       session_id, consent_portal_url, updated_by
 		FROM consent_records 
 		WHERE app_id = $1
@@ -683,11 +787,34 @@ func (pce *PostgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*mod
 
 	for rows.Next() {
 		var record models.ConsentRecord
+		var pendingExpiresAt, grantExpiresAt sql.NullTime
+		var updatedBy sql.NullString
+		var fieldsArray []string
+
 		err := rows.Scan(
 			&record.ConsentID, &record.OwnerID, &record.OwnerEmail, &record.AppID,
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
-			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
-			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
+			&pendingExpiresAt, &grantExpiresAt, &record.GrantDuration, pq.Array(&fieldsArray),
+			&record.SessionID, &record.ConsentPortalURL, &updatedBy)
+
+		if pendingExpiresAt.Valid {
+			record.PendingExpiresAt = &pendingExpiresAt.Time
+		}
+		if grantExpiresAt.Valid {
+			record.GrantExpiresAt = &grantExpiresAt.Time
+		}
+		if updatedBy.Valid {
+			updatedByStr := updatedBy.String
+			record.UpdatedBy = &updatedByStr
+		}
+
+		// Convert string array to ConsentField array
+		record.Fields = make([]models.ConsentField, len(fieldsArray))
+		for i, fieldName := range fieldsArray {
+			record.Fields[i] = models.ConsentField{
+				FieldName: fieldName,
+			}
+		}
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
