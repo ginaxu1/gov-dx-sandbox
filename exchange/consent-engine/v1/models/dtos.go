@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -50,17 +51,17 @@ type UpdateConsentRequest struct {
 
 // ConsentPortalRequest defines the structure for consent portal interactions
 type ConsentPortalRequest struct {
-	ConsentID string `json:"consent_id"`
-	Action    string `json:"action"` // "approve" or "reject"
-	DataOwner string `json:"data_owner"`
-	Reason    string `json:"reason,omitempty"`
+	ConsentID uuid.UUID `json:"consent_id"`
+	Action    string    `json:"action"` // "approve" or "reject"
+	DataOwner string    `json:"data_owner"`
+	Reason    string    `json:"reason,omitempty"`
 }
 
 // ConsentResponse represents the simplified response for consent operations
 type ConsentResponse struct {
-	ConsentID        string  `json:"consent_id"`
-	Status           string  `json:"status"`
-	ConsentPortalURL *string `json:"consent_portal_url,omitempty"` // Only present when status is pending
+	ConsentID        uuid.UUID `json:"consent_id"`
+	Status           string    `json:"status"`
+	ConsentPortalURL *string   `json:"consent_portal_url,omitempty"` // Only present when status is pending
 }
 
 // ConsentPortalView represents the user-facing consent object for the UI.
