@@ -1,6 +1,19 @@
 # Node.js dependencies
 **/node_modules/
 
+# Build directories
+bin/
+**/dist/
+
+# Frontend build artifacts
+portals/member-portal/public/config.js
+portals/admin-portal/public/config.js
+portals/consent-portal/public/config.js
+
+# Test coverage files
+**/coverage.out
+**/coverage.html
+
 # Ballerina build output
 **/target/
 **/*.balx
@@ -36,5 +49,3 @@ mocks/mock-dmt/Config.toml
 # Allow .choreo directories for WSO2 Choreo deployment
 !**/.choreo/
 !**/.choreo/**
-portals/member-portal/public/config.js
-portals/admin-portal/public/config.js
