@@ -113,6 +113,9 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 				if !isValidDBName(testDB) {
 					t.Fatalf("Invalid database name: %s", testDB)
 				}
+				if !isValidDBName(cred.user) {
+					t.Fatalf("Invalid database owner: %s", cred.user)
+				}
 				
 				// Create test database
 				// Note: CREATE DATABASE cannot be parameterized in postgres, so we use string formatting
