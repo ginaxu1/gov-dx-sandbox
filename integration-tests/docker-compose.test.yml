@@ -21,6 +21,7 @@ services:
       context: ../exchange/policy-decision-point
       dockerfile: Dockerfile
     environment:
+      # Service listens on 8082 internally, but mapped to 8083 on host (see ports section)
       PORT: 8082
       LOG_LEVEL: debug
       DB_HOST: pdp-db
