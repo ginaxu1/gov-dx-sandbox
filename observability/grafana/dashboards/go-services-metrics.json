@@ -149,12 +149,12 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["orchestration-engine"],
+  "tags": ["go-services", "opendif"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "",
-  "title": "Orchestration Engine Metrics",
+  "title": "Go Services Metrics",
   "version": 1
 }
 
