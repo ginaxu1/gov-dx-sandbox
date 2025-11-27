@@ -58,7 +58,7 @@ go install honnef.co/go/tools/cmd/staticcheck@latest
 # Install security scanner
 brew install gosec  # macOS with Homebrew
 # OR
-go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+go install github.com/securego/gosec/v2/cmd/gosec@latest
 ```
 
 ### 3. VS Code Setup (Optional but Recommended)
@@ -277,7 +277,7 @@ brew reinstall gosec
 
 # If installed via go install
 go clean -modcache
-go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+go install github.com/securego/gosec/v2/cmd/gosec@latest
 ```
 
 #### 6. Make Command Not Found

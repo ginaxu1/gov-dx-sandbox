@@ -13,7 +13,7 @@ help:
 	@echo "Services:"
 	@echo "  Go Services:"
 	@echo "    - api-server-go"
-	@echo "    - audit-service" 
+	@echo "    - audit-service"
 	@echo "    - orchestration-engine-go"
 	@echo "    - consent-engine"
 	@echo "    - policy-decision-point"
@@ -31,7 +31,7 @@ help:
 	@echo "  check-lint [SERVICE]           - Run lint checks"
 	@echo "  quality-check [SERVICE]        - Run all quality checks (format, lint, security)"
 	@echo "  format [SERVICE]               - Format Go code with gofumpt and goimports"
-	@echo "  lint [SERVICE]                 - Run golangci-lint with comprehensive checks"
+	@echo "  lint [SERVICE]                 - Run lint checks (go vet, gofmt)"
 	@echo "  security [SERVICE]             - Run security checks with gosec"
 	@echo "  staticcheck [SERVICE]          - Run staticcheck analysis"
 	@echo "  install-tools                  - Install all required Go quality tools"
@@ -262,7 +262,7 @@ validate-docker-build:
 install-tools:
 	@echo "Installing essential Go quality tools..."
 	@go install mvdan.cc/gofumpt@latest
-	@go install golang.org/x/tools/cmd/goimports@latest  
+	@go install golang.org/x/tools/cmd/goimports@latest
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@echo "✅ Essential Go quality tools installed"
 	@echo "💡 Configure your IDE (VS Code/GoLand) for real-time linting!"
@@ -277,9 +277,18 @@ format-go-service:
 		echo "⚠️  No go.mod found in $(SERVICE_PATH), skipping go mod tidy"; \
 	fi
 	@echo "Running gofumpt..."
-	@cd $(SERVICE_PATH) && $$(go env GOPATH)/bin/gofumpt -w . 2>/dev/null || gofmt -w .
+	@if command -v $$(go env GOPATH)/bin/gofumpt > /dev/null 2>&1; then \
+		cd $(SERVICE_PATH) && $$(go env GOPATH)/bin/gofumpt -w .; \
+	else \
+		echo "⚠️  gofumpt not available, using gofmt"; \
+		cd $(SERVICE_PATH) && gofmt -w .; \
+	fi
 	@echo "Running goimports..."
-	@cd $(SERVICE_PATH) && $$(go env GOPATH)/bin/goimports -w . 2>/dev/null || echo "⚠️  goimports not available, using go fmt"
+	@if command -v $$(go env GOPATH)/bin/goimports > /dev/null 2>&1; then \
+		cd $(SERVICE_PATH) && $$(go env GOPATH)/bin/goimports -w .; \
+	else \
+		echo "⚠️  goimports not available, skipping import organization"; \
+	fi
 	@echo "✅ Code formatted for Go service $(SERVICE)"
 
 # Run basic Go linting (using built-in tools)
@@ -291,7 +300,7 @@ lint-go-service:
 		echo "⚠️  No go.mod found in $(SERVICE_PATH), skipping go mod tidy"; \
 	fi
 	@echo "Running go vet..."
-	@cd $(SERVICE_PATH) && go vet ./... || echo "⚠️  go vet found issues in $(SERVICE) (non-blocking)"
+	@cd $(SERVICE_PATH) && go vet ./... || (echo "❌ go vet found issues in $(SERVICE)" && exit 1)
 	@echo "Running gofmt check..."
 	@cd $(SERVICE_PATH) && test -z "$$(gofmt -l .)" || (echo "❌ Code needs formatting. Run: make format $(SERVICE)" && gofmt -l . && exit 1)
 	@echo "✅ Basic lint checks completed for Go service $(SERVICE)"
@@ -341,9 +350,10 @@ check-lint-go-service:
 	@echo "Running basic lint checks for Go service: $(SERVICE)"
 	@cd $(SERVICE_PATH) && go mod tidy
 	@echo "Running go fmt..."
-	@cd $(SERVICE_PATH) && gofmt -l . | tee /tmp/gofmt-$(SERVICE).out
-	@if [ -s /tmp/gofmt-$(SERVICE).out ]; then \
+	@OUTPUT=$$(cd $(SERVICE_PATH) && gofmt -l .); \
+	if [ -n "$$OUTPUT" ]; then \
 		echo "❌ Files need formatting. Run: make format $(SERVICE)"; \
+		echo "$$OUTPUT"; \
 		exit 1; \
 	fi
 	@echo "Running go vet..."
@@ -566,7 +576,7 @@ clean:
 	@find . -name "coverage.out" -delete 2>/dev/null || true
 	@find . -name "coverage.html" -delete 2>/dev/null || true
 	@find . -name "node_modules" -type d -exec rm -rf {} + 2>/dev/null || true
-	@find . -name "dist" -type d -exec rm -rf {} + 2>/dev/null || true
+	@rm -rf portals/member-portal/dist portals/admin-portal/dist portals/consent-portal/dist 2>/dev/null || true
 	@echo "✅ All build artifacts cleaned"
 
 # Allow service names to be used as targets (ignore them)
