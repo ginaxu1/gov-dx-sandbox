@@ -35,7 +35,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -55,14 +57,16 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		assert.Equal(t, &actorID, event.ActorID)
 		assert.Equal(t, &actorRole, event.ActorRole)
 		assert.Equal(t, "MEMBERS", event.TargetResource)
-		assert.Equal(t, "member-456", event.TargetResourceID)
+		assert.Equal(t, stringPtr("member-456"), event.TargetResourceID)
 	})
 
 	t.Run("AutoGenerateEventID", func(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "MEMBER"
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T12:00:00Z",
 			EventType: "UPDATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -86,6 +90,7 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		req := &models.CreateManagementEventRequest{
 			EventType: "DELETE",
 			Timestamp: timestamp,
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -106,7 +111,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "INVALID",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -127,7 +134,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "INVALID",
 				ID:   &actorID,
@@ -147,7 +156,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 	t.Run("MissingActorRoleForUSER", func(t *testing.T) {
 		actorID := "user-123"
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -168,7 +179,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		actorID := "user-123"
 		invalidRole := "INVALID"
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -187,7 +200,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 
 	t.Run("SERVICEActorType", func(t *testing.T) {
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "SERVICE",
 				ID:   nil, // OK for SERVICE
@@ -210,7 +225,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 		actorID := "user-123"
 		actorRole := "ADMIN"
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -235,7 +252,9 @@ func TestManagementEventService_CreateManagementEvent(t *testing.T) {
 			"key2": 123,
 		}
 		req := &models.CreateManagementEventRequest{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID,
@@ -269,7 +288,9 @@ func TestManagementEventService_GetManagementEvents(t *testing.T) {
 
 	events := []*models.CreateManagementEventRequest{
 		{
+			Timestamp: "2024-01-01T00:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID1,
@@ -281,7 +302,9 @@ func TestManagementEventService_GetManagementEvents(t *testing.T) {
 			},
 		},
 		{
+			Timestamp: "2024-01-01T01:00:00Z",
 			EventType: "UPDATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID2,
@@ -293,7 +316,9 @@ func TestManagementEventService_GetManagementEvents(t *testing.T) {
 			},
 		},
 		{
+			Timestamp: "2024-01-01T02:00:00Z",
 			EventType: "CREATE",
+			Status:    "success",
 			Actor: models.Actor{
 				Type: "USER",
 				ID:   &actorID1,
