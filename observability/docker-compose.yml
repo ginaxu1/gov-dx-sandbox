@@ -14,9 +14,6 @@ services:
       - "--storage.tsdb.retention.time=30d"
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
-      - "--web.enable-lifecycle"
-    networks:
-      - opendif-network
 
   grafana:
     image: grafana/grafana:11.2.0
@@ -25,25 +22,14 @@ services:
     ports:
       - "3002:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://localhost:3002
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./grafana/provisioning/:/etc/grafana/provisioning/
       - ./grafana/dashboards/:/var/lib/grafana/dashboards/
       - grafana-data:/var/lib/grafana
-    networks:
-      - opendif-network
-    depends_on:
-      - prometheus
 
 volumes:
   prometheus-data:
   grafana-data:
-
-networks:
-  opendif-network:
-    name: opendif-network
-    driver: bridge
 
