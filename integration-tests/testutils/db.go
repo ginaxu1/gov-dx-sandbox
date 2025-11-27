@@ -1,4 +1,4 @@
-package main
+package testutils
 
 import (
 	"fmt"
@@ -105,4 +105,3 @@ func GetPolicyMetadataCount(t *testing.T, db *gorm.DB) int64 {
 
 	return count
 }
-
