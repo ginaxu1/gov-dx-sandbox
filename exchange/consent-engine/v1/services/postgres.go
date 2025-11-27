@@ -104,7 +104,11 @@ func (pce *PostgresConsentEngine) ProcessConsentRequest(req models.ConsentReques
 	}
 
 	// Use default grant duration if not provided
-	grantDuration := getDefaultGrantDuration(req.GrantDuration)
+	var grantDurationStr string
+	if req.GrantDuration != nil {
+		grantDurationStr = *req.GrantDuration
+	}
+	grantDuration := getDefaultGrantDuration(grantDurationStr)
 
 	// Calculate pending_expires_at for pending status
 	pendingExpiresAt, err := calculateExpiresAt(models.DefaultPendingTimeoutDuration, now)
@@ -241,8 +245,10 @@ func (pce *PostgresConsentEngine) UpdateConsent(consentID string, req models.Upd
 	now := time.Now()
 
 	// Update grant duration if provided, otherwise use existing or default
-	grantDuration := req.GrantDuration
-	if grantDuration == "" {
+	var grantDuration string
+	if req.GrantDuration != nil && *req.GrantDuration != "" {
+		grantDuration = *req.GrantDuration
+	} else {
 		grantDuration = getDefaultGrantDuration(existingRecord.GrantDuration)
 	}
 
@@ -254,8 +260,11 @@ func (pce *PostgresConsentEngine) UpdateConsent(consentID string, req models.Upd
 
 	// Convert fields to string array for database storage
 	var fieldsArray []string
-	if len(req.Fields) > 0 {
-		fieldsArray = req.Fields
+	if req.Fields != nil && len(*req.Fields) > 0 {
+		// Convert ConsentField array to string array
+		for _, field := range *req.Fields {
+			fieldsArray = append(fieldsArray, field.FieldName)
+		}
 	} else {
 		// Convert existing ConsentField array to string array
 		for _, field := range existingRecord.Fields {
@@ -296,7 +305,12 @@ func (pce *PostgresConsentEngine) UpdateConsent(consentID string, req models.Upd
 		WHERE consent_id = $8
 	`
 
-	updatedByStr := req.UpdatedBy
+	var updatedByStr string
+	if req.UpdatedBy != nil {
+		updatedByStr = *req.UpdatedBy
+	} else {
+		updatedByStr = existingRecord.OwnerID // Default to owner ID if not provided
+	}
 	_, err = pce.db.Exec(updateSQL,
 		string(req.Status), now, pendingExpiresAt, grantExpiresAt, grantDuration,
 		pq.Array(fieldsArray), updatedByStr, consentUUID)
@@ -321,8 +335,8 @@ func (pce *PostgresConsentEngine) UpdateConsent(consentID string, req models.Upd
 	updatedRecord.GrantExpiresAt = grantExpiresAt
 	updatedRecord.GrantDuration = grantDuration
 	updatedRecord.Fields = fields
-	if req.UpdatedBy != "" {
-		updatedRecord.UpdatedBy = &updatedByStr
+	if req.UpdatedBy != nil {
+		updatedRecord.UpdatedBy = req.UpdatedBy
 	}
 
 	slog.Info("Consent record updated",
@@ -335,10 +349,15 @@ func (pce *PostgresConsentEngine) UpdateConsent(consentID string, req models.Upd
 
 // RevokeConsent revokes a consent record
 func (pce *PostgresConsentEngine) RevokeConsent(consentID string, reason string) (*models.ConsentRecord, error) {
+	updatedBy := "system" // Could be enhanced to get from context
+	var reasonPtr *string
+	if reason != "" {
+		reasonPtr = &reason
+	}
 	updateReq := models.UpdateConsentRequest{
 		Status:    models.StatusRevoked,
-		UpdatedBy: "system", // Could be enhanced to get from context
-		Reason:    reason,
+		UpdatedBy: &updatedBy,
+		Reason:    reasonPtr,
 	}
 	return pce.UpdateConsent(consentID, updateReq)
 }
@@ -579,7 +598,11 @@ func (pce *PostgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 	}
 
 	// Use default grant duration if not provided
-	grantDuration := getDefaultGrantDuration(req.GrantDuration)
+	var grantDurationStr string
+	if req.GrantDuration != nil {
+		grantDurationStr = *req.GrantDuration
+	}
+	grantDuration := getDefaultGrantDuration(grantDurationStr)
 
 	// Calculate pending_expires_at if status is pending
 	now := time.Now()
@@ -694,7 +717,7 @@ func (pce *PostgresConsentEngine) ProcessConsentPortalRequest(req models.Consent
 	// Update the record based on portal action
 	updateReq := models.UpdateConsentRequest{
 		Status:    status,
-		UpdatedBy: req.DataOwner,
+		UpdatedBy: &req.DataOwner,
 		Reason:    req.Reason,
 	}
 
