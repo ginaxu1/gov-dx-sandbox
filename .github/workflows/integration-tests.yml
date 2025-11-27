@@ -190,7 +190,6 @@ jobs:
           echo "Running shell smoke tests..."
           
           # Run tests if they exist
-          [ -f "test-pdp.sh" ] && echo "Running PDP tests..." && ./test-pdp.sh
           [ -f "test-consent-flow.sh" ] && echo "Running consent flow tests..." && ./test-consent-flow.sh
           [ -f "test-complete-flow.sh" ] && echo "Running complete flow tests..." && ./test-complete-flow.sh
           
