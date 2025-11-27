@@ -1,20 +1,23 @@
-version: "3.9"
-
 services:
   prometheus:
     image: prom/prometheus:v2.55.1
-    container_name: oe-prometheus
+    container_name: opendif-prometheus
     restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
 
   grafana:
     image: grafana/grafana:11.2.0
-    container_name: oe-grafana
+    container_name: opendif-grafana
     restart: unless-stopped
     ports:
       - "3002:3000"
@@ -24,4 +27,9 @@ services:
     volumes:
       - ./grafana/provisioning/:/etc/grafana/provisioning/
       - ./grafana/dashboards/:/var/lib/grafana/dashboards/
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  prometheus-data:
+  grafana-data:
 

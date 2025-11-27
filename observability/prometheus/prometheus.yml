@@ -1,0 +1,55 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'opendif-mvp'
+    environment: 'local'
+
+scrape_configs:
+  # Exchange Services
+  - job_name: orchestration-engine
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:4000
+        labels:
+          service: 'orchestration-engine'
+          port: '4000'
+
+  - job_name: consent-engine
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8081
+        labels:
+          service: 'consent-engine'
+          port: '8081'
+
+  - job_name: policy-decision-point
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:8082
+        labels:
+          service: 'policy-decision-point'
+          port: '8082'
+
+  # Root Level Services
+  - job_name: api-server-go
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:3000
+        labels:
+          service: 'api-server-go'
+          port: '3000'
+
+  - job_name: audit-service
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:3001
+        labels:
+          service: 'audit-service'
+          port: '3001'
+

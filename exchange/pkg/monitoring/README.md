@@ -69,7 +69,7 @@ This automatically emits request counters, latency histograms, and status-class 
 
 ### 6. Prometheus scraping
 
-Every service now exposes `/metrics`; add the target to Prometheus (or use the shared `exchange/monitoring` Docker Compose stack).
+Every service now exposes `/metrics`; add the target to Prometheus (or use the shared `observability` Docker Compose stack at the repo root).
 
 ### 7. Reusing updates
 
