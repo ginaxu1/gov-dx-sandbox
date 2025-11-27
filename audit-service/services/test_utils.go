@@ -3,7 +3,6 @@ package services
 import (
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,18 +51,15 @@ func loadEnvOnce() {
 	})
 }
 
-// getEnvOrDefault returns the environment variable value or a default
-func getEnvOrDefault(key, defaultValue string) string {
+// getEnvVar returns the environment variable value
+func getEnvVar(key string) string {
 	loadEnvOnce() // Ensure .env.local is loaded
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
+	return os.Getenv(key)
 }
 
 // SetupPostgresTestDB creates a PostgreSQL test database connection
 // Uses environment variables for configuration (TEST_DB_*)
-// Automatically loads configuration from .env.local file if available
+// Automatically loads configuration from .env.local file
 //
 // Returns nil if the database connection cannot be established or if database
 // migration fails. In this case, the test is automatically skipped using t.Skipf().
@@ -75,136 +71,74 @@ func getEnvOrDefault(key, defaultValue string) string {
 //	    return // test was skipped
 //	}
 //
-// Environment variables (can be set in .env.local file):
-//   - TEST_DB_HOST (optional, default: "localhost"): Database host
-//   - TEST_DB_PORT (optional, default: "5432"): Database port
-//   - TEST_DB_USERNAME (optional, default: "postgres"): Database username
-//   - TEST_DB_PASSWORD (optional, default: "password"): Database password
-//   - TEST_DB_USER (alternative to TEST_DB_USERNAME): Database username
-//   - TEST_DB_PASS (alternative to TEST_DB_PASSWORD): Database password
-//   - TEST_DB_DATABASE (optional, default: "audit_service_test"): Database name
-//   - TEST_DB_SSLMODE (optional, default: "disable"): SSL mode
+// Required environment variables (must be set in .env.local file):
+//   - TEST_DB_HOST: Database host
+//   - TEST_DB_PORT: Database port
+//   - TEST_DB_USERNAME: Database username
+//   - TEST_DB_PASSWORD: Database password
+//   - TEST_DB_DATABASE: Database name
+//   - TEST_DB_SSLMODE: SSL mode
 func SetupPostgresTestDB(t *testing.T) *gorm.DB {
-	// Load environment variables from .env.local if available before any env var reads
+	// Load environment variables from .env.local
 	loadEnvOnce()
 
-	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
-	port := getEnvOrDefault("TEST_DB_PORT", "5432")
-	testDB := getEnvOrDefault("TEST_DB_DATABASE", "audit_service_test")
-	sslmode := getEnvOrDefault("TEST_DB_SSLMODE", "disable")
+	host := getEnvVar("TEST_DB_HOST")
+	port := getEnvVar("TEST_DB_PORT")
+	testDB := getEnvVar("TEST_DB_DATABASE")
+	sslmode := getEnvVar("TEST_DB_SSLMODE")
+	user := getEnvVar("TEST_DB_USERNAME")
+	password := getEnvVar("TEST_DB_PASSWORD")
 
-	// Try to get credentials from environment first (now .env.local is loaded)
-	envUser := os.Getenv("TEST_DB_USERNAME")
-	envPassword := os.Getenv("TEST_DB_PASSWORD")
-
-	var db *gorm.DB
-	var err error
-
-	// If both username and password are set via environment variable, use them
-	if envUser != "" && envPassword != "" {
-		db, err = tryConnection(host, port, envUser, envPassword, testDB, sslmode)
-		if err == nil {
-			t.Logf("Connected to PostgreSQL with environment credentials")
-			return setupDatabase(t, db)
-		}
+	// Validate required environment variables
+	if host == "" || port == "" || testDB == "" || sslmode == "" || user == "" || password == "" {
+		t.Skipf("Skipping test: missing required environment variables. Please check .env.local file.")
+		return nil
 	}
 
-	// Try credential combinations from environment and common defaults
-	// Build a map to track unique credentials and avoid duplicates
-	credMap := make(map[string]bool)
-	var credentials []struct {
-		user string
-		pass string
+	// Try connecting to the test database directly
+	db, err := tryConnection(host, port, user, password, testDB, sslmode)
+	if err == nil {
+		t.Logf("Connected to PostgreSQL test database")
+		return setupDatabase(t, db)
 	}
 
-	// Helper function to add unique credentials
-	addCredential := func(user, pass string) {
-		if user == "" {
-			return
-		}
-		key := user + ":" + pass
-		if !credMap[key] {
-			credMap[key] = true
-			credentials = append(credentials, struct{ user, pass string }{user, pass})
-		}
-	}
+	// If test database doesn't exist, try to connect to default database and create it
+	if isDBNotExistError(err) {
+		defaultDB := "postgres"
+		if adminDB, adminErr := tryConnection(host, port, user, password, defaultDB, sslmode); adminErr == nil {
+			t.Logf("Connected to admin database, creating test database")
+			// Create test database with properly quoted identifiers to prevent SQL injection
+			createSQL := fmt.Sprintf("CREATE DATABASE %s WITH OWNER = %s",
+				quoteIdentifier(testDB),
+				quoteIdentifier(user))
+			if createErr := adminDB.Exec(createSQL).Error; createErr != nil {
+				// Database might already exist, ignore error
+				t.Logf("Note: Could not create test database (might already exist): %v", createErr)
+			}
 
-	// Add credentials in priority order:
-	// 1. CI default
-	addCredential("postgres", "password")
+			// Close the admin database connection properly
+			if sqlDB, err := adminDB.DB(); err == nil {
+				sqlDB.Close()
+			}
 
-	// 2. Credentials from .env.local if specified
-	localEnvUser := getEnvOrDefault("TEST_DB_USER", "")
-	localEnvPass := getEnvOrDefault("TEST_DB_PASS", "")
-	addCredential(localEnvUser, localEnvPass)
-
-	// 3. postgres with no password
-	addCredential("postgres", "")
-
-	// 4. Current user with no password
-	addCredential(os.Getenv("USER"), "")
-
-	for _, cred := range credentials {
-		if cred.user == "" {
-			continue
-		}
-
-		// First try connecting to the test database directly
-		db, err = tryConnection(host, port, cred.user, cred.pass, testDB, sslmode)
-		if err == nil {
-			t.Logf("Connected to PostgreSQL with user=%s", cred.user)
-			return setupDatabase(t, db)
-		}
-
-		// If test database doesn't exist, try to connect to default database and create it
-		if isDBNotExistError(err) {
-			defaultDB := "postgres"
-			if adminDB, adminErr := tryConnection(host, port, cred.user, cred.pass, defaultDB, sslmode); adminErr == nil {
-				t.Logf("Connected to admin database, creating test database")
-				// Create test database with properly quoted identifiers to prevent SQL injection
-				createSQL := fmt.Sprintf("CREATE DATABASE %s WITH OWNER = %s",
-					quoteIdentifier(testDB),
-					quoteIdentifier(cred.user))
-				if createErr := adminDB.Exec(createSQL).Error; createErr != nil {
-					// Database might already exist, ignore error
-					t.Logf("Note: Could not create test database (might already exist): %v", createErr)
-				}
-
-				// Close the admin database connection properly
-				if sqlDB, err := adminDB.DB(); err == nil {
-					sqlDB.Close()
-				}
-
-				// Now try connecting to the test database again
-				db, err = tryConnection(host, port, cred.user, cred.pass, testDB, sslmode)
-				if err == nil {
-					t.Logf("Successfully created and connected to test database with user=%s", cred.user)
-					return setupDatabase(t, db)
-				}
+			// Now try connecting to the test database again
+			db, err = tryConnection(host, port, user, password, testDB, sslmode)
+			if err == nil {
+				t.Logf("Successfully created and connected to test database")
+				return setupDatabase(t, db)
 			}
 		}
 	}
 
-	// If we reach here, all connection attempts failed
-	t.Skipf("Skipping test: could not connect to test database with any credentials: %v", err)
+	// Connection failed
+	t.Skipf("Skipping test: could not connect to test database: %v", err)
 	return nil
 }
 
 // tryConnection attempts to connect to PostgreSQL with given credentials
 func tryConnection(host, port, user, password, database, sslmode string) (*gorm.DB, error) {
-	// Use url.Values to properly escape special characters in credentials
-	params := url.Values{}
-	params.Set("host", host)
-	params.Set("port", port)
-	params.Set("user", user)
-	params.Set("password", password)
-	params.Set("dbname", database)
-	params.Set("sslmode", sslmode)
-
-	// Build DSN with proper escaping
-	dsn := params.Encode()
-	// Replace & with spaces for PostgreSQL connection string format
-	dsn = strings.ReplaceAll(dsn, "&", " ")
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, database, sslmode)
 
 	return gorm.Open(postgres.Open(dsn), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -224,6 +158,7 @@ func setupDatabase(t *testing.T, db *gorm.DB) *gorm.DB {
 	// Auto-migrate all models
 	err := db.AutoMigrate(
 		&models.ManagementEvent{},
+		&models.DataExchangeEvent{},
 	)
 	if err != nil {
 		t.Skipf("Skipping test: could not migrate test database: %v", err)
@@ -245,5 +180,10 @@ func CleanupTestData(t *testing.T, db *gorm.DB) {
 	// Delete all management events
 	if err := db.Exec("DELETE FROM management_events").Error; err != nil {
 		t.Logf("Warning: could not cleanup management_events: %v", err)
+	}
+
+	// Delete all data exchange events
+	if err := db.Exec("DELETE FROM data_exchange_events").Error; err != nil {
+		t.Logf("Warning: could not cleanup data_exchange_events: %v", err)
 	}
 }
