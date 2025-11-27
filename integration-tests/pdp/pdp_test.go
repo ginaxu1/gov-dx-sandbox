@@ -1,14 +1,13 @@
-package main
+package pdp
 
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"testing"
-	"time"
 
+	"github.com/gov-dx-sandbox/integration-tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -18,11 +17,9 @@ const (
 	pdpBaseURL = "http://127.0.0.1:8083/api/v1/policy"
 )
 
-var testDB *gorm.DB
-
 func TestMain(m *testing.M) {
 	// Simple wait for service availability
-	waitForService(pdpBaseURL + "/metadata") // This endpoint might 405 on GET, but connection should work
+	testutils.WaitForService(pdpBaseURL + "/metadata") // This endpoint might 405 on GET, but connection should work
 
 	// Optionally connect to database for verification
 	// This allows tests to verify database state if needed
@@ -36,19 +33,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func waitForService(url string) {
-	for i := 0; i < 30; i++ {
-		resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte("{}")))
-		// We expect 400 Bad Request or similar if service is up, but connection refused if down
-		if err == nil {
-			resp.Body.Close()
-			return
-		}
-		time.Sleep(1 * time.Second)
-	}
-	fmt.Println("Service might not be ready, proceeding anyway...")
-}
-
 func TestPDP_Flow(t *testing.T) {
 	schemaID := "schema-test-123"
 	fieldName := "email"
@@ -58,9 +42,9 @@ func TestPDP_Flow(t *testing.T) {
 	// This is optional - the test works without it, but enables DB state verification
 	var db *gorm.DB
 	if os.Getenv("TEST_VERIFY_DB") == "true" {
-		db = SetupPostgresTestDB(t)
+		db = testutils.SetupPostgresTestDB(t)
 		if db != nil {
-			defer CleanupTestData(t, db)
+			defer testutils.CleanupTestData(t, db)
 		}
 	}
 
@@ -97,7 +81,7 @@ func TestPDP_Flow(t *testing.T) {
 
 	// Verify database state if DB connection is available
 	if db != nil {
-		assert.True(t, VerifyPolicyMetadataExists(t, db, schemaID, fieldName),
+		assert.True(t, testutils.VerifyPolicyMetadataExists(t, db, schemaID, fieldName),
 			"Policy metadata should exist in database after creation")
 	}
 
