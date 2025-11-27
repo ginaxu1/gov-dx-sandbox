@@ -118,7 +118,9 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 
 			// Close the admin database connection properly
 			if sqlDB, err := adminDB.DB(); err == nil {
-				sqlDB.Close()
+				if closeErr := sqlDB.Close(); closeErr != nil {
+					t.Logf("Warning: failed to close admin database connection: %v", closeErr)
+				}
 			}
 
 			// Now try connecting to the test database again
