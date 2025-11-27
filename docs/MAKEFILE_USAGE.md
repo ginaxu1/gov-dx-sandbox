@@ -278,7 +278,6 @@ make quality-check-all
 
 The Makefile includes robust error handling:
 
-- **Service Detection:** Automatically finds Go services by `go.mod` files
 - **Path Resolution:** Maps service names to correct directory paths
 - **Tool Validation:** Checks for required tools and provides installation guidance
 - **Graceful Failures:** Non-blocking warnings for security and linting issues
@@ -288,7 +287,7 @@ The Makefile includes robust error handling:
 
 ### Custom Service Paths
 
-If you have services in non-standard locations, the Makefile automatically detects them based on `go.mod` files.
+If you have services in non-standard locations, you must manually update the service path variables in the Makefile to include them.
 
 ### Selective Quality Checks
 
