@@ -323,7 +323,7 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(err.Error(), "not found") {
 				return nil, http.StatusNotFound, err
 			}
-			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentUpdateFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(string(models.ErrConsentUpdateFailed)+": %w", err)
 		}
 
 		// Return simplified response format
@@ -345,7 +345,7 @@ func (s *apiServer) revokeConsent(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(err.Error(), "not found") {
 				return nil, http.StatusNotFound, err
 			}
-			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentRevokeFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(string(models.ErrConsentRevokeFailed)+": %w", err)
 		}
 		return record, http.StatusOK, nil
 	})
@@ -402,10 +402,11 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 	}
 
 	// Apply partial updates
+	updatedBy := existingRecord.OwnerID
 	updateReq := models.UpdateConsentRequest{
 		Status:    models.ConsentStatus(existingRecord.Status), // Keep existing status by default
-		UpdatedBy: existingRecord.OwnerID,                      // Keep existing updated_by by default
-		Reason:    "",                                          // Will be set if provided
+		UpdatedBy: &updatedBy,                                  // Keep existing updated_by by default
+		Reason:    nil,                                         // Will be set if provided
 	}
 
 	// Update only provided fields
@@ -413,16 +414,23 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 		updateReq.Status = models.ConsentStatus(req.Status)
 	}
 	if req.UpdatedBy != "" {
-		updateReq.UpdatedBy = req.UpdatedBy
+		updateReq.UpdatedBy = &req.UpdatedBy
 	}
 	if req.Reason != "" {
-		updateReq.Reason = req.Reason
+		updateReq.Reason = &req.Reason
 	}
 	if req.GrantDuration != "" {
-		updateReq.GrantDuration = req.GrantDuration
+		updateReq.GrantDuration = &req.GrantDuration
 	}
 	if len(req.Fields) > 0 {
-		updateReq.Fields = req.Fields
+		// Convert []string to []models.ConsentField
+		fields := make([]models.ConsentField, len(req.Fields))
+		for i, fieldName := range req.Fields {
+			fields[i] = models.ConsentField{
+				FieldName: fieldName,
+			}
+		}
+		updateReq.Fields = &fields
 	}
 
 	// Update the record
@@ -435,7 +443,7 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 		}
 		return
 	}
-	slog.Info("Consent record updated", "consent_id", updatedRecord.ConsentID, "owner_id", updatedRecord.OwnerID, "owner_email", updatedRecord.OwnerEmail, "app_id", updatedRecord.AppID, "status", updatedRecord.Status, "type", updatedRecord.Type, "created_at", updatedRecord.CreatedAt, "updated_at", updatedRecord.UpdatedAt, "expires_at", updatedRecord.ExpiresAt, "grant_duration", updatedRecord.GrantDuration, "fields", updatedRecord.Fields, "session_id", updatedRecord.SessionID, "consent_portal_url", updatedRecord.ConsentPortalURL)
+	slog.Info("Consent record updated", "consent_id", updatedRecord.ConsentID, "owner_id", updatedRecord.OwnerID, "owner_email", updatedRecord.OwnerEmail, "app_id", updatedRecord.AppID, "status", updatedRecord.Status, "type", updatedRecord.Type, "created_at", updatedRecord.CreatedAt, "updated_at", updatedRecord.UpdatedAt, "pending_expires_at", updatedRecord.PendingExpiresAt, "grant_expires_at", updatedRecord.GrantExpiresAt, "grant_duration", updatedRecord.GrantDuration, "fields", updatedRecord.Fields, "session_id", updatedRecord.SessionID, "consent_portal_url", updatedRecord.ConsentPortalURL)
 
 	// Return simplified response format
 	response := updatedRecord.ToConsentResponse()
@@ -446,7 +454,7 @@ func (s *apiServer) getConsentsByDataOwner(w http.ResponseWriter, r *http.Reques
 	utils.PathHandler(w, r, "/v1/data-owner/", func(dataOwner string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByDataOwner(dataOwner)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentGetFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(string(models.ErrConsentGetFailed)+": %w", err)
 		}
 		return map[string]interface{}{
 			"owner_id": dataOwner,
@@ -460,7 +468,7 @@ func (s *apiServer) getConsentsByConsumer(w http.ResponseWriter, r *http.Request
 	utils.PathHandler(w, r, "/v1/consumer/", func(consumer string) (interface{}, int, error) {
 		records, err := s.engine.GetConsentsByConsumer(consumer)
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentGetFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(string(models.ErrConsentGetFailed)+": %w", err)
 		}
 		return map[string]interface{}{
 			"consumer": consumer,
@@ -474,7 +482,7 @@ func (s *apiServer) checkConsentExpiry(w http.ResponseWriter, r *http.Request) {
 	utils.GenericHandler(w, r, func() (interface{}, int, error) {
 		expiredRecords, err := s.engine.CheckConsentExpiry()
 		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf(models.ErrConsentExpiryFailed+": %w", err)
+			return nil, http.StatusInternalServerError, fmt.Errorf(string(models.ErrConsentExpiryFailed)+": %w", err)
 		}
 
 		// Log the operation
@@ -646,11 +654,17 @@ func (s *apiServer) updateConsentByID(w http.ResponseWriter, r *http.Request, co
 	}
 
 	// Update the record
+	updatedBy := existingRecord.OwnerID
+	reasonPtr := &reason
+	var grantDurationPtr *string
+	if req.GrantDuration != "" {
+		grantDurationPtr = &req.GrantDuration
+	}
 	updateReq := models.UpdateConsentRequest{
 		Status:        newStatus,
-		UpdatedBy:     existingRecord.OwnerID, // Use existing owner ID
-		Reason:        reason,
-		GrantDuration: req.GrantDuration, // Will be empty string if not provided
+		UpdatedBy:     &updatedBy, // Use existing owner ID
+		Reason:        reasonPtr,
+		GrantDuration: grantDurationPtr,
 	}
 
 	updatedRecord, err := s.engine.UpdateConsent(consentID, updateReq)

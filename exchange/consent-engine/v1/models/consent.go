@@ -48,3 +48,15 @@ type ConsentRecord struct {
 func (*ConsentRecord) TableName() string {
 	return "consent_records"
 }
+
+// ExpiresAt returns the appropriate expiry time based on status
+// For compatibility with code expecting a single ExpiresAt field
+func (cr *ConsentRecord) ExpiresAt() time.Time {
+	if cr.GrantExpiresAt != nil {
+		return *cr.GrantExpiresAt
+	}
+	if cr.PendingExpiresAt != nil {
+		return *cr.PendingExpiresAt
+	}
+	return time.Time{}
+}
