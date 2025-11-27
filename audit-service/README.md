@@ -17,12 +17,15 @@ The Audit Service implements the goal: "who made this request, what did they ask
 ## API Endpoints
 
 ### For NDX Admin Portal
+
 - `GET /audit/events` - Returns all logs with filtering capabilities
 
-### For Data Provider Portal  
+### For Data Provider Portal
+
 - `GET /audit/provider/events` - Returns logs only where the provider's ID matches the authenticated JWT
 
 ### For Data Consumer Portal
+
 - `GET /audit/consumer/events` - Returns logs only where the consumer ID matches the authenticated JWT
 
 ## Query Parameters
@@ -30,7 +33,7 @@ The Audit Service implements the goal: "who made this request, what did they ask
 All endpoints support the following query parameters:
 
 - `consumer_id` - Filter by consumer ID
-- `provider_id` - Filter by provider ID  
+- `provider_id` - Filter by provider ID
 - `transaction_status` - Filter by status (SUCCESS/FAILURE)
 - `start_date` - Filter by start date (YYYY-MM-DD format)
 - `end_date` - Filter by end date (YYYY-MM-DD format)
@@ -52,7 +55,7 @@ All endpoints support the following query parameters:
       "event_id": "uuid",
       "timestamp": "2024-01-01T12:00:00Z",
       "consumer_id": "consumer-123",
-      "provider_id": "provider-456", 
+      "provider_id": "provider-456",
       "transaction_status": "SUCCESS",
       "citizen_hash": "hashed-citizen-id"
     }
@@ -72,6 +75,7 @@ All endpoints support the following query parameters:
 ## Environment Variables
 
 ### Choreo Environment Variables (Primary)
+
 - `CHOREO_DB_AUDIT_HOSTNAME` - Database hostname
 - `CHOREO_DB_AUDIT_PORT` - Database port
 - `CHOREO_DB_AUDIT_USERNAME` - Database username
@@ -79,9 +83,10 @@ All endpoints support the following query parameters:
 - `CHOREO_DB_AUDIT_DATABASENAME` - Database name
 
 ### Fallback Environment Variables (Local Development)
+
 - `DB_HOST` - Database host (default: localhost)
 - `DB_PORT` - Database port (default: 5432)
-- `DB_USER` - Database username (default: user)
+- `DB_USERNAME` - Database username (default: user)
 - `DB_PASSWORD` - Database password (default: password)
 - `DB_NAME` - Database name (default: gov_dx_sandbox)
 - `DB_SSLMODE` - SSL mode (default: disable)
@@ -100,6 +105,39 @@ go run main.go
 go build -o audit-service
 ./audit-service
 ```
+
+## Local Testing Setup
+
+For local testing, create a `.env.local` file with your PostgreSQL credentials:
+
+```bash
+# .env.local (this file should not be committed to git)
+TEST_DB_USERNAME=postgres
+TEST_DB_PASSWORD=your_password
+TEST_DB_HOST=localhost
+TEST_DB_PORT=5432
+TEST_DB_DATABASE=audit_service_test
+TEST_DB_SSLMODE=disable
+```
+
+Run tests:
+
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with verbose output
+go test ./... -v
+
+# Run tests with coverage
+go test ./... -cover
+```
+
+**Note**: The test setup will automatically:
+
+- Load credentials from `.env.local` if available
+- Create the test database if it doesn't exist
+- Skip tests gracefully if PostgreSQL is not available
 
 ## Health Check
 
