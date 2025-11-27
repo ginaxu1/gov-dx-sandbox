@@ -1,6 +1,7 @@
-package services
+package main
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -114,8 +115,52 @@ func TestParseDurationOrDefault(t *testing.T) {
 	})
 }
 
-// Tests that require setupPostgresTestEngineWithDB are deferred to a later PR
-// These tests will be enabled once test_utils.go is added
-// func TestExecuteWithTimeout(t *testing.T) { ... }
-// func TestQueryWithTimeout(t *testing.T) { ... }
-// func TestQueryRowWithTimeout(t *testing.T) { ... }
+func TestExecuteWithTimeout(t *testing.T) {
+	testEngine := setupPostgresTestEngineWithDB(t)
+	db := testEngine.db
+
+	config := &DatabaseConfig{
+		QueryTimeout: 5 * time.Second,
+	}
+
+	ctx := context.Background()
+	// Test with a simple query
+	result, err := ExecuteWithTimeout(ctx, db, config, "SELECT 1")
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+}
+
+func TestQueryWithTimeout(t *testing.T) {
+	testEngine := setupPostgresTestEngineWithDB(t)
+	db := testEngine.db
+
+	config := &DatabaseConfig{
+		QueryTimeout: 5 * time.Second,
+	}
+
+	ctx := context.Background()
+	rows, err := QueryWithTimeout(ctx, db, config, "SELECT 1")
+	assert.NoError(t, err)
+	if rows != nil {
+		rows.Close()
+	}
+}
+
+func TestQueryRowWithTimeout(t *testing.T) {
+	testEngine := setupPostgresTestEngineWithDB(t)
+	db := testEngine.db
+
+	config := &DatabaseConfig{
+		QueryTimeout: 5 * time.Second,
+	}
+
+	ctx := context.Background()
+	row, cleanup := QueryRowWithTimeout(ctx, db, config, "SELECT 1")
+	assert.NotNil(t, row)
+	defer cleanup() // Cleanup after Scan() completes
+
+	var result int
+	err := row.Scan(&result)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, result)
+}
