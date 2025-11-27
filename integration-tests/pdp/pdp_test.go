@@ -3,6 +3,7 @@ package pdp
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -19,7 +20,10 @@ const (
 
 func TestMain(m *testing.M) {
 	// Simple wait for service availability
-	testutils.WaitForService(pdpBaseURL + "/metadata") // This endpoint might 405 on GET, but connection should work
+	if err := testutils.WaitForService(pdpBaseURL + "/metadata"); err != nil {
+		fmt.Printf("Service not available: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Optionally connect to database for verification
 	// This allows tests to verify database state if needed
@@ -60,7 +64,8 @@ func TestPDP_Flow(t *testing.T) {
 			},
 		},
 	}
-	jsonData, _ := json.Marshal(reqBody)
+	jsonData, err := json.Marshal(reqBody)
+	require.NoError(t, err)
 
 	resp, err := http.Post(pdpBaseURL+"/metadata", "application/json", bytes.NewBuffer(jsonData))
 	require.NoError(t, err)
@@ -70,11 +75,17 @@ func TestPDP_Flow(t *testing.T) {
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var createResult map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&createResult)
+	err = json.NewDecoder(resp.Body).Decode(&createResult)
+	require.NoError(t, err)
 	
-	records := createResult["records"].([]interface{})
-	require.NotEmpty(t, records)
-	record := records[0].(map[string]interface{})
+	recordsRaw, ok := createResult["records"]
+	require.True(t, ok, "response missing 'records' field")
+	records, ok := recordsRaw.([]interface{})
+	require.True(t, ok, "'records' field is not an array")
+	require.NotEmpty(t, records, "'records' array is empty")
+	recordRaw := records[0]
+	record, ok := recordRaw.(map[string]interface{})
+	require.True(t, ok, "record is not an object")
 	assert.NotEmpty(t, record["id"])
 	assert.Equal(t, schemaID, record["schemaId"])
 	assert.Equal(t, fieldName, record["fieldName"])
@@ -97,7 +108,8 @@ func TestPDP_Flow(t *testing.T) {
 				},
 			},
 		}
-		updateJson, _ := json.Marshal(updateBody)
+		updateJson, err := json.Marshal(updateBody)
+		require.NoError(t, err)
 		
 		resp, err := http.Post(pdpBaseURL+"/update-allowlist", "application/json", bytes.NewBuffer(updateJson))
 		require.NoError(t, err)
@@ -117,7 +129,8 @@ func TestPDP_Flow(t *testing.T) {
 				},
 			},
 		}
-		decisionJson, _ := json.Marshal(decisionBody)
+		decisionJson, err := json.Marshal(decisionBody)
+		require.NoError(t, err)
 
 		resp, err := http.Post(pdpBaseURL+"/decide", "application/json", bytes.NewBuffer(decisionJson))
 		require.NoError(t, err)
@@ -126,7 +139,8 @@ func TestPDP_Flow(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		
 		var decisionResult map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&decisionResult)
+		err = json.NewDecoder(resp.Body).Decode(&decisionResult)
+		require.NoError(t, err)
 		
 		// appAuthorized should be true because we added it to allow list
 		assert.Equal(t, true, decisionResult["appAuthorized"])
@@ -143,7 +157,8 @@ func TestPDP_Flow(t *testing.T) {
 				},
 			},
 		}
-		decisionJson, _ := json.Marshal(decisionBody)
+		decisionJson, err := json.Marshal(decisionBody)
+		require.NoError(t, err)
 
 		resp, err := http.Post(pdpBaseURL+"/decide", "application/json", bytes.NewBuffer(decisionJson))
 		require.NoError(t, err)
@@ -152,7 +167,8 @@ func TestPDP_Flow(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		
 		var decisionResult map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&decisionResult)
+		err = json.NewDecoder(resp.Body).Decode(&decisionResult)
+		require.NoError(t, err)
 		
 		// appAuthorized should be false
 		assert.Equal(t, false, decisionResult["appAuthorized"])

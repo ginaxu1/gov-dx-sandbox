@@ -115,7 +115,9 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 				}
 				
 				// Create test database
-				createSQL := fmt.Sprintf("CREATE DATABASE %s WITH OWNER = %s", testDB, cred.user)
+				// Note: CREATE DATABASE cannot be parameterized in postgres, so we use string formatting
+				// We rely on isValidDBName for safety, and also double-quote the identifiers
+				createSQL := fmt.Sprintf("CREATE DATABASE \"%s\" WITH OWNER = \"%s\"", testDB, cred.user)
 				if createErr := adminDB.Exec(createSQL).Error; createErr != nil {
 					// Database might already exist (race condition), ignore error
 					t.Logf("Note: Could not create test database: %v", createErr)
