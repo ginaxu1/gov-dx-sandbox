@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
