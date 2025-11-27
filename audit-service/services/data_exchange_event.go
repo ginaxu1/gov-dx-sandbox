@@ -75,6 +75,12 @@ func (s *DataExchangeEventService) GetDataExchangeEvents(ctx context.Context, fi
 	if filter.SchemaID != nil {
 		query = query.Where("schema_id = ?", *filter.SchemaID)
 	}
+	if filter.ConsumerID != nil {
+		query = query.Where("consumer_id = ?", *filter.ConsumerID)
+	}
+	if filter.ProviderID != nil {
+		query = query.Where("provider_id = ?", *filter.ProviderID)
+	}
 	if filter.StartDate != nil {
 		query = query.Where("timestamp >= ?", *filter.StartDate)
 	}
