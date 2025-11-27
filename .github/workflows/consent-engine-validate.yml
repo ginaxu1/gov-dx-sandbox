@@ -69,15 +69,15 @@ jobs:
       - name: Build application
         run: cd ${{ env.SERVICE_PATH }} && go build .
 
-      # - name: Run unit & integration tests
-      #   env:
-      #     TEST_DB_HOST: localhost
-      #     TEST_DB_PORT: 5432
-      #     TEST_DB_USERNAME: ${{ env.TEST_DB_USER }}
-      #     TEST_DB_PASSWORD: ${{ env.TEST_DB_PASS }}
-      #     TEST_DB_DATABASE: ${{ env.TEST_DB_NAME }}
-      #     TEST_DB_SSLMODE: disable
-      #   run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
+      - name: Run unit & integration tests
+        env:
+          TEST_DB_HOST: localhost
+          TEST_DB_PORT: 5432
+          TEST_DB_USERNAME: ${{ env.TEST_DB_USER }}
+          TEST_DB_PASSWORD: ${{ env.TEST_DB_PASS }}
+          TEST_DB_DATABASE: ${{ env.TEST_DB_NAME }}
+          TEST_DB_SSLMODE: disable
+        run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
