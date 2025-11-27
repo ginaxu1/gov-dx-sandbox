@@ -45,11 +45,11 @@ type ConsentField struct {
 // Status is optional (omitempty) to support PATCH operations where status may not be provided
 // Optional fields use pointers to distinguish between "not provided" (nil) and "provided as empty" (pointer to empty value)
 type UpdateConsentRequest struct {
-	Status        ConsentStatus `json:"status,omitempty"`         // Required for PUT, optional for PATCH
-	UpdatedBy     *string       `json:"updated_by,omitempty"`     // Optional - nil means not provided
-	GrantDuration *string       `json:"grant_duration,omitempty"` // Optional - nil means not provided
-	Fields        *[]string     `json:"fields,omitempty"`         // Optional - nil means not provided
-	Reason        *string       `json:"reason,omitempty"`         // Optional - nil means not provided
+	Status        ConsentStatus   `json:"status,omitempty"`         // Required for PUT, optional for PATCH
+	UpdatedBy     *string         `json:"updated_by,omitempty"`     // Optional - nil means not provided
+	GrantDuration *string         `json:"grant_duration,omitempty"` // Optional - nil means not provided
+	Fields        *[]ConsentField `json:"fields,omitempty"`         // Optional - nil means not provided
+	Reason        *string         `json:"reason,omitempty"`         // Optional - nil means not provided
 }
 
 // ConsentPortalRequest defines the structure for consent portal interactions
