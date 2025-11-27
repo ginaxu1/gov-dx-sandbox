@@ -68,12 +68,6 @@ type ConsentResponse struct {
 	ConsentPortalURL *string   `json:"consent_portal_url,omitempty"` // Only present when status is pending
 }
 
-// ErrorResponseWithCode represents an error response with an error code
-type ErrorResponseWithCode struct {
-	Code  string `json:"code"`
-	Error string `json:"error"`
-}
-
 // ConsentPortalView represents the user-facing consent object for the UI.
 // Uses rich field information for better UX in the consent portal
 type ConsentPortalView struct {
