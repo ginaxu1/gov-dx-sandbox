@@ -80,7 +80,11 @@ jobs:
           
           # Check each service
           check_service "pdp-db" || exit 1
+          check_service "ce-db" || exit 1
+          check_service "audit-db" || exit 1
           check_service "policy-decision-point" || exit 1
+          check_service "consent-engine" || exit 1
+          check_service "audit-service" || exit 1
           
           echo "All infrastructure services are ready!"
 
