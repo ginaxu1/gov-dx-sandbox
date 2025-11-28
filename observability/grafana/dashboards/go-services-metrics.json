@@ -35,8 +35,8 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total[5m])) by (http_method, http_route)",
-          "legendFormat": "{{http_method}} {{http_route}}",
+          "expr": "sum(rate(http_requests_total[5m])) by (method, route)",
+          "legendFormat": "{{method}} {{route}}",
           "refId": "A"
         }
       ],
@@ -60,8 +60,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "P95 latency",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (route, le))",
+          "legendFormat": "{{route}}",
           "refId": "A"
         }
       ],

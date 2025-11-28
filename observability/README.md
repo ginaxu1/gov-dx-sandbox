@@ -8,23 +8,70 @@ Collects real-time metrics from all Go services for debugging performance and er
 
 ## Quick Start
 
+### Prerequisites
+
+**Before starting the observability stack, ensure your Go services are running:**
+
+1. **Orchestration Engine** on port 4000
+2. **Consent Engine** on port 8081
+3. **Policy Decision Point** on port 8082
+4. **API Server Go** on port 3000 (optional)
+5. **Audit Service** on port 3001 (optional)
+
+**Verify services are running:**
+```bash
+# Check if services expose metrics endpoints
+curl http://localhost:4000/metrics  # Orchestration Engine
+curl http://localhost:8081/metrics  # Consent Engine
+curl http://localhost:8082/metrics # Policy Decision Point
+```
+
+### Start Observability Stack
+
 ```bash
 cd observability
 docker compose up -d
 ```
 
-**Services:**
+**Wait for services to start (10-15 seconds), then verify:**
+
+```bash
+# Check Prometheus is running
+curl http://localhost:9090/-/healthy
+
+# Check Grafana is running
+curl http://localhost:3002/api/health
+```
+
+### Access Services
 
 - **Prometheus**: http://localhost:9090 (raw metrics & queries)
 - **Grafana**: http://localhost:3002 (dashboards, login: `admin` / `admin`)
 
-**Service Metrics Endpoints:**
+**Service Metrics Endpoints (for verification):**
 
 - **Orchestration Engine**: http://localhost:4000/metrics
 - **Consent Engine**: http://localhost:8081/metrics
 - **Policy Decision Point**: http://localhost:8082/metrics
 - **API Server Go**: http://localhost:3000/metrics
 - **Audit Service**: http://localhost:3001/metrics (when instrumented)
+
+### Verify Everything is Working
+
+1. **Check Prometheus targets:**
+   - Open http://localhost:9090/targets
+   - All services should show as "UP" (green)
+   - If services show "DOWN", verify they're running and exposing `/metrics`
+
+2. **Check Grafana dashboard:**
+   - Open http://localhost:3002/d/go-services/go-services-metrics
+   - Login with `admin` / `admin`
+   - You should see metrics appearing after 15-30 seconds
+
+3. **Query Prometheus directly:**
+   - Open http://localhost:9090
+   - Try query: `up{job="orchestration-engine"}` (should return 1)
+   - Try query: `rate(http_requests_total[5m])` (should show request rates)
 
 ---
 
@@ -36,8 +83,8 @@ All services use the shared `exchange/pkg/monitoring` package which exposes the 
 
 | Metric                          | Type      | Labels                                    | Purpose                    |
 | ------------------------------- | --------- | ----------------------------------------- | -------------------------- |
-| `http_requests_total`           | Counter   | `http_method`, `http_route`, `http_status_code` | Request volume by endpoint |
-| `http_request_duration_seconds` | Histogram | `http_method`, `http_route`               | API latency percentiles    |
+| `http_requests_total`           | Counter   | `method`, `route`, `status_code` | Request volume by endpoint |
+| `http_request_duration_seconds` | Histogram | `method`, `route`               | API latency percentiles    |
 
 ### External Call Metrics (DB, Providers, etc.)
 
@@ -51,13 +98,13 @@ All services use the shared `exchange/pkg/monitoring` package which exposes the 
 
 | Metric                    | Type      | Labels                    | Purpose               |
 | ------------------------- | --------- | ------------------------- | --------------------- |
-| `db_latency_seconds`      | Histogram | `db.name`, `db.operation` | Database query timing |
+| `db_latency_seconds`      | Histogram | `db_name`, `db_operation` | Database query timing |
 
 ### Business Event Metrics
 
 | Metric                    | Type    | Labels                          | Purpose                |
 | ------------------------- | ------- | ------------------------------- | ---------------------- |
-| `business_events_total`   | Counter | `business.action`, `business.outcome` | Business KPI tracking |
+| `business_events_total`   | Counter | `business_action`, `business_outcome` | Business KPI tracking |
 
 ### Workflow Metrics
 
@@ -95,22 +142,22 @@ The monitoring package automatically instruments Go runtime metrics:
 
 **Request Rate by Endpoint:**
 ```promql
-sum by (http_route, http_method) (rate(http_requests_total[5m]))
+sum by (route, method) (rate(http_requests_total[5m]))
 ```
 
 **95th Percentile Latency by Endpoint:**
 ```promql
-histogram_quantile(0.95, sum by (http_route, le) (rate(http_request_duration_seconds_bucket[5m])))
+histogram_quantile(0.95, sum by (route, le) (rate(http_request_duration_seconds_bucket[5m])))
 ```
 
 **Error Rate by Endpoint:**
 ```promql
-sum by (http_route) (rate(http_requests_total{http_status_code=~"5.."}[5m]))
+sum by (route) (rate(http_requests_total{status_code=~"5.."}[5m]))
 ```
 
 **Top 10 Slowest Endpoints:**
 ```promql
-topk(10, histogram_quantile(0.95, sum by (http_route, le) (rate(http_request_duration_seconds_bucket[5m]))))
+topk(10, histogram_quantile(0.95, sum by (route, le) (rate(http_request_duration_seconds_bucket[5m]))))
 ```
 
 ### External Call Analysis
@@ -192,7 +239,7 @@ sum by (service) (rate(http_requests_total[5m]))
 
 **Error Rate by Service:**
 ```promql
-sum by (service) (rate(http_requests_total{http_status_code=~"5.."}[5m]))
+sum by (service) (rate(http_requests_total{status_code=~"5.."}[5m]))
 ```
 
 ---
@@ -215,7 +262,9 @@ Pre-configured dashboard: **Go Services Metrics**
 
 ## 🛑 Stop Services
 
+**Stop observability stack:**
 ```bash
+cd observability
 docker compose down
 ```
 
@@ -228,6 +277,8 @@ docker compose stop
 ```bash
 docker compose down -v
 ```
+
+**Note:** Stopping the observability stack does not stop your Go services. They continue running independently.
 
 ---
 
@@ -339,15 +390,43 @@ server := &http.Server{
 
 ## Troubleshooting
 
+### Services not running
+
+**Issue**: Can't start observability stack or no metrics appearing
+
+**Solution**: Ensure all Go services are running first:
+```bash
+# Check each service
+curl http://localhost:4000/health  # Orchestration Engine
+curl http://localhost:8081/health # Consent Engine
+curl http://localhost:8082/health # Policy Decision Point
+```
+
 ### Prometheus can't scrape services
 
-**Issue**: Targets show as DOWN in Prometheus
+**Issue**: Targets show as DOWN in Prometheus (http://localhost:9090/targets)
 
 **Solutions**:
-1. Verify services are running: `curl http://localhost:PORT/metrics`
-2. Check Prometheus config: `docker compose logs prometheus`
-3. For Docker services, ensure `host.docker.internal` resolves correctly
-4. Check firewall/network settings
+1. **Verify services are running and exposing metrics:**
+   ```bash
+   curl http://localhost:4000/metrics  # Should return Prometheus format
+   curl http://localhost:8081/metrics
+   curl http://localhost:8082/metrics
+   ```
+
+2. **Check Prometheus logs:**
+   ```bash
+   cd observability
+   docker compose logs prometheus
+   ```
+
+3. **Verify `host.docker.internal` resolves correctly:**
+   - On Linux: May need to add `extra_hosts` to docker-compose.yml
+   - On Mac/Windows: Should work by default
+
+4. **Check firewall/network settings:**
+   - Ensure ports 3000, 4000, 8081, 8082 are not blocked
+   - Services must be accessible from Docker containers
 
 ### Grafana can't connect to Prometheus
 
