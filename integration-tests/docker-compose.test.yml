@@ -18,7 +18,7 @@ services:
   policy-decision-point:
     image: policy-decision-point:test
     build:
-      context: ../exchange/policy-decision-point
+      context: ../../exchange/policy-decision-point
       dockerfile: Dockerfile
     environment:
       # Service listens on 8082 internally, but mapped to 8083 on host (see ports section)
