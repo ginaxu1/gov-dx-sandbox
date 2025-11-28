@@ -11,16 +11,10 @@ The integration tests validate the complete data exchange workflow from data req
 ```
 tests/integration/
 ├── README.md                    # This file
-├── docker-compose.test.yml      # Docker compose for testing
-├── go.mod                       # Go module definition
-├── pdp/                         # PDP specific tests and scripts
-│   ├── run-all-tests.sh         # Run all integration tests
-│   ├── test-complete-flow.sh    # Complete end-to-end workflow test
-│   ├── test-consent-flow.sh     # Consent management workflow test
-│   └── test-pdp.sh              # Policy Decision Point test
-└── testutils/                   # Shared test utilities
-    ├── db.go
-    └── http.go
+├── run-all-tests.sh            # Run all integration tests
+├── test-complete-flow.sh       # Complete end-to-end workflow test
+├── test-consent-flow.sh        # Consent management workflow test
+└── test-pdp.sh                 # Policy Decision Point test
 ```
 
 ## Prerequisites
@@ -141,7 +135,7 @@ Tests authorization decisions and consent requirements.
 
 ### Run All Tests
 ```bash
-cd /Users/tmp/gov-dx-sandbox/tests/integration/pdp
+cd /Users/tmp/gov-dx-sandbox/tests/integration
 ./run-all-tests.sh
 ```
 
