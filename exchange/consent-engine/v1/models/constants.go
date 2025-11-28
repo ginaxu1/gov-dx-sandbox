@@ -31,6 +31,16 @@ const (
 	ErrPortalRequestFailed ConsentErrorMessage = "failed to process consent portal request"
 )
 
+// String returns the string value of the error message (for compatibility with fmt.Errorf)
+func (e ConsentErrorMessage) String() string {
+	return string(e)
+}
+
+// Error returns the error message as a string (implements error interface)
+func (e ConsentErrorMessage) Error() string {
+	return string(e)
+}
+
 // ConsentErrorCode represents an error code
 type ConsentErrorCode string
 

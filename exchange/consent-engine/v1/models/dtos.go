@@ -52,6 +52,40 @@ type UpdateConsentRequest struct {
 	Reason        *string         `json:"reason,omitempty"`         // Optional - nil means not provided
 }
 
+// SetUpdatedBy sets UpdatedBy from a string value (for compatibility)
+func (u *UpdateConsentRequest) SetUpdatedBy(s string) {
+	if s != "" {
+		u.UpdatedBy = &s
+	}
+}
+
+// SetReason sets Reason from a string value (for compatibility)
+func (u *UpdateConsentRequest) SetReason(s string) {
+	if s != "" {
+		u.Reason = &s
+	}
+}
+
+// SetGrantDuration sets GrantDuration from a string value (for compatibility)
+func (u *UpdateConsentRequest) SetGrantDuration(s string) {
+	if s != "" {
+		u.GrantDuration = &s
+	}
+}
+
+// SetFields sets Fields from a []string slice (for compatibility)
+func (u *UpdateConsentRequest) SetFields(fields []string) {
+	if len(fields) > 0 {
+		converted := make([]ConsentField, len(fields))
+		for i, f := range fields {
+			converted[i] = ConsentField{
+				FieldName: f,
+			}
+		}
+		u.Fields = &converted
+	}
+}
+
 // ConsentPortalRequest defines the structure for consent portal interactions
 // Reason is optional - nil means not provided, pointer allows distinguishing from empty string
 type ConsentPortalRequest struct {
