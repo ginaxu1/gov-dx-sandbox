@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gov-dx-sandbox/audit-service/models"
@@ -41,6 +42,13 @@ func (h *DataExchangeEventHandler) CreateDataExchangeEvent(w http.ResponseWriter
 	// Create event
 	event, err := h.DataExchangeEventService.CreateDataExchangeEvent(r.Context(), &req)
 	if err != nil {
+		// Check for validation errors
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "required") || strings.Contains(errMsg, "invalid") {
+			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
+			return
+		}
+		
 		http.Error(w, fmt.Sprintf("Failed to create event log: %v", err), http.StatusInternalServerError)
 		return
 	}
