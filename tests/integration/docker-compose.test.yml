@@ -33,6 +33,23 @@ services:
     networks:
       - test-network
 
+  # Audit Service Database
+  audit-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: gov_dx_sandbox
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
   # Policy Decision Point Service
   policy-decision-point:
     build:
@@ -86,6 +103,34 @@ services:
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
       interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Audit Service
+  audit-service:
+    build:
+      context: ../../audit-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      LOG_LEVEL: debug
+      CHOREO_OPENDIF_DB_HOSTNAME: audit-db
+      CHOREO_OPENDIF_DB_PORT: 5432
+      CHOREO_OPENDIF_DB_USERNAME: user
+      CHOREO_OPENDIF_DB_PASSWORD: password
+      CHOREO_OPENDIF_DB_DATABASENAME: gov_dx_sandbox
+      DB_SSLMODE: disable
+    ports:
+      - "3001:3001"
+    depends_on:
+      audit-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 5s
       timeout: 5s
       retries: 5
       start_period: 10s
