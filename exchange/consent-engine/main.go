@@ -12,6 +12,7 @@ import (
 
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
@@ -782,6 +783,9 @@ func main() {
 	// Setup routes using utils
 	mux := http.NewServeMux()
 
+	// Metrics endpoint (no auth required)
+	mux.Handle("/metrics", monitoring.Handler())
+
 	// Routes that don't require authentication
 	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	mux.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))
@@ -801,8 +805,8 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Wrap the mux with CORS middleware
-	handler := corsMiddleware(mux)
+	// Wrap the mux with metrics middleware, then CORS middleware
+	handler := corsMiddleware(monitoring.HTTPMetricsMiddleware(mux))
 	httpServer := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
