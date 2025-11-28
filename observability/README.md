@@ -217,17 +217,11 @@ Pre-configured dashboard: **Go Services Metrics**
 
 **Panels:**
 
-- HTTP Request Total Count (by endpoint)
-- HTTP Latency (95th percentile)
-- HTTP Error Rate
-- External Call Latency
-- External Call Errors
-- Database Latency
-- Workflow Duration
-- Policy Decision Latency
-- Cache Hit Rate
+- HTTP Traffic (req/s)
+- HTTP Latency (P95)
+- External Calls per Second
+- External Call Error %
 - Business Events
-- Go Runtime Metrics (CPU, Memory, Goroutines)
 
 ---
 
