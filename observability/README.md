@@ -36,16 +36,16 @@ All services use the shared `exchange/pkg/monitoring` package which exposes the 
 
 | Metric                          | Type      | Labels                                    | Purpose                    |
 | ------------------------------- | --------- | ----------------------------------------- | -------------------------- |
-| `http_requests_total`           | Counter   | `http.method`, `http.route`, `http.status_code` | Request volume by endpoint |
-| `http_request_duration_seconds` | Histogram | `http.method`, `http.route`               | API latency percentiles    |
+| `http_requests_total`           | Counter   | `http_method`, `http_route`, `http_status_code` | Request volume by endpoint |
+| `http_request_duration_seconds` | Histogram | `http_method`, `http_route`               | API latency percentiles    |
 
 ### External Call Metrics (DB, Providers, etc.)
 
 | Metric                            | Type      | Labels                                    | Purpose                    |
 | --------------------------------- | --------- | ----------------------------------------- | -------------------------- |
-| `external_calls_total`            | Counter   | `external.target`, `external.operation`, `external.success` | External call volume       |
-| `external_call_duration_seconds`   | Histogram | `external.target`, `external.operation`    | External call latency      |
-| `external_call_errors_total`       | Counter   | `external.target`, `external.operation`    | Failed external calls      |
+| `external_calls_total`            | Counter   | `external_target`, `external_operation`, `external_success` | External call volume       |
+| `external_call_duration_seconds`   | Histogram | `external_target`, `external_operation`    | External call latency      |
+| `external_call_errors_total`       | Counter   | `external_target`, `external_operation`    | Failed external calls      |
 
 ### Database Metrics
 
