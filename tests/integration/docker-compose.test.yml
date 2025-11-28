@@ -14,6 +14,36 @@ services:
       timeout: 5s
       retries: 5
 
+  # Consent Engine Database
+  ce-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: consent_engine
+    ports:
+      - "5434:5432" # Map to 5434 to avoid conflict
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Audit Service Database
+  audit-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: gov_dx_sandbox
+    ports:
+      - "5435:5432" # Map to 5435 to avoid conflict
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # Policy Decision Point Service
   policy-decision-point:
     image: policy-decision-point:test
@@ -34,6 +64,7 @@ services:
       CHOREO_OPENDIF_DATABASE_HOSTNAME: pdp-db
       CHOREO_OPENDIF_DATABASE_PORT: 5432
       CHOREO_OPENDIF_DATABASE_USERNAME: postgres
+      CHOREO_OPENDIF_DATABASE_PASSWORD: password
       CHOREO_OPENDIF_DATABASE_DATABASENAME: policy_db
       RUN_MIGRATION: "true"
     ports:
@@ -41,3 +72,59 @@ services:
     depends_on:
       pdp-db:
         condition: service_healthy
+
+  # Consent Engine Service
+  consent-engine:
+    image: consent-engine:test
+    build:
+      context: ../../exchange/consent-engine
+      dockerfile: Dockerfile
+    environment:
+      PORT: 8081
+      LOG_LEVEL: debug
+      # Database configuration
+      CHOREO_DB_CE_HOSTNAME: ce-db
+      CHOREO_DB_CE_PORT: 5432
+      CHOREO_DB_CE_USERNAME: postgres
+      CHOREO_DB_CE_PASSWORD: password
+      CHOREO_DB_CE_DATABASENAME: consent_engine
+      DB_SSLMODE: disable
+    ports:
+      - "8081:8081"
+    depends_on:
+      ce-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Audit Service
+  audit-service:
+    image: audit-service:test
+    build:
+      context: ../../audit-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      LOG_LEVEL: debug
+      # Database configuration
+      CHOREO_OPENDIF_DB_HOSTNAME: audit-db
+      CHOREO_OPENDIF_DB_PORT: 5432
+      CHOREO_OPENDIF_DB_USERNAME: user
+      CHOREO_OPENDIF_DB_PASSWORD: password
+      CHOREO_OPENDIF_DB_DATABASENAME: gov_dx_sandbox
+      DB_SSLMODE: disable
+    ports:
+      - "3001:3001"
+    depends_on:
+      audit-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
