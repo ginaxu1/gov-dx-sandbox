@@ -1,4 +1,4 @@
-module github.com/gov-dx-sandbox/integration-tests
+module github.com/gov-dx-sandbox/tests/integration
 
 go 1.24.6
 
