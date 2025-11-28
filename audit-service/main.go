@@ -13,6 +13,7 @@ import (
 
 	"github.com/gov-dx-sandbox/audit-service/handlers"
 	"github.com/gov-dx-sandbox/audit-service/middleware"
+	"github.com/gov-dx-sandbox/audit-service/models"
 	"github.com/gov-dx-sandbox/audit-service/services"
 )
 
@@ -49,6 +50,20 @@ func main() {
 		slog.Error("Failed to connect to database via GORM", "error", err)
 		os.Exit(1)
 	}
+
+	// Enable pgcrypto extension for UUID generation
+	if err := gormDB.Exec("CREATE EXTENSION IF NOT EXISTS pgcrypto").Error; err != nil {
+		slog.Error("Failed to enable pgcrypto extension", "error", err)
+		os.Exit(1)
+	}
+
+	// Auto-migrate database schema
+	slog.Info("Running database migrations...")
+	if err := gormDB.AutoMigrate(&models.DataExchangeEvent{}, &models.ManagementEvent{}); err != nil {
+		slog.Error("Failed to migrate database", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("Database migrations completed successfully")
 
 	// Initialize services
 	dataExchangeEventService := services.NewDataExchangeEventService(gormDB)
