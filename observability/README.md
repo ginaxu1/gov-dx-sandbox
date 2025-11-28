@@ -175,19 +175,7 @@ sum(rate(cache_events_total{cache_result="hit"}[5m])) / sum(rate(cache_events_to
 
 **Cache Hit/Miss Count:**
 ```promql
-sum by (cache_name, cache_result) (cache_events_total)
-```
-
-### Business Events
-
-**Business Event Success Rate:**
-```promql
-sum(rate(business_events_total{business_outcome="success"}[5m])) / sum(rate(business_events_total[5m]))
-```
-
-**Business Events by Action:**
-```promql
-sum by (business_action, business_outcome) (business_events_total)
+sum by (cache.name, cache.result) (cache_events_total)
 ```
 
 ### Service Health
