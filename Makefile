@@ -95,6 +95,7 @@ $(BIN_DIR):
 # SETUP COMMANDS
 # =============================================================================
 
+<<<<<<< HEAD
 # Install Git hooks
 install-hooks:
 	@echo "Installing git hooks..."
@@ -109,6 +110,8 @@ install-hooks:
 	@echo "📍 Pre-commit hook will now run automatically on every commit"
 	@echo "💡 To bypass temporarily, use: git commit --no-verify"
 	
+=======
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 # Setup for Go services
 setup-go-service:
 	@echo "Setting up Go service: $(SERVICE)"
@@ -126,9 +129,15 @@ setup-frontend-service:
 setup:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="setup-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="setup-go-service" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="setup-go-service" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)"; TARGET="setup-go-service" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="setup-go-service" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="setup-go-service" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="setup-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="setup-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="setup-frontend-service" ;; \
@@ -162,9 +171,15 @@ validate-build-frontend-service:
 validate-build:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="validate-build-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="validate-build-go-service" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-build-go-service" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)"; TARGET="validate-build-go-service" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="validate-build-go-service" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-build-go-service" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="validate-build-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="validate-build-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="validate-build-frontend-service" ;; \
@@ -203,9 +218,15 @@ validate-test-frontend-service:
 validate-test:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="validate-test-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="validate-test-go-service" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-test-go-service" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)"; TARGET="validate-test-go-service" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="validate-test-go-service" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-test-go-service" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="validate-test-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="validate-test-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="validate-test-frontend-service" ;; \
@@ -234,9 +255,15 @@ validate-docker-build-service:
 validate-docker-build:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)" ;; \
@@ -367,9 +394,15 @@ check-lint-frontend-service:
 format:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -380,9 +413,15 @@ format:
 lint:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -393,9 +432,15 @@ lint:
 staticcheck:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -406,9 +451,15 @@ staticcheck:
 security:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -419,9 +470,15 @@ security:
 quality-check:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="quality-check-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="quality-check-go-service" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="quality-check-go-service" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)"; TARGET="quality-check-go-service" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="quality-check-go-service" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="quality-check-go-service" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="quality-check-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="quality-check-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="check-lint-frontend-service" ;; \
@@ -435,9 +492,15 @@ quality-check:
 check-lint:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="check-lint-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="check-lint-go-service" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="check-lint-go-service" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)"; TARGET="check-lint-go-service" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="check-lint-go-service" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="check-lint-go-service" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="check-lint-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="check-lint-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="check-lint-frontend-service" ;; \
@@ -467,9 +530,15 @@ run-frontend-service:
 run:
 	@SERVICE_NAME="$(word 2,$(MAKECMDGOALS))"; \
 	case "$$SERVICE_NAME" in \
+<<<<<<< HEAD
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="run-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="run-go-service" ;; \
 		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="run-go-service" ;; \
+=======
+		api-server-go) SERVICE_PATH="$(API_SERVER_PATH)"; TARGET="run-go-service" ;; \
+		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="run-go-service" ;; \
+		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="run-go-service" ;; \
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="run-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="run-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="run-frontend-service" ;; \
@@ -504,7 +573,10 @@ $(GO_SERVICES) $(FRONTEND_SERVICES):
 # Setup all services
 setup-all:
 	@echo "Setting up all services..."
+<<<<<<< HEAD
 	@$(MAKE) install-hooks
+=======
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
 	@for service in $(GO_SERVICES); do \
 		echo "Setting up $$service..."; \
 		$(MAKE) setup $$service; \
@@ -569,6 +641,7 @@ lint-all:
 	done
 	@echo "✅ All Go services passed lint checks"
 
+<<<<<<< HEAD
 # =============================================================================
 # RUNTIME COMMANDS (Legacy/Convenience)
 # =============================================================================
@@ -703,3 +776,5 @@ logs:
 	@if [ -f /tmp/consent-engine.log ]; then echo "=== Consent Engine ===" && tail -20 /tmp/consent-engine.log; fi
 	@if [ -f /tmp/pdp.log ]; then echo "=== Policy Decision Point ===" && tail -20 /tmp/pdp.log; fi
 	@if [ -f /tmp/orchestration-engine.log ]; then echo "=== Orchestration Engine ===" && tail -20 /tmp/orchestration-engine.log; fi
+=======
+>>>>>>> 3778ca1 (Add integration tests and update PDP tests to use PostgreSQL)
