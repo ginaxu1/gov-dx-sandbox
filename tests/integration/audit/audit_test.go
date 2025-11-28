@@ -231,7 +231,7 @@ func TestAudit_FilterByStatus(t *testing.T) {
 
 	// Filter by success status
 	params := url.Values{}
-	params.Add("transaction_status", "SUCCESS")
+	params.Add("status", "success")
 	resp, err = http.Get(auditBaseURL + "/api/data-exchange-events?" + params.Encode())
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -461,13 +461,19 @@ func TestAudit_DatabaseVerification(t *testing.T) {
 func TestAudit_CreateManagementEvent(t *testing.T) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	createReq := map[string]interface{}{
-		"timestamp":    timestamp,
-		"eventType":    "schema_created",
-		"userId":       "test-user-123",
-		"resourceType": "schema",
-		"resourceId":   "test-schema-123",
-		"action":       "create",
-		"details": map[string]interface{}{
+		"timestamp": timestamp,
+		"eventType": "CREATE",
+		"status":    "success",
+		"actor": map[string]interface{}{
+			"type": "USER",
+			"id":   "test-user-123",
+			"role": "ADMIN",
+		},
+		"target": map[string]interface{}{
+			"resource":   "SCHEMAS",
+			"resourceId": "test-schema-123",
+		},
+		"metadata": map[string]interface{}{
 			"schemaName": "Test Schema",
 		},
 	}

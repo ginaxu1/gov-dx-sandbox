@@ -13,9 +13,13 @@ tests/integration/
 ├── README.md                    # This file
 ├── docker-compose.test.yml     # Docker Compose configuration for tests
 ├── go.mod                      # Go module definition
-├── graphql_flow_test.go        # GraphQL flow integration test
+├── consent/                    # Consent Engine integration tests
+│   └── consent_test.go
+├── audit/                      # Audit Service integration tests
+│   └── audit_test.go
 ├── pdp/                        # Policy Decision Point tests
 │   └── pdp_test.go
+├── graphql_flow_test.go        # GraphQL flow integration test
 └── testutils/                  # Test utilities
     ├── db.go                   # Database utilities
     └── http.go                 # HTTP utilities
@@ -28,6 +32,7 @@ Before running integration tests, ensure all services are running:
 1. **Consent Engine** (Port 8081) 
 2. **Policy Decision Point** (Port 8082)
 3. **Orchestration Engine** (Port 4000)
+4. **Audit Service** (Port 3001)
 
 ### Starting Services
 
@@ -35,19 +40,6 @@ Before running integration tests, ensure all services are running:
 # Start all services using Docker Compose
 cd /Users/tmp/gov-dx-sandbox
 make start-exchange
-
-# Or start individual services:
-# Terminal 1 - Consent Engine
-cd exchange/consent-engine
-go run main.go
-
-# Terminal 2 - Policy Decision Point
-cd exchange/policy-decision-point
-go run main.go
-
-# Terminal 3 - Orchestration Engine
-cd exchange/orchestration-engine-go
-go run main.go
 ```
 
 ## Running Tests
@@ -56,8 +48,28 @@ go run main.go
 ```bash
 cd tests/integration
 docker compose -f docker-compose.test.yml up -d
+
+# Wait for services to be ready
 go test -v ./...
+
 docker compose -f docker-compose.test.yml down -v
+```
+
+### Run Specific Test Suites
+```bash
+# Consent Engine tests
+go test -v ./consent/...
+
+# Audit Service tests
+go test -v ./audit/...
+
+# Policy Decision Point tests
+go test -v ./pdp/...
+```
+
+### With Database Verification
+```bash
+TEST_VERIFY_DB=true go test -v ./...
 ```
 
 ## Test Scenarios
