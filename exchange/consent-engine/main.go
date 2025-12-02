@@ -12,6 +12,7 @@ import (
 
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
@@ -303,6 +304,9 @@ func (s *apiServer) createConsent(w http.ResponseWriter, r *http.Request) {
 	// Log the operation
 	slog.Info("Operation successful", "operation", "create consent", "id", record.ConsentID, "owner", record.OwnerID)
 
+	// Record business event
+	monitoring.RecordBusinessEvent("consent_created", "success")
+
 	// Return simplified response format
 	response := record.ToConsentResponse()
 	utils.RespondWithJSON(w, http.StatusCreated, response)
@@ -322,6 +326,16 @@ func (s *apiServer) updateConsent(w http.ResponseWriter, r *http.Request) {
 				return nil, http.StatusNotFound, err
 			}
 			return nil, http.StatusInternalServerError, fmt.Errorf(ErrConsentUpdateFailed+": %w", err)
+		}
+
+		// Record business event based on status
+		switch record.Status {
+		case "approved":
+			monitoring.RecordBusinessEvent("consent_approved", "success")
+		case "rejected":
+			monitoring.RecordBusinessEvent("consent_rejected", "success")
+		case "revoked":
+			monitoring.RecordBusinessEvent("consent_revoked", "success")
 		}
 
 		// Return simplified response format
@@ -367,6 +381,9 @@ func (s *apiServer) revokeConsentByID(w http.ResponseWriter, r *http.Request, co
 		}
 		return
 	}
+
+	// Record business event
+	monitoring.RecordBusinessEvent("consent_revoked", "success")
 
 	// Return simplified response format
 	response := record.ToConsentResponse()
@@ -434,6 +451,16 @@ func (s *apiServer) patchConsentByID(w http.ResponseWriter, r *http.Request, con
 		return
 	}
 	slog.Info("Consent record updated", "consent_id", updatedRecord.ConsentID, "owner_id", updatedRecord.OwnerID, "owner_email", updatedRecord.OwnerEmail, "app_id", updatedRecord.AppID, "status", updatedRecord.Status, "type", updatedRecord.Type, "created_at", updatedRecord.CreatedAt, "updated_at", updatedRecord.UpdatedAt, "expires_at", updatedRecord.ExpiresAt, "grant_duration", updatedRecord.GrantDuration, "fields", updatedRecord.Fields, "session_id", updatedRecord.SessionID, "consent_portal_url", updatedRecord.ConsentPortalURL)
+
+	// Record business event based on status
+	switch updatedRecord.Status {
+	case "approved":
+		monitoring.RecordBusinessEvent("consent_approved", "success")
+	case "rejected":
+		monitoring.RecordBusinessEvent("consent_rejected", "success")
+	case "revoked":
+		monitoring.RecordBusinessEvent("consent_revoked", "success")
+	}
 
 	// Return simplified response format
 	response := updatedRecord.ToConsentResponse()
