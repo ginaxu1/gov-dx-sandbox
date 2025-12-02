@@ -98,7 +98,7 @@ services:
   orchestration-engine:
     build:
       context: ../../exchange
-      dockerfile: orchestration-engine-go/Dockerfile
+      dockerfile: orchestration-engine/Dockerfile
     environment:
       PORT: 4000
       LOG_LEVEL: debug
