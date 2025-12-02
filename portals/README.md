@@ -6,7 +6,7 @@ React-based portals for the OpenDIF platform.
 
 - **Admin Portal** - Administrative interface for managing the platform
 - **Consent Portal** - User-facing consent management interface
-- **Member Portal** - Member/provider portal for data exchange
+- **Member Portal** - Management of `Data sources` or `Applications` by members
 
 ## Configuration (`config.js`)
 
