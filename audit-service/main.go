@@ -103,7 +103,7 @@ func main() {
 		}
 	})
 
-	// API endpoints for management events from API Server
+	// API endpoints for management events from Portal Backend
 	mux.HandleFunc("/api/management-events", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:

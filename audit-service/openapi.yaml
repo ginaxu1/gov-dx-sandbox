@@ -326,13 +326,13 @@ paths:
     post:
       summary: Create Management Event
       description: |
-        Create a management event audit log entry. This endpoint is called by the API Server
+        Create a management event audit log entry. This endpoint is called by the Portal Backend
         when a Member or Admin performs a CREATE, UPDATE, or DELETE operation on a resource
         (schemas, applications, members, etc.), or when a service performs an operation.
         
         **Actor Types:**
         - `USER`: Member or Admin performing an action (requires `actor.id` and `actor.role`)
-        - `SERVICE`: Service-to-service operation (e.g., API Server calling PDP) (no `actor.id` or `actor.role`)
+        - `SERVICE`: Service-to-service operation (e.g., Portal Backend calling PDP) (no `actor.id` or `actor.role`)
         
         **Event Types:**
         - `CREATE`: Creating a new resource
@@ -790,7 +790,7 @@ components:
 
     CreateManagementEventRequest:
       type: object
-      description: Management event request structure - sent by API Server
+      description: Management event request structure - sent by Portal Backend
       properties:
         timestamp:
           type: string
@@ -972,4 +972,4 @@ tags:
   - name: Data Exchange
     description: Data exchange audit logging - called by Orchestration Engine
   - name: Management Events
-    description: Management portal audit logging - called by API Server
+    description: Management portal audit logging - called by Portal Backend

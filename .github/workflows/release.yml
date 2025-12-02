@@ -52,21 +52,21 @@ jobs:
           echo "full_version=v${VERSION}" >> $GITHUB_OUTPUT
           echo "Extracted version: ${VERSION}"
 
-      - name: Build and push API Server Go
+      - name: Build and push Portal Backend
         uses: docker/build-push-action@v5
         with:
-          context: ./api-server-go
+          context: ./portal-backend
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/api-server-go:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/api-server-go:latest
+            ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.description=API Server Go service for the Government Data Exchange platform
+            org.opencontainers.image.description=Portal Backend service for the Government Data Exchange platform
             org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
           build-args: |
-            SERVICE_PATH=api-server-go
+            SERVICE_PATH=portal-backend
             BUILD_VERSION=${{ steps.version.outputs.version }}
             BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
             GIT_COMMIT=${{ github.sha }}
@@ -164,7 +164,7 @@ jobs:
         continue-on-error: true
         with:
           image-ref: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/api-server-go:${{ steps.version.outputs.full_version }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}
             ${{ env.REGISTRY }}/${{ github.repository }}/audit-service:${{ steps.version.outputs.full_version }}
             ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point:${{ steps.version.outputs.full_version }}
             ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine:${{ steps.version.outputs.full_version }}
@@ -192,7 +192,7 @@ jobs:
 
             This release includes Docker images for all services:
 
-            - **API Server Go**: `ghcr.io/${{ github.repository }}/api-server-go:${{ steps.version.outputs.full_version }}`
+            - **Portal Backend**: `ghcr.io/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}`
             - **Audit Service**: `ghcr.io/${{ github.repository }}/audit-service:${{ steps.version.outputs.full_version }}`
             - **Policy Decision Point**: `ghcr.io/${{ github.repository }}/policy-decision-point:${{ steps.version.outputs.full_version }}`
             - **Consent Engine**: `ghcr.io/${{ github.repository }}/consent-engine:${{ steps.version.outputs.full_version }}`
@@ -201,7 +201,7 @@ jobs:
             ### Pull Images
 
             ```bash
-            docker pull ghcr.io/${{ github.repository }}/api-server-go:${{ steps.version.outputs.full_version }}
+            docker pull ghcr.io/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}
             docker pull ghcr.io/${{ github.repository }}/audit-service:${{ steps.version.outputs.full_version }}
             docker pull ghcr.io/${{ github.repository }}/policy-decision-point:${{ steps.version.outputs.full_version }}
             docker pull ghcr.io/${{ github.repository }}/consent-engine:${{ steps.version.outputs.full_version }}

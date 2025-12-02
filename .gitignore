@@ -44,7 +44,7 @@ mocks/mock-dmt/Config.toml
 **/policy-decision-point/policy-decision-point
 **/consent-engine/consent-engine
 **/orchestration-engine-go/orchestration-engine-go
-**/api-server-go/api-server-go
+**/portal-backend/portal-backend
 
 # Allow .choreo directories for WSO2 Choreo deployment
 !**/.choreo/

@@ -90,7 +90,7 @@ make quality-check <service-name>
 
 Available services:
 
-- `api-server-go`
+- `portal-backend`
 - `audit-service`
 - `orchestration-engine-go`
 - `consent-engine`
@@ -169,14 +169,14 @@ Each quality check runs the following steps:
 ### Successful Quality Check
 
 ```
-Quality checking api-server-go...
-Running comprehensive quality checks for Go service: api-server-go
-✅ Code formatted for Go service api-server-go
-✅ Basic lint checks completed for Go service api-server-go
-✅ Staticcheck completed for Go service api-server-go
-✅ Security check completed for Go service api-server-go
-✅ Tests passed for Go service api-server-go
-✅ All quality checks passed for Go service api-server-go
+Quality checking portal-backend...
+Running comprehensive quality checks for Go service: portal-backend
+✅ Code formatted for Go service portal-backend
+✅ Basic lint checks completed for Go service portal-backend
+✅ Staticcheck completed for Go service portal-backend
+✅ Security check completed for Go service portal-backend
+✅ Tests passed for Go service portal-backend
+✅ All quality checks passed for Go service portal-backend
 ```
 
 ### Security Issues Found
@@ -231,7 +231,7 @@ go: cannot find main module
 
 ```bash
 # Navigate to the specific service directory
-cd api-server-go
+cd portal-backend
 go mod tidy
 ```
 
@@ -318,7 +318,7 @@ ls -d */go.mod | sed 's|/go.mod||' | grep -v '^go.mod$'
 
 Valid service names:
 
-- `api-server-go`
+- `portal-backend`
 - `audit-service`
 - `exchange/orchestration-engine-go` (use `orchestration-engine-go`)
 - `exchange/consent-engine` (use `consent-engine`)
