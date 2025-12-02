@@ -3,8 +3,8 @@ package federator
 import (
 	"testing"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,7 +29,7 @@ func TestAccumulateResponse_SingleObject(t *testing.T) {
 	// Mock federated response
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -40,7 +40,7 @@ func TestAccumulateResponse_SingleObject(t *testing.T) {
 					},
 				},
 			},
-			&ProviderResponse{
+			{
 				ServiceKey: "rgd",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -89,7 +89,7 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 	// Mock federated response with array data
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -99,7 +99,7 @@ func TestAccumulateResponse_ArrayField(t *testing.T) {
 					},
 				},
 			},
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -353,7 +353,7 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 	// Mock federated response with both object and array data
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -364,7 +364,7 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 					},
 				},
 			},
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
