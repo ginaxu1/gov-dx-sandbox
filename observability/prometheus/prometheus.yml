@@ -11,7 +11,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - host.docker.internal:4000
+          - orchestration-engine:4000
         labels:
           service: 'orchestration-engine'
           port: '4000'
@@ -20,7 +20,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - host.docker.internal:8081
+          - consent-engine:8081
         labels:
           service: 'consent-engine'
           port: '8081'
@@ -29,26 +29,26 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - host.docker.internal:8082
+          - policy-decision-point:8082
         labels:
           service: 'policy-decision-point'
           port: '8082'
 
   # Root Level Services
-  - job_name: api-server-go
+  - job_name: portal-backend
     metrics_path: /metrics
     static_configs:
       - targets:
-          - host.docker.internal:3000
+          - portal-backend:3000
         labels:
-          service: 'api-server-go'
+          service: 'portal-backend'
           port: '3000'
 
   - job_name: audit-service
     metrics_path: /metrics
     static_configs:
       - targets:
-          - host.docker.internal:3001
+          - audit-service:3001
         labels:
           service: 'audit-service'
           port: '3001'
