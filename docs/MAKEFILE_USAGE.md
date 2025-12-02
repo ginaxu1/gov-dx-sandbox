@@ -20,7 +20,7 @@ The following Go services are available for quality checks:
 
 - `portal-backend` - Main Portal Backend
 - `audit-service` - Audit logging service
-- `orchestration-engine-go` - Data orchestration engine
+- `orchestration-engine` - Data orchestration engine
 - `consent-engine` - Consent management engine
 - `policy-decision-point` - Policy decision service
 
@@ -86,7 +86,7 @@ make lint <service-name>
 **Examples:**
 
 ```bash
-make lint orchestration-engine-go
+make lint orchestration-engine
 make lint consent-engine
 ```
 

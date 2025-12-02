@@ -60,9 +60,9 @@ services:
   orchestration-engine:
     build:
       context: .
-      dockerfile: orchestration-engine-go/Dockerfile
+      dockerfile: orchestration-engine/Dockerfile
       args:
-        SERVICE_PATH: orchestration-engine-go
+        SERVICE_PATH: orchestration-engine
         BUILD_VERSION: ${BUILD_VERSION:-dev}
         BUILD_TIME: ${BUILD_TIME:-2025-09-09T16:30:00Z}
         GIT_COMMIT: ${GIT_COMMIT:-local}

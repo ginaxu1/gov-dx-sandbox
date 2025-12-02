@@ -32,7 +32,7 @@ func min(a, b int) int {
 }
 
 // getOwnerEmailByID returns the owner_email for a given owner_id
-// Since orchestration-engine-go now uses email as the primary ID, owner_id is the same as owner_email
+// Since orchestration-engine now uses email as the primary ID, owner_id is the same as owner_email
 func getOwnerEmailByID(ownerID string) (string, error) {
 	if ownerID == "" {
 		return "", fmt.Errorf("owner_id cannot be empty")

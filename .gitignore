@@ -43,7 +43,7 @@ mocks/mock-dmt/Config.toml
 # Go binaries (compiled executables)
 **/policy-decision-point/policy-decision-point
 **/consent-engine/consent-engine
-**/orchestration-engine-go/orchestration-engine-go
+**/orchestration-engine/orchestration-engine
 **/portal-backend/portal-backend
 
 # Allow .choreo directories for WSO2 Choreo deployment

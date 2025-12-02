@@ -92,7 +92,7 @@ Available services:
 
 - `portal-backend`
 - `audit-service`
-- `orchestration-engine-go`
+- `orchestration-engine`
 - `consent-engine`
 - `policy-decision-point`
 
@@ -320,7 +320,7 @@ Valid service names:
 
 - `portal-backend`
 - `audit-service`
-- `exchange/orchestration-engine-go` (use `orchestration-engine-go`)
+- `exchange/orchestration-engine` (use `orchestration-engine`)
 - `exchange/consent-engine` (use `consent-engine`)
 - `exchange/policy-decision-point` (use `policy-decision-point`)
 
