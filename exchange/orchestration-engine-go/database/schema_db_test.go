@@ -20,7 +20,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // setupTestDB creates a PostgreSQL test database connection
-// Similar to consent-engine and api-server-go test utilities
+// Similar to consent-engine and portal-backend test utilities
 func setupTestDB(t *testing.T) *SchemaDB {
 	host := os.Getenv("TEST_DB_HOST")
 	port := os.Getenv("TEST_DB_PORT")
