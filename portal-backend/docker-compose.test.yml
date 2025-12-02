@@ -1,0 +1,52 @@
+services:
+  postgres-test:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: portal_backend_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d portal_backend_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  portal-backend-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=test
+      - PORT=3000
+      - CHOREO_DB_portal_backend_HOSTNAME=postgres-test
+      - CHOREO_DB_portal_backend_PORT=5432
+      - CHOREO_DB_portal_backend_USERNAME=test_user
+      - CHOREO_DB_portal_backend_PASSWORD=test_password
+      - CHOREO_DB_portal_backend_DATABASENAME=portal_backend_test
+      - DB_SSLMODE=disable
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  postgres_test_data:

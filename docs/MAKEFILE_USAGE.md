@@ -11,14 +11,14 @@ This guide provides a quick reference for all available Makefile commands in the
 make quality-check-all
 
 # Check specific service
-make quality-check api-server-go
+make quality-check portal-backend
 ```
 
 ## Available Services
 
 The following Go services are available for quality checks:
 
-- `api-server-go` - Main API server
+- `portal-backend` - Main Portal Backend
 - `audit-service` - Audit logging service
 - `orchestration-engine-go` - Data orchestration engine
 - `consent-engine` - Consent management engine
@@ -45,7 +45,7 @@ make quality-check <service-name>
 **Examples:**
 
 ```bash
-make quality-check api-server-go
+make quality-check portal-backend
 make quality-check consent-engine
 make quality-check policy-decision-point
 ```
@@ -68,7 +68,7 @@ make format <service-name>
 **Examples:**
 
 ```bash
-make format api-server-go
+make format portal-backend
 make format audit-service
 ```
 
@@ -105,7 +105,7 @@ make security <service-name>
 **Examples:**
 
 ```bash
-make security api-server-go
+make security portal-backend
 make security policy-decision-point
 ```
 
@@ -161,16 +161,16 @@ Displays available commands and usage information.
 ### ✅ Successful Quality Check
 
 ```
-Quality checking api-server-go...
-Running comprehensive quality checks for Go service: api-server-go
-✅ Code formatted for Go service api-server-go
-✅ Basic lint checks completed for Go service api-server-go
-✅ Staticcheck completed for Go service api-server-go
-✅ Security check completed for Go service api-server-go
-✅ Tests passed for Go service api-server-go
-Coverage report generated: api-server-go/coverage.html
+Quality checking portal-backend...
+Running comprehensive quality checks for Go service: portal-backend
+✅ Code formatted for Go service portal-backend
+✅ Basic lint checks completed for Go service portal-backend
+✅ Staticcheck completed for Go service portal-backend
+✅ Security check completed for Go service portal-backend
+✅ Tests passed for Go service portal-backend
+Coverage report generated: portal-backend/coverage.html
 total: (statements) 57.4%
-✅ All quality checks passed for Go service api-server-go
+✅ All quality checks passed for Go service portal-backend
 ```
 
 ### ⚠️ Quality Issues Found
@@ -195,7 +195,7 @@ Summary:
 ### ❌ Quality Check Failure
 
 ```
-❌ Tests failed for Go service api-server-go
+❌ Tests failed for Go service portal-backend
 Error: Test suite returned non-zero exit code
 ```
 
@@ -207,15 +207,15 @@ Error: Test suite returned non-zero exit code
 
    ```bash
    # Format and check your changes
-   make format api-server-go
-   make lint api-server-go
+   make format portal-backend
+   make lint portal-backend
    ```
 
 2. **Before Committing:**
 
    ```bash
    # Full quality check for modified service
-   make quality-check api-server-go
+   make quality-check portal-backend
    ```
 
 3. **Before Pull Request:**
@@ -293,7 +293,7 @@ If you have services in non-standard locations, you must manually update the ser
 
 ```bash
 # Only format and lint (skip security and tests)
-make format api-server-go && make lint api-server-go
+make format portal-backend && make lint portal-backend
 ```
 
 ### Coverage Analysis

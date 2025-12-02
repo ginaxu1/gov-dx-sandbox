@@ -26,16 +26,17 @@ This triggers `release.yml` which builds all services and creates a GitHub Relea
 Tagging `v1.2.3` creates these image tags for each service:
 
 - `v1.2.3` - Exact version
-- `v1.2` - Minor version  
+- `v1.2` - Minor version
 - `v1` - Major version
 - `latest` - Latest release
 
 **Example:**
+
 ```
-ghcr.io/{owner}/{repo}/api-server-go:v1.2.3
-ghcr.io/{owner}/{repo}/api-server-go:v1.2
-ghcr.io/{owner}/{repo}/api-server-go:v1
-ghcr.io/{owner}/{repo}/api-server-go:latest
+ghcr.io/{owner}/{repo}/portal-backend:v1.2.3
+ghcr.io/{owner}/{repo}/portal-backend:v1.2
+ghcr.io/{owner}/{repo}/portal-backend:v1
+ghcr.io/{owner}/{repo}/portal-backend:latest
 ```
 
 ## Semantic Versioning
@@ -47,36 +48,42 @@ ghcr.io/{owner}/{repo}/api-server-go:latest
 ## Using Release Images
 
 **Production:**
+
 ```yaml
 services:
-  api-server-go:
-    image: ghcr.io/{owner}/{repo}/api-server-go:v1.0.0
+  portal-backend:
+    image: ghcr.io/{owner}/{repo}/portal-backend:v1.0.0
 ```
 
 **Development:**
+
 ```yaml
 services:
-  api-server-go:
-    image: ghcr.io/{owner}/{repo}/api-server-go:latest
+  portal-backend:
+    image: ghcr.io/{owner}/{repo}/portal-backend:latest
 ```
 
 ## Rollback
 
 Update docker-compose.yml to previous version:
+
 ```yaml
 services:
-  api-server-go:
-    image: ghcr.io/{owner}/{repo}/api-server-go:v1.0.0
+  portal-backend:
+    image: ghcr.io/{owner}/{repo}/portal-backend:v1.0.0
 ```
+
 Then: `docker compose pull && docker compose up -d`
 
 ## Troubleshooting
 
 **Workflow doesn't trigger:**
+
 - Tag format must match `v*.*.*` pattern (e.g., `v1.0.0`, `v2.1.3`)
 - Ensure tag was pushed: `git push origin v1.0.0`
 
 **Security scan fails:**
+
 - Review vulnerabilities in Security tab
 - Update dependencies/base images
 - Re-run workflow after fixes
