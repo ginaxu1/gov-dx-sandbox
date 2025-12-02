@@ -3,7 +3,7 @@ name: Validate Portal Backend
 on:
   pull_request:
     paths:
-      - '../../portal-backend/**'
+      - '/portal-backend/**'
       - '.github/workflows/portal-backend-validate.yml'
   workflow_dispatch:
 

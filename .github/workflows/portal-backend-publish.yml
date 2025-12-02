@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - '../../portal-backend/**'
+      - 'portal-backend/**'
       - '.github/workflows/portal-backend-publish.yml'
     tags:
       - 'portal-backend-v*'

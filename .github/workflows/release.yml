@@ -141,7 +141,7 @@ jobs:
       - name: Build and push Orchestration Engine
         uses: docker/build-push-action@v5
         with:
-          context: ./exchange/orchestration-engine-go
+          context: ./exchange/orchestration-engine
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine:${{ steps.version.outputs.full_version }}
@@ -152,7 +152,7 @@ jobs:
             org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
           build-args: |
-            SERVICE_PATH=orchestration-engine-go
+            SERVICE_PATH=orchestration-engine
             BUILD_VERSION=${{ steps.version.outputs.version }}
             BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
             GIT_COMMIT=${{ github.sha }}

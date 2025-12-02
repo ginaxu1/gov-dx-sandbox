@@ -14,7 +14,7 @@ help:
 	@echo "  Go Services:"
 	@echo "    - portal-backend"
 	@echo "    - audit-service"
-	@echo "    - orchestration-engine-go"
+	@echo "    - orchestration-engine"
 	@echo "    - consent-engine"
 	@echo "    - policy-decision-point"
 	@echo ""
@@ -48,7 +48,7 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make setup portal-backend"
-	@echo "  make validate-build orchestration-engine-go"
+	@echo "  make validate-build orchestration-engine"
 	@echo "  make validate-test consent-engine"
 	@echo "  make run member-portal"
 
@@ -61,7 +61,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 # Service paths
 portal_backend_PATH := portal-backend
 AUDIT_SERVICE_PATH := audit-service
-ORCHESTRATION_ENGINE_PATH := exchange/orchestration-engine-go
+ORCHESTRATION_ENGINE_PATH := exchange/orchestration-engine
 CONSENT_ENGINE_PATH := exchange/consent-engine
 POLICY_DECISION_POINT_PATH := exchange/policy-decision-point
 
@@ -70,7 +70,7 @@ ADMIN_PORTAL_PATH := portals/admin-portal
 CONSENT_PORTAL_PATH := portals/consent-portal
 
 # Go services list
-GO_SERVICES := portal-backend audit-service orchestration-engine-go consent-engine policy-decision-point
+GO_SERVICES := portal-backend audit-service orchestration-engine consent-engine policy-decision-point
 FRONTEND_SERVICES := member-portal admin-portal consent-portal
 
 # =============================================================================
@@ -107,7 +107,7 @@ setup:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="setup-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="setup-go-service" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="setup-go-service" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="setup-go-service" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="setup-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="setup-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="setup-frontend-service" ;; \
@@ -143,7 +143,7 @@ validate-build:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="validate-build-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="validate-build-go-service" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-build-go-service" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-build-go-service" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="validate-build-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="validate-build-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="validate-build-frontend-service" ;; \
@@ -184,7 +184,7 @@ validate-test:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="validate-test-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="validate-test-go-service" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-test-go-service" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="validate-test-go-service" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="validate-test-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="validate-test-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="validate-test-frontend-service" ;; \
@@ -215,7 +215,7 @@ validate-docker-build:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)" ;; \
@@ -348,7 +348,7 @@ format:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -361,7 +361,7 @@ lint:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -374,7 +374,7 @@ staticcheck:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -387,7 +387,7 @@ security:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)" ;; \
 		*) echo "❌ Unknown Go service: $$SERVICE_NAME"; echo "Available Go services: $(GO_SERVICES)"; exit 1 ;; \
@@ -400,7 +400,7 @@ quality-check:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="quality-check-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="quality-check-go-service" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="quality-check-go-service" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="quality-check-go-service" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="quality-check-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="quality-check-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="check-lint-frontend-service" ;; \
@@ -416,7 +416,7 @@ check-lint:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="check-lint-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="check-lint-go-service" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="check-lint-go-service" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="check-lint-go-service" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="check-lint-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="check-lint-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="check-lint-frontend-service" ;; \
@@ -448,7 +448,7 @@ run:
 	case "$$SERVICE_NAME" in \
 		portal-backend) SERVICE_PATH="$(portal_backend_PATH)"; TARGET="run-go-service" ;; \
 		audit-service) SERVICE_PATH="$(AUDIT_SERVICE_PATH)"; TARGET="run-go-service" ;; \
-		orchestration-engine-go) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="run-go-service" ;; \
+		orchestration-engine) SERVICE_PATH="$(ORCHESTRATION_ENGINE_PATH)"; TARGET="run-go-service" ;; \
 		consent-engine) SERVICE_PATH="$(CONSENT_ENGINE_PATH)"; TARGET="run-go-service" ;; \
 		policy-decision-point) SERVICE_PATH="$(POLICY_DECISION_POINT_PATH)"; TARGET="run-go-service" ;; \
 		member-portal) SERVICE_PATH="$(MEMBER_PORTAL_PATH)"; TARGET="run-frontend-service" ;; \
