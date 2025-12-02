@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
-	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
-	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
-	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
-	v1models "github.com/gov-dx-sandbox/api-server-go/v1/models"
+	"github.com/gov-dx-sandbox/portal-backend/shared/utils"
+	v1 "github.com/gov-dx-sandbox/portal-backend/v1"
+	v1handlers "github.com/gov-dx-sandbox/portal-backend/v1/handlers"
+	v1middleware "github.com/gov-dx-sandbox/portal-backend/v1/middleware"
+	v1models "github.com/gov-dx-sandbox/portal-backend/v1/models"
 	"github.com/joho/godotenv"
 )
 

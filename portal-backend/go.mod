@@ -7,7 +7,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/portal-backend/models v0.0.0
 	github.com/gov-dx-sandbox/portal-backend/shared/utils v0.0.0
-	github.com/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.30
@@ -33,7 +32,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/joho/godotenv v1.5.1
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
@@ -42,5 +40,3 @@ require (
 replace github.com/gov-dx-sandbox/portal-backend/models => ./models
 
 replace github.com/gov-dx-sandbox/portal-backend/shared/utils => ./shared/utils
-
-replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../exchange/pkg/monitoring
