@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/kinds"
 	"github.com/graphql-go/graphql/language/printer"
@@ -27,16 +27,15 @@ type SourceSchemaInfo struct {
 }
 
 func QueryBuilder(maps *[]ProviderLevelFieldRecord, args []*ArgSource) ([]*federationServiceRequest, error) {
-
 	// initialize return variable
-	var requests = make([]*federationServiceRequest, 0)
+	requests := make([]*federationServiceRequest, 0)
 
-	var queries = BuildProviderLevelQuery(maps)
+	queries := BuildProviderLevelQuery(maps)
 
 	// convert the queries into federationServiceRequest
 	for _, q := range queries {
 		// find the arguments to the specific provider
-		var providerArgs = make([]*ArgSource, 0)
+		providerArgs := make([]*ArgSource, 0)
 
 		for _, arg := range args {
 			if arg == nil {
@@ -50,7 +49,7 @@ func QueryBuilder(maps *[]ProviderLevelFieldRecord, args []*ArgSource) ([]*feder
 
 		PushArgumentsToProviderQueryAst(providerArgs, q)
 
-		var query = printer.Print(q.QueryAst).(string)
+		query := printer.Print(q.QueryAst).(string)
 		println(printer.Print(q.QueryAst).(string))
 
 		requests = append(requests, &federationServiceRequest{
@@ -74,7 +73,7 @@ type ProviderLevelFieldRecord struct {
 
 // ProviderFieldMap A function to convert the directives into a map of service key to a list of fields.
 func ProviderFieldMap(directives []*ast.Directive) *[]ProviderLevelFieldRecord {
-	var fieldMap = make([]ProviderLevelFieldRecord, 0)
+	fieldMap := make([]ProviderLevelFieldRecord, 0)
 
 	for _, dir := range directives {
 		if dir.Name.Value == "sourceInfo" {
@@ -113,21 +112,21 @@ func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) (*Schema
 	}
 
 	// iterate through the query fields
-	var selections = query.Definitions[0].(*ast.OperationDefinition).SelectionSet
+	selections := query.Definitions[0].(*ast.OperationDefinition).SelectionSet
 	// get the query object definition from the schema
-	var queryObjectDef = GetQueryObjectDefinition(schema)
+	queryObjectDef := GetQueryObjectDefinition(schema)
 
 	if queryObjectDef == nil {
 		return nil, &graphql.JSONError{
 			Message: "Query object definition not found in schema",
 		}
 	}
-	var providerDirectives, arguments = RecursivelyExtractSourceSchemaInfo(selections, schema, queryObjectDef, nil, nil)
+	providerDirectives, arguments := RecursivelyExtractSourceSchemaInfo(selections, schema, queryObjectDef, nil, nil)
 
 	providerFieldMap := ProviderFieldMap(providerDirectives)
 
 	// get variable definitions from the query
-	var variableDefinitions = query.Definitions[0].(*ast.OperationDefinition).VariableDefinitions
+	variableDefinitions := query.Definitions[0].(*ast.OperationDefinition).VariableDefinitions
 
 	return &SchemaCollectionResponse{
 		ProviderFieldMap:    providerFieldMap,
@@ -146,9 +145,9 @@ func BuildSchemaInfoMap(schema *ast.Document, query *ast.Document) (map[string]*
 	}
 
 	// iterate through the query fields
-	var selections = query.Definitions[0].(*ast.OperationDefinition).SelectionSet
+	selections := query.Definitions[0].(*ast.OperationDefinition).SelectionSet
 	// get the query object definition from the schema
-	var queryObjectDef = GetQueryObjectDefinition(schema)
+	queryObjectDef := GetQueryObjectDefinition(schema)
 
 	if queryObjectDef == nil {
 		return nil, &graphql.JSONError{
@@ -183,7 +182,7 @@ func buildSchemaInfoMapRecursive(
 			}
 
 			// Find the field definition in the schema
-			var fieldDef = FindFieldDefinitionFromFieldName(fieldName, schema, objectDefinition.Name.Value)
+			fieldDef := FindFieldDefinitionFromFieldName(fieldName, schema, objectDefinition.Name.Value)
 
 			if fieldDef != nil && len(fieldDef.Directives) > 0 {
 				// Check for @sourceInfo directive
@@ -274,7 +273,7 @@ func processNestedFieldsForArray(
 			fieldName := field.Name.Value
 
 			// Find the field definition in the schema
-			var fieldDef = FindFieldDefinitionFromFieldName(fieldName, schema, objectDefinition.Name.Value)
+			fieldDef := FindFieldDefinitionFromFieldName(fieldName, schema, objectDefinition.Name.Value)
 
 			if fieldDef != nil && len(fieldDef.Directives) > 0 {
 				// Check for @sourceInfo directive
@@ -340,7 +339,7 @@ func RecursivelyExtractSourceSchemaInfo(
 	for _, selection := range selectionSet.Selections {
 		if field, ok := selection.(*ast.Field); ok {
 			// Find the field definition in the schema
-			var fieldDef = FindFieldDefinitionFromFieldName(field.Name.Value, schema, objectDefinition.Name.Value)
+			fieldDef := FindFieldDefinitionFromFieldName(field.Name.Value, schema, objectDefinition.Name.Value)
 
 			// Check for @sourceInfo directive
 			if fieldDef != nil && len(fieldDef.Directives) > 0 {
@@ -364,7 +363,7 @@ func RecursivelyExtractSourceSchemaInfo(
 			if selection.GetSelectionSet() != nil && len(selection.GetSelectionSet().Selections) > 0 {
 				// Recursively process nested selection sets
 				var nestedObjectDef *ast.ObjectDefinition
-				var isArrayField = false
+				isArrayField := false
 
 				if fieldDef != nil && fieldDef.Type != nil {
 					if fieldDef.Type.GetKind() == "Named" {
@@ -381,7 +380,7 @@ func RecursivelyExtractSourceSchemaInfo(
 				}
 
 				if nestedObjectDef != nil {
-					var selectionSet = field.GetSelectionSet()
+					selectionSet := field.GetSelectionSet()
 					// For backward compatibility, use the old function for non-array fields
 					if !isArrayField {
 						directives, arguments = RecursivelyExtractSourceSchemaInfo(selectionSet, schema, nestedObjectDef, directives, arguments)
@@ -419,7 +418,7 @@ func RecursivelyExtractSourceSchemaInfoWithArrayInfo(
 	for _, selection := range selectionSet.Selections {
 		if field, ok := selection.(*ast.Field); ok {
 			// Find the field definition in the schema
-			var fieldDef = FindFieldDefinitionFromFieldName(field.Name.Value, schema, objectDefinition.Name.Value)
+			fieldDef := FindFieldDefinitionFromFieldName(field.Name.Value, schema, objectDefinition.Name.Value)
 
 			// Check for @sourceInfo directive
 			if fieldDef != nil && len(fieldDef.Directives) > 0 {
@@ -444,7 +443,7 @@ func RecursivelyExtractSourceSchemaInfoWithArrayInfo(
 			if selection.GetSelectionSet() != nil && len(selection.GetSelectionSet().Selections) > 0 {
 				// Recursively process nested selection sets
 				var nestedObjectDef *ast.ObjectDefinition
-				var nestedIsArrayField = false
+				nestedIsArrayField := false
 
 				if fieldDef != nil && fieldDef.Type != nil {
 					if fieldDef.Type.GetKind() == "Named" {
@@ -461,7 +460,7 @@ func RecursivelyExtractSourceSchemaInfoWithArrayInfo(
 				}
 
 				if nestedObjectDef != nil {
-					var selectionSet = field.GetSelectionSet()
+					selectionSet := field.GetSelectionSet()
 					directives, arguments = RecursivelyExtractSourceSchemaInfoWithArrayInfo(selectionSet, schema, nestedObjectDef, directives, arguments, nestedIsArrayField)
 				}
 			}

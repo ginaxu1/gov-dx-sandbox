@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 )
 
 func init() {
@@ -89,7 +89,6 @@ func TestMakeConsentRequest_Success(t *testing.T) {
 	}
 
 	response, err := client.MakeConsentRequest(request)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -216,7 +215,6 @@ func TestMakeConsentRequest_EmptyDataFields(t *testing.T) {
 	}
 
 	response, err := client.MakeConsentRequest(request)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -280,7 +278,6 @@ func TestMakeConsentRequest_MultipleDataOwners(t *testing.T) {
 	}
 
 	response, err := client.MakeConsentRequest(request)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

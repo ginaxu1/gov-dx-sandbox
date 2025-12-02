@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/auth"
 )
 
 func TestLoadConfigFromBytes_ValidJSON(t *testing.T) {
@@ -37,7 +37,6 @@ func TestLoadConfigFromBytes_ValidJSON(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -87,7 +86,6 @@ func TestLoadConfigFromBytes_EmptyJSON(t *testing.T) {
 	emptyJSON := []byte(`{}`)
 
 	config, err := LoadConfigFromBytes(emptyJSON)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -108,7 +106,6 @@ func TestLoadConfigFromBytes_DerivedConfigLogic_PdpURL(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -126,7 +123,6 @@ func TestLoadConfigFromBytes_DerivedConfigLogic_CeURL(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -147,7 +143,6 @@ func TestLoadConfigFromBytes_DerivedConfigLogic_PdpConfigTakesPrecedence(t *test
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -168,7 +163,6 @@ func TestLoadConfigFromBytes_DerivedConfigLogic_CeConfigTakesPrecedence(t *testi
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -191,7 +185,6 @@ func TestLoadConfigFromBytes_ArgMappingFallback(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -220,7 +213,6 @@ func TestLoadConfigFromBytes_ArgMappingExplicitlySet(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -253,13 +245,12 @@ func TestLoadConfigFile_ValidFile(t *testing.T) {
 		t.Fatalf("Failed to marshal config data: %v", err)
 	}
 
-	err = os.WriteFile(configPath, jsonData, 0644)
+	err = os.WriteFile(configPath, jsonData, 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
 	config, err := LoadConfigFile(configPath)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -295,7 +286,7 @@ func TestLoadConfigFile_InvalidJSON(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "invalid.json")
 
-	err := os.WriteFile(configPath, []byte(`{invalid json}`), 0644)
+	err := os.WriteFile(configPath, []byte(`{invalid json}`), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write invalid config file: %v", err)
 	}
@@ -365,7 +356,7 @@ func TestLoadConfig_CustomPath(t *testing.T) {
 		t.Fatalf("Failed to marshal config data: %v", err)
 	}
 
-	err = os.WriteFile(configPath, jsonData, 0644)
+	err = os.WriteFile(configPath, jsonData, 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
@@ -373,7 +364,6 @@ func TestLoadConfig_CustomPath(t *testing.T) {
 	os.Setenv("CONFIG_PATH", configPath)
 
 	config, err := LoadConfig()
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -443,7 +433,6 @@ func TestGetSchemaDocument_ValidSchema(t *testing.T) {
 	}
 
 	doc, err := config.GetSchemaDocument()
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -549,7 +538,6 @@ func TestConfig_AllFieldsUnmarshal(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -609,7 +597,6 @@ func TestProviderConfig_WithAuth(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -636,7 +623,6 @@ func TestProviderConfig_WithoutAuth(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -670,7 +656,6 @@ func TestConfig_MultipleProviders(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -699,7 +684,6 @@ func TestConfig_ArgMappings(t *testing.T) {
 	}`)
 
 	config, err := LoadConfigFromBytes(jsonData)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -736,7 +720,6 @@ func TestGetSchemaDocument_ComplexSchema(t *testing.T) {
 	}
 
 	doc, err := config.GetSchemaDocument()
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

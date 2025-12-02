@@ -3,8 +3,8 @@ package federator
 import (
 	"testing"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,7 +30,7 @@ func TestAccumulateResponseWithSchemaInfo(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{

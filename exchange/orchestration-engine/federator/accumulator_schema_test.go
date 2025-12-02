@@ -3,7 +3,7 @@ package federator
 import (
 	"testing"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +25,7 @@ func TestAccumulateResponseWithSchema_ArrayField(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -104,7 +104,7 @@ func TestAccumulateResponseWithSchema_NestedArrayField(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -172,7 +172,7 @@ func TestAccumulateResponseWithSchema_ArrayFieldWithoutSelectionSet(t *testing.T
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -211,7 +211,7 @@ func TestAccumulateResponseWithSchema_ProviderNotFound(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -245,7 +245,7 @@ func TestAccumulateResponseWithSchema_ValueNotFound(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -278,7 +278,7 @@ func TestAccumulateResponseWithSchema_NilSchema(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -316,7 +316,7 @@ func TestAccumulateResponseWithSchema_MixedSimpleAndArrayFields(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "drp",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -326,7 +326,7 @@ func TestAccumulateResponseWithSchema_MixedSimpleAndArrayFields(t *testing.T) {
 					},
 				},
 			},
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
@@ -372,7 +372,7 @@ func TestAccumulateResponseWithSchema_EmptyArray(t *testing.T) {
 
 	federatedResponse := &FederationResponse{
 		Responses: []*ProviderResponse{
-			&ProviderResponse{
+			{
 				ServiceKey: "dmt",
 				Response: graphql.Response{
 					Data: map[string]interface{}{
