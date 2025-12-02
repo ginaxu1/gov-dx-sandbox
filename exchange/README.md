@@ -5,10 +5,12 @@ Microservices-based data exchange platform with policy enforcement and consent m
 ## Quick Start
 
 ### Prerequisites
+
 - Docker and Docker Compose
 - Go 1.21+ (for local development)
 
 ### Start Services
+
 ```bash
 # Start all services
 docker-compose up -d
@@ -19,11 +21,11 @@ cd integration-tests && ./run-all-tests.sh
 
 ## Services
 
-| Service | Port | Purpose | Documentation |
-|---------|------|---------|---------------|
-| **Policy Decision Point (PDP)** | 8082 | ABAC authorization using OPA | [PDP README](policy-decision-point/README.md) |
-| **Consent Engine (CE)** | 8081 | Consent management and workflow | [CE README](consent-engine/README.md) |
-| **Orchestration Engine (OE)** | 8080 | Request coordination and routing | [OE README](orchestration-engine-go/README.md) |
+| Service                         | Port | Purpose                          | Documentation                                 |
+| ------------------------------- | ---- | -------------------------------- | --------------------------------------------- |
+| **Policy Decision Point (PDP)** | 8082 | ABAC authorization using OPA     | [PDP README](policy-decision-point/README.md) |
+| **Consent Engine (CE)**         | 8081 | Consent management and workflow  | [CE README](consent-engine/README.md)         |
+| **Orchestration Engine (OE)**   | 8080 | Request coordination and routing | [OE README](orchestration-engine/README.md)   |
 
 ## Architecture
 
@@ -36,6 +38,7 @@ Data Consumer → Orchestration Engine → Policy Decision Point (PDP)
 ```
 
 ### Key Features
+
 - **ABAC Authorization**: Attribute-based access control with field-level permissions
 - **Consent Management**: Complete consent workflow for data owners
 - **GraphQL Schema Support**: Convert GraphQL SDL to provider metadata
@@ -45,6 +48,7 @@ Data Consumer → Orchestration Engine → Policy Decision Point (PDP)
 ## Data Flow
 
 ### 1. Data Consumer Request
+
 The Data Consumer sends a GraphQL request to the Orchestration Engine:
 
 ```json
@@ -56,9 +60,11 @@ The Data Consumer sends a GraphQL request to the Orchestration Engine:
 ```
 
 ### 2. Policy Decision Point (PDP) Evaluation
+
 The Orchestration Engine forwards the request to the PDP for authorization:
 
 **Request:**
+
 ```json
 {
   "consumer_id": "passport-app",
@@ -69,6 +75,7 @@ The Orchestration Engine forwards the request to the PDP for authorization:
 ```
 
 **Response:**
+
 ```json
 {
   "allow": true,
@@ -78,9 +85,11 @@ The Orchestration Engine forwards the request to the PDP for authorization:
 ```
 
 ### 3. Consent Management (if required)
+
 When consent is required, the Orchestration Engine calls the Consent Engine:
 
 **Request:**
+
 ```json
 {
   "app_id": "passport-app",
@@ -98,6 +107,7 @@ When consent is required, the Orchestration Engine calls the Consent Engine:
 ```
 
 **Response:**
+
 ```json
 {
   "id": "consent_abc123",
@@ -108,15 +118,18 @@ When consent is required, the Orchestration Engine calls the Consent Engine:
 ```
 
 ### 4. Data Access
+
 Once authorized (and consented if required), the Orchestration Engine proceeds to fetch data from the appropriate Data Provider.
 
 ## API Reference
 
 ### Policy Decision Point (Port 8082)
+
 - `POST /decide` - Authorization decision
 - `GET /health` - Health check
 
 ### Consent Engine (Port 8081)
+
 - `POST /consent` - Process consent workflow request
 - `GET /consents/{id}` - Get consent status
 - `PUT /consents/{id}` - Update consent status
@@ -126,6 +139,7 @@ Once authorized (and consented if required), the Orchestration Engine proceeds t
 - `GET /health` - Health check
 
 ### Orchestration Engine (Port 8080)
+
 - `POST /graphql` - GraphQL endpoint for data requests
 - `GET /health` - Health check
 
@@ -163,6 +177,7 @@ curl -X POST http://localhost:8081/consents \
 ## Development
 
 ### Local Development
+
 ```bash
 # Start services
 make start
@@ -178,6 +193,7 @@ make logs
 ```
 
 ### Environment Configuration
+
 ```bash
 # Local development
 docker compose --env-file .env.local up --build
@@ -189,6 +205,7 @@ docker compose --env-file .env.production up --build
 ### Testing
 
 #### Unit Tests
+
 ```bash
 # Policy Decision Point
 cd policy-decision-point && go test -v
@@ -198,6 +215,7 @@ cd consent-engine && go test -v
 ```
 
 #### Integration Tests
+
 ```bash
 # All integration tests
 cd integration-tests && ./run-all-tests.sh
@@ -211,6 +229,7 @@ cd integration-tests && ./run-all-tests.sh
 ## Production Deployment
 
 ### Choreo Deployment
+
 ```bash
 # Prepare for Choreo
 ./scripts/prepare-docker-build.sh
@@ -223,6 +242,7 @@ git add . && git commit -m "Deploy to Choreo" && git push
 ```
 
 ### Docker Configuration
+
 - **Build Context**: Repository root (`.`)
 - **Dockerfile Path**: `exchange/{service}/Dockerfile`
 - **Shared Dependencies**: Copied from `shared/` directory
@@ -232,6 +252,7 @@ git add . && git commit -m "Deploy to Choreo" && git push
 ### Environment Variables
 
 **Local (`.env.local`):**
+
 ```bash
 ENVIRONMENT=local
 LOG_LEVEL=debug
@@ -239,6 +260,7 @@ LOG_FORMAT=text
 ```
 
 **Production (`.env.production`):**
+
 ```bash
 ENVIRONMENT=production
 LOG_LEVEL=warn
@@ -247,22 +269,25 @@ LOG_FORMAT=json
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `manage.sh` | Service management (start/stop/status/logs) |
-| `test.sh` | API testing |
-| `restore-local-build.sh` | Restore to local development state |
-| `prepare-docker-build.sh` | Prepare for production deployment |
+| Script                    | Purpose                                     |
+| ------------------------- | ------------------------------------------- |
+| `manage.sh`               | Service management (start/stop/status/logs) |
+| `test.sh`                 | API testing                                 |
+| `restore-local-build.sh`  | Restore to local development state          |
+| `prepare-docker-build.sh` | Prepare for production deployment           |
 
 ## Troubleshooting
 
 **Issue: "shared directory not found" in Choreo build**
+
 - **Solution**: Ensure build context is set to repository root (`.`) in Choreo console
 
 **Issue: Local tests fail with import errors**
+
 - **Solution**: Run `./scripts/restore-local-build.sh` to restore local development setup
 
 **Issue: Docker build fails with go.mod errors**
+
 - **Solution**: Run `./scripts/prepare-docker-build.sh` before building for Choreo
 
 ## Directory Structure
@@ -271,7 +296,7 @@ LOG_FORMAT=json
 exchange/
 ├── policy-decision-point/    # Policy service (Port 8082)
 ├── consent-engine/           # Consent service (Port 8081)
-├── orchestration-engine-go/  # Orchestration service (Port 8080)
+├── orchestration-engine/  # Orchestration service (Port 8080)
 ├── shared/                   # Shared utilities and packages
 ├── integration-tests/        # Integration test suites
 ├── scripts/                  # Management scripts
@@ -283,6 +308,6 @@ exchange/
 
 - [Policy Decision Point README](policy-decision-point/README.md)
 - [Consent Engine README](consent-engine/README.md)
-- [Orchestration Engine README](orchestration-engine-go/README.md)
+- [Orchestration Engine README](orchestration-engine/README.md)
 - [Integration Tests README](integration-tests/README.md)
 - [Scripts README](scripts/README.md)
