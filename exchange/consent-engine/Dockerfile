@@ -17,7 +17,7 @@ COPY consent-engine/go.mod consent-engine/go.sum ./
 COPY consent-engine/ .
 
 # Copy shared packages
-COPY shared/ /shared/
+COPY shared/ /app/shared/
 
 # Download dependencies
 RUN go mod download
