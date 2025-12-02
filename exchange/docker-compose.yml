@@ -28,7 +28,7 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - exchange-network
+      - opendif-network
 
   consent-engine:
     build:
@@ -55,7 +55,7 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - exchange-network
+      - opendif-network
 
   orchestration-engine:
     build:
@@ -82,8 +82,9 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - exchange-network
+      - opendif-network
 
 networks:
-  exchange-network:
-    driver: bridge
+  opendif-network:
+    name: opendif-network
+    external: true
