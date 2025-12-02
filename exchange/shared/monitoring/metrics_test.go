@@ -1,9 +1,11 @@
 package monitoring
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestHandler(t *testing.T) {
@@ -86,9 +88,9 @@ func TestNormalizeRoute(t *testing.T) {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && 
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		 findSubstring(s, substr)))
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
+		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+			findSubstring(s, substr)))
 }
 
 func findSubstring(s, substr string) bool {
@@ -100,3 +102,42 @@ func findSubstring(s, substr string) bool {
 	return false
 }
 
+func TestRecordExternalCall(t *testing.T) {
+	// Record a successful external call
+	RecordExternalCall("postgres", "create_consent", 100*time.Millisecond, nil)
+
+	// Record a failed external call
+	RecordExternalCall("postgres", "create_consent", 50*time.Millisecond, fmt.Errorf("connection failed"))
+
+	// Verify metrics were recorded (check via /metrics endpoint)
+	metricsHandler := Handler()
+	metricsReq := httptest.NewRequest("GET", "/metrics", nil)
+	metricsW := httptest.NewRecorder()
+	metricsHandler.ServeHTTP(metricsW, metricsReq)
+
+	metricsBody := metricsW.Body.String()
+	if !contains(metricsBody, "external_calls_total") {
+		t.Error("external_calls_total metric not found")
+	}
+	if !contains(metricsBody, "external_call_errors_total") {
+		t.Error("external_call_errors_total metric not found")
+	}
+}
+
+func TestRecordBusinessEvent(t *testing.T) {
+	// Record business events
+	RecordBusinessEvent("consent_created", "success")
+	RecordBusinessEvent("consent_approved", "success")
+	RecordBusinessEvent("policy_decision", "allow")
+
+	// Verify metrics were recorded (check via /metrics endpoint)
+	metricsHandler := Handler()
+	metricsReq := httptest.NewRequest("GET", "/metrics", nil)
+	metricsW := httptest.NewRecorder()
+	metricsHandler.ServeHTTP(metricsW, metricsReq)
+
+	metricsBody := metricsW.Body.String()
+	if !contains(metricsBody, "business_events_total") {
+		t.Error("business_events_total metric not found")
+	}
+}
