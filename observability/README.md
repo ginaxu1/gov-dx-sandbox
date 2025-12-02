@@ -8,76 +8,28 @@ Collects real-time metrics from all Go services for debugging performance and er
 
 ## Quick Start
 
-### Prerequisites
-
-**Before starting the observability stack, ensure your Go services are running:**
-
-1. **Orchestration Engine** on port 4000
-2. **Consent Engine** on port 8081
-3. **Policy Decision Point** on port 8082
-4. **API Server Go** on port 3000 (optional)
-5. **Audit Service** on port 3001 (optional)
-
-**Verify services are running:**
-```bash
-# Check if services expose metrics endpoints
-curl http://localhost:4000/metrics  # Orchestration Engine
-curl http://localhost:8081/metrics  # Consent Engine
-curl http://localhost:8082/metrics # Policy Decision Point
-```
-
-### Start Observability Stack
-
 ```bash
 cd observability
 docker compose up -d
 ```
 
-**Wait for services to start (10-15 seconds), then verify:**
-
-```bash
-# Check Prometheus is running
-curl http://localhost:9090/-/healthy
-
-# Check Grafana is running
-curl http://localhost:3002/api/health
-```
-
-### Access Services
+**Services:**
 
 - **Prometheus**: http://localhost:9090 (raw metrics & queries)
 - **Grafana**: http://localhost:3002 (dashboards, login: `admin` / `admin`)
 
-**Service Metrics Endpoints (for verification):**
+**Prerequisites:**
 
-- **Orchestration Engine**: http://localhost:4000/metrics
-- **Consent Engine**: http://localhost:8081/metrics
-- **Policy Decision Point**: http://localhost:8082/metrics
-- **API Server Go**: http://localhost:3000/metrics
-- **Audit Service**: http://localhost:3001/metrics (when instrumented)
-
-### Verify Everything is Working
-
-1. **Check Prometheus targets:**
-   - Open http://localhost:9090/targets
-   - All services should show as "UP" (green)
-   - If services show "DOWN", verify they're running and exposing `/metrics`
-
-2. **Check Grafana dashboard:**
-   - Open http://localhost:3002/d/go-services/go-services-metrics
-   - Login with `admin` / `admin`
-   - You should see metrics appearing after 15-30 seconds
-
-3. **Query Prometheus directly:**
-   - Open http://localhost:9090
-   - Try query: `up{job="orchestration-engine"}` (should return 1)
-   - Try query: `rate(http_requests_total[5m])` (should show request rates)
+Ensure all Go services are running and connected to the `opendif-network`:
+- Orchestration Engine (port 4000)
+- Consent Engine (port 8081)
+- Policy Decision Point (port 8082)
+- Portal Backend (port 3000)
+- Audit Service (port 3001)
 
 ---
 
 ## Metrics Overview
-
-All services use the shared `exchange/pkg/monitoring` package which exposes the following metrics:
 
 ### HTTP Request Metrics
 
@@ -86,7 +38,12 @@ All services use the shared `exchange/pkg/monitoring` package which exposes the 
 | `http_requests_total`           | Counter   | `method`, `route`, `status_code` | Request volume by endpoint |
 | `http_request_duration_seconds` | Histogram | `method`, `route`               | API latency percentiles    |
 
-### External Call Metrics (DB, Providers, etc.)
+**Label Definitions:**
+- `method`: HTTP method (GET, POST, PUT, DELETE, etc.)
+- `route`: Normalized route path (e.g., `/consents`, `/policies`)
+- `status_code`: HTTP response status code (200, 404, 500, etc.)
+
+### External Call Metrics
 
 | Metric                            | Type      | Labels                                    | Purpose                    |
 | --------------------------------- | --------- | ----------------------------------------- | -------------------------- |
@@ -94,11 +51,20 @@ All services use the shared `exchange/pkg/monitoring` package which exposes the 
 | `external_call_duration_seconds`   | Histogram | `external_target`, `external_operation`    | External call latency      |
 | `external_call_errors_total`       | Counter   | `external_target`, `external_operation`    | Failed external calls      |
 
+**Label Definitions:**
+- `external_target`: Target service or system (e.g., `postgres`, `redis`, `external-api`)
+- `external_operation`: Operation type (e.g., `query`, `insert`, `get`, `set`)
+- `external_success`: Success status (`true` or `false`)
+
 ### Database Metrics
 
 | Metric                    | Type      | Labels                    | Purpose               |
 | ------------------------- | --------- | ------------------------- | --------------------- |
 | `db_latency_seconds`      | Histogram | `db_name`, `db_operation` | Database query timing |
+
+**Label Definitions:**
+- `db_name`: Database name or identifier
+- `db_operation`: Database operation type (e.g., `select`, `insert`, `update`, `delete`)
 
 ### Business Event Metrics
 
@@ -106,39 +72,52 @@ All services use the shared `exchange/pkg/monitoring` package which exposes the 
 | ------------------------- | ------- | ------------------------------- | ---------------------- |
 | `business_events_total`   | Counter | `business_action`, `business_outcome` | Business KPI tracking |
 
+**Label Definitions:**
+- `business_action`: Business action type (e.g., `consent_created`, `policy_evaluated`)
+- `business_outcome`: Outcome of the action (e.g., `success`, `failure`, `pending`)
+
 ### Workflow Metrics
 
 | Metric                          | Type            | Labels          | Purpose               |
 | ------------------------------- | --------------- | --------------- | --------------------- |
-| `workflow_duration_seconds`     | Histogram       | `workflow.name` | End-to-end workflow timing |
-| `workflow_inflight`             | UpDownCounter   | `workflow.name` | Active workflow count |
+| `workflow_duration_seconds`     | Histogram       | `workflow_name` | End-to-end workflow timing |
+| `workflow_inflight`             | UpDownCounter   | `workflow_name` | Active workflow count |
+
+**Label Definitions:**
+- `workflow_name`: Name of the workflow (e.g., `data_exchange`, `consent_flow`)
 
 ### Cache Metrics
 
 | Metric                | Type    | Labels                    | Purpose          |
 | --------------------- | ------- | ------------------------- | ----------------- |
-| `cache_events_total`  | Counter | `cache.name`, `cache.result` | Cache hit/miss tracking |
+| `cache_events_total`  | Counter | `cache_name`, `cache_result` | Cache hit/miss tracking |
+
+**Label Definitions:**
+- `cache_name`: Cache identifier or name
+- `cache_result`: Cache operation result (`hit` or `miss`)
 
 ### Policy Decision Metrics (PDP)
 
 | Metric                        | Type      | Labels            | Purpose                |
 | ----------------------------- | --------- | ----------------- | ---------------------- |
-| `decision_latency_seconds`    | Histogram | `decision.type`   | Policy evaluation time |
-| `decision_failures_total`     | Counter   | `failure.reason`  | Policy decision errors |
+| `decision_latency_seconds`    | Histogram | `decision_type`   | Policy evaluation time |
+| `decision_failures_total`     | Counter   | `failure_reason`  | Policy decision errors |
+
+**Label Definitions:**
+- `decision_type`: Type of policy decision (e.g., `allow`, `deny`, `conditional`)
+- `failure_reason`: Reason for decision failure (e.g., `policy_not_found`, `evaluation_error`)
 
 ### Go Runtime Metrics (Automatic)
 
 The monitoring package automatically instruments Go runtime metrics:
 - `process_cpu_seconds_total` - CPU usage
-- `go_memstats_*` - Memory statistics
+- `go_memstats_*` - Memory statistics (alloc, sys, heap, etc.)
 - `go_goroutines` - Goroutine count
-- `go_gc_duration_seconds` - GC pause times
+- `go_gc_duration_seconds` - Garbage collection pause times
 
 ---
 
 ## Useful Prometheus Queries
-
-### HTTP Request Analysis
 
 **Request Rate by Endpoint:**
 ```promql
@@ -160,91 +139,29 @@ sum by (route) (rate(http_requests_total{status_code=~"5.."}[5m]))
 topk(10, histogram_quantile(0.95, sum by (route, le) (rate(http_request_duration_seconds_bucket[5m]))))
 ```
 
-### External Call Analysis
-
 **External Call Error Rate:**
 ```promql
 sum by (external_target, external_operation) (rate(external_call_errors_total[5m]))
 ```
-
-**95th Percentile External Call Latency:**
-```promql
-histogram_quantile(0.95, sum by (external_target, le) (rate(external_call_duration_seconds_bucket[5m])))
-```
-
-**Failed External Calls:**
-```promql
-sum by (external_target) (external_call_errors_total)
-```
-
-### Database Performance
 
 **95th Percentile Database Latency:**
 ```promql
 histogram_quantile(0.95, sum by (db_name, db_operation, le) (rate(db_latency_seconds_bucket[5m])))
 ```
 
-**Slowest Database Operations:**
+**Service Availability:**
 ```promql
-topk(5, histogram_quantile(0.95, sum by (db_name, db_operation, le) (rate(db_latency_seconds_bucket[5m]))))
+up{job=~"orchestration-engine|consent-engine|policy-decision-point|portal-backend|audit-service"}
 ```
 
-### Workflow Metrics
-
-**Active Workflows:**
+**Current Metric Values (All):**
 ```promql
-sum by (workflow_name) (workflow_inflight)
-```
-
-**Workflow Duration (95th percentile):**
-```promql
-histogram_quantile(0.95, sum by (workflow_name, le) (rate(workflow_duration_seconds_bucket[5m])))
-```
-
-### Policy Decision Point
-
-**Decision Latency (95th percentile):**
-```promql
-histogram_quantile(0.95, sum by (decision_type, le) (rate(decision_latency_seconds_bucket[5m])))
-```
-
-**Decision Failures by Reason:**
-```promql
-sum by (failure_reason) (decision_failures_total)
-```
-
-### Cache Performance
-
-**Cache Hit Rate:**
-```promql
-sum(rate(cache_events_total{cache_result="hit"}[5m])) / sum(rate(cache_events_total[5m]))
-```
-
-**Cache Hit/Miss Count:**
-```promql
-sum by (cache.name, cache.result) (cache_events_total)
-```
-
-### Service Health
-
-**All Metrics for a Service:**
-```promql
-{service="orchestration-engine"}
-```
-
-**Request Rate by Service:**
-```promql
-sum by (service) (rate(http_requests_total[5m]))
-```
-
-**Error Rate by Service:**
-```promql
-sum by (service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+{__name__=~"http_.*|external_.*|db_.*|business_.*|workflow_.*|cache_.*|decision_.*"}
 ```
 
 ---
 
-## 📈 Grafana Dashboard
+## Grafana Dashboard
 
 Pre-configured dashboard: **Go Services Metrics**
 
@@ -254,17 +171,16 @@ Pre-configured dashboard: **Go Services Metrics**
 
 - HTTP Traffic (req/s)
 - HTTP Latency (P95)
+- Service Health (1=up, 0=down)
 - External Calls per Second
 - External Call Error %
 - Business Events
 
 ---
 
-## 🛑 Stop Services
+## Stop Services
 
-**Stop observability stack:**
 ```bash
-cd observability
 docker compose down
 ```
 
@@ -278,14 +194,24 @@ docker compose stop
 docker compose down -v
 ```
 
-**Note:** Stopping the observability stack does not stop your Go services. They continue running independently.
+---
+
+## Production Deployment
+
+This setup is for **local development only**. For production:
+
+1. **Use Managed Service**: Grafana Cloud (free tier), Datadog, New Relic
+2. **Or Self-Host**: Deploy Prometheus HA, Thanos/Mimir for long-term storage
+3. **Security Hardening**: Change Grafana admin password, enable OAuth/SSO, use reverse proxy
+4. **Storage & Retention**: Adjust `--storage.tsdb.retention.time` based on storage capacity
+5. **Alerting**: Configure Alertmanager for production alerts
 
 ---
 
 ## Architecture
 
 ```
-Go Services (Port 3000, 4000, 8081, 8082)
+Go Services (Port 3000, 4000, 8081, 8082, 3001)
     ↓ /metrics endpoint (Prometheus format)
 Prometheus (localhost:9090, 30d retention)
     ↓ PromQL queries
@@ -297,156 +223,116 @@ Grafana (localhost:3002, dashboards)
 - **prometheus**: `prom/prometheus:v2.55.1`
 - **grafana**: `grafana/grafana:11.2.0`
 
+**Network:**
+
+All services run on a shared Docker network (`opendif-network`) to enable service discovery. Services are referenced by their Docker Compose service names in Prometheus configuration (e.g., `orchestration-engine:4000`).
+
 **Volumes:**
 
 - `prometheus-data`: Metric storage (30 day retention)
 - `grafana-data`: Dashboard configs & user data
 
-**Data Persistence:**
+---
 
-- Prometheus data persists in `prometheus-data` volume
-- Grafana dashboards and configs persist in `grafana-data` volume
-- Data survives container restarts
+## Troubleshooting
+
+### Prometheus Can't Scrape Services
+
+**Issue**: Targets show as DOWN in Prometheus (http://localhost:9090/targets)
+
+**Solutions:**
+
+1. Verify services are running and exposing metrics:
+   ```bash
+   curl http://localhost:4000/metrics
+   curl http://localhost:8081/metrics
+   curl http://localhost:8082/metrics
+   ```
+
+2. Check Prometheus logs:
+   ```bash
+   docker compose logs prometheus
+   ```
+
+3. Verify network connectivity:
+   - Ensure all services are on the same `opendif-network`
+   - Check service names match Prometheus configuration
+
+### Grafana Can't Connect to Prometheus
+
+**Issue**: "Data source is not working" in Grafana
+
+**Solutions:**
+
+1. Verify Prometheus is running: `curl http://localhost:9090/-/healthy`
+2. Check datasource URL in `grafana/provisioning/datasources/datasource.yml` (should be `http://prometheus:9090`)
+3. Ensure both containers are on the same Docker network (`opendif-network`)
+
+### Network Issues
+
+**Issue**: Services can't communicate with each other
+
+**Solutions:**
+
+1. Verify network exists: `docker network ls | grep opendif-network`
+2. Check service is on network: `docker network inspect opendif-network`
+3. Recreate network if needed:
+   ```bash
+   docker compose down
+   docker network rm opendif-network
+   docker compose up -d
+   ```
 
 ---
 
-## Configuration
+## How to Add Metrics to New Go Services
 
-### Prometheus Configuration
+1. **Import the monitoring package:**
+   ```go
+   import "github.com/gov-dx-sandbox/exchange/shared/monitoring"
+   ```
 
-Edit `prometheus/prometheus.yml` to:
-- Add new service targets
-- Adjust scrape intervals
-- Configure alerting rules
+2. **Expose metrics endpoint in main.go:**
+   ```go
+   mux.Handle("/metrics", monitoring.Handler())
+   ```
 
-### Grafana Configuration
+3. **Wrap HTTP handlers with metrics middleware:**
+   ```go
+   handler := monitoring.HTTPMetricsMiddleware(mux)
+   ```
 
-- **Datasource**: Auto-provisioned from `grafana/provisioning/datasources/datasource.yml`
-- **Dashboards**: Auto-loaded from `grafana/dashboards/`
-- **Login**: `admin` / `admin` (change in production!)
-
-### Adding a New Service
-
-1. Ensure the service exposes `/metrics` endpoint using `monitoring.Handler()`
-   - For services in `exchange/`: Use `exchange/pkg/monitoring`
-   - For root-level services: Import `github.com/gov-dx-sandbox/exchange/pkg/monitoring` with appropriate replace directive
-2. Add the service to `prometheus/prometheus.yml`:
+4. **Add service to Prometheus configuration:**
+   Edit `prometheus/prometheus.yml`:
    ```yaml
    - job_name: your-service
      metrics_path: /metrics
      static_configs:
        - targets:
-           - host.docker.internal:PORT
+           - your-service:PORT
          labels:
            service: 'your-service'
            port: 'PORT'
    ```
-3. Restart Prometheus: `docker compose restart prometheus`
 
----
-
-## Production Deployment
-
-This setup is for **local development only**. For production:
-
-1. **Use Managed Service**: Grafana Cloud (free tier), Datadog, New Relic
-2. **Or Self-Host**: Deploy Prometheus HA, Thanos/Mimir for long-term storage
-3. **Enable Authentication**: Change Grafana admin password, enable OAuth
-4. **Network Security**: Restrict Prometheus/Grafana access, use reverse proxy
-5. **Retention**: Adjust `--storage.tsdb.retention.time` based on storage capacity
-6. **Alerting**: Configure alertmanager for production alerts
-
----
-
-## Service Instrumentation
-
-All services use the shared `exchange/pkg/monitoring` package. See `exchange/pkg/monitoring/README.md` for integration details.
-
-**Note**: Currently, `api-server-go` and `audit-service` are in the Prometheus config but may not be fully instrumented yet. They will appear as DOWN in Prometheus until metrics endpoints are added.
-
-**Quick Integration:**
-
-```go
-// In main.go
-shutdown, err := monitoring.Setup(context.Background(), monitoring.Config{
-    ServiceName: "your-service",
-    ResourceAttrs: map[string]string{
-        "environment": "local",
-        "version":     "1.0.0",
-    },
-})
-if err != nil { log.Fatal(err) }
-defer shutdown(context.Background())
-
-// In HTTP server setup
-mux.Handle("/metrics", monitoring.Handler())
-server := &http.Server{
-    Addr:    addr,
-    Handler: monitoring.HTTPMetricsMiddleware(mux),
-}
-```
-
----
-
-## Troubleshooting
-
-### Services not running
-
-**Issue**: Can't start observability stack or no metrics appearing
-
-**Solution**: Ensure all Go services are running first:
-```bash
-# Check each service
-curl http://localhost:4000/health  # Orchestration Engine
-curl http://localhost:8081/health # Consent Engine
-curl http://localhost:8082/health # Policy Decision Point
-```
-
-### Prometheus can't scrape services
-
-**Issue**: Targets show as DOWN in Prometheus (http://localhost:9090/targets)
-
-**Solutions**:
-1. **Verify services are running and exposing metrics:**
-   ```bash
-   curl http://localhost:4000/metrics  # Should return Prometheus format
-   curl http://localhost:8081/metrics
-   curl http://localhost:8082/metrics
+5. **Ensure service is on `opendif-network`:**
+   In your service's `docker-compose.yml`:
+   ```yaml
+   services:
+     your-service:
+       networks:
+         - opendif-network
+   
+   networks:
+     opendif-network:
+       name: opendif-network
+       external: true
    ```
 
-2. **Check Prometheus logs:**
+6. **Restart Prometheus:**
    ```bash
-   cd observability
-   docker compose logs prometheus
+   docker compose restart prometheus
    ```
-
-3. **Verify `host.docker.internal` resolves correctly:**
-   - On Linux: May need to add `extra_hosts` to docker-compose.yml
-   - On Mac/Windows: Should work by default
-
-4. **Check firewall/network settings:**
-   - Ensure ports 3000, 4000, 8081, 8082 are not blocked
-   - Services must be accessible from Docker containers
-
-### Grafana can't connect to Prometheus
-
-**Issue**: "Data source is not working" in Grafana
-
-**Solutions**:
-1. Verify Prometheus is running: `curl http://localhost:9090/-/healthy`
-2. Check datasource URL in `grafana/provisioning/datasources/datasource.yml`
-3. Ensure both containers are on the same Docker network
-4. Check Grafana logs: `docker compose logs grafana`
-
-### No metrics appearing
-
-**Issue**: Services expose metrics but nothing shows in Prometheus
-
-**Solutions**:
-1. Verify service is in Prometheus config
-2. Check service labels match Prometheus job name
-3. Wait 15-30 seconds for scrape interval
-4. Query directly: `http_requests_total` in Prometheus UI
 
 ---
 
@@ -454,7 +340,3 @@ curl http://localhost:8082/health # Policy Decision Point
 
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Grafana Documentation](https://grafana.com/docs/)
-- [OpenTelemetry Go SDK](https://opentelemetry.io/docs/instrumentation/go/)
-- Service-specific observability docs:
-  - `exchange/pkg/monitoring/README.md`
-
