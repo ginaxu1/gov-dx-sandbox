@@ -293,7 +293,6 @@ exchange/
 ├── consent-engine/           # Consent service (Port 8081)
 ├── orchestration-engine/  # Orchestration service (Port 8080)
 ├── shared/                   # Shared utilities and packages
-├── (tests moved to ../tests/integration)
 ├── scripts/                  # Management scripts
 ├── docker-compose.yml        # Multi-environment orchestration
 └── Makefile                  # Convenience commands
