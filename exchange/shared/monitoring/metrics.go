@@ -18,7 +18,7 @@ var (
 			Name: "http_requests_total",
 			Help: "Total number of HTTP requests",
 		},
-		[]string{"method", "route", "status_code"},
+		[]string{"method", "route", "status"},
 	)
 
 	// HTTP request duration histogram
@@ -29,6 +29,32 @@ var (
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"method", "route"},
+	)
+
+	// External Call Metrics
+	externalCallsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "external_calls_total",
+			Help: "Total number of external service calls",
+		},
+		[]string{"external_target", "external_operation"},
+	)
+
+	externalCallErrors = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "external_call_errors_total",
+			Help: "Total number of failed external service calls",
+		},
+		[]string{"external_target", "external_operation"},
+	)
+
+	// Business Event Metrics
+	businessEventsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "business_events_total",
+			Help: "Total number of business events",
+		},
+		[]string{"business_action", "business_outcome"},
 	)
 )
 
@@ -52,9 +78,9 @@ func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(start).Seconds()
 		route := normalizeRoute(r.URL.Path)
 		method := r.Method
-		statusCode := strconv.Itoa(rw.statusCode)
+		status := strconv.Itoa(rw.statusCode)
 
-		httpRequestsTotal.WithLabelValues(method, route, statusCode).Inc()
+		httpRequestsTotal.WithLabelValues(method, route, status).Inc()
 		httpRequestDuration.WithLabelValues(method, route).Observe(duration)
 	})
 }
@@ -93,3 +119,15 @@ func normalizeRoute(path string) string {
 	return path
 }
 
+// RecordExternalCall records an external service call
+func RecordExternalCall(target, operation string, duration time.Duration, err error) {
+	externalCallsTotal.WithLabelValues(target, operation).Inc()
+	if err != nil {
+		externalCallErrors.WithLabelValues(target, operation).Inc()
+	}
+}
+
+// RecordBusinessEvent records a business event
+func RecordBusinessEvent(action, outcome string) {
+	businessEventsTotal.WithLabelValues(action, outcome).Inc()
+}
