@@ -37,18 +37,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('integration-tests/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('tests/integration/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
       - name: Install test dependencies
-        working-directory: integration-tests
+        working-directory: tests/integration
         run: |
           go mod download
           go mod tidy
 
       - name: Set up Docker Compose for Go tests
-        working-directory: integration-tests
+        working-directory: tests/integration
         run: |
           echo "Starting Docker Compose services for Go tests..."
           docker compose -f docker-compose.test.yml up -d
@@ -85,7 +85,7 @@ jobs:
           echo "All infrastructure services are ready!"
 
       - name: Run Go Integration Tests
-        working-directory: integration-tests
+        working-directory: tests/integration
         env:
           GO_ENV: test
           USE_COMPOSE: "true"
@@ -96,7 +96,7 @@ jobs:
 
       - name: Cleanup Go test infrastructure
         if: always()
-        working-directory: integration-tests
+        working-directory: tests/integration
         run: |
           echo "Stopping test infrastructure..."
           docker compose -f docker-compose.test.yml down -v
@@ -179,13 +179,13 @@ jobs:
           sudo apt-get install -y curl jq
 
       - name: Make shell scripts executable
-        working-directory: integration-tests
+        working-directory: tests/integration
         run: |
           chmod +x *.sh
           ls -la *.sh
 
       - name: Run Shell Smoke Tests
-        working-directory: integration-tests
+        working-directory: tests/integration
         run: |
           echo "Running shell smoke tests..."
           

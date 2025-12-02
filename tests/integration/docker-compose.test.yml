@@ -36,8 +36,8 @@ services:
   # Policy Decision Point Service
   policy-decision-point:
     build:
-      context: ../../exchange/policy-decision-point
-      dockerfile: Dockerfile
+      context: ../../exchange
+      dockerfile: policy-decision-point/Dockerfile
     environment:
       PORT: 8082
       LOG_LEVEL: debug
@@ -69,8 +69,8 @@ services:
   # Consent Engine Service
   consent-engine:
     build:
-      context: ../../exchange/consent-engine
-      dockerfile: Dockerfile
+      context: ../../exchange
+      dockerfile: consent-engine/Dockerfile
     environment:
       PORT: 8081
       LOG_LEVEL: debug
@@ -97,8 +97,8 @@ services:
   # Orchestration Engine Service
   orchestration-engine:
     build:
-      context: ../../exchange/orchestration-engine-go
-      dockerfile: Dockerfile
+      context: ../../exchange
+      dockerfile: orchestration-engine-go/Dockerfile
     environment:
       PORT: 4000
       LOG_LEVEL: debug
