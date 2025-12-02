@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'exchange/orchestration-engine-go/**'
+      - 'exchange/orchestration-engine/**'
       - '.github/workflows/orchestration-engine-publish.yml'
     tags:
       - 'orchestration-engine-v*'
@@ -14,7 +14,7 @@ on:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'exchange/orchestration-engine-go'
+  SERVICE_PATH: 'exchange/orchestration-engine'
   IMAGE_NAME: ${{ github.repository }}/orchestration-engine
   # ================================
   REGISTRY: ghcr.io
