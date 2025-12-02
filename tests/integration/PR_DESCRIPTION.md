@@ -1,4 +1,0 @@
-# Integration Test: GraphQL Flow Success Path
-
-This PR replaces the binary `pdp.test` with a comprehensive Go integration test (`graphql_flow_test.go`) that validates the complete success path through the data exchange platform. The test covers: (1) GraphQL query to orchestration-engine-go, (2) policy evaluation via PDP, (3) consent verification via consent-engine, and (4) response validation. The `docker-compose.test.yml` now includes all three services (orchestration-engine, policy-decision-point, consent-engine) with their PostgreSQL databases (pdp-db on port 5433, ce-db on port 5434) on a shared test network. All test steps pass successfully, verifying the end-to-end integration of the platform's core services and ensuring proper communication between orchestration, policy, and consent components.
-

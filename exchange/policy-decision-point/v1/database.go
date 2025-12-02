@@ -90,36 +90,6 @@ func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
 	// Only run migration if environment variable is set
 	if os.Getenv("RUN_MIGRATION") == "true" {
 		slog.Info("Running GORM auto-migration for V1 models")
-
-		// Create enum types if they don't exist
-		// Note: These enum values must match the constants defined in models/policy.go
-		enumQueries := []string{
-			// Matches models.SourcePrimary and models.SourceFallback
-			`DO $$ BEGIN
-				CREATE TYPE source_enum AS ENUM ('primary', 'fallback');
-			EXCEPTION
-				WHEN duplicate_object THEN null;
-			END $$;`,
-			// Matches models.AccessControlPublic and models.AccessControlRestricted
-			`DO $$ BEGIN
-				CREATE TYPE access_control_type_enum AS ENUM ('public', 'restricted');
-			EXCEPTION
-				WHEN duplicate_object THEN null;
-			END $$;`,
-			// Matches models.OwnerCitizen
-			`DO $$ BEGIN
-				CREATE TYPE owner_enum AS ENUM ('citizen');
-			EXCEPTION
-				WHEN duplicate_object THEN null;
-			END $$;`,
-		}
-
-		for _, query := range enumQueries {
-			if err := db.Exec(query).Error; err != nil {
-				return nil, fmt.Errorf("failed to create enum type: %w", err)
-			}
-		}
-
 		err = db.AutoMigrate(
 			&models.PolicyMetadata{},
 		)
