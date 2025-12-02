@@ -16,6 +16,8 @@ services:
     depends_on:
       - postgres
     restart: unless-stopped
+    networks:
+      - opendif-network
 
   postgres:
     image: postgres:15-alpine
@@ -28,6 +30,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - opendif-network
 
 volumes:
   postgres_data:
+
+networks:
+  opendif-network:
+    name: opendif-network
+    external: true
