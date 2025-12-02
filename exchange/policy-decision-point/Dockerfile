@@ -13,8 +13,12 @@ ARG GIT_COMMIT
 RUN apk add --no-cache git ca-certificates tzdata
 
 # Copy go mod files and source code
-COPY go.mod go.sum ./
-COPY . ./
+# Copy go mod files and source code
+COPY policy-decision-point/go.mod policy-decision-point/go.sum ./
+COPY policy-decision-point/ .
+
+# Copy shared packages
+COPY shared/ /shared/
 
 # Download dependencies
 RUN go mod download
