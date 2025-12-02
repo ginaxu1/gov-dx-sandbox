@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/api-server-go/shared/utils"
-	v1 "github.com/gov-dx-sandbox/api-server-go/v1"
-	v1handlers "github.com/gov-dx-sandbox/api-server-go/v1/handlers"
-	v1middleware "github.com/gov-dx-sandbox/api-server-go/v1/middleware"
-	v1models "github.com/gov-dx-sandbox/api-server-go/v1/models"
+	"github.com/gov-dx-sandbox/portal-backend/shared/utils"
+	v1 "github.com/gov-dx-sandbox/portal-backend/v1"
+	v1handlers "github.com/gov-dx-sandbox/portal-backend/v1/handlers"
+	v1middleware "github.com/gov-dx-sandbox/portal-backend/v1/middleware"
+	v1models "github.com/gov-dx-sandbox/portal-backend/v1/models"
 	"github.com/joho/godotenv"
 )
 
@@ -25,7 +25,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
 	slog.SetDefault(logger)
 
-	slog.Info("Starting API Server initialization")
+	slog.Info("Starting Portal Backend initialization")
 
 	// Initialize GORM database connection for V1
 	v1DbConfig := v1.NewDatabaseConfig()
@@ -141,7 +141,7 @@ func main() {
 
 		status := HealthStatus{
 			Status:  "healthy",
-			Service: "api-server",
+			Service: "portal-backend",
 			Databases: map[string]DBHealth{
 				"v1": {Status: "unknown"},
 			},
@@ -258,9 +258,9 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		slog.Info("API Server starting", "port", port, "addr", addr)
+		slog.Info("Portal Backend starting", "port", port, "addr", addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("Failed to start API server", "error", err)
+			slog.Error("Failed to start Portal Backend", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -270,7 +270,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	slog.Info("Shutting down API Server...")
+	slog.Info("Shutting down Portal Backend...")
 
 	// Create a deadline to wait for
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -291,5 +291,5 @@ func main() {
 		}
 	}
 
-	slog.Info("API Server exited")
+	slog.Info("Portal Backend exited")
 }
