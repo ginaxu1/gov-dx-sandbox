@@ -28,7 +28,7 @@ make setup-all
 
 This command will:
 
-1. **Install Git Hooks** - Sets up pre-commit hooks that automatically run quality checks on staged files
+1. **Install Git Hooks** - Sets up pre-commit hooks that automatically run quality checks, build validation, and tests for services with staged changes
 2. **Setup Go Services** - Installs dependencies (`go mod tidy` and `go mod download`) for:
 
    - orchestration-engine

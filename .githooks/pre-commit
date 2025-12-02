@@ -3,8 +3,7 @@
 # OpenDIF Pre-commit Hook
 # Validates quality checks, builds, and tests for staged services only
 # Compatible with macOS default Bash 3.2+
-
-set -e
+# Note: set -e is intentionally not used to allow graceful error handling
 
 # Color output
 RED='\033[0;31m'
@@ -16,6 +15,8 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}=== OpenDIF Pre-commit Validation ===${NC}\n"
 
 # Function to get service path by name
+# NOTE: This mapping must be kept in sync with the Makefile (lines 62-70)
+# Any changes to service paths should be updated in both locations
 get_service_path() {
     case "$1" in
         portal-backend) echo "portal-backend" ;;
@@ -90,7 +91,8 @@ validate_service() {
     
     # Run quality-check
     echo -e "${YELLOW}[1/3] Running quality checks...${NC}"
-    if ! make quality-check "$service" 2>&1 | sed 's/^/  /'; then
+    make quality-check "$service" 2>&1 | sed 's/^/  /'
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo -e "${RED}✗ Quality check failed for ${service}${NC}\n"
         service_failed=1
     else
@@ -99,7 +101,8 @@ validate_service() {
     
     # Run validate-build
     echo -e "${YELLOW}[2/3] Running build validation...${NC}"
-    if ! make validate-build "$service" 2>&1 | sed 's/^/  /'; then
+    make validate-build "$service" 2>&1 | sed 's/^/  /'
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo -e "${RED}✗ Build validation failed for ${service}${NC}\n"
         service_failed=1
     else
@@ -108,7 +111,8 @@ validate_service() {
     
     # Run validate-test
     echo -e "${YELLOW}[3/3] Running test validation...${NC}"
-    if ! make validate-test "$service" 2>&1 | sed 's/^/  /'; then
+    make validate-test "$service" 2>&1 | sed 's/^/  /'
+    if [ "${PIPESTATUS[0]}" -ne 0 ]; then
         echo -e "${RED}✗ Test validation failed for ${service}${NC}\n"
         service_failed=1
     else
