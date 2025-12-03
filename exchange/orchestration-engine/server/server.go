@@ -25,6 +25,34 @@ const DefaultPort = "4000"
 
 // RunServer starts a simple HTTP server with a health check endpoint.
 func RunServer(f *federator.Federator) {
+	mux := SetupRouter(f)
+
+	// Start server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = DefaultPort
+	}
+
+	// Convert port to string with colon prefix
+	// e.g., "8000" -> ":8000"
+	// This is needed for http.ListenAndServe
+	// which expects the port in the format ":port"
+	// If the port already has a colon, we don't add another one
+	if port[0] != ':' {
+		port = ":" + port
+	}
+
+	logger.Log.Info("Server is Listening", "port", port)
+
+	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
+		logger.Log.Error("Failed to start server", "error", err)
+	} else {
+		logger.Log.Info("Server stopped")
+	}
+}
+
+// SetupRouter initializes the router and registers all endpoints
+func SetupRouter(f *federator.Federator) *chi.Mux {
 	mux := chi.NewRouter()
 
 	// Initialize database connection
@@ -122,28 +150,7 @@ func RunServer(f *federator.Federator) {
 		}
 	})
 
-	// Start server
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = DefaultPort
-	}
-
-	// Convert port to string with colon prefix
-	// e.g., "8000" -> ":8000"
-	// This is needed for http.ListenAndServe
-	// which expects the port in the format ":port"
-	// If the port already has a colon, we don't add another one
-	if port[0] != ':' {
-		port = ":" + port
-	}
-
-	logger.Log.Info("Server is Listening", "port", port)
-
-	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
-		logger.Log.Error("Failed to start server", "error", err)
-	} else {
-		logger.Log.Info("Server stopped")
-	}
+	return mux
 }
 
 // corsMiddleware sets CORS headers

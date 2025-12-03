@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/models"
 	"gorm.io/gorm"
 )
@@ -37,6 +38,7 @@ func (s *DataExchangeEventService) CreateDataExchangeEvent(ctx context.Context, 
 
 	// Create the event record
 	event := &models.DataExchangeEvent{
+		ID:                uuid.New().String(),
 		Timestamp:         timestamp,
 		Status:            req.Status,
 		ApplicationID:     req.ApplicationID,

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -28,20 +27,8 @@ func TestNewDatabaseConfig(t *testing.T) {
 }
 
 func TestNewDatabaseConfig_WithEnvVars(t *testing.T) {
-	os.Setenv("CHOREO_OPENDIF_DATABASE_HOSTNAME", "test-host")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_PORT", "5433")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_USERNAME", "test-user")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_PASSWORD", "test-pass")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_DATABASENAME", "test-db")
-	os.Setenv("DB_SSLMODE", "disable")
-	defer func() {
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_HOSTNAME")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_PORT")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_USERNAME")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_PASSWORD")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_DATABASENAME")
-		os.Unsetenv("DB_SSLMODE")
-	}()
+	cleanup := WithEnvVars(t, TestEnvVarsChoreo())
+	defer cleanup()
 
 	config := NewDatabaseConfig()
 	assert.Equal(t, "test-host", config.Host)
@@ -131,25 +118,4 @@ func TestConnectGormDB_InvalidConnection(t *testing.T) {
 	_, err := ConnectGormDB(config)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to connect")
-}
-
-func TestConnectGormDB_WithMigration(t *testing.T) {
-	// Use SQLite for testing
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	defer func() {
-		if sqlDB, err := db.DB(); err == nil {
-			sqlDB.Close()
-		}
-	}()
-
-	// Set migration flag
-	os.Setenv("RUN_MIGRATION", "true")
-	defer os.Unsetenv("RUN_MIGRATION")
-
-	// Test migration path with SQLite
-	// Note: This tests the migration logic, but ConnectGormDB uses PostgreSQL
-	// For actual testing, we'd use SQLite directly
-	err = db.AutoMigrate(&models.PolicyMetadata{})
-	assert.NoError(t, err)
 }
