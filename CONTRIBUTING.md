@@ -1,6 +1,6 @@
-# Contributing to OpenDIF MVP
+# Contributing to OpenDIF Core
 
-Thank you for your interest in contributing to the OpenDIF MVP project! We welcome contributions from everyone and are grateful for your help in making this project better.
+Thank you for your interest in contributing to the OpenDIF Core project! We welcome contributions from everyone and are grateful for your help in making this project better.
 
 ## Code of Conduct
 
@@ -41,6 +41,6 @@ If you have questions or want to discuss ideas:
 
 ## Recognition
 
-Contributors will be recognized in our project documentation and release notes. Thank you for helping make OpenDIF MVP better!
+Contributors will be recognized in our project documentation and release notes. Thank you for helping make OpenDIF Core better!
 
 We look forward to your contributions!

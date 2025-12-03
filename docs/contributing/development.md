@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide will help you set up your local development environment for contributing to OpenDIF MVP.
+This guide will help you set up your local development environment for contributing to OpenDIF Core.
 
 ## Prerequisites
 
