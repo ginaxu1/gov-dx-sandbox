@@ -5,10 +5,14 @@ on:
   push:
     branches:
       - main
-  # Run on pull requests to main (for testing)
+  # Run on pull requests (for testing)
   pull_request:
-    branches:
-      - main
+    paths:
+      - 'tests/integration/**'
+      - 'exchange/**'
+      - 'portal-backend/**'
+      - 'audit-service/**'
+      - '.github/workflows/integration-tests.yml'
 
 # Reusable workflow inputs/outputs could be added here if needed
 env:

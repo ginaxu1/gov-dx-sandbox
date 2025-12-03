@@ -7,17 +7,15 @@ RUN apk add --no-cache git ca-certificates
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files
+# Copy go mod files and source code
 COPY orchestration-engine/go.mod orchestration-engine/go.sum ./
+COPY orchestration-engine/ .
 
-# Copy shared packages (if needed, though OE might not use it yet, better safe)
-# COPY shared/ /shared/ 
+# Copy shared packages
+COPY shared/ /shared/
 
 # Download dependencies
 RUN go mod download
-
-# Copy source code
-COPY orchestration-engine/ .
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o orchestration-engine .
