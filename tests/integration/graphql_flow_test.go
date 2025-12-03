@@ -62,7 +62,7 @@ func waitForService(url string, maxAttempts int) error {
 // 2. Success path through PDP (policy evaluation)
 // 3. Success path through consent-engine (consent check)
 // 4. Valid response back
-func TestGraphQLFlow(t *testing.T) {
+func TestGraphQLFlow_SuccessPath(t *testing.T) {
 	// Setup: Create policy metadata in PDP
 	schemaID := "test-schema-123"
 	fieldName := "email"
