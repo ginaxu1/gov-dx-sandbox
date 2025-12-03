@@ -9,7 +9,7 @@ import (
 
 func TestSchemaService_UpdateSchema(t *testing.T) {
 	t.Run("UpdateSchema_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -52,7 +52,7 @@ func TestSchemaService_UpdateSchema(t *testing.T) {
 	})
 
 	t.Run("UpdateSchema_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -74,7 +74,7 @@ func TestSchemaService_UpdateSchema(t *testing.T) {
 
 func TestSchemaService_GetSchema(t *testing.T) {
 	t.Run("GetSchema_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -102,7 +102,7 @@ func TestSchemaService_GetSchema(t *testing.T) {
 	})
 
 	t.Run("GetSchema_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -119,7 +119,7 @@ func TestSchemaService_GetSchema(t *testing.T) {
 
 func TestSchemaService_GetSchemas(t *testing.T) {
 	t.Run("GetSchemas_NoFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -142,7 +142,7 @@ func TestSchemaService_GetSchemas(t *testing.T) {
 	})
 
 	t.Run("GetSchemas_WithMemberIDFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -171,7 +171,7 @@ func TestSchemaService_GetSchemas(t *testing.T) {
 
 func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 	t.Run("CreateSchemaSubmission_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -206,7 +206,7 @@ func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 	})
 
 	t.Run("CreateSchemaSubmission_MemberNotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -232,7 +232,7 @@ func TestSchemaService_CreateSchemaSubmission(t *testing.T) {
 
 func TestSchemaService_UpdateSchemaSubmission(t *testing.T) {
 	t.Run("UpdateSchemaSubmission_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -268,7 +268,7 @@ func TestSchemaService_UpdateSchemaSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateSchemaSubmission_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -285,7 +285,7 @@ func TestSchemaService_UpdateSchemaSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateSchemaSubmission_EmptySDL", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -316,7 +316,7 @@ func TestSchemaService_UpdateSchemaSubmission(t *testing.T) {
 
 func TestSchemaService_GetSchemaSubmission(t *testing.T) {
 	t.Run("GetSchemaSubmission_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -344,7 +344,7 @@ func TestSchemaService_GetSchemaSubmission(t *testing.T) {
 	})
 
 	t.Run("GetSchemaSubmission_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -361,7 +361,7 @@ func TestSchemaService_GetSchemaSubmission(t *testing.T) {
 
 func TestSchemaService_GetSchemaSubmissions(t *testing.T) {
 	t.Run("GetSchemaSubmissions_NoFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -385,7 +385,7 @@ func TestSchemaService_GetSchemaSubmissions(t *testing.T) {
 	})
 
 	t.Run("GetSchemaSubmissions_WithMemberIDFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -413,7 +413,7 @@ func TestSchemaService_GetSchemaSubmissions(t *testing.T) {
 	})
 
 	t.Run("GetSchemaSubmissions_WithStatusFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -441,7 +441,7 @@ func TestSchemaService_GetSchemaSubmissions(t *testing.T) {
 
 func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 	t.Run("CreateSchema_EmptySDL", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -460,7 +460,7 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("CreateSchema_WithOptionalFields", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -487,7 +487,7 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("CreateSchema_CompensationFailure", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -519,7 +519,7 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("CreateSchema_WithDescription", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -546,7 +546,7 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("CreateSchema_DatabaseError", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -572,7 +572,7 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 
 func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 	t.Run("UpdateSchema_PartialUpdate", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -610,7 +610,7 @@ func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("UpdateSchema_AllFields", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -651,7 +651,7 @@ func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 
 func TestSchemaService_CreateSchemaSubmission_EdgeCases(t *testing.T) {
 	t.Run("CreateSchemaSubmission_WithPreviousSchemaID", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -689,7 +689,7 @@ func TestSchemaService_CreateSchemaSubmission_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("CreateSchemaSubmission_InvalidPreviousSchemaID", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}

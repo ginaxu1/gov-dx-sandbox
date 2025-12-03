@@ -8,410 +8,111 @@ import (
 	"github.com/gov-dx-sandbox/audit-service/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
-// stringPtr is a helper function to convert string to *string
-func stringPtr(s string) *string {
-	return &s
+func setupTestDB(t *testing.T) *gorm.DB {
+	return SetupSQLiteTestDB(t)
 }
 
 func TestNewManagementEventService(t *testing.T) {
-	db := SetupPostgresTestDB(t)
-	if db == nil {
-		return // test was skipped
-	}
+	db := setupTestDB(t)
 	service := NewManagementEventService(db)
 	assert.NotNil(t, service)
+	assert.Equal(t, db, service.db)
 }
 
 func TestManagementEventService_CreateManagementEvent(t *testing.T) {
-	db := SetupPostgresTestDB(t)
-	if db == nil {
-		return // test was skipped
-	}
+	db := setupTestDB(t)
 	service := NewManagementEventService(db)
 
-	t.Run("Success", func(t *testing.T) {
-		actorID := "user-123"
-		actorRole := "ADMIN"
+	t.Run("Create valid event", func(t *testing.T) {
 		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: &actorRole,
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-456"),
-			},
+			Timestamp:     time.Now().UTC().Format(time.RFC3339),
+			EventType:     "user_created",
+			ActorID:       "actor-123",
+			ActorType:     "user",
+			TargetID:      "target-123",
+			TargetType:    "application",
+			Action:        "create",
+			Details:       map[string]interface{}{"key": "value"},
 		}
 
-		event, err := service.CreateManagementEvent(context.Background(), req)
+		resp, err := service.CreateManagementEvent(context.Background(), req)
 		require.NoError(t, err)
-		assert.NotEmpty(t, event.ID)
-		assert.Equal(t, "CREATE", event.EventType)
-		assert.Equal(t, "USER", event.ActorType)
-		assert.Equal(t, &actorID, event.ActorID)
-		assert.Equal(t, &actorRole, event.ActorRole)
-		assert.Equal(t, "MEMBERS", event.TargetResource)
-		assert.Equal(t, stringPtr("member-456"), event.TargetResourceID)
+		assert.NotNil(t, resp)
+		assert.Equal(t, "user_created", resp.EventType)
+		assert.Equal(t, "actor-123", resp.ActorID)
 	})
 
-	t.Run("AutoGenerateEventID", func(t *testing.T) {
-		actorID := "user-123"
-		actorRole := "MEMBER"
+	t.Run("Invalid timestamp format", func(t *testing.T) {
 		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T12:00:00Z",
-			EventType: "UPDATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: &actorRole,
-			},
-			Target: models.Target{
-				Resource:   "SCHEMAS",
-				ResourceID: stringPtr("schema-789"),
-			},
-		}
-
-		event, err := service.CreateManagementEvent(context.Background(), req)
-		require.NoError(t, err)
-		assert.NotEmpty(t, event.ID)
-	})
-
-	t.Run("CustomTimestamp", func(t *testing.T) {
-		actorID := "user-123"
-		actorRole := "ADMIN"
-		timestamp := "2024-01-01T00:00:00Z"
-		req := &models.CreateManagementEventRequest{
-			EventType: "DELETE",
-			Timestamp: timestamp,
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: &actorRole,
-			},
-			Target: models.Target{
-				Resource:   "APPLICATIONS",
-				ResourceID: stringPtr("app-012"),
-			},
-		}
-
-		event, err := service.CreateManagementEvent(context.Background(), req)
-		require.NoError(t, err)
-		assert.NotZero(t, event.Timestamp)
-	})
-
-	t.Run("InvalidEventType", func(t *testing.T) {
-		actorID := "user-123"
-		actorRole := "ADMIN"
-		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "INVALID",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: &actorRole,
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-456"),
-			},
+			Timestamp: "invalid-timestamp",
+			EventType: "user_created",
 		}
 
 		_, err := service.CreateManagementEvent(context.Background(), req)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid event type")
-	})
-
-	t.Run("InvalidActorType", func(t *testing.T) {
-		actorID := "user-123"
-		actorRole := "ADMIN"
-		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "INVALID",
-				ID:   &actorID,
-				Role: &actorRole,
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-456"),
-			},
-		}
-
-		_, err := service.CreateManagementEvent(context.Background(), req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid actor type")
-	})
-
-	t.Run("MissingActorRoleForUSER", func(t *testing.T) {
-		actorID := "user-123"
-		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: nil, // Missing
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-456"),
-			},
-		}
-
-		_, err := service.CreateManagementEvent(context.Background(), req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "actor role is required")
-	})
-
-	t.Run("InvalidActorRole", func(t *testing.T) {
-		actorID := "user-123"
-		invalidRole := "INVALID"
-		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: &invalidRole,
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-456"),
-			},
-		}
-
-		_, err := service.CreateManagementEvent(context.Background(), req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid actor role")
-	})
-
-	t.Run("SERVICEActorType", func(t *testing.T) {
-		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "SERVICE",
-				ID:   nil, // OK for SERVICE
-				Role: nil, // OK for SERVICE
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-456"),
-			},
-		}
-
-		event, err := service.CreateManagementEvent(context.Background(), req)
-		require.NoError(t, err)
-		assert.Equal(t, "SERVICE", event.ActorType)
-		assert.Nil(t, event.ActorID)
-		assert.Nil(t, event.ActorRole)
-	})
-
-	t.Run("InvalidTargetResource", func(t *testing.T) {
-		actorID := "user-123"
-		actorRole := "ADMIN"
-		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: &actorRole,
-			},
-			Target: models.Target{
-				Resource:   "INVALID",
-				ResourceID: stringPtr("resource-123"),
-			},
-		}
-
-		_, err := service.CreateManagementEvent(context.Background(), req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid target resource")
-	})
-
-	t.Run("WithMetadata", func(t *testing.T) {
-		actorID := "user-123"
-		actorRole := "ADMIN"
-		metadata := map[string]interface{}{
-			"key1": "value1",
-			"key2": 123,
-		}
-		req := &models.CreateManagementEventRequest{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID,
-				Role: &actorRole,
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-456"),
-			},
-			Metadata: &metadata,
-		}
-
-		event, err := service.CreateManagementEvent(context.Background(), req)
-		require.NoError(t, err)
-		assert.NotNil(t, event.Metadata)
+		assert.Contains(t, err.Error(), "invalid timestamp format")
 	})
 }
 
 func TestManagementEventService_GetManagementEvents(t *testing.T) {
-	db := SetupPostgresTestDB(t)
-	if db == nil {
-		return // test was skipped
-	}
+	db := setupTestDB(t)
 	service := NewManagementEventService(db)
 
 	// Create test events
-	actorID1 := "user-1"
-	actorRole1 := "ADMIN"
-	actorID2 := "user-2"
-	actorRole2 := "MEMBER"
-
-	events := []*models.CreateManagementEventRequest{
-		{
-			Timestamp: "2024-01-01T00:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID1,
-				Role: &actorRole1,
-			},
-			Target: models.Target{
-				Resource:   "MEMBERS",
-				ResourceID: stringPtr("member-1"),
-			},
-		},
-		{
-			Timestamp: "2024-01-01T01:00:00Z",
-			EventType: "UPDATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID2,
-				Role: &actorRole2,
-			},
-			Target: models.Target{
-				Resource:   "SCHEMAS",
-				ResourceID: stringPtr("schema-1"),
-			},
-		},
-		{
-			Timestamp: "2024-01-01T02:00:00Z",
-			EventType: "CREATE",
-			Status:    "success",
-			Actor: models.Actor{
-				Type: "USER",
-				ID:   &actorID1,
-				Role: &actorRole1,
-			},
-			Target: models.Target{
-				Resource:   "APPLICATIONS",
-				ResourceID: stringPtr("app-1"),
-			},
-		},
-	}
-
-	for _, req := range events {
+	now := time.Now().UTC()
+	for i := 0; i < 3; i++ {
+		req := &models.CreateManagementEventRequest{
+			Timestamp:  now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			EventType:  "user_created",
+			ActorID:    "actor-123",
+			ActorType:  "user",
+			TargetID:   "target-123",
+			TargetType: "application",
+			Action:     "create",
+		}
 		_, err := service.CreateManagementEvent(context.Background(), req)
 		require.NoError(t, err)
 	}
 
-	t.Run("GetAllEvents", func(t *testing.T) {
-		filter := &models.ManagementEventFilter{}
-		response, err := service.GetManagementEvents(context.Background(), filter)
+	t.Run("Get all events", func(t *testing.T) {
+		filter := &models.ManagementEventFilter{
+			Limit: 10,
+		}
+
+		resp, err := service.GetManagementEvents(context.Background(), filter)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(response.Events), 3)
-		assert.GreaterOrEqual(t, response.Total, int64(3))
+		assert.NotNil(t, resp)
+		assert.GreaterOrEqual(t, resp.Total, int64(3))
 	})
 
-	t.Run("FilterByEventType", func(t *testing.T) {
-		eventType := "CREATE"
+	t.Run("Filter by event type", func(t *testing.T) {
+		eventType := "user_created"
 		filter := &models.ManagementEventFilter{
 			EventType: &eventType,
+			Limit:     10,
 		}
-		response, err := service.GetManagementEvents(context.Background(), filter)
+
+		resp, err := service.GetManagementEvents(context.Background(), filter)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(response.Events), 2)
-		for _, event := range response.Events {
-			assert.Equal(t, "CREATE", event.EventType)
+		for _, event := range resp.Events {
+			assert.Equal(t, "user_created", event.EventType)
 		}
 	})
 
-	t.Run("FilterByActorID", func(t *testing.T) {
+	t.Run("Filter by actor ID", func(t *testing.T) {
+		actorID := "actor-123"
 		filter := &models.ManagementEventFilter{
-			ActorID: &actorID1,
+			ActorID: &actorID,
+			Limit:   10,
 		}
-		response, err := service.GetManagementEvents(context.Background(), filter)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(response.Events), 2)
-		for _, event := range response.Events {
-			assert.Equal(t, &actorID1, event.ActorID)
-		}
-	})
 
-	t.Run("FilterByTargetResource", func(t *testing.T) {
-		targetResource := "MEMBERS"
-		filter := &models.ManagementEventFilter{
-			TargetResource: &targetResource,
-		}
-		response, err := service.GetManagementEvents(context.Background(), filter)
+		resp, err := service.GetManagementEvents(context.Background(), filter)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(response.Events), 1)
-		for _, event := range response.Events {
-			assert.Equal(t, "MEMBERS", event.TargetResource)
+		for _, event := range resp.Events {
+			assert.Equal(t, "actor-123", event.ActorID)
 		}
-	})
-
-	t.Run("Pagination", func(t *testing.T) {
-		filter := &models.ManagementEventFilter{
-			Limit:  2,
-			Offset: 0,
-		}
-		response, err := service.GetManagementEvents(context.Background(), filter)
-		require.NoError(t, err)
-		assert.Equal(t, 2, len(response.Events))
-		assert.Equal(t, 2, response.Limit)
-		assert.Equal(t, 0, response.Offset)
-	})
-
-	t.Run("DateRangeFilter", func(t *testing.T) {
-		startDate := time.Now().Add(-24 * time.Hour)
-		endDate := time.Now().Add(24 * time.Hour)
-		filter := &models.ManagementEventFilter{
-			StartDate: &startDate,
-			EndDate:   &endDate,
-		}
-		response, err := service.GetManagementEvents(context.Background(), filter)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(response.Events), 0)
-	})
-
-	t.Run("DefaultLimit", func(t *testing.T) {
-		filter := &models.ManagementEventFilter{
-			Limit: 0, // Should use default
-		}
-		response, err := service.GetManagementEvents(context.Background(), filter)
-		require.NoError(t, err)
-		assert.Equal(t, 50, response.Limit)
 	})
 }

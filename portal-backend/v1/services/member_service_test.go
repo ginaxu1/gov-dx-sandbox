@@ -139,7 +139,7 @@ func (m *MockIdentityProviderAPI) GetApplicationOIDC(ctx context.Context, applic
 
 func TestMemberService_CreateMember(t *testing.T) {
 	t.Run("CreateMember_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -183,7 +183,7 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_IDPCreateUserFails", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -209,7 +209,7 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_EmailMismatch", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -242,7 +242,7 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_AddToGroupFails", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -275,7 +275,7 @@ func TestMemberService_CreateMember(t *testing.T) {
 	})
 
 	t.Run("CreateMember_DatabaseCreateFails", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -322,7 +322,7 @@ func TestMemberService_CreateMember(t *testing.T) {
 
 func TestMemberService_UpdateMember(t *testing.T) {
 	t.Run("UpdateMember_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -371,7 +371,7 @@ func TestMemberService_UpdateMember(t *testing.T) {
 	})
 
 	t.Run("UpdateMember_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -392,7 +392,7 @@ func TestMemberService_UpdateMember(t *testing.T) {
 	})
 
 	t.Run("UpdateMember_IDPUpdateFails", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -427,7 +427,7 @@ func TestMemberService_UpdateMember(t *testing.T) {
 
 func TestMemberService_GetMember(t *testing.T) {
 	t.Run("GetMember_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -455,7 +455,7 @@ func TestMemberService_GetMember(t *testing.T) {
 	})
 
 	t.Run("GetMember_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -473,7 +473,7 @@ func TestMemberService_GetMember(t *testing.T) {
 
 func TestMemberService_GetAllMembers(t *testing.T) {
 	t.Run("GetAllMembers_NoFilters", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -497,7 +497,7 @@ func TestMemberService_GetAllMembers(t *testing.T) {
 	})
 
 	t.Run("GetAllMembers_WithEmailFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -524,7 +524,7 @@ func TestMemberService_GetAllMembers(t *testing.T) {
 	})
 
 	t.Run("GetAllMembers_WithIdpUserIDFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}

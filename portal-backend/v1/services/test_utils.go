@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -49,6 +49,33 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// SetupSQLiteTestDB creates an in-memory SQLite database for testing
+func SetupSQLiteTestDB(t *testing.T) *gorm.DB {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to connect to SQLite test database: %v", err)
+	}
+
+	// Auto-migrate all models
+	err = db.AutoMigrate(
+		&models.Member{},
+		&models.Application{},
+		&models.ApplicationSubmission{},
+		&models.Schema{},
+		&models.SchemaSubmission{},
+	)
+	if err != nil {
+		t.Fatalf("Failed to migrate test database: %v", err)
+	}
+
+	// Clean up test data before each test
+	CleanupTestData(t, db)
+
+	return db
 }
 
 // SetupPostgresTestDB creates a PostgreSQL test database connection
@@ -146,7 +173,7 @@ func CleanupTestData(t *testing.T, db *gorm.DB) {
 // This is an alternative to SetupPostgresTestDB for tests that cannot proceed without
 // a database connection.
 func RequireTestDB(t *testing.T) *gorm.DB {
-	db := SetupPostgresTestDB(t)
+	db := SetupSQLiteTestDB(t)
 	if db == nil {
 		t.Fatal("Test database setup failed - cannot proceed with test")
 	}

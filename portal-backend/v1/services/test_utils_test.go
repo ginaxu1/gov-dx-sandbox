@@ -38,7 +38,7 @@ func TestGetEnvOrDefault(t *testing.T) {
 
 func TestCleanupTestData(t *testing.T) {
 	t.Run("CleanupTestData_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}

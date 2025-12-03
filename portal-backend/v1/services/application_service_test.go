@@ -9,7 +9,7 @@ import (
 
 func TestApplicationService_CreateApplication(t *testing.T) {
 	t.Run("CreateApplication_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -42,7 +42,7 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 
 func TestApplicationService_UpdateApplication(t *testing.T) {
 	t.Run("UpdateApplication_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -90,7 +90,7 @@ func TestApplicationService_UpdateApplication(t *testing.T) {
 	})
 
 	t.Run("UpdateApplication_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -111,7 +111,7 @@ func TestApplicationService_UpdateApplication(t *testing.T) {
 
 func TestApplicationService_GetApplication(t *testing.T) {
 	t.Run("GetApplication_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -144,7 +144,7 @@ func TestApplicationService_GetApplication(t *testing.T) {
 	})
 
 	t.Run("GetApplication_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -160,7 +160,7 @@ func TestApplicationService_GetApplication(t *testing.T) {
 
 func TestApplicationService_GetApplications(t *testing.T) {
 	t.Run("GetApplications_NoFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -196,7 +196,7 @@ func TestApplicationService_GetApplications(t *testing.T) {
 	})
 
 	t.Run("GetApplications_WithMemberIDFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -224,7 +224,7 @@ func TestApplicationService_GetApplications(t *testing.T) {
 
 func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 	t.Run("CreateApplicationSubmission_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -261,7 +261,7 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("CreateApplicationSubmission_MemberNotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -287,7 +287,7 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 
 func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	t.Run("UpdateApplicationSubmission_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -318,7 +318,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -335,7 +335,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_ApprovalWithApplicationCreationFailure", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -366,7 +366,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_WithPreviousApplicationID_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -397,7 +397,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_WithDescription", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -430,7 +430,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_WithSelectedFields", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -464,7 +464,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_WithReview", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -497,7 +497,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_WithPreviousApplicationID_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -538,7 +538,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("UpdateApplicationSubmission_NonApprovedStatus", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -575,7 +575,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 
 func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 	t.Run("GetApplicationSubmission_Success", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -602,7 +602,7 @@ func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 	})
 
 	t.Run("GetApplicationSubmission_NotFound", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -618,7 +618,7 @@ func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 
 func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 	t.Run("GetApplicationSubmissions_NoFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -642,7 +642,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 	})
 
 	t.Run("GetApplicationSubmissions_WithMemberIDFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -669,7 +669,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 	})
 
 	t.Run("GetApplicationSubmissions_WithStatusFilter", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -697,7 +697,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 
 func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 	t.Run("CreateApplication_EmptySelectedFields", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -720,7 +720,7 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("CreateApplication_WithDescription", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -750,7 +750,7 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 
 func TestApplicationService_UpdateApplication_EdgeCases(t *testing.T) {
 	t.Run("UpdateApplication_PartialUpdate", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -789,7 +789,7 @@ func TestApplicationService_UpdateApplication_EdgeCases(t *testing.T) {
 
 func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) {
 	t.Run("CreateApplicationSubmission_WithPreviousApplicationID", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -825,7 +825,7 @@ func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) 
 	})
 
 	t.Run("CreateApplicationSubmission_InvalidPreviousApplicationID", func(t *testing.T) {
-		db := SetupPostgresTestDB(t)
+		db := SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
