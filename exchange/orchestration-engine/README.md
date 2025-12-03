@@ -1,16 +1,13 @@
-# Introduction
+# Orchestration Engine
 
-This directory contains the source code for the Orchestration Engine, a Go-based service that manages
-and orchestrates various tasks and workflows within the Exchange platform. The Orchestration Engine is
-responsible for coordinating complex operations, ensuring that tasks are executed in the correct order,
-and handling dependencies between different components.
+A Go-based GraphQL service that orchestrates data requests from consumers to multiple data providers, handling authorization, consent checks, argument mapping, and data aggregation.
 
-## How it works
+## Overview
 
 The Orchestration Engine (OE) is a Go-based service that orchestrates data requests from consumers to multiple data
 providers. It handles authorization and consent checks, argument mapping, and data aggregation.
 
-### Key Features
+## Features
 - **GraphQL API**: The OE exposes a GraphQL API for consumers to request data.
 - **Multiple Data Providers**: It can fetch data from multiple providers based on the consumer's request.
 - **Authorization Checks**: Before fetching data, the OE checks with the Policy Decision Point (PDP) to ensure the
@@ -18,7 +15,9 @@ providers. It handles authorization and consent checks, argument mapping, and da
 - **Consent Management**: The OE interacts with the Consent Engine (CE) to verify that the consumer has the necessary consents for
   accessing certain data fields.
 
-## Setting Up the Development Environment
+## Quick Start
+
+### Prerequisites
 
 To set up the development environment for the Orchestration Engine, follow these steps:
 

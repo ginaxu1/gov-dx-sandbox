@@ -1,98 +1,28 @@
 # Audit Service
 
-A simple Go microservice that provides read-only access to audit logs for different portals.
+A Go microservice for managing audit logs, providing both read and write operations for data exchange events and management events.
 
 ## Overview
 
-The Audit Service implements the goal: "who made this request, what did they ask for, and did they get that data" by exposing audit data through secure API endpoints tailored to each role's access level.
+The Audit Service answers: "who made this request, what did they ask for, and did they get that data" by providing APIs for logging and querying audit events. It handles both data exchange events (from Orchestration Engine) and management events (from Portal Backend).
 
 ## Features
 
-- **Read-only access** to the `audit_logs` table
-- **Role-based endpoints** for different portals
-- **Filtering capabilities** by date, consumer, provider, status
+- **Read and write operations** for audit logs
+- **Data exchange event logging** - Create and query data exchange events
+- **Management event logging** - Create and query management events
+- **Advanced filtering** by date, consumer, provider, and status
 - **Pagination support** for large datasets
-- **JWT authentication** for provider and consumer endpoints
+- **CORS enabled** for cross-origin requests
 
-## API Endpoints
+## Quick Start
 
-### For NDX Admin Portal
+### Prerequisites
 
-- `GET /audit/events` - Returns all logs with filtering capabilities
+- Go 1.21+
+- PostgreSQL 13+
 
-### For Data Provider Portal
-
-- `GET /audit/provider/events` - Returns logs only where the provider's ID matches the authenticated JWT
-
-### For Data Consumer Portal
-
-- `GET /audit/consumer/events` - Returns logs only where the consumer ID matches the authenticated JWT
-
-## Query Parameters
-
-All endpoints support the following query parameters:
-
-- `consumer_id` - Filter by consumer ID
-- `provider_id` - Filter by provider ID
-- `transaction_status` - Filter by status (SUCCESS/FAILURE)
-- `start_date` - Filter by start date (YYYY-MM-DD format)
-- `end_date` - Filter by end date (YYYY-MM-DD format)
-- `limit` - Number of results per page (default: 50, max: 1000)
-- `offset` - Number of results to skip for pagination
-
-## Authentication
-
-- **Admin Portal**: No authentication required (internal use)
-- **Provider Portal**: Requires JWT token with `provider_id` claim
-- **Consumer Portal**: Requires JWT token with `consumer_id` claim
-
-## Response Format
-
-```json
-{
-  "events": [
-    {
-      "event_id": "uuid",
-      "timestamp": "2024-01-01T12:00:00Z",
-      "consumer_id": "consumer-123",
-      "provider_id": "provider-456",
-      "transaction_status": "SUCCESS",
-      "citizen_hash": "hashed-citizen-id"
-    }
-  ],
-  "total": 100,
-  "limit": 50,
-  "offset": 0
-}
-```
-
-## Security Notes
-
-- **Sensitive data is excluded**: `requested_data` and `response_data` are intentionally omitted from API responses for security
-- **Role-based access**: Each endpoint only returns data relevant to the authenticated user's role
-- **JWT validation**: Provider and consumer endpoints validate JWT tokens to ensure proper authorization
-
-## Environment Variables
-
-### Choreo Environment Variables (Primary)
-
-- `CHOREO_DB_AUDIT_HOSTNAME` - Database hostname
-- `CHOREO_DB_AUDIT_PORT` - Database port
-- `CHOREO_DB_AUDIT_USERNAME` - Database username
-- `CHOREO_DB_AUDIT_PASSWORD` - Database password
-- `CHOREO_DB_AUDIT_DATABASENAME` - Database name
-
-### Fallback Environment Variables (Local Development)
-
-- `DB_HOST` - Database host (default: localhost)
-- `DB_PORT` - Database port (default: 5432)
-- `DB_USERNAME` - Database username (default: user)
-- `DB_PASSWORD` - Database password (default: password)
-- `DB_NAME` - Database name (default: gov_dx_sandbox)
-- `DB_SSLMODE` - SSL mode (default: disable)
-- `PORT` - Service port (default: 3001)
-
-## Running the Service
+### Run the Service
 
 ```bash
 # Install dependencies
@@ -106,12 +36,128 @@ go build -o audit-service
 ./audit-service
 ```
 
-## Local Testing Setup
+The service runs on port 3001 by default.
 
-For local testing, create a `.env.local` file with your PostgreSQL credentials:
+## Configuration
+
+### Environment Variables
+
+**Choreo Environment Variables (Primary):**
+- `CHOREO_OPENDIF_DATABASE_HOSTNAME` or `CHOREO_OPENDIF_DB_HOSTNAME` - Database hostname
+- `CHOREO_OPENDIF_DATABASE_PORT` or `CHOREO_OPENDIF_DB_PORT` - Database port
+- `CHOREO_OPENDIF_DATABASE_USERNAME` or `CHOREO_OPENDIF_DB_USERNAME` - Database username
+- `CHOREO_OPENDIF_DATABASE_PASSWORD` or `CHOREO_OPENDIF_DB_PASSWORD` - Database password
+- `CHOREO_OPENDIF_DATABASE_DATABASENAME` or `CHOREO_OPENDIF_DB_DATABASENAME` - Database name
+
+**Fallback Environment Variables (Local Development):**
+- `DB_HOST` - Database host (default: localhost)
+- `DB_PORT` - Database port (default: 5432)
+- `DB_USERNAME` - Database username (default: user)
+- `DB_PASSWORD` - Database password (default: password)
+- `DB_NAME` - Database name (default: gov_dx_sandbox)
+- `DB_SSLMODE` - SSL mode (default: require for Choreo, disable for local)
+- `PORT` - Service port (default: 3001)
+- `ENVIRONMENT` - Environment (development/production, default: production)
+
+## API Endpoints
+
+### Data Exchange Events
+- `GET /api/data-exchange-events` - Retrieve data exchange event logs with filtering
+- `POST /api/data-exchange-events` - Create a new data exchange event (used by Orchestration Engine)
+
+### Management Events
+- `GET /api/management-events` - Retrieve management event logs with filtering
+- `POST /api/management-events` - Create a new management event (used by Portal Backend)
+
+### System Endpoints
+- `GET /health` - Service health check
+- `GET /version` - Service version information
+
+### Query Parameters
+
+**Data Exchange Events** (`GET /api/data-exchange-events`) supports:
+- `status` - Filter by status (success/failure)
+- `startDate` - Start date filter (YYYY-MM-DD)
+- `endDate` - End date filter (YYYY-MM-DD)
+- `applicationId` - Filter by application ID
+- `schemaId` - Filter by schema ID
+- `consumerId` - Filter by consumer ID
+- `providerId` - Filter by provider ID
+- `limit` - Results per page (default: 50, max: 1000)
+- `offset` - Pagination offset
+
+**Management Events** (`GET /api/management-events`) supports:
+- `eventType` - Filter by event type
+- `status` - Filter by status
+- `actorType` - Filter by actor type
+- `actorId` - Filter by actor ID
+- `actorRole` - Filter by actor role
+- `targetResource` - Filter by target resource type
+- `targetResourceId` - Filter by target resource ID
+- `startDate` - Start date filter (YYYY-MM-DD)
+- `endDate` - End date filter (YYYY-MM-DD)
+- `limit` - Results per page (default: 50, max: 1000)
+- `offset` - Pagination offset
+
+### Response Format
+
+**Data Exchange Events Response:**
+```json
+{
+  "total": 100,
+  "limit": 50,
+  "offset": 0,
+  "events": [
+    {
+      "id": "uuid",
+      "timestamp": "2024-01-01T12:00:00Z",
+      "status": "success",
+      "applicationId": "app-123",
+      "schemaId": "schema-456",
+      "consumerId": "consumer-123",
+      "providerId": "provider-456",
+      "onBehalfOfOwnerId": "owner-789",
+      "requestedData": {...},
+      "additionalInfo": {...},
+      "createdAt": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Management Events Response:**
+```json
+{
+  "total": 50,
+  "limit": 50,
+  "offset": 0,
+  "events": [
+    {
+      "id": "uuid",
+      "eventType": "CREATE",
+      "status": "success",
+      "timestamp": "2024-01-01T12:00:00Z",
+      "actorType": "USER",
+      "actorId": "member-123",
+      "actorRole": "MEMBER",
+      "targetResource": "SCHEMAS",
+      "targetResourceId": "schema-456",
+      "metadata": null,
+      "createdAt": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Note**: `eventType` values are: `CREATE`, `UPDATE`, `DELETE`. `targetResource` values include: `MEMBERS`, `SCHEMAS`, `SCHEMA-SUBMISSIONS`, `APPLICATIONS`, `APPLICATION-SUBMISSIONS`, `POLICY-METADATA`.
+
+## Testing
+
+### Local Test Setup
+
+Create `.env.local` with PostgreSQL credentials:
 
 ```bash
-# .env.local (this file should not be committed to git)
 TEST_DB_USERNAME=postgres
 TEST_DB_PASSWORD=your_password
 TEST_DB_HOST=localhost
@@ -120,25 +166,25 @@ TEST_DB_DATABASE=audit_service_test
 TEST_DB_SSLMODE=disable
 ```
 
-Run tests:
+### Run Tests
 
 ```bash
 # Run all tests
 go test ./...
 
-# Run tests with verbose output
-go test ./... -v
-
-# Run tests with coverage
+# Run with coverage
 go test ./... -cover
 ```
 
-**Note**: The test setup will automatically:
-
-- Load credentials from `.env.local` if available
-- Create the test database if it doesn't exist
-- Skip tests gracefully if PostgreSQL is not available
+**Note**: Tests automatically load credentials from `.env.local` and skip gracefully if PostgreSQL is unavailable.
 
 ## Health Check
 
 - `GET /health` - Returns service health status
+
+## Security
+
+- **CORS enabled**: Cross-origin requests are supported via CORS middleware
+- **Internal service**: Service is intended for internal use within the OpenDIF ecosystem
+- **No authentication required**: Authentication is handled by upstream services (Orchestration Engine, Portal Backend)
+- **Database security**: Uses SSL connections in production (Choreo) with configurable SSL modes
