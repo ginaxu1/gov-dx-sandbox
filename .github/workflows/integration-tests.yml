@@ -1,32 +1,29 @@
-name: OpenDIF CI/CD Pipeline
+name: Integration Tests
 
 on:
-  # Run on pushes to main (for deployment)
-  push:
-    branches:
-      - main
-  # Run on pull requests (for testing)
+  # Run on pull requests only (validation before merge)
   pull_request:
     paths:
       - 'tests/integration/**'
-      - 'exchange/**'
-      - 'portal-backend/**'
-      - 'audit-service/**'
+      - 'exchange/orchestration-engine/**'
+      - 'exchange/policy-decision-point/**'
+      - 'exchange/consent-engine/**'
+      - 'exchange/shared/**'
       - '.github/workflows/integration-tests.yml'
+  # Allow manual trigger
+  workflow_dispatch:
 
-# Reusable workflow inputs/outputs could be added here if needed
 env:
   GO_VERSION: '1.24'
   TEST_TIMEOUT: 30m
 
 jobs:
-  #
-  # JOB 1: Test the code before merging
-  #
-  build_and_test:
-    name: Build & Run Go Integration Tests
+  integration-tests:
+    name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -51,164 +48,94 @@ jobs:
           go mod download
           go mod tidy
 
-      - name: Set up Docker Compose for Go tests
+      - name: Check for unclean Go Mod
         working-directory: tests/integration
         run: |
-          echo "Starting Docker Compose services for Go tests..."
+          if ! git diff --exit-code go.mod go.sum; then
+            echo "::error::go.mod or go.sum files have uncommitted changes. Please run 'go mod tidy' and commit."
+            git diff go.mod go.sum
+            exit 1
+          fi
+          echo "Go mod files are clean."
+
+      - name: Start Docker Compose services
+        working-directory: tests/integration
+        run: |
+          echo "🚀 Starting Docker Compose services..."
           docker compose -f docker-compose.test.yml up -d
           
-          echo "Waiting for services to be ready..."
-          sleep 15
-          
-          # Health check function
-          check_service() {
-            local service=$1
-            local max_attempts=10
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              # Check for 'healthy' or 'running' (as a fallback)
-              if docker compose -f docker-compose.test.yml ps $service | grep -q "healthy\|running"; then
-                echo "✅ $service is ready"
-                return 0
-              fi
-              echo "⏳ Waiting for $service... (attempt $attempt/$max_attempts)"
-              sleep 3
-              attempt=$((attempt + 1))
-            done
-            
-            echo "❌ $service failed to start"
-            docker compose -f docker-compose.test.yml logs $service
-            return 1
-          }
-          
-          # Check each service
-          check_service "pdp-db" || exit 1
-          check_service "policy-decision-point" || exit 1
-          
-          echo "All infrastructure services are ready!"
+          echo "📋 Checking service status..."
+          docker compose -f docker-compose.test.yml ps
 
-      - name: Run Go Integration Tests
-        working-directory: tests/integration
-        env:
-          GO_ENV: test
-          USE_COMPOSE: "true"
-          TEST_TIMEOUT: ${{ env.TEST_TIMEOUT }}
-        run: |
-          echo "Running Go integration tests..."
-          go test -v -timeout ${{ env.TEST_TIMEOUT }} ./...
-
-      - name: Cleanup Go test infrastructure
-        if: always()
+      - name: Wait for services to be healthy
         working-directory: tests/integration
         run: |
-          echo "Stopping test infrastructure..."
-          docker compose -f docker-compose.test.yml down -v
-
-  #
-  # JOB 2: Deploy and check the live environment
-  #
-  deploy_and_smoke_test:
-    name: Deploy & Run Shell Smoke Tests
-    runs-on: ubuntu-latest
-    needs: build_and_test
-    # This job only runs on a push to main, NOT on pull requests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    timeout-minutes: 45
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Create .env.local file
-        working-directory: exchange
-        run: |
-          if [ ! -f .env.local ]; then
-            echo "Creating .env.local with default values..."
-            {
-              echo "ENVIRONMENT=local"
-              echo "LOG_LEVEL=info"
-              echo "LOG_FORMAT=text"
-              echo "PORT_PDP=8082"
-              echo "PORT_CE=8081"
-              echo "PORT_OE=4000"
-              echo "BUILD_VERSION=ci"
-              echo "BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-              echo "GIT_COMMIT=${{ github.sha }}"
-            } > .env.local
-          fi
-
-      - name: Start Exchange Services
-        working-directory: exchange
-        run: |
-          echo "Starting Exchange Services (Docker)..."
-          docker compose --env-file .env.local up --build -d
+          echo "⏳ Waiting for all services to be healthy..."
           
-          echo "Waiting for services to be ready..."
-          sleep 30
-          
-          # Health check function
-          check_service_health() {
+          check_health() {
             local service_name=$1
             local health_url=$2
-            local max_attempts=10
+            local max_attempts=30
             local attempt=1
             
             while [ $attempt -le $max_attempts ]; do
-              if curl -f -s $health_url > /dev/null; then
+              if curl -f -s $health_url > /dev/null 2>&1; then
                 echo "✅ $service_name is healthy"
                 return 0
               fi
-              echo "⏳ Waiting for $service_name to be ready... (attempt $attempt/$max_attempts)"
-              sleep 5
+              echo "  Waiting for $service_name... (attempt $attempt/$max_attempts)"
+              sleep 2
               attempt=$((attempt + 1))
             done
             
-            echo "❌ $service_name failed to start"
-            docker compose logs
+            echo "❌ $service_name failed to become healthy"
+            echo "Service logs:"
+            docker compose -f docker-compose.test.yml logs $service_name
             return 1
           }
           
-          # Check each service
-          check_service_health "PDP" "http://localhost:8082/health" || exit 1
-          check_service_health "Consent Engine" "http://localhost:8081/health" || exit 1
-          echo "All exchange services are running!"
-
-      - name: Install shell dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl jq
-
-      - name: Make shell scripts executable
-        working-directory: tests/integration
-        run: |
-          chmod +x *.sh
-          ls -la *.sh
-
-      - name: Run Shell Smoke Tests
-        working-directory: tests/integration
-        run: |
-          echo "Running shell smoke tests..."
+          # Wait for databases first
+          sleep 10
           
-          # Run tests if they exist
-          [ -f "test-consent-flow.sh" ] && echo "Running consent flow tests..." && ./test-consent-flow.sh
-          [ -f "test-complete-flow.sh" ] && echo "Running complete flow tests..." && ./test-complete-flow.sh
+          # Check each service health endpoint
+          check_health "PDP" "http://localhost:8082/health" || exit 1
+          check_health "Consent-Engine" "http://localhost:8081/health" || exit 1
+          check_health "Orchestration-Engine" "http://localhost:4000/health" || exit 1
           
-          echo "Smoke tests completed."
+          echo "🎉 All services are healthy and ready!"
+
+      - name: Run integration tests
+        working-directory: tests/integration
+        env:
+          GO_ENV: test
+          TEST_TIMEOUT: ${{ env.TEST_TIMEOUT }}
+        run: |
+          echo "🧪 Running integration tests..."
+          go test -v -race -timeout ${{ env.TEST_TIMEOUT }} ./...
 
       - name: Show service logs on failure
         if: failure()
-        working-directory: exchange
+        working-directory: tests/integration
         run: |
-          echo "=== Exchange Services Logs ==="
-          docker compose logs
+          echo "=== Docker Compose Services Status ==="
+          docker compose -f docker-compose.test.yml ps
+          
+          echo ""
+          echo "=== All Service Logs ==="
+          docker compose -f docker-compose.test.yml logs
+          
+          echo ""
+          echo "=== PDP Database Logs ==="
+          docker compose -f docker-compose.test.yml logs pdp-db
+          
+          echo ""
+          echo "=== CE Database Logs ==="
+          docker compose -f docker-compose.test.yml logs ce-db
 
-      - name: Cleanup services
+      - name: Cleanup
         if: always()
-        working-directory: exchange
+        working-directory: tests/integration
         run: |
-          echo "Cleaning up services..."
-          docker compose down -v
+          echo "🧹 Cleaning up test infrastructure..."
+          docker compose -f docker-compose.test.yml down -v
+          echo "✅ Cleanup complete"
