@@ -1,0 +1,124 @@
+services:
+  # PostgreSQL Database for Policy Decision Point
+  pdp-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: policy_db
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # PostgreSQL Database for Consent Engine
+  ce-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: consent_db
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Policy Decision Point Service
+  policy-decision-point:
+    build:
+      context: ../../exchange
+      dockerfile: policy-decision-point/Dockerfile
+    environment:
+      PORT: 8082
+      LOG_LEVEL: debug
+      DB_SSLMODE: disable
+      CHOREO_OPENDIF_DATABASE_HOSTNAME: pdp-db
+      CHOREO_OPENDIF_DATABASE_PORT: 5432
+      CHOREO_OPENDIF_DATABASE_USERNAME: postgres
+      CHOREO_OPENDIF_DATABASE_PASSWORD: password
+      CHOREO_OPENDIF_DATABASE_DATABASENAME: policy_db
+      RUN_MIGRATION: "true"
+    ports:
+      - "8082:8082"
+    depends_on:
+      pdp-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Consent Engine Service
+  consent-engine:
+    build:
+      context: ../../exchange
+      dockerfile: consent-engine/Dockerfile
+    environment:
+      PORT: 8081
+      LOG_LEVEL: debug
+      CHOREO_DB_CE_HOSTNAME: ce-db
+      CHOREO_DB_CE_PORT: 5432
+      CHOREO_DB_CE_USERNAME: postgres
+      CHOREO_DB_CE_PASSWORD: password
+      CHOREO_DB_CE_DATABASENAME: consent_db
+      DB_SSLMODE: disable
+    ports:
+      - "8081:8081"
+    depends_on:
+      ce-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Orchestration Engine Service
+  orchestration-engine:
+    build:
+      context: ../../exchange
+      dockerfile: orchestration-engine/Dockerfile
+    environment:
+      PORT: 4000
+      LOG_LEVEL: debug
+      PDP_URL: http://policy-decision-point:8082
+      CONSENT_ENGINE_URL: http://consent-engine:8081
+      CONFIG_PATH: /app/config/config.json
+    volumes:
+      - ./config.json:/app/config/config.json:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      policy-decision-point:
+        condition: service_healthy
+      consent-engine:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  test-network:
+    driver: bridge
