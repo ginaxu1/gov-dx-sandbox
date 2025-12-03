@@ -16,7 +16,7 @@ Microservices-based data exchange platform with policy enforcement and consent m
 docker-compose up -d
 
 # Run integration tests
-cd integration-tests && ./run-all-tests.sh
+cd ../tests/integration && docker compose -f docker-compose.test.yml up -d && go test -v ./... && docker compose -f docker-compose.test.yml down -v
 ```
 
 ## Services
@@ -218,12 +218,7 @@ cd consent-engine && go test -v
 
 ```bash
 # All integration tests
-cd integration-tests && ./run-all-tests.sh
-
-# Individual test suites
-./test-pdp.sh                    # PDP policy tests
-./test-consent-flow.sh           # Basic consent flow tests
-./test-complete-flow.sh          # End-to-end flow tests
+cd ../tests/integration && docker compose -f docker-compose.test.yml up -d && go test -v ./... && docker compose -f docker-compose.test.yml down -v
 ```
 
 ## Production Deployment
@@ -298,7 +293,6 @@ exchange/
 ├── consent-engine/           # Consent service (Port 8081)
 ├── orchestration-engine/  # Orchestration service (Port 8080)
 ├── shared/                   # Shared utilities and packages
-├── integration-tests/        # Integration test suites
 ├── scripts/                  # Management scripts
 ├── docker-compose.yml        # Multi-environment orchestration
 └── Makefile                  # Convenience commands
@@ -309,5 +303,5 @@ exchange/
 - [Policy Decision Point README](policy-decision-point/README.md)
 - [Consent Engine README](consent-engine/README.md)
 - [Orchestration Engine README](orchestration-engine/README.md)
-- [Integration Tests README](integration-tests/README.md)
+- [Integration Tests README](../tests/integration/README.md)
 - [Scripts README](scripts/README.md)

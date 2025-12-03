@@ -90,6 +90,33 @@ func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
 	// Only run migration if environment variable is set
 	if os.Getenv("RUN_MIGRATION") == "true" {
 		slog.Info("Running GORM auto-migration for V1 models")
+
+		// Explicitly create enums if they don't exist
+		// GORM sometimes struggles with creating enums automatically on postgres
+		enums := []string{
+			`DO $$ BEGIN
+				CREATE TYPE source_enum AS ENUM ('primary', 'fallback');
+			EXCEPTION
+				WHEN duplicate_object THEN null;
+			END $$;`,
+			`DO $$ BEGIN
+				CREATE TYPE access_control_type_enum AS ENUM ('public', 'restricted');
+			EXCEPTION
+				WHEN duplicate_object THEN null;
+			END $$;`,
+			`DO $$ BEGIN
+				CREATE TYPE owner_enum AS ENUM ('citizen');
+			EXCEPTION
+				WHEN duplicate_object THEN null;
+			END $$;`,
+		}
+
+		for _, enumQuery := range enums {
+			if err := db.Exec(enumQuery).Error; err != nil {
+				return nil, fmt.Errorf("failed to create enum type: %w", err)
+			}
+		}
+
 		err = db.AutoMigrate(
 			&models.PolicyMetadata{},
 		)
