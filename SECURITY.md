@@ -2,12 +2,9 @@
 
 ## Supported Versions
 
-We actively support the following versions with security updates:
+**Note**: We do not currently have versioning implemented. Versioning support will be added in the future. For now, all security updates will be applied to the main branch.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+Once versioning is implemented, we will update this section with supported versions and their security update policies.
 
 ## Reporting a Vulnerability
 
