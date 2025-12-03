@@ -4,95 +4,137 @@ Authorization service using Open Policy Agent (OPA) that evaluates data access r
 
 ## Overview
 
-- **Technology**: Go + Open Policy Agent (OPA) v1 + Rego v1 policies + PostgreSQL
-- **Port**: 8082
-- **Purpose**: Attribute-based access control (ABAC) with field-level permissions
-- **Database**: Policy metadata stored in PostgreSQL with real-time policy evaluation
+The PDP provides attribute-based access control (ABAC) with field-level permissions. It uses Open Policy Agent (OPA) v1 with Rego v1 policies and stores policy metadata in PostgreSQL for real-time evaluation.
+
+**Technology**: Go + Open Policy Agent (OPA) v1 + Rego v1 + PostgreSQL  
+**Port**: 8082
+
+## Features
+
+- **Real-time Policy Evaluation** - Policies loaded from database on startup
+- **Field-level Access Control** - Granular permissions for individual data fields
+- **Consent Management** - Automatic consent requirement calculation
+- **Allow List Management** - Dynamic application authorization for restricted fields
+- **OPA v1 Integration** - Modern Open Policy Agent with Rego v1 syntax
+- **Database-driven** - Policy metadata stored in PostgreSQL
 
 ## Quick Start
 
+### Prerequisites
+
+- Go 1.21+
+- PostgreSQL 13+
+
+### Run the Service
+
 ```bash
+# Install dependencies
+go mod download
+
 # Run locally
-cd policy-decision-point && go run main.go
+go run main.go
 
-# Run tests
-go test -v
-
-# Docker
-docker build -t pdp . && docker run -p 8082:8082 pdp
+# Or build and run
+go build -o policy-decision-point
+./policy-decision-point
 ```
 
-## Environment Variables
+The service runs on port 8082 by default.
 
-The service requires the following environment variables for database connection:
+## Configuration
+
+### Environment Variables
 
 ```bash
-export CHOREO_DB_PDP_HOSTNAME=your-db-host
-export CHOREO_DB_PDP_PORT=your-db-port
-export CHOREO_DB_PDP_USERNAME=your-db-username
-export CHOREO_DB_PDP_PASSWORD=your-db-password
-export CHOREO_DB_PDP_DATABASENAME=your-db-name
+# Database Configuration (Choreo)
+CHOREO_DB_PDP_HOSTNAME=your-db-host
+CHOREO_DB_PDP_PORT=your-db-port
+CHOREO_DB_PDP_USERNAME=your-db-username
+CHOREO_DB_PDP_PASSWORD=your-db-password
+CHOREO_DB_PDP_DATABASENAME=your-db-name
+
+# Or use standard DB variables
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=pdp
+DB_SSLMODE=disable
 ```
-
-## Database Schema
-
-The service uses a PostgreSQL database with the following key table:
-
-### `policy_metadata` Table
-- `id` (UUID) - Primary key
-- `field_name` (TEXT) - Name of the data field
-- `display_name` (TEXT) - Human-readable name
-- `description` (TEXT) - Field description
-- `source` (ENUM) - Source system (primary/fallback)
-- `is_owner` (BOOLEAN) - Whether the field owner is the data owner
-- `owner` (TEXT) - Owner identifier (default: "CITIZEN")
-- `access_control_type` (ENUM) - Access control type (public/restricted)
-- `allow_list` (JSONB) - List of authorized applications
-- `created_at` (TIMESTAMP) - Creation timestamp
-- `updated_at` (TIMESTAMP) - Last update timestamp
 
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/decide` | POST | Authorization decision |
-| `/policy-metadata` | POST | Create policy metadata for fields |
-| `/allow-list` | POST | Update allow list for applications |
+| `/api/v1/policy/decide` | POST | Authorization decision |
+| `/api/v1/policy/metadata` | POST | Create policy metadata for fields |
+| `/api/v1/policy/update-allowlist` | POST | Update allow list for applications |
 | `/health` | GET | Health check |
 
-## Authorization Request
+### Authorization Request
 
-**Endpoint:** `POST /decide`
+**Endpoint:** `POST /api/v1/policy/decide`
 
 **Request:**
 ```json
 {
-  "consumer_id": "passport-app",
-  "app_id": "passport-app", 
-  "request_id": "req_123",
-  "required_fields": ["person.fullName", "person.photo"]
+  "applicationId": "passport-app",
+  "requiredFields": [
+    {
+      "fieldName": "person.fullName",
+      "schemaId": "schema-123"
+    },
+    {
+      "fieldName": "person.photo",
+      "schemaId": "schema-123"
+    }
+  ]
 }
 ```
 
 **Response:**
 ```json
 {
-  "allow": true,
-  "consent_required": true,
-  "consent_required_fields": ["person.photo"]
+  "appAuthorized": true,
+  "unauthorizedFields": [],
+  "appAccessExpired": false,
+  "expiredFields": [],
+  "appRequiresOwnerConsent": true,
+  "consentRequiredFields": [
+    {
+      "fieldName": "person.photo",
+      "schemaId": "schema-123",
+      "displayName": "Photo",
+      "description": "Person's photo"
+    }
+  ]
 }
 ```
 
-**cURL Example:**
-```bash
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumer_id": "passport-app",
-    "app_id": "passport-app",
-    "request_id": "req_123",
-    "required_fields": ["person.fullName", "person.photo"]
-  }'
+### Policy Metadata Management
+
+**Create Policy Metadata:** `POST /api/v1/policy/metadata`
+
+```json
+{
+  "schema_id": "schema-123",
+  "sdl": "type Person { fullName: String }"
+}
+```
+
+**Update Allow List:** `POST /api/v1/policy/update-allowlist`
+
+```json
+{
+  "application_id": "passport-app",
+  "records": [
+    {
+      "field_name": "person.fullName",
+      "schema_id": "schema-123"
+    }
+  ],
+  "grant_duration": "ONE_MONTH"
+}
 ```
 
 ## Access Control Logic
@@ -101,7 +143,7 @@ curl -X POST http://localhost:8082/decide \
 
 1. **Public Fields** (`access_control_type: "public"`)
    - Any app can access
-   - Consent only required if `consent_required: true`
+   - Consent required only if `consent_required: true`
 
 2. **Restricted Fields** (`access_control_type: "restricted"`)
    - Only apps in `allow_list` can access
@@ -113,172 +155,50 @@ curl -X POST http://localhost:8082/decide \
 - **Deny**: Any requested field is not authorized for the app
 - **Consent Required**: Any requested field has `consent_required: true`
 
-## Testing
+### Consent Logic
 
-### Test Different Scenarios
+Consent requirement is calculated as: `!is_owner && access_control_type != "public"`
 
-```bash
-# Public field (no consent required)
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumer_id": "passport-app",
-    "app_id": "passport-app",
-    "request_id": "req_001",
-    "required_fields": ["person.fullName"]
-  }'
-
-# Consent required field
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumer_id": "passport-app",
-    "app_id": "passport-app",
-    "request_id": "req_002",
-    "required_fields": ["person.nic", "person.photo"]
-  }'
-
-# Restricted field (unauthorized app)
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumer_id": "unknown-app",
-    "app_id": "unknown-app",
-    "request_id": "req_003",
-    "required_fields": ["person.birthDate"]
-  }'
-
-# Authorized restricted field
-curl -X POST http://localhost:8082/decide \
-  -H "Content-Type: application/json" \
-  -d '{
-    "consumer_id": "driver-app",
-    "app_id": "driver-app",
-    "request_id": "req_004",
-    "required_fields": ["person.birthDate"]
-  }'
-```
-
-## Data Files
-
-- `policies/main.rego` - OPA v1 authorization policies using Rego v1 syntax
-- `database.go` - Database service for policy metadata management
-- `policy-evaluator.go` - Core policy evaluation logic using OPA v1
-
-## Features
-
-- **Real-time Policy Evaluation**: Policies are loaded from database on startup
-- **Field-level Access Control**: Granular permissions for individual data fields
-- **Consent Management**: Automatic consent requirement calculation based on field ownership
-- **Allow List Management**: Dynamic application authorization for restricted fields
-- **OPA v1 Integration**: Modern Open Policy Agent with Rego v1 syntax
-- **Database-driven**: Policy metadata stored in PostgreSQL for real-time updates
-
-## Policy Metadata Management
-
-### Create Policy Metadata
-
-**Endpoint:** `POST /policy-metadata`
-
-**Request:**
-```json
-{
-  "field_name": "person.fullName",
-  "display_name": "Full Name",
-  "description": "Complete name of the person",
-  "source": "primary",
-  "is_owner": true,
-  "access_control_type": "public",
-  "allow_list": []
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Created policy metadata for field person.fullName",
-  "id": "82907bce-38c4-44b5-9392-7f7fd70c8c67"
-}
-```
-
-### Update Allow List
-
-**Endpoint:** `POST /allow-list`
-
-**Request:**
-```json
-{
-  "field_name": "person.fullName",
-  "application_id": "passport-app",
-  "expires_at": "2024-12-31T23:59:59Z"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Updated allow list for field person.fullName with application passport-app"
-}
-```
-
-## Field Configuration
-
-Fields are configured in the database via the policy metadata endpoints. The consent logic is:
-
-- **Consent Required**: `!is_owner && access_control_type != "public"`
-- **Owner Fields**: No consent required regardless of access control type
+- **Owner Fields** (`is_owner: true`): No consent required
 - **Public Fields**: No consent required for non-owners
 - **Restricted Fields**: Consent required for non-owners
 
-### Consent Logic Implementation
+## Testing
 
-The consent requirement is automatically calculated by the policy engine based on:
+```bash
+# Run all tests
+go test ./...
 
-1. **Field Ownership** (`is_owner` field):
-   - `true`: Field owner is the data owner → No consent required
-   - `false`: Field owner is not the data owner → Consent may be required
+# Run with coverage
+go test ./... -cover
 
-2. **Access Control Type** (`access_control_type` field):
-   - `"public"`: Public access → No consent required for non-owners
-   - `"restricted"`: Restricted access → Consent required for non-owners
+# Test authorization scenarios
+curl -X POST http://localhost:8082/api/v1/policy/decide \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consumer_id": "passport-app",
+    "app_id": "passport-app",
+    "required_fields": ["person.fullName"]
+  }'
+```
 
-3. **Application Authorization** (`allow_list` field):
-   - Applications must be in the allow list to access restricted fields
-   - Allow list entries include expiration timestamps
+## Architecture
 
-### Example Field Configurations
+### Database Schema
 
-```json
-{
-  "fields": {
-    "person.fullName": {
-      "owner": "CITIZEN",
-      "provider": "primary",
-      "is_owner": true,
-      "access_control_type": "public",
-      "allow_list": [
-        {
-          "application_id": "passport-app",
-          "expires_at": "2024-12-31T23:59:59Z"
-        }
-      ]
-    },
-    "person.birthDate": {
-      "owner": "CITIZEN",
-      "provider": "primary", 
-      "is_owner": false,
-      "access_control_type": "restricted",
-      "allow_list": [
-        {
-          "application_id": "passport-app",
-          "expires_at": "2024-12-31T23:59:59Z"
-        }
-      ]
-    }
-  }
-}
+**`policy_metadata` Table:**
+- `id` (UUID) - Primary key
+- `field_name` (TEXT) - Data field name
+- `display_name` (TEXT) - Human-readable name
+- `access_control_type` (ENUM) - public/restricted
+- `is_owner` (BOOLEAN) - Field ownership flag
+- `allow_list` (JSONB) - Authorized applications with expiration
+- `created_at`, `updated_at` (TIMESTAMP)
+
+### Policy Evaluation Flow
+
+```
+Request → Load Policy Metadata → OPA Evaluation → Consent Check → Decision
 ```
 
 ## Health Check
