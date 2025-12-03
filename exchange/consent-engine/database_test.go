@@ -116,8 +116,8 @@ func TestParseDurationOrDefault(t *testing.T) {
 }
 
 func TestExecuteWithTimeout(t *testing.T) {
-	testEngine := setupPostgresTestEngineWithDB(t)
-	db := testEngine.db
+	db := setupSQLiteTestDB(t)
+	defer db.Close()
 
 	config := &DatabaseConfig{
 		QueryTimeout: 5 * time.Second,
@@ -131,8 +131,8 @@ func TestExecuteWithTimeout(t *testing.T) {
 }
 
 func TestQueryWithTimeout(t *testing.T) {
-	testEngine := setupPostgresTestEngineWithDB(t)
-	db := testEngine.db
+	db := setupSQLiteTestDB(t)
+	defer db.Close()
 
 	config := &DatabaseConfig{
 		QueryTimeout: 5 * time.Second,
@@ -147,8 +147,8 @@ func TestQueryWithTimeout(t *testing.T) {
 }
 
 func TestQueryRowWithTimeout(t *testing.T) {
-	testEngine := setupPostgresTestEngineWithDB(t)
-	db := testEngine.db
+	db := setupSQLiteTestDB(t)
+	defer db.Close()
 
 	config := &DatabaseConfig{
 		QueryTimeout: 5 * time.Second,
