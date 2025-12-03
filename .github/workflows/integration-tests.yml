@@ -98,9 +98,9 @@ jobs:
           sleep 10
           
           # Check each service health endpoint
-          check_health "PDP" "http://localhost:8082/health" || exit 1
-          check_health "Consent-Engine" "http://localhost:8081/health" || exit 1
-          check_health "Orchestration-Engine" "http://localhost:4000/health" || exit 1
+          check_health "policy-decision-point" "http://localhost:8082/health" || exit 1
+          check_health "consent-engine" "http://localhost:8081/health" || exit 1
+          check_health "orchestration-engine" "http://localhost:4000/health" || exit 1
           
           echo "🎉 All services are healthy and ready!"
 
