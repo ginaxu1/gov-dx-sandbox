@@ -62,4 +62,17 @@ make validate-test <service>  # Run tests for a service
 make quality-check <service>  # Run code quality checks
 ```
 
-For detailed documentation, see `docs/` directory.
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](docs/contributing/) for details on:
+- Development setup
+- Pull request process
+- Reporting issues
+
+## Security
+
+For security concerns, please see our [Security Policy](SECURITY.md). **Do not report security vulnerabilities through public GitHub issues.**
+
+## Documentation
+
+For detailed documentation, see the `docs/` directory.
