@@ -1,18 +1,19 @@
 # Audit Service
 
-A Go microservice providing read-only access to audit logs with role-based endpoints for different portals.
+A Go microservice for managing audit logs, providing both read and write operations for data exchange events and management events.
 
 ## Overview
 
-The Audit Service answers: "who made this request, what did they ask for, and did they get that data" by exposing audit data through secure, role-based API endpoints.
+The Audit Service answers: "who made this request, what did they ask for, and did they get that data" by providing APIs for logging and querying audit events. It handles both data exchange events (from Orchestration Engine) and management events (from Portal Backend).
 
 ## Features
 
-- **Read-only access** to audit logs
-- **Role-based endpoints** for Admin, Provider, and Consumer portals
+- **Read and write operations** for audit logs
+- **Data exchange event logging** - Create and query data exchange events
+- **Management event logging** - Create and query management events
 - **Advanced filtering** by date, consumer, provider, and status
 - **Pagination support** for large datasets
-- **JWT authentication** for provider and consumer endpoints
+- **CORS enabled** for cross-origin requests
 
 ## Quick Start
 
@@ -42,11 +43,11 @@ The service runs on port 3001 by default.
 ### Environment Variables
 
 **Choreo Environment Variables (Primary):**
-- `CHOREO_DB_AUDIT_HOSTNAME` - Database hostname
-- `CHOREO_DB_AUDIT_PORT` - Database port
-- `CHOREO_DB_AUDIT_USERNAME` - Database username
-- `CHOREO_DB_AUDIT_PASSWORD` - Database password
-- `CHOREO_DB_AUDIT_DATABASENAME` - Database name
+- `CHOREO_OPENDIF_DATABASE_HOSTNAME` or `CHOREO_OPENDIF_DB_HOSTNAME` - Database hostname
+- `CHOREO_OPENDIF_DATABASE_PORT` or `CHOREO_OPENDIF_DB_PORT` - Database port
+- `CHOREO_OPENDIF_DATABASE_USERNAME` or `CHOREO_OPENDIF_DB_USERNAME` - Database username
+- `CHOREO_OPENDIF_DATABASE_PASSWORD` or `CHOREO_OPENDIF_DB_PASSWORD` - Database password
+- `CHOREO_OPENDIF_DATABASE_DATABASENAME` or `CHOREO_OPENDIF_DB_DATABASENAME` - Database name
 
 **Fallback Environment Variables (Local Development):**
 - `DB_HOST` - Database host (default: localhost)
@@ -54,8 +55,9 @@ The service runs on port 3001 by default.
 - `DB_USERNAME` - Database username (default: user)
 - `DB_PASSWORD` - Database password (default: password)
 - `DB_NAME` - Database name (default: gov_dx_sandbox)
-- `DB_SSLMODE` - SSL mode (default: disable)
+- `DB_SSLMODE` - SSL mode (default: require for Choreo, disable for local)
 - `PORT` - Service port (default: 3001)
+- `ENVIRONMENT` - Environment (development/production, default: production)
 
 ## API Endpoints
 
@@ -114,8 +116,10 @@ The service runs on port 3001 by default.
       "schemaId": "schema-456",
       "consumerId": "consumer-123",
       "providerId": "provider-456",
+      "onBehalfOfOwnerId": "owner-789",
       "requestedData": {...},
-      "additionalInfo": {...}
+      "additionalInfo": {...},
+      "createdAt": "2024-01-01T12:00:00Z"
     }
   ]
 }
@@ -130,17 +134,22 @@ The service runs on port 3001 by default.
   "events": [
     {
       "id": "uuid",
-      "eventType": "SCHEMA_CREATED",
+      "eventType": "CREATE",
       "status": "success",
-      "actorType": "MEMBER",
+      "timestamp": "2024-01-01T12:00:00Z",
+      "actorType": "USER",
       "actorId": "member-123",
-      "targetResource": "SCHEMA",
+      "actorRole": "MEMBER",
+      "targetResource": "SCHEMAS",
       "targetResourceId": "schema-456",
-      "timestamp": "2024-01-01T12:00:00Z"
+      "metadata": null,
+      "createdAt": "2024-01-01T12:00:00Z"
     }
   ]
 }
 ```
+
+**Note**: `eventType` values are: `CREATE`, `UPDATE`, `DELETE`. `targetResource` values include: `MEMBERS`, `SCHEMAS`, `SCHEMA-SUBMISSIONS`, `APPLICATIONS`, `APPLICATION-SUBMISSIONS`, `POLICY-METADATA`.
 
 ## Testing
 
@@ -176,5 +185,6 @@ go test ./... -cover
 ## Security
 
 - **CORS enabled**: Cross-origin requests are supported via CORS middleware
-- **Read-only by design**: Endpoints are designed for audit log retrieval and creation
-- **No authentication required**: Service is intended for internal use within the OpenDIF ecosystem
+- **Internal service**: Service is intended for internal use within the OpenDIF ecosystem
+- **No authentication required**: Authentication is handled by upstream services (Orchestration Engine, Portal Backend)
+- **Database security**: Uses SSL connections in production (Choreo) with configurable SSL modes
