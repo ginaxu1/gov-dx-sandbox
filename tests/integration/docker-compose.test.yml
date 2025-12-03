@@ -41,15 +41,11 @@ services:
     environment:
       PORT: 8082
       LOG_LEVEL: debug
-      DB_HOST: pdp-db
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: password
-      DB_NAME: policy_db
       DB_SSLMODE: disable
       CHOREO_OPENDIF_DATABASE_HOSTNAME: pdp-db
       CHOREO_OPENDIF_DATABASE_PORT: 5432
       CHOREO_OPENDIF_DATABASE_USERNAME: postgres
+      CHOREO_OPENDIF_DATABASE_PASSWORD: password
       CHOREO_OPENDIF_DATABASE_DATABASENAME: policy_db
       RUN_MIGRATION: "true"
     ports:
