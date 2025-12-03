@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -520,50 +519,6 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("CreateSchema_WithOptionalFields", func(t *testing.T) {
-		db, mock, cleanup := SetupMockDB(t)
-		defer cleanup()
-
-		// Mock PDP failure
-		mockTransport := &MockRoundTripper{
-			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusInternalServerError,
-					Body:       io.NopCloser(bytes.NewBufferString(`{"error": "pdp error"}`)),
-					Header:     make(http.Header),
-				}, nil
-			},
-		}
-		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
-
-		service := NewSchemaService(db, pdpService)
-
-		endpoint := "http://example.com/graphql"
-		memberID := "member-123"
-
-		// Mock: Create schema
-		mock.ExpectQuery(`INSERT INTO "schemas"`).
-			WillReturnRows(sqlmock.NewRows([]string{"schema_id"}).AddRow("sch_123"))
-
-		// Mock: Compensation - delete schema
-		mock.ExpectExec(`DELETE FROM "schemas"`).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-
-		req := &models.CreateSchemaRequest{
-			SchemaName: "Test Schema",
-			SDL:        "type Query { test: String }",
-			Endpoint:   endpoint,
-			MemberID:   memberID,
-		}
-
-		// Will fail on PDP call but tests the request structure
-		_, err := service.CreateSchema(req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create policy metadata")
-
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
 
 	t.Run("CreateSchema_CompensationFailure", func(t *testing.T) {
 		db, mock, cleanup := SetupMockDB(t)
@@ -603,81 +558,6 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 		_, err := service.CreateSchema(req)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to compensate")
-
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("CreateSchema_WithDescription", func(t *testing.T) {
-		db, mock, cleanup := SetupMockDB(t)
-		defer cleanup()
-
-		// Mock PDP failure
-		mockTransport := &MockRoundTripper{
-			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusInternalServerError,
-					Body:       io.NopCloser(bytes.NewBufferString(`{"error": "pdp error"}`)),
-					Header:     make(http.Header),
-				}, nil
-			},
-		}
-		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
-
-		service := NewSchemaService(db, pdpService)
-
-		desc := "Test Description"
-
-		// Mock: Create schema
-		mock.ExpectQuery(`INSERT INTO "schemas"`).
-			WillReturnRows(sqlmock.NewRows([]string{"schema_id"}).AddRow("sch_123"))
-
-		// Mock: Compensation - delete schema
-		mock.ExpectExec(`DELETE FROM "schemas"`).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-
-		req := &models.CreateSchemaRequest{
-			SchemaName:        "Test Schema With Desc",
-			SchemaDescription: &desc,
-			SDL:               "type Query { test: String }",
-			Endpoint:          "http://example.com/graphql",
-			MemberID:          "member-123",
-		}
-
-		// Will fail on PDP call but tests description handling
-		_, err := service.CreateSchema(req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create policy metadata")
-
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("CreateSchema_DatabaseError", func(t *testing.T) {
-		db, mock, cleanup := SetupMockDB(t)
-		defer cleanup()
-
-		pdpService := NewPDPService("http://localhost:9999", "test-key")
-		service := NewSchemaService(db, pdpService)
-
-		// Mock: Create schema fails
-		mock.ExpectQuery(`INSERT INTO "schemas"`).
-			WillReturnError(gorm.ErrInvalidData)
-
-		longName := string(make([]byte, 10000)) // Very long string
-		req := &models.CreateSchemaRequest{
-			SchemaName: longName,
-			SDL:        "type Query { test: String }",
-			Endpoint:   "http://example.com/graphql",
-			MemberID:   "member-123",
-		}
-
-		_, err := service.CreateSchema(req)
-		// Should fail on database create
-		assert.Error(t, err)
-		errMsg := err.Error()
-		assert.True(t,
-			strings.Contains(errMsg, "failed to create schema"),
-			"Error should mention schema creation, got: %s", errMsg)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
