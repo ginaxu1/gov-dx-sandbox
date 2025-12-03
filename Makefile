@@ -1,7 +1,7 @@
 # OpenDIF - Comprehensive Makefile
 # This Makefile provides standardized commands for all services in the repository
 
-.PHONY: help setup validate-build validate-test validate-docker-build check-lint run clean setup-all validate-build-all validate-test-all
+.PHONY: help install-hooks setup validate-build validate-test validate-docker-build check-lint run clean setup-all validate-build-all validate-test-all
 
 # Default target
 help:
@@ -88,6 +88,20 @@ $(BIN_DIR):
 # SETUP COMMANDS
 # =============================================================================
 
+# Install Git hooks
+install-hooks:
+	@echo "Installing git hooks..."
+	@if [ ! -d ".githooks" ]; then \
+		echo "❌ Error: .githooks directory not found"; \
+		exit 1; \
+	fi
+	@mkdir -p .git/hooks
+	@cp .githooks/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "✅ Git hooks installed successfully"
+	@echo "📍 Pre-commit hook will now run automatically on every commit"
+	@echo "💡 To bypass temporarily, use: git commit --no-verify"
+	
 # Setup for Go services
 setup-go-service:
 	@echo "Setting up Go service: $(SERVICE)"
@@ -483,6 +497,7 @@ $(GO_SERVICES) $(FRONTEND_SERVICES):
 # Setup all services
 setup-all:
 	@echo "Setting up all services..."
+	@$(MAKE) install-hooks
 	@for service in $(GO_SERVICES); do \
 		echo "Setting up $$service..."; \
 		$(MAKE) setup $$service; \
