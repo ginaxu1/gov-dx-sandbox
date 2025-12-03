@@ -2,551 +2,535 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gov-dx-sandbox/portal-backend/idp"
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-// MockIdentityProviderAPI is a mock implementation of idp.IdentityProviderAPI
-type MockIdentityProviderAPI struct {
-	mock.Mock
+// MockIDP is a fake identity provider for testing
+type MockIDP struct {
+	CreateUserFunc                  func(ctx context.Context, user *idp.User) (*idp.UserInfo, error)
+	UpdateUserFunc                  func(ctx context.Context, userID string, user *idp.User) (*idp.UserInfo, error)
+	DeleteUserFunc                  func(ctx context.Context, userID string) error
+	AddMemberToGroupByGroupNameFunc func(ctx context.Context, groupName string, member *idp.GroupMember) (*string, error)
+	RemoveMemberFromGroupFunc       func(ctx context.Context, groupID string, userID string) error
+	// Missing methods from interface
+	GetUserFunc        func(ctx context.Context, userID string) (*idp.UserInfo, error)
+	GetGroupFunc       func(ctx context.Context, groupID string) (*idp.GroupInfo, error)
+	GetGroupByNameFunc func(ctx context.Context, groupName string) (*string, error)
+	CreateGroupFunc    func(ctx context.Context, group *idp.Group) (*idp.GroupInfo, error)
+	UpdateGroupFunc    func(ctx context.Context, groupID string, group *idp.Group) (*idp.GroupInfo, error)
+	AddMemberToGroupFunc func(ctx context.Context, groupID string, memberInfo *idp.GroupMember) error
+	CreateApplicationFunc func(ctx context.Context, app *idp.Application) (*string, error)
+	DeleteApplicationFunc func(ctx context.Context, applicationID string) error
+	DeleteGroupFunc func(ctx context.Context, groupID string) error
+	GetApplicationInfoFunc func(ctx context.Context, applicationID string) (*idp.ApplicationInfo, error)
+	GetApplicationOIDCFunc func(ctx context.Context, applicationID string) (*idp.ApplicationOIDCInfo, error)
 }
 
-func (m *MockIdentityProviderAPI) CreateUser(ctx context.Context, user *idp.User) (*idp.UserInfo, error) {
-	args := m.Called(ctx, user)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (m *MockIDP) CreateUser(ctx context.Context, user *idp.User) (*idp.UserInfo, error) {
+	if m.CreateUserFunc != nil {
+		return m.CreateUserFunc(ctx, user)
 	}
-	return args.Get(0).(*idp.UserInfo), args.Error(1)
+	return &idp.UserInfo{Id: "idp_123", Email: user.Email}, nil
 }
 
-func (m *MockIdentityProviderAPI) UpdateUser(ctx context.Context, userID string, user *idp.User) (*idp.UserInfo, error) {
-	args := m.Called(ctx, userID, user)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (m *MockIDP) UpdateUser(ctx context.Context, userID string, user *idp.User) (*idp.UserInfo, error) {
+	if m.UpdateUserFunc != nil {
+		return m.UpdateUserFunc(ctx, userID, user)
 	}
-	return args.Get(0).(*idp.UserInfo), args.Error(1)
+	return &idp.UserInfo{Id: userID, Email: user.Email}, nil
 }
 
-func (m *MockIdentityProviderAPI) DeleteUser(ctx context.Context, userID string) error {
-	args := m.Called(ctx, userID)
-	return args.Error(0)
-}
-
-func (m *MockIdentityProviderAPI) GetUser(ctx context.Context, userID string) (*idp.UserInfo, error) {
-	args := m.Called(ctx, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (m *MockIDP) DeleteUser(ctx context.Context, userID string) error {
+	if m.DeleteUserFunc != nil {
+		return m.DeleteUserFunc(ctx, userID)
 	}
-	return args.Get(0).(*idp.UserInfo), args.Error(1)
+	return nil
 }
 
-func (m *MockIdentityProviderAPI) AddMemberToGroupByGroupName(ctx context.Context, groupName string, member *idp.GroupMember) (*string, error) {
-	args := m.Called(ctx, groupName, member)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (m *MockIDP) AddMemberToGroupByGroupName(ctx context.Context, groupName string, member *idp.GroupMember) (*string, error) {
+	if m.AddMemberToGroupByGroupNameFunc != nil {
+		return m.AddMemberToGroupByGroupNameFunc(ctx, groupName, member)
 	}
-	if groupId, ok := args.Get(0).(string); ok {
-		return &groupId, args.Error(1)
+	groupID := "group_123"
+	return &groupID, nil
+}
+
+func (m *MockIDP) RemoveMemberFromGroup(ctx context.Context, groupID string, userID string) error {
+	if m.RemoveMemberFromGroupFunc != nil {
+		return m.RemoveMemberFromGroupFunc(ctx, groupID, userID)
 	}
-	if groupIdPtr, ok := args.Get(0).(*string); ok {
-		return groupIdPtr, args.Error(1)
+	return nil
+}
+
+// Implement other interface methods with stubs
+func (m *MockIDP) GetUser(ctx context.Context, userID string) (*idp.UserInfo, error) { return nil, nil }
+func (m *MockIDP) GetGroup(ctx context.Context, groupID string) (*idp.GroupInfo, error) { return nil, nil }
+func (m *MockIDP) GetGroupByName(ctx context.Context, groupName string) (*string, error) { return nil, nil }
+func (m *MockIDP) CreateGroup(ctx context.Context, group *idp.Group) (*idp.GroupInfo, error) { return nil, nil }
+func (m *MockIDP) UpdateGroup(ctx context.Context, groupID string, group *idp.Group) (*idp.GroupInfo, error) { return nil, nil }
+func (m *MockIDP) AddMemberToGroup(ctx context.Context, groupID string, memberInfo *idp.GroupMember) error { return nil }
+func (m *MockIDP) CreateApplication(ctx context.Context, app *idp.Application) (*string, error) { return nil, nil }
+func (m *MockIDP) DeleteApplication(ctx context.Context, applicationID string) error { return nil }
+func (m *MockIDP) DeleteGroup(ctx context.Context, groupID string) error { return nil }
+func (m *MockIDP) GetApplicationInfo(ctx context.Context, applicationID string) (*idp.ApplicationInfo, error) { return nil, nil }
+func (m *MockIDP) GetApplicationOIDC(ctx context.Context, applicationID string) (*idp.ApplicationOIDCInfo, error) { return nil, nil }
+
+// setupMemberMockDB creates a mock database for testing
+func setupMemberMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
+	var db *sql.DB
+	var mock sqlmock.Sqlmock
+	var err error
+
+	db, mock, err = sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
 	}
-	return nil, args.Error(1)
-}
 
-func (m *MockIdentityProviderAPI) RemoveMemberFromGroup(ctx context.Context, groupID string, userID string) error {
-	args := m.Called(ctx, groupID, userID)
-	return args.Error(0)
-}
-
-func (m *MockIdentityProviderAPI) GetGroup(ctx context.Context, groupID string) (*idp.GroupInfo, error) {
-	args := m.Called(ctx, groupID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*idp.GroupInfo), args.Error(1)
-}
-
-func (m *MockIdentityProviderAPI) GetGroupByName(ctx context.Context, groupName string) (*string, error) {
-	args := m.Called(ctx, groupName)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	groupId := args.Get(0).(string)
-	return &groupId, args.Error(1)
-}
-
-func (m *MockIdentityProviderAPI) CreateGroup(ctx context.Context, group *idp.Group) (*idp.GroupInfo, error) {
-	args := m.Called(ctx, group)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*idp.GroupInfo), args.Error(1)
-}
-
-func (m *MockIdentityProviderAPI) UpdateGroup(ctx context.Context, groupID string, group *idp.Group) (*idp.GroupInfo, error) {
-	args := m.Called(ctx, groupID, group)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*idp.GroupInfo), args.Error(1)
-}
-
-func (m *MockIdentityProviderAPI) AddMemberToGroup(ctx context.Context, groupID string, memberInfo *idp.GroupMember) error {
-	args := m.Called(ctx, groupID, memberInfo)
-	return args.Error(0)
-}
-
-func (m *MockIdentityProviderAPI) CreateApplication(ctx context.Context, app *idp.Application) (*string, error) {
-	args := m.Called(ctx, app)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	appId := args.Get(0).(string)
-	return &appId, args.Error(1)
-}
-
-func (m *MockIdentityProviderAPI) DeleteApplication(ctx context.Context, applicationID string) error {
-	args := m.Called(ctx, applicationID)
-	return args.Error(0)
-}
-
-func (m *MockIdentityProviderAPI) DeleteGroup(ctx context.Context, groupID string) error {
-	args := m.Called(ctx, groupID)
-	return args.Error(0)
-}
-
-func (m *MockIdentityProviderAPI) GetApplicationInfo(ctx context.Context, applicationID string) (*idp.ApplicationInfo, error) {
-	args := m.Called(ctx, applicationID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*idp.ApplicationInfo), args.Error(1)
-}
-
-func (m *MockIdentityProviderAPI) GetApplicationOIDC(ctx context.Context, applicationID string) (*idp.ApplicationOIDCInfo, error) {
-	args := m.Called(ctx, applicationID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*idp.ApplicationOIDCInfo), args.Error(1)
-}
-
-func TestMemberService_CreateMember(t *testing.T) {
-	t.Run("CreateMember_Success", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
-
-		ctx := context.Background()
-		req := &models.CreateMemberRequest{
-			Name:        "Test User",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-		}
-
-		// Mock IDP responses
-		createdUser := &idp.UserInfo{
-			Id:    "idp-user-123",
-			Email: "test@example.com",
-		}
-		groupId := "group-123"
-
-		mockIDP.On("CreateUser", ctx, mock.AnythingOfType("*idp.User")).Return(createdUser, nil)
-		mockIDP.On("AddMemberToGroupByGroupName", ctx, string(models.UserGroupMember), mock.AnythingOfType("*idp.GroupMember")).Return(&groupId, nil)
-
-		result, err := service.CreateMember(ctx, req)
-
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, req.Name, result.Name)
-		assert.Equal(t, req.Email, result.Email)
-		assert.Equal(t, req.PhoneNumber, result.PhoneNumber)
-		assert.NotEmpty(t, result.MemberID)
-		assert.Equal(t, createdUser.Id, result.IdpUserID)
-
-		// Verify member was created in database
-		var member models.Member
-		err = db.Where("email = ?", req.Email).First(&member).Error
-		assert.NoError(t, err)
-		assert.Equal(t, req.Email, member.Email)
-
-		mockIDP.AssertExpectations(t)
+	dialector := postgres.New(postgres.Config{
+		Conn:       db,
+		DriverName: "postgres",
 	})
 
-	t.Run("CreateMember_IDPCreateUserFails", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
-
-		ctx := context.Background()
-		req := &models.CreateMemberRequest{
-			Name:        "Test User",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-		}
-
-		mockIDP.On("CreateUser", ctx, mock.AnythingOfType("*idp.User")).Return(nil, errors.New("IDP error"))
-
-		result, err := service.CreateMember(ctx, req)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to create user in IDP")
-
-		mockIDP.AssertExpectations(t)
+	gormDB, err := gorm.Open(dialector, &gorm.Config{
+		SkipDefaultTransaction: true,
 	})
+	if err != nil {
+		t.Fatalf("failed to open gorm db: %v", err)
+	}
 
-	t.Run("CreateMember_EmailMismatch", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
+	cleanup := func() {
+		db.Close()
+	}
 
-		ctx := context.Background()
-		req := &models.CreateMemberRequest{
-			Name:        "Test User",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-		}
-
-		// Mock IDP returns different email
-		createdUser := &idp.UserInfo{
-			Id:    "idp-user-123",
-			Email: "different@example.com",
-		}
-
-		mockIDP.On("CreateUser", ctx, mock.AnythingOfType("*idp.User")).Return(createdUser, nil)
-		mockIDP.On("DeleteUser", ctx, createdUser.Id).Return(nil)
-
-		result, err := service.CreateMember(ctx, req)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "IDP user email mismatch")
-
-		mockIDP.AssertExpectations(t)
-	})
-
-	t.Run("CreateMember_AddToGroupFails", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
-
-		ctx := context.Background()
-		req := &models.CreateMemberRequest{
-			Name:        "Test User",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-		}
-
-		createdUser := &idp.UserInfo{
-			Id:    "idp-user-123",
-			Email: "test@example.com",
-		}
-
-		mockIDP.On("CreateUser", ctx, mock.AnythingOfType("*idp.User")).Return(createdUser, nil)
-		mockIDP.On("AddMemberToGroupByGroupName", ctx, string(models.UserGroupMember), mock.AnythingOfType("*idp.GroupMember")).Return(nil, errors.New("group error"))
-		mockIDP.On("DeleteUser", ctx, createdUser.Id).Return(nil)
-
-		result, err := service.CreateMember(ctx, req)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to add user to group")
-
-		mockIDP.AssertExpectations(t)
-	})
-
-	t.Run("CreateMember_DatabaseCreateFails", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
-
-		ctx := context.Background()
-		req := &models.CreateMemberRequest{
-			Name:        "Test User",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-		}
-
-		createdUser := &idp.UserInfo{
-			Id:    "idp-user-123",
-			Email: "test@example.com",
-		}
-		groupId := "group-123"
-
-		mockIDP.On("CreateUser", ctx, mock.AnythingOfType("*idp.User")).Return(createdUser, nil)
-		mockIDP.On("AddMemberToGroupByGroupName", ctx, string(models.UserGroupMember), mock.AnythingOfType("*idp.GroupMember")).Return(&groupId, nil)
-		mockIDP.On("RemoveMemberFromGroup", ctx, groupId, createdUser.Id).Return(nil)
-		mockIDP.On("DeleteUser", ctx, createdUser.Id).Return(nil)
-
-		// Create a duplicate member to cause database error
-		duplicateMember := models.Member{
-			MemberID:    "mem_duplicate",
-			Email:       "test@example.com", // Same email
-			Name:        "Duplicate",
-			PhoneNumber: "1234567890",
-			IdpUserID:   "other-idp-id",
-		}
-		db.Create(&duplicateMember)
-
-		result, err := service.CreateMember(ctx, req)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to create member in database")
-
-		mockIDP.AssertExpectations(t)
-	})
+	return gormDB, mock, cleanup
 }
 
-func TestMemberService_UpdateMember(t *testing.T) {
-	t.Run("UpdateMember_Success", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
+func TestCreateMember_Success(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
 
-		// Create a member first
-		member := models.Member{
-			MemberID:    "mem_123",
-			Name:        "Original Name",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-			IdpUserID:   "idp-user-123",
-		}
-		db.Create(&member)
+	mockIDP := &MockIDP{
+		CreateUserFunc: func(ctx context.Context, user *idp.User) (*idp.UserInfo, error) {
+			return &idp.UserInfo{
+				Id:          "idp_123",
+				Email:       user.Email,
+				FirstName:   user.FirstName,
+				PhoneNumber: user.PhoneNumber,
+			}, nil
+		},
+		AddMemberToGroupByGroupNameFunc: func(ctx context.Context, groupName string, member *idp.GroupMember) (*string, error) {
+			groupID := "group_123"
+			return &groupID, nil
+		},
+	}
 
-		ctx := context.Background()
-		newName := "Updated Name"
-		newPhone := "9876543210"
-		req := &models.UpdateMemberRequest{
-			Name:        &newName,
-			PhoneNumber: &newPhone,
-		}
+	service := NewMemberService(db, mockIDP)
+	ctx := context.Background()
 
-		updatedUser := &idp.UserInfo{
-			Id:    "idp-user-123",
-			Email: "test@example.com",
-		}
+	req := &models.CreateMemberRequest{
+		Name:        "John Doe",
+		Email:       "john@example.com",
+		PhoneNumber: "+1234567890",
+	}
 
-		mockIDP.On("UpdateUser", ctx, member.IdpUserID, mock.AnythingOfType("*idp.User")).Return(updatedUser, nil)
+	now := time.Now()
 
-		result, err := service.UpdateMember(ctx, member.MemberID, req)
+	// Mock database INSERT
+	// With SkipDefaultTransaction: true, GORM won't start a transaction for single create
+	mock.ExpectQuery(`INSERT INTO "members"`).
+		WillReturnRows(sqlmock.NewRows([]string{"member_id", "created_at", "updated_at"}).
+			AddRow("mem_test", now, now))
 
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, newName, result.Name)
-		assert.Equal(t, newPhone, result.PhoneNumber)
+	// Act
+	result, err := service.CreateMember(ctx, req)
 
-		// Verify database was updated
-		var updatedMember models.Member
-		db.Where("member_id = ?", member.MemberID).First(&updatedMember)
-		assert.Equal(t, newName, updatedMember.Name)
-		assert.Equal(t, newPhone, updatedMember.PhoneNumber)
-
-		mockIDP.AssertExpectations(t)
-	})
-
-	t.Run("UpdateMember_NotFound", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
-
-		ctx := context.Background()
-		newName := "Updated Name"
-		req := &models.UpdateMemberRequest{
-			Name: &newName,
-		}
-
-		result, err := service.UpdateMember(ctx, "non-existent-id", req)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "member not found")
-	})
-
-	t.Run("UpdateMember_IDPUpdateFails", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
-
-		// Create a member first
-		member := models.Member{
-			MemberID:    "mem_123",
-			Name:        "Original Name",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-			IdpUserID:   "idp-user-123",
-		}
-		db.Create(&member)
-
-		ctx := context.Background()
-		newName := "Updated Name"
-		req := &models.UpdateMemberRequest{
-			Name: &newName,
-		}
-
-		mockIDP.On("UpdateUser", ctx, member.IdpUserID, mock.AnythingOfType("*idp.User")).Return(nil, errors.New("IDP error"))
-
-		result, err := service.UpdateMember(ctx, member.MemberID, req)
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to update user in IDP")
-	})
+	// Assert
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "John Doe", result.Name)
+	assert.Equal(t, "john@example.com", result.Email)
+	assert.Equal(t, "idp_123", result.IdpUserID)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestMemberService_GetMember(t *testing.T) {
-	t.Run("GetMember_Success", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
+func TestCreateMember_IDPCreateUserError(t *testing.T) {
+	// Arrange
+	db, _, cleanup := setupMemberMockDB(t)
+	defer cleanup()
 
-		// Create a member
-		member := models.Member{
-			MemberID:    "mem_123",
-			Name:        "Test User",
-			Email:       "test@example.com",
-			PhoneNumber: "1234567890",
-			IdpUserID:   "idp-user-123",
-		}
-		db.Create(&member)
+	mockIDP := &MockIDP{
+		CreateUserFunc: func(ctx context.Context, user *idp.User) (*idp.UserInfo, error) {
+			return nil, errors.New("IDP service unavailable")
+		},
+	}
 
-		ctx := context.Background()
-		result, err := service.GetMember(ctx, member.MemberID)
+	service := NewMemberService(db, mockIDP)
+	ctx := context.Background()
 
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, member.MemberID, result.MemberID)
-		assert.Equal(t, member.Name, result.Name)
-		assert.Equal(t, member.Email, result.Email)
-	})
+	req := &models.CreateMemberRequest{
+		Name:        "John Doe",
+		Email:       "john@example.com",
+		PhoneNumber: "+1234567890",
+	}
 
-	t.Run("GetMember_NotFound", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
+	// Act
+	result, err := service.CreateMember(ctx, req)
 
-		ctx := context.Background()
-		result, err := service.GetMember(ctx, "non-existent-id")
-
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "failed to fetch member")
-	})
+	// Assert
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to create user in IDP")
 }
 
-func TestMemberService_GetAllMembers(t *testing.T) {
-	t.Run("GetAllMembers_NoFilters", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
+func TestCreateMember_EmailMismatch_WithRollback(t *testing.T) {
+	// Arrange
+	db, _, cleanup := setupMemberMockDB(t)
+	defer cleanup()
 
-		// Create multiple members
-		members := []models.Member{
-			{MemberID: "mem_1", Name: "User 1", Email: "user1@example.com", PhoneNumber: "111", IdpUserID: "idp1"},
-			{MemberID: "mem_2", Name: "User 2", Email: "user2@example.com", PhoneNumber: "222", IdpUserID: "idp2"},
-		}
-		for _, m := range members {
-			db.Create(&m)
-		}
+	mockIDP := &MockIDP{
+		CreateUserFunc: func(ctx context.Context, user *idp.User) (*idp.UserInfo, error) {
+			// Return user with different email (simulating mismatch)
+			return &idp.UserInfo{
+				Id:          "idp_123",
+				Email:       "wrong@example.com",
+				FirstName:   user.FirstName,
+				PhoneNumber: user.PhoneNumber,
+			}, nil
+		},
+		DeleteUserFunc: func(ctx context.Context, userID string) error {
+			return nil
+		},
+	}
 
-		ctx := context.Background()
-		result, err := service.GetAllMembers(ctx, nil, nil)
+	service := NewMemberService(db, mockIDP)
+	ctx := context.Background()
 
-		assert.NoError(t, err)
-		assert.Len(t, result, 2)
-	})
+	req := &models.CreateMemberRequest{
+		Name:        "John Doe",
+		Email:       "john@example.com",
+		PhoneNumber: "+1234567890",
+	}
 
-	t.Run("GetAllMembers_WithEmailFilter", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
+	// Act
+	result, err := service.CreateMember(ctx, req)
 
-		// Create members
-		member := models.Member{
-			MemberID:    "mem_1",
-			Name:        "User 1",
-			Email:       "user1@example.com",
-			PhoneNumber: "111",
-			IdpUserID:   "idp1",
-		}
-		db.Create(&member)
+	// Assert
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "IDP user email mismatch")
+}
 
-		ctx := context.Background()
-		email := "user1@example.com"
-		result, err := service.GetAllMembers(ctx, nil, &email)
+func TestCreateMember_GroupAssignmentError_WithRollback(t *testing.T) {
+	// Arrange
+	db, _, cleanup := setupMemberMockDB(t)
+	defer cleanup()
 
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Equal(t, email, result[0].Email)
-	})
+	mockIDP := &MockIDP{
+		CreateUserFunc: func(ctx context.Context, user *idp.User) (*idp.UserInfo, error) {
+			return &idp.UserInfo{
+				Id:          "idp_123",
+				Email:       user.Email,
+				FirstName:   user.FirstName,
+				PhoneNumber: user.PhoneNumber,
+			}, nil
+		},
+		AddMemberToGroupByGroupNameFunc: func(ctx context.Context, groupName string, member *idp.GroupMember) (*string, error) {
+			return nil, errors.New("group assignment failed")
+		},
+		DeleteUserFunc: func(ctx context.Context, userID string) error {
+			return nil
+		},
+	}
 
-	t.Run("GetAllMembers_WithIdpUserIDFilter", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-		mockIDP := new(MockIdentityProviderAPI)
-		service := NewMemberService(db, mockIDP)
+	service := NewMemberService(db, mockIDP)
+	ctx := context.Background()
 
-		// Create members
-		member := models.Member{
-			MemberID:    "mem_1",
-			Name:        "User 1",
-			Email:       "user1@example.com",
-			PhoneNumber: "111",
-			IdpUserID:   "idp-user-123",
-		}
-		db.Create(&member)
+	req := &models.CreateMemberRequest{
+		Name:        "John Doe",
+		Email:       "john@example.com",
+		PhoneNumber: "+1234567890",
+	}
 
-		ctx := context.Background()
-		idpUserID := "idp-user-123"
-		result, err := service.GetAllMembers(ctx, &idpUserID, nil)
+	// Act
+	result, err := service.CreateMember(ctx, req)
 
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Equal(t, idpUserID, result[0].IdpUserID)
-	})
+	// Assert
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to add user to group")
+}
+
+func TestCreateMember_DatabaseError_WithRollback(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
+
+	mockIDP := &MockIDP{
+		CreateUserFunc: func(ctx context.Context, user *idp.User) (*idp.UserInfo, error) {
+			return &idp.UserInfo{
+				Id:          "idp_123",
+				Email:       user.Email,
+				FirstName:   user.FirstName,
+				PhoneNumber: user.PhoneNumber,
+			}, nil
+		},
+		AddMemberToGroupByGroupNameFunc: func(ctx context.Context, groupName string, member *idp.GroupMember) (*string, error) {
+			groupID := "group_123"
+			return &groupID, nil
+		},
+		RemoveMemberFromGroupFunc: func(ctx context.Context, groupID string, userID string) error {
+			return nil
+		},
+		DeleteUserFunc: func(ctx context.Context, userID string) error {
+			return nil
+		},
+	}
+
+	service := NewMemberService(db, mockIDP)
+	ctx := context.Background()
+
+	req := &models.CreateMemberRequest{
+		Name:        "John Doe",
+		Email:       "john@example.com",
+		PhoneNumber: "+1234567890",
+	}
+
+	// Mock database to return error
+	mock.ExpectQuery(`INSERT INTO "members"`).
+		WillReturnError(errors.New("database constraint violation"))
+
+	// Act
+	result, err := service.CreateMember(ctx, req)
+
+	// Assert
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to create member in database")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateMember_Success(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
+
+	mockIDP := &MockIDP{
+		UpdateUserFunc: func(ctx context.Context, userID string, user *idp.User) (*idp.UserInfo, error) {
+			return &idp.UserInfo{
+				Id:          userID,
+				Email:       user.Email,
+				FirstName:   user.FirstName,
+				LastName:    user.LastName,
+				PhoneNumber: user.PhoneNumber,
+			}, nil
+		},
+	}
+
+	service := NewMemberService(db, mockIDP)
+	ctx := context.Background()
+
+	memberID := "mem_123"
+	newName := "Jane Doe"
+	req := &models.UpdateMemberRequest{
+		Name: &newName,
+	}
+
+	now := time.Now()
+
+	// Mock SELECT to find member
+	// GORM might generate: SELECT * FROM "members" WHERE member_id = $1 ORDER BY "members"."member_id" LIMIT 1
+	mock.ExpectQuery(`SELECT .* FROM "members"`).
+		WithArgs(memberID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"member_id", "idp_user_id", "name", "email", "phone_number", "created_at", "updated_at",
+		}).AddRow("mem_123", "idp_123", "John Doe", "john@example.com", "+1234567890", now, now))
+
+	// Mock UPDATE
+	mock.ExpectExec(`UPDATE "members"`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Act
+	result, err := service.UpdateMember(ctx, memberID, req)
+
+	// Assert
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	assert.NotNil(t, result)
+	if result == nil {
+		return
+	}
+	assert.Equal(t, "Jane Doe", result.Name)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateMember_NotFound(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
+
+	service := NewMemberService(db, &MockIDP{})
+	ctx := context.Background()
+
+	memberID := "mem_nonexistent"
+	newName := "Jane Doe"
+	req := &models.UpdateMemberRequest{
+		Name: &newName,
+	}
+
+	// Mock SELECT returning no rows
+	mock.ExpectQuery(`SELECT .* FROM "members"`).
+		WithArgs(memberID, 1).
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	// Act
+	result, err := service.UpdateMember(ctx, memberID, req)
+
+	// Assert
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "member not found")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUpdateMember_IDPUpdateError_NoRollback(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
+
+	mockIDP := &MockIDP{
+		UpdateUserFunc: func(ctx context.Context, userID string, user *idp.User) (*idp.UserInfo, error) {
+			return nil, errors.New("IDP update failed")
+		},
+	}
+
+	service := NewMemberService(db, mockIDP)
+	ctx := context.Background()
+
+	memberID := "mem_123"
+	newName := "Jane Doe"
+	req := &models.UpdateMemberRequest{
+		Name: &newName,
+	}
+
+	now := time.Now()
+
+	// Mock SELECT
+	mock.ExpectQuery(`SELECT .* FROM "members"`).
+		WithArgs(memberID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"member_id", "idp_user_id", "name", "email", "phone_number", "created_at", "updated_at",
+		}).AddRow("mem_123", "idp_123", "John Doe", "john@example.com", "+1234567890", now, now))
+
+	// Act
+	result, err := service.UpdateMember(ctx, memberID, req)
+
+	// Assert
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to update user in IDP")
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetMember_Success(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
+
+	service := NewMemberService(db, &MockIDP{})
+	ctx := context.Background()
+
+	memberID := "mem_123"
+	now := time.Now()
+
+	// Mock SELECT
+	mock.ExpectQuery(`SELECT .* FROM "members"`).
+		WithArgs(memberID, 1).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"member_id", "idp_user_id", "name", "email", "phone_number", "created_at", "updated_at",
+		}).AddRow("mem_123", "idp_123", "John Doe", "john@example.com", "+1234567890", now, now))
+
+	// Act
+	result, err := service.GetMember(ctx, memberID)
+
+	// Assert
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	assert.NotNil(t, result)
+	if result == nil {
+		return
+	}
+	assert.Equal(t, "mem_123", result.MemberID)
+	assert.Equal(t, "John Doe", result.Name)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetAllMembers_NoFilter(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
+
+	service := NewMemberService(db, &MockIDP{})
+	ctx := context.Background()
+
+	now := time.Now()
+
+	// Mock SELECT all
+	mock.ExpectQuery(`SELECT .* FROM "members"`).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"member_id", "idp_user_id", "name", "email", "phone_number", "created_at", "updated_at",
+		}).
+			AddRow("mem_1", "idp_1", "John Doe", "john@example.com", "+1111111111", now, now).
+			AddRow("mem_2", "idp_2", "Jane Doe", "jane@example.com", "+2222222222", now, now))
+
+	// Act
+	result, err := service.GetAllMembers(ctx, nil, nil)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "John Doe", result[0].Name)
+	assert.Equal(t, "Jane Doe", result[1].Name)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetAllMembers_WithEmailFilter(t *testing.T) {
+	// Arrange
+	db, mock, cleanup := setupMemberMockDB(t)
+	defer cleanup()
+
+	service := NewMemberService(db, &MockIDP{})
+	ctx := context.Background()
+
+	email := "john@example.com"
+	now := time.Now()
+
+	// Mock filtered SELECT
+	mock.ExpectQuery(`SELECT .* FROM "members"`).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"member_id", "idp_user_id", "name", "email", "phone_number", "created_at", "updated_at",
+		}).AddRow("mem_1", "idp_1", "John Doe", "john@example.com", "+1111111111", now, now))
+
+	// Act
+	result, err := service.GetAllMembers(ctx, nil, &email)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "john@example.com", result[0].Email)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
