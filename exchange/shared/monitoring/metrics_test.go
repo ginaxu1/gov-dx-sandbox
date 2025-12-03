@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,7 +29,7 @@ func TestHandler(t *testing.T) {
 	}
 
 	// Check for Prometheus format
-	if !contains(body, "# HELP") && !contains(body, "# TYPE") {
+	if !strings.Contains(body, "# HELP") && !strings.Contains(body, "# TYPE") {
 		t.Error("Response doesn't appear to be in Prometheus format")
 	}
 }
@@ -60,7 +61,7 @@ func TestHTTPMetricsMiddleware(t *testing.T) {
 	metricsHandler.ServeHTTP(metricsW, metricsReq)
 
 	metricsBody := metricsW.Body.String()
-	if !contains(metricsBody, "http_requests_total") {
+	if !strings.Contains(metricsBody, "http_requests_total") {
 		t.Error("http_requests_total metric not found after request")
 	}
 }
@@ -73,10 +74,16 @@ func TestNormalizeRoute(t *testing.T) {
 		{"/", "/"},
 		{"/health", "/health"},
 		{"/consents", "/consents"},
-		{"/consents/123", "/consents"},
-		{"/data-owner/user@example.com", "/data-owner"},
-		{"/api/v1/policy/metadata", "/api"},
+		{"/consents/123", "/consents/:id"},
+		{"/consents/abc123def456", "/consents/:id"},
+		{"/consents/consent_abc123", "/consents/:id"},
+		{"/data-owner/user@example.com", "/data-owner/:id"},
+		{"/api/v1/policy/metadata", "/api/v1/policy/metadata"},
+		{"/api/v1/policy/decide", "/api/v1/policy/decide"},
+		{"/api/v1/policy/123", "/api/v1/policy/:id"},
 		{"/test?query=value", "/test"},
+		{"/consumer/app-123", "/consumer/:id"},
+		{"/admin/check", "/admin/check"},
 	}
 
 	for _, tt := range tests {
@@ -85,21 +92,6 @@ func TestNormalizeRoute(t *testing.T) {
 			t.Errorf("normalizeRoute(%q) = %q, expected %q", tt.input, result, tt.expected)
 		}
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			findSubstring(s, substr)))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 func TestRecordExternalCall(t *testing.T) {
@@ -116,11 +108,14 @@ func TestRecordExternalCall(t *testing.T) {
 	metricsHandler.ServeHTTP(metricsW, metricsReq)
 
 	metricsBody := metricsW.Body.String()
-	if !contains(metricsBody, "external_calls_total") {
+	if !strings.Contains(metricsBody, "external_calls_total") {
 		t.Error("external_calls_total metric not found")
 	}
-	if !contains(metricsBody, "external_call_errors_total") {
+	if !strings.Contains(metricsBody, "external_call_errors_total") {
 		t.Error("external_call_errors_total metric not found")
+	}
+	if !strings.Contains(metricsBody, "external_call_duration_seconds") {
+		t.Error("external_call_duration_seconds metric not found")
 	}
 }
 
@@ -137,7 +132,7 @@ func TestRecordBusinessEvent(t *testing.T) {
 	metricsHandler.ServeHTTP(metricsW, metricsReq)
 
 	metricsBody := metricsW.Body.String()
-	if !contains(metricsBody, "business_events_total") {
+	if !strings.Contains(metricsBody, "business_events_total") {
 		t.Error("business_events_total metric not found")
 	}
 }
