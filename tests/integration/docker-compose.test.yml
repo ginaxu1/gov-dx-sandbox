@@ -70,11 +70,11 @@ services:
     environment:
       PORT: 8081
       LOG_LEVEL: debug
-      DB_HOST: ce-db
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: password
-      DB_NAME: consent_db
+      CHOREO_DB_CE_HOSTNAME: ce-db
+      CHOREO_DB_CE_PORT: 5432
+      CHOREO_DB_CE_USERNAME: postgres
+      CHOREO_DB_CE_PASSWORD: password
+      CHOREO_DB_CE_DATABASENAME: consent_db
       DB_SSLMODE: disable
     ports:
       - "8081:8081"
