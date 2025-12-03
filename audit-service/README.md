@@ -1,52 +1,85 @@
 # Audit Service
 
-A simple Go microservice that provides read-only access to audit logs for different portals.
+A Go microservice providing read-only access to audit logs with role-based endpoints for different portals.
 
 ## Overview
 
-The Audit Service implements the goal: "who made this request, what did they ask for, and did they get that data" by exposing audit data through secure API endpoints tailored to each role's access level.
+The Audit Service answers: "who made this request, what did they ask for, and did they get that data" by exposing audit data through secure, role-based API endpoints.
 
 ## Features
 
-- **Read-only access** to the `audit_logs` table
-- **Role-based endpoints** for different portals
-- **Filtering capabilities** by date, consumer, provider, status
+- **Read-only access** to audit logs
+- **Role-based endpoints** for Admin, Provider, and Consumer portals
+- **Advanced filtering** by date, consumer, provider, and status
 - **Pagination support** for large datasets
 - **JWT authentication** for provider and consumer endpoints
 
+## Quick Start
+
+### Prerequisites
+
+- Go 1.21+
+- PostgreSQL 13+
+
+### Run the Service
+
+```bash
+# Install dependencies
+go mod tidy
+
+# Run the service
+go run main.go
+
+# Or build and run
+go build -o audit-service
+./audit-service
+```
+
+The service runs on port 3001 by default.
+
+## Configuration
+
+### Environment Variables
+
+**Choreo Environment Variables (Primary):**
+- `CHOREO_DB_AUDIT_HOSTNAME` - Database hostname
+- `CHOREO_DB_AUDIT_PORT` - Database port
+- `CHOREO_DB_AUDIT_USERNAME` - Database username
+- `CHOREO_DB_AUDIT_PASSWORD` - Database password
+- `CHOREO_DB_AUDIT_DATABASENAME` - Database name
+
+**Fallback Environment Variables (Local Development):**
+- `DB_HOST` - Database host (default: localhost)
+- `DB_PORT` - Database port (default: 5432)
+- `DB_USERNAME` - Database username (default: user)
+- `DB_PASSWORD` - Database password (default: password)
+- `DB_NAME` - Database name (default: gov_dx_sandbox)
+- `DB_SSLMODE` - SSL mode (default: disable)
+- `PORT` - Service port (default: 3001)
+
 ## API Endpoints
 
-### For NDX Admin Portal
+### Admin Portal
+- `GET /audit/events` - Returns all logs with filtering (no authentication required)
 
-- `GET /audit/events` - Returns all logs with filtering capabilities
+### Provider Portal
+- `GET /audit/provider/events` - Returns logs where provider ID matches authenticated JWT
 
-### For Data Provider Portal
+### Consumer Portal
+- `GET /audit/consumer/events` - Returns logs where consumer ID matches authenticated JWT
 
-- `GET /audit/provider/events` - Returns logs only where the provider's ID matches the authenticated JWT
+### Query Parameters
 
-### For Data Consumer Portal
-
-- `GET /audit/consumer/events` - Returns logs only where the consumer ID matches the authenticated JWT
-
-## Query Parameters
-
-All endpoints support the following query parameters:
-
+All endpoints support:
 - `consumer_id` - Filter by consumer ID
 - `provider_id` - Filter by provider ID
 - `transaction_status` - Filter by status (SUCCESS/FAILURE)
-- `start_date` - Filter by start date (YYYY-MM-DD format)
-- `end_date` - Filter by end date (YYYY-MM-DD format)
-- `limit` - Number of results per page (default: 50, max: 1000)
-- `offset` - Number of results to skip for pagination
+- `start_date` - Start date filter (YYYY-MM-DD)
+- `end_date` - End date filter (YYYY-MM-DD)
+- `limit` - Results per page (default: 50, max: 1000)
+- `offset` - Pagination offset
 
-## Authentication
-
-- **Admin Portal**: No authentication required (internal use)
-- **Provider Portal**: Requires JWT token with `provider_id` claim
-- **Consumer Portal**: Requires JWT token with `consumer_id` claim
-
-## Response Format
+### Response Format
 
 ```json
 {
@@ -66,52 +99,19 @@ All endpoints support the following query parameters:
 }
 ```
 
-## Security Notes
+### Authentication
 
-- **Sensitive data is excluded**: `requested_data` and `response_data` are intentionally omitted from API responses for security
-- **Role-based access**: Each endpoint only returns data relevant to the authenticated user's role
-- **JWT validation**: Provider and consumer endpoints validate JWT tokens to ensure proper authorization
+- **Admin Portal**: No authentication required (internal use)
+- **Provider Portal**: JWT token with `provider_id` claim
+- **Consumer Portal**: JWT token with `consumer_id` claim
 
-## Environment Variables
+## Testing
 
-### Choreo Environment Variables (Primary)
+### Local Test Setup
 
-- `CHOREO_DB_AUDIT_HOSTNAME` - Database hostname
-- `CHOREO_DB_AUDIT_PORT` - Database port
-- `CHOREO_DB_AUDIT_USERNAME` - Database username
-- `CHOREO_DB_AUDIT_PASSWORD` - Database password
-- `CHOREO_DB_AUDIT_DATABASENAME` - Database name
-
-### Fallback Environment Variables (Local Development)
-
-- `DB_HOST` - Database host (default: localhost)
-- `DB_PORT` - Database port (default: 5432)
-- `DB_USERNAME` - Database username (default: user)
-- `DB_PASSWORD` - Database password (default: password)
-- `DB_NAME` - Database name (default: gov_dx_sandbox)
-- `DB_SSLMODE` - SSL mode (default: disable)
-- `PORT` - Service port (default: 3001)
-
-## Running the Service
+Create `.env.local` with PostgreSQL credentials:
 
 ```bash
-# Install dependencies
-go mod tidy
-
-# Run the service
-go run main.go
-
-# Or build and run
-go build -o audit-service
-./audit-service
-```
-
-## Local Testing Setup
-
-For local testing, create a `.env.local` file with your PostgreSQL credentials:
-
-```bash
-# .env.local (this file should not be committed to git)
 TEST_DB_USERNAME=postgres
 TEST_DB_PASSWORD=your_password
 TEST_DB_HOST=localhost
@@ -120,25 +120,24 @@ TEST_DB_DATABASE=audit_service_test
 TEST_DB_SSLMODE=disable
 ```
 
-Run tests:
+### Run Tests
 
 ```bash
 # Run all tests
 go test ./...
 
-# Run tests with verbose output
-go test ./... -v
-
-# Run tests with coverage
+# Run with coverage
 go test ./... -cover
 ```
 
-**Note**: The test setup will automatically:
-
-- Load credentials from `.env.local` if available
-- Create the test database if it doesn't exist
-- Skip tests gracefully if PostgreSQL is not available
+**Note**: Tests automatically load credentials from `.env.local` and skip gracefully if PostgreSQL is unavailable.
 
 ## Health Check
 
 - `GET /health` - Returns service health status
+
+## Security
+
+- **Sensitive data excluded**: `requested_data` and `response_data` are intentionally omitted
+- **Role-based access**: Each endpoint returns only data relevant to the authenticated user's role
+- **JWT validation**: Provider and consumer endpoints validate JWT tokens

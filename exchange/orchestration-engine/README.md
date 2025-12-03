@@ -1,46 +1,221 @@
-# Introduction
+# Orchestration Engine
 
-This directory contains the source code for the Orchestration Engine, a Go-based service that manages
-and orchestrates various tasks and workflows within the Exchange platform. The Orchestration Engine is
-responsible for coordinating complex operations, ensuring that tasks are executed in the correct order,
-and handling dependencies between different components.
+A Go-based GraphQL service that orchestrates data requests from consumers to multiple data providers, handling authorization, consent checks, argument mapping, and data aggregation.
 
-## How it works
+## Overview
 
-The Orchestration Engine (OE) is a Go-based service that orchestrates data requests from consumers to multiple data
-providers. It handles authorization and consent checks, argument mapping, and data aggregation.
+The Orchestration Engine (OE) is the central component that:
+- Receives GraphQL queries from data consumers
+- Validates authorization with the Policy Decision Point (PDP)
+- Verifies consent with the Consent Engine (CE)
+- Fetches data from multiple providers
+- Aggregates and returns unified responses
 
-### Key Features
-- **GraphQL API**: The OE exposes a GraphQL API for consumers to request data.
-- **Multiple Data Providers**: It can fetch data from multiple providers based on the consumer's request.
-- **Authorization Checks**: Before fetching data, the OE checks with the Policy Decision Point (PDP) to ensure the
-  consumer is authorized to access the requested fields.
-- **Consent Management**: The OE interacts with the Consent Engine (CE) to verify that the consumer has the necessary consents for
-  accessing certain data fields.
+## Features
 
-## Setting Up the Development Environment
+- **GraphQL API** - Unified query interface for data consumers
+- **Multi-Provider Support** - Fetch data from multiple providers in a single query
+- **Authorization Integration** - Policy Decision Point (PDP) for access control
+- **Consent Management** - Consent Engine (CE) integration for consent verification
+- **Schema Management** - Dynamic GraphQL schema versioning and activation
+- **Field-Level Routing** - Intelligent field mapping to appropriate providers
+- **Data Aggregation** - Combines responses from multiple providers
 
-To set up the development environment for the Orchestration Engine, follow these steps:
+## Quick Start
 
-1. **Install Go**: Ensure you have Go installed on your machine. You can download it from the
-   official [Go website](https://golang.org/dl/).
-2. **GraphQL Specification**: The Orchestration Engine uses GraphQL for its API. Familiarize yourself with the GraphQL
-   specification by visiting the [GraphQL official site](https://graphql.org/).
-3. **`schema.graphql` Schema File**: The GraphQL schema file is currently located in the `schemas` directory. These
-   files define the structure of the API and the types of data that can be queried.
-   We have placed the sample schema in it.
-    - It should include `@sourceInfo` the directives in each of its leaf fields along with the following fields.
-        - `providerKey` - A unique identifier for the data provider.
-        - `providerField` - The field name in the provider's schema that corresponds to this field.
-4. **`config.json` File**: Refer to the sample `config.example.json` file
-   and create your own `config.json` file based on it. This file lists out the following information.
-    - `pdpUrl` - The URL of the Policy Decision Point which handles authorization.
-    - `ceUrl` - The URL of the Consent Engine which handles consent management.
-    - `providers` - An array of data providers, each with a `providerKey` and `providerUrl`. 
-      For detailed provider integration steps, see the [Provider Onboarding Guide](PROVIDER_CONFIGURATION.md).
+### Prerequisites
 
-5. **Run the Server**: You can run the Orchestration Engine server using the following command:
-   ```bash
-   go run main.go
-   ```
-   The server will start and listen for incoming requests.
+- Go 1.21+
+- PostgreSQL 13+ (for schema management)
+- Access to Policy Decision Point (PDP) service
+- Access to Consent Engine (CE) service
+
+### 1. Configuration
+
+Create a `config.json` file based on `config.example.json`:
+
+```json
+{
+  "pdpUrl": "http://localhost:8082",
+  "ceUrl": "http://localhost:8081",
+  "providers": [
+    {
+      "providerKey": "primary",
+      "providerUrl": "http://localhost:8080/graphql"
+    }
+  ]
+}
+```
+
+### 2. Environment Variables
+
+```bash
+# Server Configuration
+PORT=4000  # Default: 4000
+
+# Database Configuration (for schema management)
+CHOREO_DB_OE_HOSTNAME=localhost
+CHOREO_DB_OE_PORT=5432
+CHOREO_DB_OE_USERNAME=postgres
+CHOREO_DB_OE_PASSWORD=your_password
+CHOREO_DB_OE_DATABASENAME=orchestration_engine
+
+# Or use standard DB variables
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=orchestration_engine
+DB_SSLMODE=disable
+
+# Audit Service (optional)
+CHOREO_AUDIT_CONNECTION_SERVICEURL=http://localhost:3001
+```
+
+### 3. Run the Service
+
+```bash
+# Install dependencies
+go mod download
+
+# Run the service
+go run main.go
+
+# Or build and run
+go build -o orchestration-engine
+./orchestration-engine
+```
+
+The service runs on port 4000 by default.
+
+## API Endpoints
+
+### GraphQL Endpoints
+
+- **POST /public/graphql** - Public GraphQL query endpoint
+- **POST /graphql** - Authenticated GraphQL query endpoint
+
+### Schema Management
+
+- **GET /sdl** - Get active GraphQL schema
+- **POST /sdl** - Create new schema version
+- **GET /sdl/versions** - List all schema versions
+- **POST /sdl/versions/{version}/activate** - Activate a schema version
+- **POST /sdl/validate** - Validate SDL syntax
+- **POST /sdl/check-compatibility** - Check backward compatibility
+
+### Health & Debug
+
+- **GET /health** - Health check endpoint
+
+## GraphQL Schema
+
+The service uses a GraphQL schema defined in `schema.graphql`. Each field can include `@sourceInfo` directives:
+
+```graphql
+type Person {
+  fullName: String @sourceInfo(providerKey: "primary", providerField: "name")
+  birthDate: String @sourceInfo(providerKey: "primary", providerField: "dob")
+}
+```
+
+### Schema Directives
+
+- `@sourceInfo` - Maps GraphQL fields to provider fields
+  - `providerKey` - Unique identifier for the data provider
+  - `providerField` - Field name in the provider's schema
+
+## Testing
+
+### Unit Tests
+
+```bash
+go test ./...
+```
+
+### Integration Tests
+
+See [HOW_TO_TEST.md](HOW_TO_TEST.md) for detailed testing instructions.
+
+### Test Database Setup
+
+```bash
+export TEST_DB_HOST=localhost
+export TEST_DB_PORT=5432
+export TEST_DB_USER=postgres
+export TEST_DB_PASSWORD=your_password
+export TEST_DB_NAME=orchestration_engine_test
+export TEST_DB_SSLMODE=disable
+```
+
+## Architecture
+
+### Components
+
+- **Federator** - Core orchestration logic and query processing
+- **Provider Handler** - Manages communication with data providers
+- **Schema Service** - Handles GraphQL schema versioning
+- **Policy Client** - Integration with Policy Decision Point
+- **Consent Client** - Integration with Consent Engine
+- **Audit Middleware** - Logs all data exchange events
+
+### Request Flow
+
+```
+Consumer → Orchestration Engine → [PDP] → [CE] → Providers → Aggregation → Consumer
+```
+
+1. Consumer Request → GraphQL query received
+2. Authorization Check → PDP validates access permissions
+3. Consent Verification → CE checks required consents
+4. Provider Routing → Fields mapped to appropriate providers
+5. Data Fetching → Parallel requests to multiple providers
+6. Aggregation → Responses combined into unified result
+7. Response → GraphQL response returned to consumer
+
+## Provider Configuration
+
+For detailed provider integration steps, see [Provider Configuration Guide](PROVIDER_CONFIGURATION.md).
+
+### Provider Requirements
+
+Each provider must:
+- Expose a GraphQL endpoint
+- Support the fields specified in the schema
+- Return data in the expected format
+
+## Docker
+
+```bash
+# Build image
+docker build -t orchestration-engine .
+
+# Run container
+docker run -p 4000:4000 \
+  -v $(pwd)/config.json:/app/config.json \
+  orchestration-engine
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Failed**
+   - Check database credentials in environment variables
+   - Verify PostgreSQL is running
+   - Service continues without database (schema management disabled)
+
+2. **Provider Connection Errors**
+   - Verify provider URLs in `config.json`
+   - Check network connectivity
+   - Ensure providers are running
+
+3. **Authorization Failures**
+   - Verify PDP service is accessible
+   - Check PDP URL in configuration
+   - Review authorization policies
+
+## Related Documentation
+
+- [Provider Configuration](PROVIDER_CONFIGURATION.md) - Provider integration guide
+- [Testing Guide](HOW_TO_TEST.md) - Comprehensive testing instructions

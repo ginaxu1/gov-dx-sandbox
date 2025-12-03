@@ -1,58 +1,23 @@
-# Data Exchange Portal Backend
+# Portal Backend
 
-A secure, scalable Go-based REST Portal Backend for managing data exchange workflows, including member management, schema submissions, and application processing with comprehensive authentication and authorization.
+A secure Go-based REST API for managing data exchange workflows, including member management, schema submissions, and application processing.
 
-## 🚀 Features
+## Overview
+
+The Portal Backend provides REST APIs for the Admin Portal and Member Portal, handling authentication, authorization, and business logic for data exchange operations.
+
+## Features
 
 - **JWT Authentication** with Asgardeo integration
 - **Role-Based Access Control (RBAC)** with granular permissions
 - **PostgreSQL Database** with automatic schema management
 - **Thread-Safe Caching** for optimal performance
-- **OpenAPI/Swagger Documentation**
+- **OpenAPI Documentation** at `/openapi.yaml`
 - **Comprehensive Health Monitoring**
 - **Docker Support** for containerized deployment
-- **Audit Logging** for compliance and debugging
+- **Audit Logging** for compliance
 
-## 📋 API Endpoints
-
-### Core Resources
-
-- **Members** - `/api/v1/members` - User profile and membership management
-- **Schemas** - `/api/v1/schemas` - Data schema definitions and management
-- **Schema Submissions** - `/api/v1/schema-submissions` - Schema submission workflow
-- **Applications** - `/api/v1/applications` - Application definitions
-- **Application Submissions** - `/api/v1/application-submissions` - Application submission workflow
-
-### System Endpoints
-
-- **Health Check** - `/health` - System health and database status
-- **API Documentation** - `/openapi.yaml` - OpenAPI specification
-
-## 🔐 Authentication & Authorization
-
-### Supported Roles
-
-- **OpenDIF_Admin** - Full system access and management capabilities
-- **OpenDIF_Member** - Standard user access to own resources
-- **OpenDIF_System** - System-level operations with read access
-
-### Permission System
-
-The API implements fine-grained permissions including:
-
-- Resource creation, reading, updating permissions
-- Ownership-based access control
-- Admin override capabilities
-- Cached permission evaluation for performance
-
-### JWT Token Requirements
-
-- **Issuer**: Asgardeo identity provider
-- **Audience**: Configured client IDs (member-portal, admin-portal)
-- **Claims**: Must include valid roles and user information
-- **Validation**: JWKS-based signature verification with key rotation support
-
-## 🛠️ Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -74,11 +39,11 @@ CHOREO_DB_portal_backend_DATABASENAME=portal_backend
 
 # JWT Authentication (Required)
 ASGARDEO_BASE_URL=https://api.asgardeo.io/t/your-org
-ASGARDEO_MEMBER_CLIENT_ID=your_member_client_id
-ASGARDEO_ADMIN_CLIENT_ID=your_admin_client_id
+ASGARDEO_MEMBER_PORTAL_CLIENT_ID=your_member_client_id
+ASGARDEO_ADMIN_PORTAL_CLIENT_ID=your_admin_client_id
 
 # Policy Decision Point
-CHOREO_PDP_CONNECTION_SERVICEURL=http://localhost:9000
+CHOREO_PDP_CONNECTION_SERVICEURL=http://localhost:8082
 CHOREO_PDP_CONNECTION_CHOREOAPIKEY=your_pdp_key
 
 # Optional: Asgardeo Management (for member creation)
@@ -87,124 +52,31 @@ ASGARDEO_CLIENT_SECRET=management_client_secret
 ASGARDEO_SCOPES="internal_user_mgt_create internal_user_mgt_list"
 ```
 
-### 2. Database Setup
-
-```bash
-# Start PostgreSQL with Docker
-make setup-test-db
-
-# Or use your own PostgreSQL instance
-# Database tables will be auto-created on startup
-```
-
-### 3. Run the Application
+### 2. Run the Service
 
 ```bash
 # Install dependencies
 go mod download
 
 # Run the server
-make run
-
-# Or run directly
 go run main.go
+
+# Or build and run
+go build -o portal-backend
+./portal-backend
 ```
 
-### 4. Test the API
+The service runs on port 3000 by default.
 
-```bash
-# Health check
-curl http://localhost:3000/health
+## Configuration
 
-# API documentation
-curl http://localhost:3000/openapi.yaml
-```
-
-## 🐳 Docker Deployment
-
-### Using Docker Compose (Recommended)
-
-```bash
-cd ../exchange
-docker-compose up postgres portal-backend
-```
-
-### Standalone Docker
-
-```bash
-# Build image
-docker build -t portal-backend .
-
-# Run container
-docker run -p 3000:3000 \
-  -e CHOREO_DB_portal_backend_HOSTNAME=host.docker.internal \
-  -e CHOREO_DB_portal_backend_PASSWORD=password \
-  --env-file .env \
-  portal-backend
-```
-
-## 🧪 Testing
-
-### Run All Tests
-
-```bash
-make test-all
-```
-
-### Test Categories
-
-```bash
-# Unit tests only
-go test ./...
-
-# Integration tests with PostgreSQL
-make test-postgres
-
-# Tests with race detection
-go test -race ./...
-
-# Coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-```
-
-### Test Database Setup
-
-For integration tests, set:
-
-```bash
-export TEST_DB_PASSWORD=test_password
-make test-local
-```
-
-## 📊 Database Schema
-
-### Core Tables
-
-- **`members`** - User profiles and membership information
-- **`schemas`** - Data schema definitions with versioning
-- **`schema_submissions`** - Schema submission workflow and status
-- **`applications`** - Application templates and definitions
-- **`application_submissions`** - Application submission workflow
-
-### Features
-
-- **Auto-migration** on startup
-- **Connection pooling** with configurable limits
-- **Health monitoring** with metrics
-- **Transaction support** with timeouts
-- **Query optimization** with prepared statements
-
-## 🔧 Configuration
-
-### Database Optimization
+### Database Configuration
 
 ```bash
 DB_MAX_OPEN_CONNS=25              # Maximum open connections
 DB_MAX_IDLE_CONNS=5               # Maximum idle connections
 DB_CONN_MAX_LIFETIME=1h           # Connection maximum lifetime
 DB_QUERY_TIMEOUT=30s              # Query timeout duration
-DB_ENABLE_MONITORING=true         # Enable connection pool monitoring
 ```
 
 ### JWT Security
@@ -223,34 +95,61 @@ LOG_LEVEL=info                    # Logging level (debug, info, warn, error)
 CORS_ALLOWED_ORIGINS=*            # CORS allowed origins
 ```
 
-## 📈 Monitoring & Health
+## API Endpoints
 
-### Health Endpoint
+### Core Resources
 
-`GET /health` returns comprehensive system status:
+- **Members** - `/api/v1/members` - User profile and membership management
+- **Schemas** - `/api/v1/schemas` - Data schema definitions and management
+- **Schema Submissions** - `/api/v1/schema-submissions` - Schema submission workflow
+- **Applications** - `/api/v1/applications` - Application definitions
+- **Application Submissions** - `/api/v1/application-submissions` - Application submission workflow
 
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-01T12:00:00Z",
-  "database": {
-    "status": "connected",
-    "open_connections": 5,
-    "max_open_connections": 25,
-    "idle_connections": 3
-  },
-  "version": "1.0.0"
-}
+### System Endpoints
+
+- **Health Check** - `/health` - System health and database status
+- **API Documentation** - `/openapi.yaml` - OpenAPI specification
+
+### Authentication & Authorization
+
+**Supported Roles:**
+- `OpenDIF_Admin` - Full system access
+- `OpenDIF_Member` - Standard user access to own resources
+- `OpenDIF_System` - System-level read access
+
+**JWT Requirements:**
+- Issuer: Asgardeo identity provider
+- Audience: Configured client IDs (member-portal, admin-portal)
+- Claims: Valid roles and user information
+- Validation: JWKS-based signature verification
+
+## Testing
+
+### Run Tests
+
+```bash
+# Unit tests only
+go test ./...
+
+# Integration tests with PostgreSQL
+make test-postgres
+
+# Tests with race detection
+go test -race ./...
+
+# Coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
 ```
 
-### Logging
+### Test Database Setup
 
-- **Structured JSON logging** with configurable levels
-- **Request tracing** with correlation IDs
-- **Performance metrics** for database operations
-- **Security events** for authentication failures
+```bash
+export TEST_DB_PASSWORD=test_password
+make test-local
+```
 
-## 🏗️ Architecture
+## Architecture
 
 ### Project Structure
 
@@ -277,44 +176,46 @@ Request → CORS → JWT Validation → Authorization → Resource Access
  Check    Verify     & Claims      Validation    Validation
 ```
 
-## 🤝 Contributing
+### Database Schema
 
-### Development Setup
+**Core Tables:**
+- `members` - User profiles and membership information
+- `schemas` - Data schema definitions with versioning
+- `schema_submissions` - Schema submission workflow and status
+- `applications` - Application templates and definitions
+- `application_submissions` - Application submission workflow
 
-1. Clone the repository
-2. Set up environment variables
-3. Start PostgreSQL database
-4. Run tests to verify setup
-5. Start the development server
+**Features:**
+- Auto-migration on startup
+- Connection pooling with configurable limits
+- Health monitoring with metrics
+- Transaction support with timeouts
 
-### Code Standards
+## Health Check
 
-- **Go formatting** with `gofmt`
-- **Linting** with `golangci-lint`
-- **Testing** with minimum 80% coverage
-- **Documentation** for public APIs
-- **Security** best practices enforced
+`GET /health` returns comprehensive system status:
 
-### Submitting Changes
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00Z",
+  "database": {
+    "status": "connected",
+    "open_connections": 5,
+    "max_open_connections": 25
+  }
+}
+```
 
-1. Create feature branch
-2. Write tests for new functionality
-3. Ensure all tests pass
-4. Update documentation as needed
-5. Submit pull request
+## Docker
 
-## 📄 License
+```bash
+# Build image
+docker build -t portal-backend .
 
-MIT License - see LICENSE file for details.
-
-## 🆘 Support
-
-For issues, questions, or contributions:
-
-- **GitHub Issues**: Report bugs and feature requests
-- **Documentation**: Check OpenAPI spec at `/openapi.yaml`
-- **Logs**: Check application logs for debugging information
-
----
-
-**Built with ❤️ using Go, PostgreSQL, and modern security practices.**
+# Run container
+docker run -p 3000:3000 \
+  -e CHOREO_DB_portal_backend_HOSTNAME=host.docker.internal \
+  --env-file .env \
+  portal-backend
+```
