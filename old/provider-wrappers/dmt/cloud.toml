@@ -1,4 +1,0 @@
-[container.image]
-repository="gov-dx-sandbox"
-name="provider-wrapper-dmt"
-tag="v0.1.3"

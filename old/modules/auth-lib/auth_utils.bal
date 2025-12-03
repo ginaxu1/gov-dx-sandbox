@@ -1,1 +1,0 @@
-// Functions for JWT parsing, scope validation, etc.
