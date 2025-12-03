@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
 )
@@ -138,7 +140,62 @@ func TestLogAuditEvent_WithoutInitialization(t *testing.T) {
 	req.Header.Set("X-User-ID", "test-user")
 	req.Header.Set("X-User-Role", "ADMIN")
 
-	// This should not panic and should log a warning
-	resourceID := "test-id-no-init"
-	LogAuditEvent(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+func TestLogAudit_SendsRequest(t *testing.T) {
+	// Setup mock server
+	var receivedReq *http.Request
+	var receivedBody []byte
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedReq = r
+		body, _ := io.ReadAll(r.Body)
+		receivedBody = body
+		w.WriteHeader(http.StatusCreated)
+		wg.Done()
+	}))
+	defer server.Close()
+
+	auditMiddleware := NewAuditMiddleware(server.URL)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
+	req.Header.Set("X-User-ID", "test-user")
+	req.Header.Set("X-User-Role", "MEMBER")
+
+	resourceID := "test-resource-id"
+	auditMiddleware.LogAudit(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+
+	// Wait for async log to complete
+	// Note: In real code, we can't easily wait for the goroutine. 
+	// But since we control the server, we can wait for the request to arrive.
+	// However, if the request is NOT sent (e.g. logic error), this will hang.
+	// So we use a channel with timeout.
+	
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success
+	case <-time.After(1 * time.Second):
+		t.Fatal("Timed out waiting for audit request")
+	}
+
+	// Verify request
+	if receivedReq.Method != http.MethodPost {
+		t.Errorf("Expected POST request, got %s", receivedReq.Method)
+	}
+	if receivedReq.URL.Path != "/api/events" {
+		t.Errorf("Expected path /api/events, got %s", receivedReq.URL.Path)
+	}
+	
+	// Verify body
+	// We can unmarshal and check fields if needed, but checking it's not empty is a good start
+	if len(receivedBody) == 0 {
+		t.Error("Expected non-empty body")
+	}
 }
