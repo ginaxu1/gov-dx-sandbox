@@ -78,19 +78,36 @@ DB_SSLMODE=disable
 **Request:**
 ```json
 {
-  "consumer_id": "passport-app",
-  "app_id": "passport-app",
-  "request_id": "req_123",
-  "required_fields": ["person.fullName", "person.photo"]
+  "applicationId": "passport-app",
+  "requiredFields": [
+    {
+      "fieldName": "person.fullName",
+      "schemaId": "schema-123"
+    },
+    {
+      "fieldName": "person.photo",
+      "schemaId": "schema-123"
+    }
+  ]
 }
 ```
 
 **Response:**
 ```json
 {
-  "allow": true,
-  "consent_required": true,
-  "consent_required_fields": ["person.photo"]
+  "appAuthorized": true,
+  "unauthorizedFields": [],
+  "appAccessExpired": false,
+  "expiredFields": [],
+  "appRequiresOwnerConsent": true,
+  "consentRequiredFields": [
+    {
+      "fieldName": "person.photo",
+      "schemaId": "schema-123",
+      "displayName": "Photo",
+      "description": "Person's photo"
+    }
+  ]
 }
 ```
 

@@ -92,8 +92,7 @@ The service runs on port 4000 by default.
 
 ### GraphQL Endpoints
 
-- **POST /public/graphql** - Public GraphQL query endpoint
-- **POST /graphql** - Authenticated GraphQL query endpoint
+- **POST /public/graphql** - GraphQL query endpoint (requires consumer JWT token in request)
 
 ### Schema Management
 

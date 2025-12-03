@@ -59,51 +59,88 @@ The service runs on port 3001 by default.
 
 ## API Endpoints
 
-### Admin Portal
-- `GET /audit/events` - Returns all logs with filtering (no authentication required)
+### Data Exchange Events
+- `GET /api/data-exchange-events` - Retrieve data exchange event logs with filtering
+- `POST /api/data-exchange-events` - Create a new data exchange event (used by Orchestration Engine)
 
-### Provider Portal
-- `GET /audit/provider/events` - Returns logs where provider ID matches authenticated JWT
+### Management Events
+- `GET /api/management-events` - Retrieve management event logs with filtering
+- `POST /api/management-events` - Create a new management event (used by Portal Backend)
 
-### Consumer Portal
-- `GET /audit/consumer/events` - Returns logs where consumer ID matches authenticated JWT
+### System Endpoints
+- `GET /health` - Service health check
+- `GET /version` - Service version information
 
 ### Query Parameters
 
-All endpoints support:
-- `consumer_id` - Filter by consumer ID
-- `provider_id` - Filter by provider ID
-- `transaction_status` - Filter by status (SUCCESS/FAILURE)
-- `start_date` - Start date filter (YYYY-MM-DD)
-- `end_date` - End date filter (YYYY-MM-DD)
+**Data Exchange Events** (`GET /api/data-exchange-events`) supports:
+- `status` - Filter by status (success/failure)
+- `startDate` - Start date filter (YYYY-MM-DD)
+- `endDate` - End date filter (YYYY-MM-DD)
+- `applicationId` - Filter by application ID
+- `schemaId` - Filter by schema ID
+- `consumerId` - Filter by consumer ID
+- `providerId` - Filter by provider ID
+- `limit` - Results per page (default: 50, max: 1000)
+- `offset` - Pagination offset
+
+**Management Events** (`GET /api/management-events`) supports:
+- `eventType` - Filter by event type
+- `status` - Filter by status
+- `actorType` - Filter by actor type
+- `actorId` - Filter by actor ID
+- `actorRole` - Filter by actor role
+- `targetResource` - Filter by target resource type
+- `targetResourceId` - Filter by target resource ID
+- `startDate` - Start date filter (YYYY-MM-DD)
+- `endDate` - End date filter (YYYY-MM-DD)
 - `limit` - Results per page (default: 50, max: 1000)
 - `offset` - Pagination offset
 
 ### Response Format
 
+**Data Exchange Events Response:**
 ```json
 {
-  "events": [
-    {
-      "event_id": "uuid",
-      "timestamp": "2024-01-01T12:00:00Z",
-      "consumer_id": "consumer-123",
-      "provider_id": "provider-456",
-      "transaction_status": "SUCCESS",
-      "citizen_hash": "hashed-citizen-id"
-    }
-  ],
   "total": 100,
   "limit": 50,
-  "offset": 0
+  "offset": 0,
+  "events": [
+    {
+      "id": "uuid",
+      "timestamp": "2024-01-01T12:00:00Z",
+      "status": "success",
+      "applicationId": "app-123",
+      "schemaId": "schema-456",
+      "consumerId": "consumer-123",
+      "providerId": "provider-456",
+      "requestedData": {...},
+      "additionalInfo": {...}
+    }
+  ]
 }
 ```
 
-### Authentication
-
-- **Admin Portal**: No authentication required (internal use)
-- **Provider Portal**: JWT token with `provider_id` claim
-- **Consumer Portal**: JWT token with `consumer_id` claim
+**Management Events Response:**
+```json
+{
+  "total": 50,
+  "limit": 50,
+  "offset": 0,
+  "events": [
+    {
+      "id": "uuid",
+      "eventType": "SCHEMA_CREATED",
+      "status": "success",
+      "actorType": "MEMBER",
+      "actorId": "member-123",
+      "targetResource": "SCHEMA",
+      "targetResourceId": "schema-456",
+      "timestamp": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
 
 ## Testing
 
@@ -138,6 +175,6 @@ go test ./... -cover
 
 ## Security
 
-- **Sensitive data excluded**: `requested_data` and `response_data` are intentionally omitted
-- **Role-based access**: Each endpoint returns only data relevant to the authenticated user's role
-- **JWT validation**: Provider and consumer endpoints validate JWT tokens
+- **CORS enabled**: Cross-origin requests are supported via CORS middleware
+- **Read-only by design**: Endpoints are designed for audit log retrieval and creation
+- **No authentication required**: Service is intended for internal use within the OpenDIF ecosystem
