@@ -1257,6 +1257,14 @@ func TestNewV1Handler(t *testing.T) {
 		os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
 		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
 
+		// Set IDP env vars to pass IDP check
+		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
+		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
+		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
+		defer os.Unsetenv("ASGARDEO_BASE_URL")
+		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
+		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
+
 		db := services.SetupSQLiteTestDB(t)
 		if db == nil {
 			return
@@ -1286,6 +1294,14 @@ func TestNewV1Handler(t *testing.T) {
 
 		os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", "http://localhost:9999")
 		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
+
+		// Set IDP env vars to pass IDP check
+		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
+		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
+		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
+		defer os.Unsetenv("ASGARDEO_BASE_URL")
+		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
+		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
 
 		db := services.SetupSQLiteTestDB(t)
 		if db == nil {

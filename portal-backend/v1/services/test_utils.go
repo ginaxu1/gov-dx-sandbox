@@ -2,11 +2,14 @@ package services
 
 import (
 	"bufio"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -51,6 +54,8 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // SetupSQLiteTestDB creates an in-memory SQLite database for testing
+// NOTE: This should only be used in integration tests or handler tests.
+// Unit tests in services should use SetupMockDB instead.
 func SetupSQLiteTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
@@ -112,4 +117,40 @@ func RequireTestDB(t *testing.T) *gorm.DB {
 		t.Fatal("Test database setup failed - cannot proceed with test")
 	}
 	return db
+}
+
+// SetupMockDB creates a mock database for testing using go-sqlmock
+func SetupMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+
+	dialector := postgres.New(postgres.Config{
+		Conn:       db,
+		DriverName: "postgres",
+	})
+
+	gormDB, err := gorm.Open(dialector, &gorm.Config{
+		SkipDefaultTransaction: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to open gorm db: %v", err)
+	}
+
+	cleanup := func() {
+		db.Close()
+	}
+
+	return gormDB, mock, cleanup
+}
+
+// MockRoundTripper is a mock implementation of http.RoundTripper
+type MockRoundTripper struct {
+	RoundTripFunc func(req *http.Request) (*http.Response, error)
+}
+
+// RoundTrip executes the mock RoundTripFunc
+func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.RoundTripFunc(req)
 }

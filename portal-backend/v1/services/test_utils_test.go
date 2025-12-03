@@ -4,7 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gov-dx-sandbox/portal-backend/v1/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,32 +35,5 @@ func TestGetEnvOrDefault(t *testing.T) {
 	})
 }
 
-func TestCleanupTestData(t *testing.T) {
-	t.Run("CleanupTestData_Success", func(t *testing.T) {
-		db := SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-
-		// Create some test data
-		member := models.Member{
-			MemberID:    "test-member-cleanup",
-			Name:        "Test Member",
-			Email:       "cleanup@example.com",
-			PhoneNumber: "1234567890",
-		}
-		db.Create(&member)
-
-		// Verify data exists
-		var count int64
-		db.Model(&models.Member{}).Where("member_id = ?", member.MemberID).Count(&count)
-		assert.Greater(t, count, int64(0))
-
-		// Cleanup
-		CleanupTestData(t, db)
-
-		// Verify data was deleted
-		db.Model(&models.Member{}).Where("member_id = ?", member.MemberID).Count(&count)
-		assert.Equal(t, int64(0), count)
-	})
-}
+// TestCleanupTestData is removed - it requires SQLite which should only be used in integration tests
+// This test should be moved to integration tests if needed

@@ -140,6 +140,11 @@ func TestLogAuditEvent_WithoutInitialization(t *testing.T) {
 	req.Header.Set("X-User-ID", "test-user")
 	req.Header.Set("X-User-Role", "ADMIN")
 
+	// Should not panic
+	resourceID := "test-resource"
+	LogAuditEvent(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+}
+
 func TestLogAudit_SendsRequest(t *testing.T) {
 	// Setup mock server
 	var receivedReq *http.Request

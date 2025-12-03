@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/models"
 	"gorm.io/gorm"
 )
@@ -76,7 +75,6 @@ func (s *ManagementEventService) CreateManagementEvent(ctx context.Context, req 
 	}
 
 	event := models.ManagementEvent{
-		ID:               uuid.New().String(),
 		EventType:        req.EventType,
 		Timestamp:        timestamp,
 		ActorType:        req.Actor.Type,
