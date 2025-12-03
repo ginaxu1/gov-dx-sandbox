@@ -2,56 +2,83 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
+	"os"
 	"testing"
+	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 )
 
-// setupSQLiteTestDB creates an in-memory SQLite database for testing
-func setupSQLiteTestDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		t.Fatalf("Failed to connect to SQLite test database: %v", err)
+// TestEngineType represents the type of engine to use for testing
+type TestEngineType int
+
+const (
+	InMemoryEngine TestEngineType = iota
+	PostgresEngine
+)
+
+// SetupTestEngine creates a test engine based on environment configuration
+func SetupTestEngine(t *testing.T) ConsentEngine {
+	// Check if we should use PostgreSQL for testing
+	usePostgres := os.Getenv("TEST_USE_POSTGRES") == "true"
+
+	if usePostgres {
+		return setupPostgresTestEngine(t)
 	}
 
-	// Create table with SQLite-compatible schema
-	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS consent_records (
-		consent_id TEXT PRIMARY KEY,
-		owner_id TEXT NOT NULL,
-		owner_email TEXT NOT NULL,
-		app_id TEXT NOT NULL,
-		status TEXT NOT NULL,
-		type TEXT NOT NULL,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		pending_expires_at DATETIME,
-		grant_expires_at DATETIME,
-		grant_duration TEXT NOT NULL,
-		fields TEXT NOT NULL,
-		session_id TEXT NOT NULL,
-		consent_portal_url TEXT,
-		updated_by TEXT
-	);
+	// Default to PostgreSQL engine for tests
+	return setupPostgresTestEngine(t)
+}
 
-	CREATE INDEX IF NOT EXISTS idx_consent_records_owner_id ON consent_records(owner_id);
-	CREATE INDEX IF NOT EXISTS idx_consent_records_owner_email ON consent_records(owner_email);
-	CREATE INDEX IF NOT EXISTS idx_consent_records_app_id ON consent_records(app_id);
-	CREATE INDEX IF NOT EXISTS idx_consent_records_status ON consent_records(status);
-	CREATE INDEX IF NOT EXISTS idx_consent_records_created_at ON consent_records(created_at);
-	CREATE INDEX IF NOT EXISTS idx_consent_records_pending_expires_at ON consent_records(pending_expires_at);
-	CREATE INDEX IF NOT EXISTS idx_consent_records_grant_expires_at ON consent_records(grant_expires_at);
-	`
+// setupPostgresTestEngine creates a PostgreSQL test engine
+func setupPostgresTestEngine(t *testing.T) ConsentEngine {
+	return setupPostgresTestEngineWithDB(t).engine
+}
 
-	_, err = db.Exec(createTableSQL)
+// postgresTestEngineWithDB holds both the engine and database connection for tests
+type postgresTestEngineWithDB struct {
+	engine ConsentEngine
+	db     *sql.DB
+}
+
+// setupPostgresTestEngineWithDB creates a PostgreSQL test engine and returns both engine and DB
+func setupPostgresTestEngineWithDB(t *testing.T) *postgresTestEngineWithDB {
+	// Use test database configuration
+	config := &DatabaseConfig{
+		Host:            getEnvOrDefault("TEST_DB_HOST", "localhost"),
+		Port:            getEnvOrDefault("TEST_DB_PORT", "5432"),
+		Username:        getEnvOrDefault("TEST_DB_USERNAME", "postgres"),
+		Password:        getEnvOrDefault("TEST_DB_PASSWORD", "password"),
+		Database:        getEnvOrDefault("TEST_DB_DATABASE", "consent_engine_test"),
+		SSLMode:         getEnvOrDefault("TEST_DB_SSLMODE", "disable"),
+		MaxOpenConns:    10,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: 5 * time.Minute,
+		ConnMaxIdleTime: 1 * time.Minute,
+		QueryTimeout:    30 * time.Second,
+		ConnectTimeout:  10 * time.Second,
+		RetryAttempts:   3,
+		RetryDelay:      1 * time.Second,
+	}
+
+	db, err := ConnectDB(config)
 	if err != nil {
-		t.Fatalf("Failed to create test table: %v", err)
+		t.Skipf("Skipping PostgreSQL test: failed to connect to database: %v", err)
+	}
+
+	// Initialize database tables
+	if err := InitDatabase(db); err != nil {
+		t.Fatalf("Failed to initialize test database: %v", err)
 	}
 
 	// Clean up test data before each test
 	cleanupTestData(t, db)
 
-	return db
+	return &postgresTestEngineWithDB{
+		engine: NewPostgresConsentEngine(db, "http://localhost:5173"),
+		db:     db,
+	}
 }
 
 // cleanupTestData removes all test data from the database
@@ -59,5 +86,29 @@ func cleanupTestData(t *testing.T, db *sql.DB) {
 	_, err := db.Exec("DELETE FROM consent_records")
 	if err != nil {
 		t.Logf("Warning: failed to cleanup test data: %v", err)
+	}
+}
+
+// updateConsentExpiry directly updates the expires_at timestamp in the database
+// This is useful for tests to simulate expired consents without waiting
+func updateConsentExpiry(t *testing.T, db *sql.DB, consentID string, expiresAt time.Time) error {
+	_, err := db.Exec("UPDATE consent_records SET expires_at = $1 WHERE consent_id = $2", expiresAt, consentID)
+	if err != nil {
+		return fmt.Errorf("failed to update consent expiry: %w", err)
+	}
+	return nil
+}
+
+// TestWithPostgresEngine runs a test function with PostgreSQL engine
+func TestWithPostgresEngine(t *testing.T, testName string, testFunc func(t *testing.T, engine ConsentEngine)) {
+	// Only run PostgreSQL tests if explicitly enabled
+	if os.Getenv("TEST_USE_POSTGRES") == "true" {
+		t.Run("PostgreSQL_"+testName, func(t *testing.T) {
+			engine := setupPostgresTestEngine(t)
+			testFunc(t, engine)
+		})
+	} else {
+		// Skip test if PostgreSQL is not enabled
+		t.Skip("PostgreSQL tests not enabled (set TEST_USE_POSTGRES=true)")
 	}
 }
