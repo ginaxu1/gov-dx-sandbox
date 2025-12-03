@@ -236,3 +236,8 @@ func TestGraphQLFlow(t *testing.T) {
 		}
 	})
 }
+// func TestGraphQLFlow_InvalidConsent(t *testing.T)
+// func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T)
+// func TestGraphQLFlow_ExpiredConsent(t *testing.T)
+// func TestGraphQLFlow_UnauthorizedApp(t *testing.T)
+// func TestGraphQLFlow_ServiceTimeout(t *testing.T)
