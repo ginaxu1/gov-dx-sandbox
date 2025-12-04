@@ -73,4 +73,3 @@ func TestEnvVarsStandard() map[string]string {
 		"DB_SSLMODE":  "prefer",
 	}
 }
-

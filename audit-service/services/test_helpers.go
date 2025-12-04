@@ -12,14 +12,14 @@ import (
 
 // TestConstants contains shared test constants
 var (
-	TestActorID   = "actor-123"
-	TestActorRole = "ADMIN"
-	TestTargetID  = "target-123"
-	TestOwnerID   = "owner-123"
+	TestActorID    = "actor-123"
+	TestActorRole  = "ADMIN"
+	TestTargetID   = "target-123"
+	TestOwnerID    = "owner-123"
 	TestConsumerID = "consumer-123"
 	TestProviderID = "provider-123"
-	TestAppID     = "app-123"
-	TestSchemaID  = "schema-123"
+	TestAppID      = "app-123"
+	TestSchemaID   = "schema-123"
 )
 
 // CreateTestDataExchangeEventRequest creates a test data exchange event request
@@ -110,4 +110,3 @@ func SetupTestService(t *testing.T, serviceFactory func(*gorm.DB) interface{}) (
 	db := SetupSQLiteTestDB(t)
 	return serviceFactory(db), db
 }
-

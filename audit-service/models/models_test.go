@@ -42,33 +42,31 @@ func strPtr(s string) *string {
 	return &s
 }
 
-
 func TestMetadata_Value_Scan(t *testing.T) {
 	m := Metadata{"key": "value", "number": 123.0}
-	
+
 	// Test Value
 	val, err := m.Value()
 	assert.NoError(t, err)
 	assert.NotNil(t, val)
-	
+
 	// Test Scan
 	var m2 Metadata
 	err = m2.Scan(val)
 	assert.NoError(t, err)
 	assert.Equal(t, m["key"], m2["key"])
 	assert.Equal(t, m["number"], m2["number"])
-	
+
 	// Test Scan with string
 	jsonStr := `{"key": "value", "number": 123.0}`
 	var m3 Metadata
 	err = m3.Scan(jsonStr)
 	assert.NoError(t, err)
 	assert.Equal(t, m["key"], m3["key"])
-	
+
 	// Test Scan with nil
 	var m4 Metadata
 	err = m4.Scan(nil)
 	assert.NoError(t, err)
 	assert.Nil(t, m4)
 }
-

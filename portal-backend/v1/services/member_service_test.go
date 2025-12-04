@@ -23,15 +23,15 @@ type MockIDP struct {
 	AddMemberToGroupByGroupNameFunc func(ctx context.Context, groupName string, member *idp.GroupMember) (*string, error)
 	RemoveMemberFromGroupFunc       func(ctx context.Context, groupID string, userID string) error
 	// Missing methods from interface
-	GetUserFunc        func(ctx context.Context, userID string) (*idp.UserInfo, error)
-	GetGroupFunc       func(ctx context.Context, groupID string) (*idp.GroupInfo, error)
-	GetGroupByNameFunc func(ctx context.Context, groupName string) (*string, error)
-	CreateGroupFunc    func(ctx context.Context, group *idp.Group) (*idp.GroupInfo, error)
-	UpdateGroupFunc    func(ctx context.Context, groupID string, group *idp.Group) (*idp.GroupInfo, error)
-	AddMemberToGroupFunc func(ctx context.Context, groupID string, memberInfo *idp.GroupMember) error
-	CreateApplicationFunc func(ctx context.Context, app *idp.Application) (*string, error)
-	DeleteApplicationFunc func(ctx context.Context, applicationID string) error
-	DeleteGroupFunc func(ctx context.Context, groupID string) error
+	GetUserFunc            func(ctx context.Context, userID string) (*idp.UserInfo, error)
+	GetGroupFunc           func(ctx context.Context, groupID string) (*idp.GroupInfo, error)
+	GetGroupByNameFunc     func(ctx context.Context, groupName string) (*string, error)
+	CreateGroupFunc        func(ctx context.Context, group *idp.Group) (*idp.GroupInfo, error)
+	UpdateGroupFunc        func(ctx context.Context, groupID string, group *idp.Group) (*idp.GroupInfo, error)
+	AddMemberToGroupFunc   func(ctx context.Context, groupID string, memberInfo *idp.GroupMember) error
+	CreateApplicationFunc  func(ctx context.Context, app *idp.Application) (*string, error)
+	DeleteApplicationFunc  func(ctx context.Context, applicationID string) error
+	DeleteGroupFunc        func(ctx context.Context, groupID string) error
 	GetApplicationInfoFunc func(ctx context.Context, applicationID string) (*idp.ApplicationInfo, error)
 	GetApplicationOIDCFunc func(ctx context.Context, applicationID string) (*idp.ApplicationOIDCInfo, error)
 }
@@ -74,16 +74,39 @@ func (m *MockIDP) RemoveMemberFromGroup(ctx context.Context, groupID string, use
 
 // Implement other interface methods with stubs
 func (m *MockIDP) GetUser(ctx context.Context, userID string) (*idp.UserInfo, error) { return nil, nil }
-func (m *MockIDP) GetGroup(ctx context.Context, groupID string) (*idp.GroupInfo, error) { return nil, nil }
-func (m *MockIDP) GetGroupByName(ctx context.Context, groupName string) (*string, error) { return nil, nil }
-func (m *MockIDP) CreateGroup(ctx context.Context, group *idp.Group) (*idp.GroupInfo, error) { return nil, nil }
-func (m *MockIDP) UpdateGroup(ctx context.Context, groupID string, group *idp.Group) (*idp.GroupInfo, error) { return nil, nil }
-func (m *MockIDP) AddMemberToGroup(ctx context.Context, groupID string, memberInfo *idp.GroupMember) error { return nil }
-func (m *MockIDP) CreateApplication(ctx context.Context, app *idp.Application) (*string, error) { return nil, nil }
+
+func (m *MockIDP) GetGroup(ctx context.Context, groupID string) (*idp.GroupInfo, error) {
+	return nil, nil
+}
+
+func (m *MockIDP) GetGroupByName(ctx context.Context, groupName string) (*string, error) {
+	return nil, nil
+}
+
+func (m *MockIDP) CreateGroup(ctx context.Context, group *idp.Group) (*idp.GroupInfo, error) {
+	return nil, nil
+}
+
+func (m *MockIDP) UpdateGroup(ctx context.Context, groupID string, group *idp.Group) (*idp.GroupInfo, error) {
+	return nil, nil
+}
+
+func (m *MockIDP) AddMemberToGroup(ctx context.Context, groupID string, memberInfo *idp.GroupMember) error {
+	return nil
+}
+
+func (m *MockIDP) CreateApplication(ctx context.Context, app *idp.Application) (*string, error) {
+	return nil, nil
+}
 func (m *MockIDP) DeleteApplication(ctx context.Context, applicationID string) error { return nil }
-func (m *MockIDP) DeleteGroup(ctx context.Context, groupID string) error { return nil }
-func (m *MockIDP) GetApplicationInfo(ctx context.Context, applicationID string) (*idp.ApplicationInfo, error) { return nil, nil }
-func (m *MockIDP) GetApplicationOIDC(ctx context.Context, applicationID string) (*idp.ApplicationOIDCInfo, error) { return nil, nil }
+func (m *MockIDP) DeleteGroup(ctx context.Context, groupID string) error             { return nil }
+func (m *MockIDP) GetApplicationInfo(ctx context.Context, applicationID string) (*idp.ApplicationInfo, error) {
+	return nil, nil
+}
+
+func (m *MockIDP) GetApplicationOIDC(ctx context.Context, applicationID string) (*idp.ApplicationOIDCInfo, error) {
+	return nil, nil
+}
 
 // setupMemberMockDB creates a mock database for testing
 func setupMemberMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
