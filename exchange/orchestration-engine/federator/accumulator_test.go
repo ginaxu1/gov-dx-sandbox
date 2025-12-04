@@ -333,21 +333,17 @@ func TestGetValueAtPath_ArrayHandling(t *testing.T) {
 }
 
 func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
-	t.Skip("Mixed object and array test - missing @sourceInfo directives")
 	// Test query with both object and array fields
 	query := `
 		query {
 			personInfo(nic: "123456789V") {
 				fullName
+				address
 				ownedVehicles {
 					regNo
 					make
+					model
 				}
-			}
-			vehicles(regNos: ["ABC123", "XYZ789"]) {
-				regNo
-				make
-				model
 			}
 		}
 	`
@@ -362,7 +358,8 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 				Response: graphql.Response{
 					Data: map[string]interface{}{
 						"person": map[string]interface{}{
-							"fullName": "John Doe",
+							"fullName":         "John Doe",
+							"permanentAddress": "123 Main St",
 						},
 					},
 				},
@@ -406,13 +403,38 @@ func TestAccumulateResponse_MixedObjectAndArray(t *testing.T) {
 	assert.Contains(t, response.Data, "personInfo")
 	personInfo := response.Data["personInfo"].(map[string]interface{})
 	assert.Equal(t, "John Doe", personInfo["fullName"])
+	assert.Equal(t, "123 Main St", personInfo["address"])
 
-	// Verify ownedVehicles array
-	ownedVehicles := personInfo["ownedVehicles"].([]interface{})
+	// Verify ownedVehicles array exists and has correct length
+	assert.Contains(t, personInfo, "ownedVehicles")
+	ownedVehicles, ok := personInfo["ownedVehicles"].([]interface{})
+	if !ok {
+		// Try alternate type that might be returned
+		ownedVehiclesAlt, ok := personInfo["ownedVehicles"].([]map[string]interface{})
+		assert.True(t, ok, "ownedVehicles should be an array")
+		assert.Len(t, ownedVehiclesAlt, 2)
+
+		// Verify vehicle details
+		assert.Equal(t, "ABC123", ownedVehiclesAlt[0]["regNo"])
+		assert.Equal(t, "Toyota", ownedVehiclesAlt[0]["make"])
+		assert.Equal(t, "Camry", ownedVehiclesAlt[0]["model"])
+
+		assert.Equal(t, "XYZ789", ownedVehiclesAlt[1]["regNo"])
+		assert.Equal(t, "Honda", ownedVehiclesAlt[1]["make"])
+		assert.Equal(t, "Civic", ownedVehiclesAlt[1]["model"])
+		return
+	}
+
 	assert.Len(t, ownedVehicles, 2)
 
-	// Verify vehicles array (bulk query result)
-	assert.Contains(t, response.Data, "vehicles")
-	vehicles := response.Data["vehicles"].([]interface{})
-	assert.Len(t, vehicles, 2)
+	// Verify vehicle details
+	vehicle1 := ownedVehicles[0].(map[string]interface{})
+	assert.Equal(t, "ABC123", vehicle1["regNo"])
+	assert.Equal(t, "Toyota", vehicle1["make"])
+	assert.Equal(t, "Camry", vehicle1["model"])
+
+	vehicle2 := ownedVehicles[1].(map[string]interface{})
+	assert.Equal(t, "XYZ789", vehicle2["regNo"])
+	assert.Equal(t, "Honda", vehicle2["make"])
+	assert.Equal(t, "Civic", vehicle2["model"])
 }

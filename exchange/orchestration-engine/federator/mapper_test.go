@@ -357,7 +357,6 @@ func TestQueryBuilder(t *testing.T) {
 }
 
 func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
-	t.Skip("Skipping mapper test - requires config initialization")
 	schema := CreateTestSchema(t)
 
 	tests := []struct {
@@ -368,25 +367,23 @@ func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 		description    string
 	}{
 		{
-			name: "Nested Object Query",
+			name: "Simple Query with Multiple Fields",
 			query: `
 				query {
 					personInfo(nic: "123456789V") {
 						fullName
-						birthInfo {
-							birthRegistrationNumber
-							birthPlace
-						}
+						name
+						address
 					}
 				}
 			`,
 			expectedFields: []string{
 				"drp.person.fullName",
-				"rgd.getPersonInfo.brNo",
-				"rgd.getPersonInfo.birthPlace",
+				"rgd.getPersonInfo.name",
+				"drp.person.permanentAddress",
 			},
 			expectedArgs: 1,
-			description:  "Should extract source info from nested objects",
+			description:  "Should extract source info from multiple simple fields",
 		},
 		{
 			name: "Array Field Query",
@@ -413,30 +410,33 @@ func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 			description:  "Should extract source info from array fields",
 		},
 		{
-			name: "Complex Nested Query",
+			name: "Complex Query with Multiple Arrays",
 			query: `
 				query {
 					personInfo(nic: "123456789V") {
 						fullName
-						birthInfo {
-							birthRegistrationNumber
-							district
-						}
+						address
 						ownedVehicles {
 							regNo
 							make
+						}
+						class {
+							className
 						}
 					}
 				}
 			`,
 			expectedFields: []string{
 				"drp.person.fullName",
-				"rgd.getPersonInfo.brNo",
-				"rgd.getPersonInfo.district",
+				"drp.person.permanentAddress",
 				"dmt.vehicle.getVehicleInfos.data",
+				"dmt.vehicle.getVehicleInfos.data.registrationNumber",
+				"dmt.vehicle.getVehicleInfos.data.make",
+				"dmt.vehicle.getVehicleInfos.classes",
+				"dmt.vehicle.getVehicleInfos.classes.className",
 			},
 			expectedArgs: 1,
-			description:  "Should extract source info from complex nested structure (array fields handled by new implementation)",
+			description:  "Should extract source info from complex nested structure with multiple arrays",
 		},
 	}
 
@@ -455,14 +455,23 @@ func TestRecursivelyExtractSourceSchemaInfo(t *testing.T) {
 				selectionSet, schema, queryObjectDef, nil, nil)
 
 			// Convert directives to field map
-			fieldMap := ProviderFieldMap(directives)
+			fieldMapPtr := ProviderFieldMap(directives)
+			fieldMap := *fieldMapPtr
+
+			// Build a map of extracted fields for easier assertion
+			extractedFields := make(map[string]bool)
+			for _, record := range fieldMap {
+				// Build key as: providerKey.fieldPath
+				key := record.ServiceKey + "." + record.FieldPath
+				extractedFields[key] = true
+			}
 
 			assert.Len(t, fieldMap, len(tt.expectedFields), "Should extract correct number of fields")
 			assert.Len(t, arguments, tt.expectedArgs, "Should extract correct number of arguments")
 
 			// Verify extracted fields
 			for _, expectedField := range tt.expectedFields {
-				assert.Contains(t, fieldMap, expectedField, "Should contain field: %s", expectedField)
+				assert.True(t, extractedFields[expectedField], "Should contain field: %s", expectedField)
 			}
 		})
 	}

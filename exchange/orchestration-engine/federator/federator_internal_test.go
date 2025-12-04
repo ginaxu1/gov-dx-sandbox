@@ -91,7 +91,7 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 
 	// 4. Setup Federator
 	providerHandler := provider.NewProviderHandler(nil)
-	
+
 	schemaSDL := `
 		directive @sourceInfo(providerKey: String!, providerField: String!, schemaId: String) on FIELD_DEFINITION
 		type Query {
@@ -101,10 +101,10 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 			fullName: String @sourceInfo(providerKey: "drp", providerField: "person.fullName", schemaId: "drp-schema")
 		}
 	`
-	
+
 	mockService := &MockSchemaServiceWithSignature{SDL: schemaSDL}
 	f := Initialize(cfg, providerHandler, mockService)
-	
+
 	// 5. Execute Query
 	req := graphql.Request{
 		Query: `query {
@@ -113,21 +113,21 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 			}
 		}`,
 	}
-	
+
 	ctx := context.Background()
 	resp := f.FederateQuery(ctx, req, &auth.ConsumerAssertion{
 		Subscriber:    "sub-123",
 		ApplicationId: "app-123",
 	})
-	
+
 	// 6. Assertions
 	require.Empty(t, resp.Errors)
 	require.NotNil(t, resp.Data)
-	
+
 	data := resp.Data
 	personInfo, ok := data["personInfo"].(map[string]interface{})
 	require.True(t, ok)
-	
+
 	assert.Equal(t, "John Doe", personInfo["fullName"])
 }
 
@@ -158,7 +158,7 @@ func TestFederateQuery_PDPDeny(t *testing.T) {
 	}
 
 	providerHandler := provider.NewProviderHandler(nil)
-	
+
 	schemaSDL := `
 		directive @sourceInfo(providerKey: String!, providerField: String!, schemaId: String) on FIELD_DEFINITION
 		type Query {
