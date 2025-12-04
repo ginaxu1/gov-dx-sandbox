@@ -65,7 +65,6 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 	}
 
 	// Initialize schema service and handler
-	// Initialize schema service and handler
 	var schemaService handlers.SchemaService
 	if schemaDB != nil {
 		schemaService = services.NewSchemaService(schemaDB)
