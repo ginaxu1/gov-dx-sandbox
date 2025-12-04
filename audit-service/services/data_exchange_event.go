@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/models"
 	"gorm.io/gorm"
 )
