@@ -38,7 +38,7 @@ func TestNewV1Handler_MissingEnvVars(t *testing.T) {
 	// Note: idpfactory.NewIdpAPIProvider checks for config but might not error immediately if fields are optional?
 	// Actually it returns error if ProviderType is invalid or required fields missing depending on provider.
 	// Asgardeo provider requires BaseURL.
-	
+
 	// We need a DB connection
 	db := services.SetupSQLiteTestDB(t)
 
@@ -79,7 +79,7 @@ func TestNewV1Handler_MissingEnvVars(t *testing.T) {
 
 func TestGetUserMemberID_Caching(t *testing.T) {
 	testHandler := NewTestV1Handler(t)
-	
+
 	// Setup mock IDP
 	mockIDPStore = new(MockIdentityProviderAPI)
 	// Re-create member service with this mock
@@ -96,7 +96,7 @@ func TestGetUserMemberID_Caching(t *testing.T) {
 
 	// Case 1: Member not found in DB
 	// Note: GetAllMembers uses DB, not IDP, so we don't need to mock IDP for this call
-	
+
 	id, err := testHandler.handler.getUserMemberID(req, user)
 	assert.Error(t, err)
 	assert.Empty(t, id)
@@ -119,7 +119,7 @@ func TestGetUserMemberID_Caching(t *testing.T) {
 		IdpUserID: "test-user-id-2",
 		Email:     "test2@example.com",
 	}
-	
+
 	// Create member in DB
 	memberID := createTestMember(t, testHandler.db, "test2@example.com")
 	// Update member with correct IdpUserID

@@ -105,7 +105,7 @@ func TestGetDataExchangeEvents(t *testing.T) {
 		assert.Equal(t, 1, len(resp.Events))
 		assert.Equal(t, "app-1", resp.Events[0].ApplicationID)
 	})
-	
+
 	t.Run("FilterByApplicationID_NoMatch", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/data-exchange-events?applicationId=non-existent", nil)
 		w := httptest.NewRecorder()

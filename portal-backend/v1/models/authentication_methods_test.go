@@ -80,7 +80,7 @@ func TestAuthenticatedUser_Methods(t *testing.T) {
 
 	// Test HasPermission
 	assert.True(t, user.HasPermission(PermissionCreateSchema))
-	
+
 	userMemberOnly := &AuthenticatedUser{Roles: []Role{RoleMember}}
 	assert.False(t, userMemberOnly.HasPermission(PermissionDeleteMember))
 
@@ -91,10 +91,10 @@ func TestAuthenticatedUser_Methods(t *testing.T) {
 
 	// Test GetPrimaryRole
 	assert.Equal(t, RoleAdmin, user.GetPrimaryRole())
-	
+
 	userMember := &AuthenticatedUser{Roles: []Role{RoleMember}}
 	assert.Equal(t, RoleMember, userMember.GetPrimaryRole())
-	
+
 	userSystem := &AuthenticatedUser{Roles: []Role{RoleSystem}}
 	assert.Equal(t, RoleSystem, userSystem.GetPrimaryRole())
 
@@ -105,7 +105,7 @@ func TestAuthenticatedUser_Methods(t *testing.T) {
 
 	// Test IsTokenExpired
 	assert.False(t, user.IsTokenExpired())
-	
+
 	expiredUser := &AuthenticatedUser{ExpiresAt: time.Now().Add(-time.Hour)}
 	assert.True(t, expiredUser.IsTokenExpired())
 }
@@ -120,7 +120,7 @@ func TestAuthenticatedUser_CachedMemberID(t *testing.T) {
 
 	// Set cached ID
 	user.SetCachedMemberID("mem-123", nil)
-	
+
 	// Check cached ID
 	id, cached = user.GetCachedMemberID()
 	assert.True(t, cached)

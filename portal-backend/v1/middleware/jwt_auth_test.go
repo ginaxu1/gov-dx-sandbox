@@ -251,7 +251,7 @@ func TestJWTAuthMiddleware_AuthenticateJWT(t *testing.T) {
 
 			handler := middleware.AuthenticateJWT(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				
+
 				// Verify context is set for authenticated requests
 				if tt.expectedStatus == http.StatusOK && req.URL.Path != "/health" {
 					user, err := authutils.GetAuthenticatedUser(r.Context())

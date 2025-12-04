@@ -519,7 +519,6 @@ func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-
 	t.Run("CreateSchema_CompensationFailure", func(t *testing.T) {
 		db, mock, cleanup := SetupMockDB(t)
 		defer cleanup()

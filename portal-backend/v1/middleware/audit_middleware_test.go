@@ -172,11 +172,11 @@ func TestLogAudit_SendsRequest(t *testing.T) {
 	auditMiddleware.LogAudit(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// Wait for async log to complete
-	// Note: In real code, we can't easily wait for the goroutine. 
+	// Note: In real code, we can't easily wait for the goroutine.
 	// But since we control the server, we can wait for the request to arrive.
 	// However, if the request is NOT sent (e.g. logic error), this will hang.
 	// So we use a channel with timeout.
-	
+
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -197,7 +197,7 @@ func TestLogAudit_SendsRequest(t *testing.T) {
 	if receivedReq.URL.Path != "/api/events" {
 		t.Errorf("Expected path /api/events, got %s", receivedReq.URL.Path)
 	}
-	
+
 	// Verify body
 	// We can unmarshal and check fields if needed, but checking it's not empty is a good start
 	if len(receivedBody) == 0 {
