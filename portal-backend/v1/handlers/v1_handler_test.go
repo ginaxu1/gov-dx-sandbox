@@ -268,12 +268,16 @@ func createTestApplication(t *testing.T, db *gorm.DB, memberID string) string {
 
 	// Use GORM Create which handles JSONB fields properly across different environments
 	err := db.Create(&application).Error
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to create application: %v. ApplicationID: %s, MemberID: %s", err, application.ApplicationID, memberID)
+	}
 
 	// Ensure the record is properly committed and readable
 	var verifyApp models.Application
 	err = db.First(&verifyApp, "application_id = ?", application.ApplicationID).Error
-	assert.NoError(t, err, "Failed to verify application was created properly")
+	if err != nil {
+		t.Fatalf("Failed to verify application was created properly: %v. ApplicationID: %s", err, application.ApplicationID)
+	}
 
 	return application.ApplicationID
 }
