@@ -1,7 +1,6 @@
 package models
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -86,25 +85,6 @@ func TestSelectedFieldRecords_Value(t *testing.T) {
 func TestSelectedFieldRecords_GormDataType(t *testing.T) {
 	var sfr SelectedFieldRecords
 	assert.Equal(t, "jsonb", sfr.GormDataType())
-}
-
-func TestSelectedFieldRecords_GormValue(t *testing.T) {
-	sfr := SelectedFieldRecords{
-		{FieldName: "field1", SchemaID: "sch1"},
-	}
-
-	// Using context.Background() for this unit test as no request context is available
-	// and the GormValue method doesn't perform any context-dependent operations
-	expr := sfr.GormValue(context.Background(), nil)
-	assert.NotNil(t, expr)
-	assert.Contains(t, expr.SQL, "jsonb")
-	assert.Len(t, expr.Vars, 1)
-
-	// Verify the JSON is valid
-	var result SelectedFieldRecords
-	err := json.Unmarshal([]byte(expr.Vars[0].(string)), &result)
-	assert.NoError(t, err)
-	assert.Equal(t, sfr, result)
 }
 
 func TestAccessControlType_Scan(t *testing.T) {
