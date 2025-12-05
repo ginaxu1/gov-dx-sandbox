@@ -1,53 +1,73 @@
-# Portal template
+# Member Portal
 
-This is a React + TypeScript + TailwindCSS + env File configured template using `vite.dev`.
+A React-based dashboard for OpenDIF members to manage their data schemas, applications, and integration settings.
 
-This following guide explains how to set up and run a new portal with this template.
+## Overview
 
-Note: Assumed we are in the root directory
+The Member Portal allows participating organizations (members) to:
+- Define and submit data schemas
+- Register applications to consume data
+- Manage API keys and integration settings
+- View usage analytics
 
-## Setup
+**Technology**: React + TypeScript + TailwindCSS + Vite
 
-1. Go to the `./portals`
+## Features
+
+- **Schema Management** - Create, edit, and submit data schemas for approval
+- **Application Registry** - Register new applications and manage their credentials
+- **Integration Hub** - Configure webhooks and other integration points
+- **Analytics** - View data exchange metrics
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm 9+
+
+### Run the Application
+
 ```bash
-cd ./portals
-```
-
-2. Copy the template directory
-```bash
-cp -R ./template-portal ./new-portal-name
-```
-
-3. Go into the `./new-portal-name` directory
-```bash
-cd ./new-portal-name
-```
-
-4. Install dependencies
-```bash
+# Install dependencies
 npm install
-```
 
-5. Set up environment variables
-```bash
-cp .env.template .env
-```
-- set up the port and base_path
-
-## Development
-
-To run the project in development mode:
-
-```bash
+# Run in development mode
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173`
+The application will be available at `http://localhost:5173` (or configured port).
 
-## Code Quality
+## Configuration
 
-Before committing changes, run the linting check:
+### Environment Variables
+
+Create a `.env` file based on `.env.template`:
 
 ```bash
+VITE_API_BASE_URL=http://localhost:3000/api/v1  # Portal Backend API URL
+VITE_AUTH_CLIENT_ID=your_client_id             # IdP Client ID
+VITE_AUTH_ISSUER=your_issuer_url               # IdP Issuer URL
+```
+
+## Testing
+
+```bash
+# Run linting
 npm run lint
+
+# Run unit tests (if configured)
+npm run test
+```
+
+## Docker
+
+```bash
+# Build image
+docker build -t member-portal .
+
+# Run container
+docker run -p 5173:80 \
+  -e VITE_API_BASE_URL=http://localhost:3000/api/v1 \
+  member-portal
 ```
