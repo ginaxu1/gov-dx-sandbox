@@ -7,15 +7,14 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/auth"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/database"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/handlers"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
 	"github.com/go-chi/chi/v5"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/auth"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/database"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/handlers"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
-	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 )
 
 type Response struct {
@@ -45,7 +44,7 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	if err := http.ListenAndServe(port, monitoring.HTTPMetricsMiddleware(corsMiddleware(mux))); err != nil {
+	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
@@ -61,10 +60,20 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 	schemaDB, err := database.NewSchemaDB(dbConnectionString)
 	if err != nil {
 		logger.Log.Error("Failed to connect to database", "error", err)
+		// Continue without database for now
+		schemaDB = nil
 	}
 
 	// Initialize schema service and handler
-	schemaService := services.NewSchemaService(schemaDB)
+	var schemaService handlers.SchemaService
+	if schemaDB != nil {
+		schemaService = services.NewSchemaService(schemaDB)
+	} else {
+		// Fallback to in-memory service if database is not available
+		schemaService = nil
+		logger.Log.Warn("Running without database - schema management disabled")
+	}
+
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
 
 	// Set the schema service in the federator

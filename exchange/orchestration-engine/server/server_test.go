@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 	"github.com/stretchr/testify/assert"
 )
 
