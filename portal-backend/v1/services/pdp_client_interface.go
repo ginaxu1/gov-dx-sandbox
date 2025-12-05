@@ -9,7 +9,6 @@ import (
 type PDPClient interface {
 	CreatePolicyMetadata(schemaID, sdl string) (*models.PolicyMetadataCreateResponse, error)
 	UpdateAllowList(request models.AllowListUpdateRequest) (*models.AllowListUpdateResponse, error)
-	HealthCheck() error
 }
 
 // Ensure PDPService implements PDPClient

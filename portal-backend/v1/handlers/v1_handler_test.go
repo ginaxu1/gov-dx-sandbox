@@ -1315,81 +1315,8 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 
 // TestNewV1Handler tests the NewV1Handler constructor
 func TestNewV1Handler(t *testing.T) {
-	t.Run("NewV1Handler_MissingPDPURL", func(t *testing.T) {
-		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-		defer func() {
-			if originalURL != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", originalURL)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-			}
-			if originalKey != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY", originalKey)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-			}
-		}()
 
-		os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
 
-		// Set IDP env vars to pass IDP check
-		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
-		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
-		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
-		defer os.Unsetenv("ASGARDEO_BASE_URL")
-		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
-		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
-
-		db := services.SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-
-		handler, err := NewV1Handler(db)
-		assert.Error(t, err)
-		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_SERVICEURL")
-	})
-
-	t.Run("NewV1Handler_MissingPDPKey", func(t *testing.T) {
-		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-		defer func() {
-			if originalURL != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", originalURL)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-			}
-			if originalKey != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY", originalKey)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-			}
-		}()
-
-		os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", "http://localhost:9999")
-		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-
-		// Set IDP env vars to pass IDP check
-		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
-		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
-		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
-		defer os.Unsetenv("ASGARDEO_BASE_URL")
-		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
-		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
-
-		db := services.SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-
-		handler, err := NewV1Handler(db)
-		assert.Error(t, err)
-		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-	})
 
 	t.Run("NewV1Handler_Success", func(t *testing.T) {
 		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")

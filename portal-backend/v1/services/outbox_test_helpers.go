@@ -62,9 +62,7 @@ func (m *mockPDPService) UpdateAllowList(request models.AllowListUpdateRequest) 
 	return &models.AllowListUpdateResponse{Records: []models.AllowListUpdateResponseRecord{}}, nil
 }
 
-func (m *mockPDPService) HealthCheck() error {
-	return nil
-}
+
 
 // Helper function to create string pointer
 func stringPtr(s string) *string {

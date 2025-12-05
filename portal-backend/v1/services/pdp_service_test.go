@@ -322,8 +322,3 @@ func TestPDPService_setAuthHeader(t *testing.T) {
 
 	assert.Equal(t, "test-api-key", req.Header.Get("apikey"))
 }
-
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}

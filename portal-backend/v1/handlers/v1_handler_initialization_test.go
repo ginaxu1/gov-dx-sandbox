@@ -41,9 +41,10 @@ func TestNewV1Handler_MissingEnvVars(t *testing.T) {
 
 	// We need a DB connection
 	db := services.SetupSQLiteTestDB(t)
+	pdpService := services.NewPDPService("http://dummy", "dummy")
 
 	// Case 1: Missing IDP config (BaseURL)
-	handler, err := NewV1Handler(db)
+	handler, err := NewV1Handler(db, pdpService)
 	assert.Error(t, err)
 	assert.Nil(t, handler)
 	assert.Contains(t, err.Error(), "failed to create IDP provider")
@@ -53,26 +54,8 @@ func TestNewV1Handler_MissingEnvVars(t *testing.T) {
 	os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
 	os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
 
-	// Case 2: Missing PDP URL
-	handler, err = NewV1Handler(db)
-	assert.Error(t, err)
-	assert.Nil(t, handler)
-	assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_SERVICEURL environment variable not set")
-
-	// Set PDP URL
-	os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", "http://pdp:8080")
-
-	// Case 3: Missing PDP Key
-	handler, err = NewV1Handler(db)
-	assert.Error(t, err)
-	assert.Nil(t, handler)
-	assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_CHOREOAPIKEY environment variable not set")
-
-	// Set PDP Key
-	os.Setenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY", "api-key")
-
 	// Case 4: Success
-	handler, err = NewV1Handler(db)
+	handler, err = NewV1Handler(db, pdpService)
 	assert.NoError(t, err)
 	assert.NotNil(t, handler)
 }
