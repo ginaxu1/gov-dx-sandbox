@@ -26,7 +26,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "http_request_duration_seconds",
 			Help:    "HTTP request duration in seconds",
-			Buckets: prometheus.DefBuckets,
+			Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		},
 		[]string{"method", "route"},
 	)
@@ -86,9 +86,14 @@ func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 
 		// Record metrics
 		duration := time.Since(start).Seconds()
-		route := normalizeRoute(r.URL.Path)
 		method := r.Method
 		status := strconv.Itoa(rw.statusCode)
+
+		// Normalize route, but use "unknown" for 404s to prevent cardinality explosion
+		route := normalizeRoute(r.URL.Path)
+		if rw.statusCode == http.StatusNotFound {
+			route = "unknown"
+		}
 
 		httpRequestsTotal.WithLabelValues(method, route, status).Inc()
 		httpRequestDuration.WithLabelValues(method, route).Observe(duration)
@@ -108,10 +113,12 @@ func (rw *responseWriter) WriteHeader(code int) {
 
 // normalizeRoute simplifies route paths for metrics
 // Preserves static paths while normalizing dynamic IDs
+// Falls back to "unknown" for unrecognized patterns to prevent cardinality explosion
 // Examples:
 //   - /consents/123 -> /consents/:id
 //   - /api/v1/policy/metadata -> /api/v1/policy/metadata (static path preserved)
 //   - /data-owner/user@example.com -> /data-owner/:id
+//   - /random/unknown/path -> unknown (fallback to prevent cardinality explosion)
 func normalizeRoute(path string) string {
 	if path == "" || path == "/" {
 		return "/"
@@ -132,13 +139,29 @@ func normalizeRoute(path string) string {
 		return "/"
 	}
 
+	// Known static routes that should be preserved
+	knownRoutes := map[string]bool{
+		"/health":                         true,
+		"/metrics":                        true,
+		"/debug":                          true,
+		"/api/v1/policy/metadata":         true,
+		"/api/v1/policy/decide":           true,
+		"/api/v1/policy/update-allowlist": true,
+	}
+
+	// Check if this is a known route
+	fullPath := "/" + strings.Join(parts, "/")
+	if knownRoutes[fullPath] {
+		return fullPath
+	}
+
 	// For paths with 2 segments, check if second looks like an ID
 	if len(parts) == 2 {
 		if looksLikeID(parts[1]) {
 			return "/" + parts[0] + "/:id"
 		}
-		// Both segments are static, return full path
-		return "/" + strings.Join(parts, "/")
+		// Unknown 2-segment path - fallback to prevent cardinality explosion
+		return "unknown"
 	}
 
 	// For paths with 3+ segments, check if last segment looks like an ID
@@ -147,14 +170,28 @@ func normalizeRoute(path string) string {
 		if looksLikeID(lastPart) {
 			// Replace last segment with :id
 			normalized := parts[:len(parts)-1]
-			return "/" + strings.Join(normalized, "/") + "/:id"
+			normalizedPath := "/" + strings.Join(normalized, "/") + "/:id"
+			// Only return if it's a reasonable pattern (max 4 segments)
+			if len(normalized) <= 3 {
+				return normalizedPath
+			}
 		}
-		// Last segment is static, keep full path
-		return "/" + strings.Join(parts, "/")
+		// Unknown long path - fallback to prevent cardinality explosion
+		return "unknown"
 	}
 
-	// Single segment path
-	return "/" + parts[0]
+	// Single segment path - only allow known single segments
+	if len(parts) == 1 {
+		singlePath := "/" + parts[0]
+		if knownRoutes[singlePath] {
+			return singlePath
+		}
+		// Unknown single segment - fallback
+		return "unknown"
+	}
+
+	// Fallback for any unrecognized pattern
+	return "unknown"
 }
 
 // looksLikeID checks if a string looks like a dynamic ID (UUID, numeric, email, or long alphanumeric)

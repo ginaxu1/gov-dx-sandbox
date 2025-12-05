@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
-	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"gorm.io/gorm"
 )
 
@@ -24,17 +23,10 @@ func NewPolicyMetadataService(db *gorm.DB) *PolicyMetadataService {
 
 // CreatePolicyMetadata creates new policy metadata records with validation
 func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataCreateRequest) (*models.PolicyMetadataCreateResponse, error) {
-	start := time.Now()
-	var err error
-	defer func() {
-		monitoring.RecordExternalCall("postgres", "create_policy_metadata", time.Since(start), err)
-	}()
-
 	// Start transaction
 	tx := s.db.Begin()
 	if tx.Error != nil {
-		err = fmt.Errorf("failed to begin transaction: %w", tx.Error)
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -44,10 +36,9 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 
 	// Check if there are already records for the given schema ID
 	var existingMetadata []models.PolicyMetadata
-	if err = tx.Where("schema_id = ?", req.SchemaID).Find(&existingMetadata).Error; err != nil {
+	if err := tx.Where("schema_id = ?", req.SchemaID).Find(&existingMetadata).Error; err != nil {
 		tx.Rollback()
-		err = fmt.Errorf("failed to check existing policy metadata: %w", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to check existing policy metadata: %w", err)
 	}
 
 	// Create a map for faster lookups of existing records by field name
@@ -106,19 +97,17 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 	}
 
 	if len(idsToDelete) > 0 {
-		if err = tx.Where("id IN ?", idsToDelete).Delete(&models.PolicyMetadata{}).Error; err != nil {
+		if err := tx.Where("id IN ?", idsToDelete).Delete(&models.PolicyMetadata{}).Error; err != nil {
 			tx.Rollback()
-			err = fmt.Errorf("failed to delete obsolete policy metadata records: %w", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to delete obsolete policy metadata records: %w", err)
 		}
 	}
 
 	// Bulk create new records
 	if len(newRecords) > 0 {
-		if err = tx.Create(&newRecords).Error; err != nil {
+		if err := tx.Create(&newRecords).Error; err != nil {
 			tx.Rollback()
-			err = fmt.Errorf("failed to create policy metadata records: %w", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to create policy metadata records: %w", err)
 		}
 	}
 
@@ -130,17 +119,15 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 			recordsToUpdate = append(recordsToUpdate, *pm)
 		}
 
-		if err = tx.Save(&recordsToUpdate).Error; err != nil {
+		if err := tx.Save(&recordsToUpdate).Error; err != nil {
 			tx.Rollback()
-			err = fmt.Errorf("failed to update existing policy metadata: %w", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to update existing policy metadata: %w", err)
 		}
 	}
 
 	// Commit transaction
-	if err = tx.Commit().Error; err != nil {
-		err = fmt.Errorf("failed to commit transaction: %w", err)
-		return nil, err
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	// Prepare response including both new and updated records
@@ -163,12 +150,6 @@ func (s *PolicyMetadataService) CreatePolicyMetadata(req *models.PolicyMetadataC
 
 // UpdateAllowList updates the allow list for multiple fields with validation
 func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateRequest) (*models.AllowListUpdateResponse, error) {
-	start := time.Now()
-	var err error
-	defer func() {
-		monitoring.RecordExternalCall("postgres", "update_allow_list", time.Since(start), err)
-	}()
-
 	// Collect all (schema_id, field_name) pairs from the request
 	var conditions []string
 	var args []interface{}
@@ -195,9 +176,8 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 	}
 	whereClause += ")"
 
-	if err = s.db.Where(whereClause, args...).Find(&policyMetadataRecords).Error; err != nil {
-		err = fmt.Errorf("failed to fetch policy metadata records: %w", err)
-		return nil, err
+	if err := s.db.Where(whereClause, args...).Find(&policyMetadataRecords).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch policy metadata records: %w", err)
 	}
 
 	// Create map for fast lookup: (schema_id + field_name) -> &PolicyMetadata
@@ -212,8 +192,7 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 	for key := range requestMap {
 		if _, exists := policyMap[key]; !exists {
 			record := requestMap[key]
-			err = fmt.Errorf("policy metadata not found for schema_id %s and field_name %s", record.SchemaID, record.FieldName)
-			return nil, err
+			return nil, fmt.Errorf("policy metadata not found for schema_id %s and field_name %s", record.SchemaID, record.FieldName)
 		}
 	}
 
@@ -226,15 +205,13 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 	case models.GrantDurationTypeOneYear:
 		expiresAt = currentTime.AddDate(1, 0, 0)
 	default:
-		err = fmt.Errorf("invalid grant duration: %s", req.GrantDuration)
-		return nil, err
+		return nil, fmt.Errorf("invalid grant duration: %s", req.GrantDuration)
 	}
 
 	// Start transaction
 	tx := s.db.Begin()
 	if tx.Error != nil {
-		err = fmt.Errorf("failed to begin transaction: %w", tx.Error)
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -281,21 +258,19 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 	if len(recordsToUpdate) > 0 {
 		for _, pm := range recordsToUpdate {
 			pm.UpdatedAt = currentTime
-			if err = tx.Model(pm).Select("allow_list", "updated_at").Updates(map[string]interface{}{
+			if err := tx.Model(pm).Select("allow_list", "updated_at").Updates(map[string]interface{}{
 				"allow_list": pm.AllowList,
 				"updated_at": pm.UpdatedAt,
 			}).Error; err != nil {
 				tx.Rollback()
-				err = fmt.Errorf("failed to update allow list record: %w", err)
-				return nil, err
+				return nil, fmt.Errorf("failed to update allow list record: %w", err)
 			}
 		}
 	}
 
 	// Commit transaction
-	if err = tx.Commit().Error; err != nil {
-		err = fmt.Errorf("failed to commit transaction: %w", err)
-		return nil, err
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return &models.AllowListUpdateResponse{
@@ -305,12 +280,6 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 
 // GetPolicyDecision evaluates policy decision based on policy metadata
 func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequest) (*models.PolicyDecisionResponse, error) {
-	start := time.Now()
-	var err error
-	defer func() {
-		monitoring.RecordExternalCall("postgres", "get_policy_decision", time.Since(start), err)
-	}()
-
 	// Collect all unique schema IDs from the request
 	schemaIDSet := make(map[string]struct{})
 	for _, record := range req.RequiredFields {
@@ -324,9 +293,8 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 
 	// Fetch all PolicyMetadata records for those schemas in one query
 	var allMetadata []models.PolicyMetadata
-	if err = s.db.Where("schema_id IN ?", schemaIDs).Find(&allMetadata).Error; err != nil {
-		err = fmt.Errorf("failed to fetch policy metadata records: %w", err)
-		return nil, err
+	if err := s.db.Where("schema_id IN ?", schemaIDs).Find(&allMetadata).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch policy metadata records: %w", err)
 	}
 
 	// Create map for fast lookup: (schema_id + field_name) -> &PolicyMetadata
@@ -346,8 +314,7 @@ func (s *PolicyMetadataService) GetPolicyDecision(req *models.PolicyDecisionRequ
 		key := record.SchemaID + ":" + record.FieldName
 		pm, exists := metadataMap[key]
 		if !exists {
-			err = fmt.Errorf("policy metadata not found for schema_id %s and field_name %s", record.SchemaID, record.FieldName)
-			return nil, err
+			return nil, fmt.Errorf("policy metadata not found for schema_id %s and field_name %s", record.SchemaID, record.FieldName)
 		}
 
 		// Check if application is authorized

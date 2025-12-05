@@ -805,8 +805,9 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Wrap the mux with CORS and metrics middleware
-	handler := corsMiddleware(monitoring.HTTPMetricsMiddleware(mux))
+	// Wrap the mux with metrics (outermost) and CORS middleware
+	// Metrics must be outermost to capture all requests, including CORS-blocked ones
+	handler := monitoring.HTTPMetricsMiddleware(corsMiddleware(mux))
 	httpServer := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
