@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -14,6 +15,9 @@ func TestLogAuditEvent(t *testing.T) {
 
 	// Create a test server to mock the audit service
 	var receivedRequest *DataExchangeEventAuditRequest
+	var mu sync.Mutex
+	requestReceived := make(chan bool, 1)
+
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("Expected POST request, got %s", r.Method)
@@ -26,9 +30,13 @@ func TestLogAuditEvent(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&auditReq); err != nil {
 			t.Fatalf("Failed to decode request body: %v", err)
 		}
+
+		mu.Lock()
 		receivedRequest = &auditReq
+		mu.Unlock()
 
 		w.WriteHeader(http.StatusCreated)
+		requestReceived <- true
 	}))
 	defer testServer.Close()
 
@@ -51,10 +59,18 @@ func TestLogAuditEvent(t *testing.T) {
 	// Call LogAuditEvent
 	LogAuditEvent(testRequest)
 
-	// Give some time for the async operation to complete
-	time.Sleep(100 * time.Millisecond)
+	// Wait for the async operation to complete with timeout
+	select {
+	case <-requestReceived:
+		// Request received successfully
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for audit request")
+	}
 
 	// Verify the request was received
+	mu.Lock()
+	defer mu.Unlock()
+
 	if receivedRequest == nil {
 		t.Fatal("No request received by test server")
 	}

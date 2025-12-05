@@ -66,11 +66,19 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 		scopes = strings.Fields(asgScopesEnv)
 	}
 	// Create the NewIdpProvider
+	baseURL := os.Getenv("ASGARDEO_BASE_URL")
+	clientID := os.Getenv("ASGARDEO_CLIENT_ID")
+	clientSecret := os.Getenv("ASGARDEO_CLIENT_SECRET")
+
+	if baseURL == "" || clientID == "" || clientSecret == "" {
+		return nil, fmt.Errorf("failed to create IDP provider: missing required environment variables (ASGARDEO_BASE_URL, ASGARDEO_CLIENT_ID, ASGARDEO_CLIENT_SECRET)")
+	}
+
 	idpProvider, err := idpfactory.NewIdpAPIProvider(idpfactory.FactoryConfig{
 		ProviderType: idp.ProviderAsgardeo,
-		BaseURL:      os.Getenv("ASGARDEO_BASE_URL"),
-		ClientID:     os.Getenv("ASGARDEO_CLIENT_ID"),
-		ClientSecret: os.Getenv("ASGARDEO_CLIENT_SECRET"),
+		BaseURL:      baseURL,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		Scopes:       scopes,
 	})
 	if err != nil {

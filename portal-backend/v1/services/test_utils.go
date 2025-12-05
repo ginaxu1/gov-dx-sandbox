@@ -2,13 +2,15 @@ package services
 
 import (
 	"bufio"
+	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -51,47 +53,15 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// SetupPostgresTestDB creates a PostgreSQL test database connection
-// Uses environment variables for configuration (TEST_DB_*)
-//
-// Returns nil if the database connection cannot be established or if database
-// migration fails. In this case, the test is automatically skipped using t.Skipf().
-//
-// IMPORTANT: Callers MUST check for nil return value before using the database:
-//
-//	db := SetupPostgresTestDB(t)
-//	if db == nil {
-//	    return // test was skipped
-//	}
-//
-// Environment variables:
-//   - TEST_DB_HOST (optional, default: "localhost"): Database host
-//   - TEST_DB_PORT (optional, default: "5432"): Database port
-//   - TEST_DB_USERNAME (optional, default: "postgres"): Database username
-//   - TEST_DB_PASSWORD (optional, default: "password"): Database password
-//   - TEST_DB_DATABASE (optional, default: "portal_backend_test"): Database name
-//   - TEST_DB_SSLMODE (optional, default: "disable"): SSL mode
-//
-// Exported for use in handler tests
-func SetupPostgresTestDB(t *testing.T) *gorm.DB {
-	// Load .env.test file if it exists in the portal-backend directory
-	loadEnvFile(filepath.Join("..", "..", ".env.test"))
-
-	host := getEnvOrDefault("TEST_DB_HOST", "localhost")
-	port := getEnvOrDefault("TEST_DB_PORT", "5432")
-	user := getEnvOrDefault("TEST_DB_USERNAME", "postgres")
-	password := getEnvOrDefault("TEST_DB_PASSWORD", "password")
-	database := getEnvOrDefault("TEST_DB_DATABASE", "portal_backend_test")
-	sslmode := getEnvOrDefault("TEST_DB_SSLMODE", "disable")
-
-	dsn := "host=" + host + " port=" + port + " user=" + user + " password=" + password + " dbname=" + database + " sslmode=" + sslmode
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+// SetupSQLiteTestDB creates an in-memory SQLite database for testing
+// NOTE: This should only be used in integration tests or handler tests.
+// Unit tests in services should use SetupMockDB instead.
+func SetupSQLiteTestDB(t *testing.T) *gorm.DB {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		t.Skipf("Skipping test: could not connect to test database: %v", err)
-		return nil // IMPORTANT: Callers must check for nil before using the database
+		t.Fatalf("Failed to connect to SQLite test database: %v", err)
 	}
 
 	// Auto-migrate all models
@@ -103,8 +73,7 @@ func SetupPostgresTestDB(t *testing.T) *gorm.DB {
 		&models.SchemaSubmission{},
 	)
 	if err != nil {
-		t.Skipf("Skipping test: could not migrate test database: %v", err)
-		return nil // IMPORTANT: Callers must check for nil before using the database
+		t.Fatalf("Failed to migrate test database: %v", err)
 	}
 
 	// Clean up test data before each test
@@ -142,13 +111,46 @@ func CleanupTestData(t *testing.T, db *gorm.DB) {
 //
 //	db := RequireTestDB(t)
 //	// No need to check for nil - test will fail if DB setup fails
-//
-// This is an alternative to SetupPostgresTestDB for tests that cannot proceed without
-// a database connection.
 func RequireTestDB(t *testing.T) *gorm.DB {
-	db := SetupPostgresTestDB(t)
+	db := SetupSQLiteTestDB(t)
 	if db == nil {
 		t.Fatal("Test database setup failed - cannot proceed with test")
 	}
 	return db
+}
+
+// SetupMockDB creates a mock database for testing using go-sqlmock
+func SetupMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+
+	dialector := postgres.New(postgres.Config{
+		Conn:       db,
+		DriverName: "postgres",
+	})
+
+	gormDB, err := gorm.Open(dialector, &gorm.Config{
+		SkipDefaultTransaction: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to open gorm db: %v", err)
+	}
+
+	cleanup := func() {
+		db.Close()
+	}
+
+	return gormDB, mock, cleanup
+}
+
+// MockRoundTripper is a mock implementation of http.RoundTripper
+type MockRoundTripper struct {
+	RoundTripFunc func(req *http.Request) (*http.Response, error)
+}
+
+// RoundTrip executes the mock RoundTripFunc
+func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.RoundTripFunc(req)
 }

@@ -152,13 +152,10 @@ type TestV1Handler struct {
 	handler *V1Handler
 }
 
-// NewTestV1Handler creates a new test handler with PostgreSQL test database
+// NewTestV1Handler creates a new test handler with SQLite test database
 func NewTestV1Handler(t *testing.T) *TestV1Handler {
-	// Use shared PostgreSQL test utility
-	db := services.SetupPostgresTestDB(t)
-	if db == nil {
-		return nil
-	}
+	// Use shared SQLite test utility
+	db := services.SetupSQLiteTestDB(t)
 
 	// Create handler with mock PDP service
 	handler := NewTestV1HandlerWithMockPDP(t, db)
@@ -271,12 +268,16 @@ func createTestApplication(t *testing.T, db *gorm.DB, memberID string) string {
 
 	// Use GORM Create which handles JSONB fields properly across different environments
 	err := db.Create(&application).Error
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to create application: %v. ApplicationID: %s, MemberID: %s", err, application.ApplicationID, memberID)
+	}
 
 	// Ensure the record is properly committed and readable
 	var verifyApp models.Application
 	err = db.First(&verifyApp, "application_id = ?", application.ApplicationID).Error
-	assert.NoError(t, err, "Failed to verify application was created properly")
+	if err != nil {
+		t.Fatalf("Failed to verify application was created properly: %v. ApplicationID: %s", err, application.ApplicationID)
+	}
 
 	return application.ApplicationID
 }
@@ -288,7 +289,7 @@ func TestMemberEndpoints(t *testing.T) {
 		t.Skip("Skipping test: database connection failed")
 		return
 	}
-	// Cleanup is handled by SetupPostgresTestDB
+	// Cleanup is handled by SetupSQLiteTestDB
 
 	t.Run("POST /api/v1/members - CreateMember", func(t *testing.T) {
 		req := models.CreateMemberRequest{
@@ -1260,7 +1261,15 @@ func TestNewV1Handler(t *testing.T) {
 		os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
 		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
 
-		db := services.SetupPostgresTestDB(t)
+		// Set IDP env vars to pass IDP check
+		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
+		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
+		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
+		defer os.Unsetenv("ASGARDEO_BASE_URL")
+		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
+		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
+
+		db := services.SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -1290,7 +1299,15 @@ func TestNewV1Handler(t *testing.T) {
 		os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", "http://localhost:9999")
 		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
 
-		db := services.SetupPostgresTestDB(t)
+		// Set IDP env vars to pass IDP check
+		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
+		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
+		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
+		defer os.Unsetenv("ASGARDEO_BASE_URL")
+		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
+		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
+
+		db := services.SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -1348,7 +1365,7 @@ func TestNewV1Handler(t *testing.T) {
 		os.Setenv("ASGARDEO_CLIENT_SECRET", "test-client-secret")
 		os.Setenv("ASGARDEO_SCOPES", "scope1 scope2 scope3")
 
-		db := services.SetupPostgresTestDB(t)
+		db := services.SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -1408,7 +1425,7 @@ func TestNewV1Handler(t *testing.T) {
 		os.Setenv("ASGARDEO_CLIENT_SECRET", "test-client-secret")
 		os.Unsetenv("ASGARDEO_SCOPES")
 
-		db := services.SetupPostgresTestDB(t)
+		db := services.SetupSQLiteTestDB(t)
 		if db == nil {
 			return
 		}
@@ -1421,10 +1438,7 @@ func TestNewV1Handler(t *testing.T) {
 
 // TestV1Handler_SetupV1Routes tests the SetupV1Routes method
 func TestV1Handler_SetupV1Routes(t *testing.T) {
-	db := services.SetupPostgresTestDB(t)
-	if db == nil {
-		return
-	}
+	db := services.SetupSQLiteTestDB(t)
 
 	originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
 	originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")

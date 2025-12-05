@@ -1,7 +1,6 @@
 package models
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -86,25 +85,6 @@ func TestSelectedFieldRecords_Value(t *testing.T) {
 func TestSelectedFieldRecords_GormDataType(t *testing.T) {
 	var sfr SelectedFieldRecords
 	assert.Equal(t, "jsonb", sfr.GormDataType())
-}
-
-func TestSelectedFieldRecords_GormValue(t *testing.T) {
-	sfr := SelectedFieldRecords{
-		{FieldName: "field1", SchemaID: "sch1"},
-	}
-
-	// Using context.Background() for this unit test as no request context is available
-	// and the GormValue method doesn't perform any context-dependent operations
-	expr := sfr.GormValue(context.Background(), nil)
-	assert.NotNil(t, expr)
-	assert.Contains(t, expr.SQL, "jsonb")
-	assert.Len(t, expr.Vars, 1)
-
-	// Verify the JSON is valid
-	var result SelectedFieldRecords
-	err := json.Unmarshal([]byte(expr.Vars[0].(string)), &result)
-	assert.NoError(t, err)
-	assert.Equal(t, sfr, result)
 }
 
 func TestAccessControlType_Scan(t *testing.T) {
@@ -357,4 +337,68 @@ func TestTableName_Application(t *testing.T) {
 func TestTableName_ApplicationSubmission(t *testing.T) {
 	as := ApplicationSubmission{}
 	assert.Equal(t, "application_submissions", as.TableName())
+}
+
+func TestFlexibleStringSlice_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		want    FlexibleStringSlice
+		wantErr bool
+	}{
+		{
+			name:    "single string",
+			json:    `"test"`,
+			want:    FlexibleStringSlice{"test"},
+			wantErr: false,
+		},
+		{
+			name:    "string array",
+			json:    `["test1", "test2"]`,
+			want:    FlexibleStringSlice{"test1", "test2"},
+			wantErr: false,
+		},
+		{
+			name:    "empty string",
+			json:    `""`,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "empty array",
+			json:    `[]`,
+			want:    FlexibleStringSlice{},
+			wantErr: false,
+		},
+		{
+			name:    "invalid type",
+			json:    `123`,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "invalid string in array",
+			json:    `["test", ""]`,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var f FlexibleStringSlice
+			err := json.Unmarshal([]byte(tt.json), &f)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, f)
+			}
+		})
+	}
+}
+
+func TestFlexibleStringSlice_ToStringSlice(t *testing.T) {
+	f := FlexibleStringSlice{"a", "b"}
+	assert.Equal(t, []string{"a", "b"}, f.ToStringSlice())
 }

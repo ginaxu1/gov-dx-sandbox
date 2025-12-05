@@ -113,6 +113,7 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 			providerInstance := &provider.Provider{
 				ServiceUrl: p.ProviderURL,
 				ServiceKey: p.ProviderKey,
+				SchemaID:   p.SchemaID,
 				Auth:       p.Auth,
 			}
 
