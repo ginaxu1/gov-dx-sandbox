@@ -46,9 +46,10 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 		// Mock DB expectations
 		mock.ExpectBegin()
 		mock.ExpectQuery(`INSERT INTO "applications"`).
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"application_id"}).AddRow("app_123"))
-		mock.ExpectQuery(`INSERT INTO "pdp_jobs"`).
-			WillReturnRows(sqlmock.NewRows([]string{"job_id"}).AddRow("job_123"))
+		mock.ExpectExec(`INSERT INTO "pdp_jobs"`).
+			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
 		// Act
@@ -70,7 +71,6 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
-
 
 }
 
@@ -408,9 +408,10 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 		// 3. Create Application (Transaction)
 		mock.ExpectBegin()
 		mock.ExpectQuery(`INSERT INTO "applications"`).
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"application_id"}).AddRow("app_new"))
-		mock.ExpectQuery(`INSERT INTO "pdp_jobs"`).
-			WillReturnRows(sqlmock.NewRows([]string{"job_id"}).AddRow("job_123"))
+		mock.ExpectExec(`INSERT INTO "pdp_jobs"`).
+			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
 		status := string(models.StatusApproved)
@@ -436,11 +437,16 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 		}
 
 		// Verify application was created (in the mock DB)
+		mock.ExpectQuery(`SELECT count\(\*\) FROM "applications"`).
+			WithArgs(member.MemberID).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 		var appCount int64
 		db.Model(&models.Application{}).Where("member_id = ?", member.MemberID).Count(&appCount)
 		assert.Equal(t, int64(1), appCount)
 
 		// Verify PDP job was queued (in the mock DB)
+		mock.ExpectQuery(`SELECT count\(\*\) FROM "pdp_jobs"`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 		var jobCount int64
 		db.Model(&models.PDPJob{}).Where("application_id IS NOT NULL").Count(&jobCount)
 		assert.GreaterOrEqual(t, jobCount, int64(1))
@@ -647,35 +653,17 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 		}
 
 		// Mock DB expectations
-		// 1. Create application
+		// CreateApplication now uses outbox pattern - it succeeds and queues a job
+		// Empty selected fields are valid - they just result in an empty JSON array
+		mock.ExpectBegin()
 		mock.ExpectQuery(`INSERT INTO "applications"`).
 			WillReturnRows(sqlmock.NewRows([]string{"application_id"}).AddRow("app_123"))
-
-		// 2. Compensation: Delete application (because empty fields might cause PDP error or logic error)
-		// Wait, empty selected fields might be valid for DB but PDP might reject?
-		// The original test expected error.
-		// If PDP service is mocked to return error (or if logic checks for empty fields), then compensation happens.
-		// Let's assume PDP returns error for empty fields if we mock it that way.
-		// Or if the logic itself checks.
-		// The original test said "Will fail on PDP call but tests the request structure".
-		// So we should mock PDP failure.
-
-		mockTransport := &MockRoundTripper{
-			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusBadRequest,
-					Body:       io.NopCloser(bytes.NewBufferString(`{"error": "empty fields"}`)),
-					Header:     make(http.Header),
-				}, nil
-			},
-		}
-		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
-
-		mock.ExpectExec(`DELETE FROM "applications"`).
+		mock.ExpectExec(`INSERT INTO "pdp_jobs"`).
 			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
 
 		_, err := service.CreateApplication(req)
-		assert.Error(t, err)
+		assert.NoError(t, err)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})

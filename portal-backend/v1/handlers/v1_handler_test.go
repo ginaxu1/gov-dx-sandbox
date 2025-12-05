@@ -376,7 +376,7 @@ func TestMemberEndpoints(t *testing.T) {
 			Name: &name,
 		}
 		reqBody, _ := json.Marshal(req)
-		httpReq := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/members/%s", memberID), bytes.NewBuffer(reqBody))
+		httpReq := NewAdminRequest(http.MethodPut, fmt.Sprintf("/api/v1/members/%s", memberID), bytes.NewBuffer(reqBody))
 		httpReq.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
@@ -1100,7 +1100,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("POST /api/v1/application-submissions - Invalid JSON", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodPost, "/api/v1/application-submissions", bytes.NewBufferString("invalid json"))
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/application-submissions", bytes.NewBufferString("invalid json"))
 		httpReq.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
@@ -1111,7 +1111,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/application-submissions - WithStatusFilter", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/application-submissions?status=pending&status=approved", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/application-submissions?status=pending&status=approved", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1121,7 +1121,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schema-submissions - WithStatusFilter", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schema-submissions?status=pending&status=approved", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schema-submissions?status=pending&status=approved", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1131,7 +1131,7 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 	})
 
 	t.Run("GET /api/v1/schemas - WithMemberID", func(t *testing.T) {
-		httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/schemas?memberId=test-member-123", nil)
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schemas?memberId=test-member-123", nil)
 		w := httptest.NewRecorder()
 		mux := http.NewServeMux()
 		testHandler.handler.SetupV1Routes(mux)
@@ -1315,8 +1315,6 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 
 // TestNewV1Handler tests the NewV1Handler constructor
 func TestNewV1Handler(t *testing.T) {
-
-
 
 	t.Run("NewV1Handler_Success", func(t *testing.T) {
 		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
