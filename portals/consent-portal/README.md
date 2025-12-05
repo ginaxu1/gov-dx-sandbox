@@ -1,32 +1,72 @@
-# Consent Portal Testing Guide
+# Consent Portal
 
-This README explains how to test the consent-portal with the ConsentEngine using JWT authentication from Asgardeo.
+A citizen-facing React application that allows data owners to view, approve, or deny data access requests.
 
-## Start the Consent Engine Backend
+## Overview
 
-1. `cd exchange/consent-engine`
-2. `go run engine.go main.go`
+The Consent Portal is the interface where citizens (data owners) interact with OpenDIF to manage their data consents. It is typically accessed via a redirect from a data consumer application when consent is required.
 
-## Generate Consent ID
+**Technology**: React + TypeScript + TailwindCSS + Vite
 
-1. Go to the Postman collection: OpenDIF → Consent Engine → POST (OE) Call Consent Engine
-2. Send the POST request
-3. Copy the `consent_id` from the response
+## Features
 
-## Start the Consent Portal
+- **Consent Review** - View details of data access requests (who, what, why)
+- **Approval/Denial** - Grant or deny access to requested data
+- **Consent Management** - View and revoke previously granted consents
+- **Secure Authentication** - Integration with IdP for user authentication
 
-1. `cd portals/consent-portal`
-2. `npm install`
-3. `cp .env.template .env`
-4. `npm run dev`
+## Quick Start
 
-## Test the Portal
+### Prerequisites
 
-1. Navigate to: `http://localhost:5174/?consent={consent_uuid}`
-    - Note: `consent_uuid` = the ID copied from the Postman response
+- Node.js 18+
+- npm 9+
 
-## Testing Scenarios
+### Run the Application
 
-You can test the following:
-1. Approve or deny the consent
-2. Return to the portal - it will show consent already approved or denied
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run dev
+```
+
+The application will be available at `http://localhost:5174` (or configured port).
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file based on `.env.template`:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8081  # Consent Engine API URL
+VITE_AUTH_CLIENT_ID=your_client_id       # IdP Client ID
+VITE_AUTH_ISSUER=your_issuer_url         # IdP Issuer URL
+```
+
+## Testing Guide
+
+### End-to-End Flow
+
+1. **Start Backend Services**: Ensure Consent Engine is running on port 8081.
+2. **Generate Consent Request**:
+   - Use Postman or curl to create a consent request in Consent Engine.
+   - Copy the `consent_id` from the response.
+3. **Access Portal**:
+   - Navigate to `http://localhost:5174/?consent={consent_id}`
+   - Log in if required.
+   - Review and act on the consent request.
+
+## Docker
+
+```bash
+# Build image
+docker build -t consent-portal .
+
+# Run container
+docker run -p 5174:80 \
+  -e VITE_API_BASE_URL=http://localhost:8081 \
+  consent-portal
+```
