@@ -16,6 +16,8 @@ type ConsentRecord struct {
 	OwnerEmail string `gorm:"column:owner_email;type:varchar(255);not null;index:idx_consent_records_owner_email" json:"owner_email"`
 	// AppID is the unique identifier for the consumer application
 	AppID string `gorm:"column:app_id;type:varchar(255);not null;index:idx_consent_records_app_id" json:"app_id"`
+	// AppName is the name of the consumer application
+	AppName *string `gorm:"column:app_name;type:varchar(255);" json:"app_name,omitempty"`
 	// Status is the status of the consent record: pending, approved, rejected, expired, revoked
 	Status string `gorm:"column:status;type:varchar(50);not null;index:idx_consent_records_status" json:"status"`
 	// Type is the type of consent mechanism "realtime" or "offline"
@@ -37,9 +39,9 @@ type ConsentRecord struct {
 	// Fields is the list of data fields that require consent (stored as array of field names)
 	Fields []ConsentField `gorm:"column:fields;type:jsonb;not null" json:"fields"`
 	// SessionID is the session identifier for tracking the consent flow
-	SessionID string `gorm:"column:session_id;type:varchar(255);not null" json:"session_id"`
+	SessionID *string `gorm:"column:session_id;type:varchar(255);" json:"session_id,omitempty"`
 	// ConsentPortalURL is the URL to redirect to for consent portal
-	ConsentPortalURL string `gorm:"column:consent_portal_url;type:text" json:"consent_portal_url"`
+	ConsentPortalURL string `gorm:"column:consent_portal_url;type:text;not null" json:"consent_portal_url"`
 	// UpdatedBy identifies who last updated the consent (audit field)
 	UpdatedBy *string `gorm:"column:updated_by;type:varchar(255)" json:"updated_by,omitempty"`
 }
