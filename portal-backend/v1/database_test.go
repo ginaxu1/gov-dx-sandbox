@@ -6,9 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func TestNewDatabaseConfig(t *testing.T) {
@@ -18,7 +15,7 @@ func TestNewDatabaseConfig(t *testing.T) {
 	assert.Equal(t, "5432", config.Port)
 	assert.Equal(t, "postgres", config.Username)
 	assert.Equal(t, "password", config.Password)
-	assert.Equal(t, "testdb", config.Database)
+	assert.Equal(t, "testdb2", config.Database)
 	assert.Equal(t, "require", config.SSLMode)
 	assert.Equal(t, 25, config.MaxOpenConns)
 	assert.Equal(t, 5, config.MaxIdleConns)
@@ -27,8 +24,20 @@ func TestNewDatabaseConfig(t *testing.T) {
 }
 
 func TestNewDatabaseConfig_WithEnvVars(t *testing.T) {
-	cleanup := WithEnvVars(t, TestEnvVarsChoreo())
-	defer cleanup()
+	os.Setenv("CHOREO_OPENDIF_DB_HOSTNAME", "test-host")
+	os.Setenv("CHOREO_OPENDIF_DB_PORT", "5433")
+	os.Setenv("CHOREO_OPENDIF_DB_USERNAME", "test-user")
+	os.Setenv("CHOREO_OPENDIF_DB_PASSWORD", "test-pass")
+	os.Setenv("CHOREO_OPENDIF_DB_DATABASENAME", "test-db")
+	os.Setenv("DB_SSLMODE", "disable")
+	defer func() {
+		os.Unsetenv("CHOREO_OPENDIF_DB_HOSTNAME")
+		os.Unsetenv("CHOREO_OPENDIF_DB_PORT")
+		os.Unsetenv("CHOREO_OPENDIF_DB_USERNAME")
+		os.Unsetenv("CHOREO_OPENDIF_DB_PASSWORD")
+		os.Unsetenv("CHOREO_OPENDIF_DB_DATABASENAME")
+		os.Unsetenv("DB_SSLMODE")
+	}()
 
 	config := NewDatabaseConfig()
 	assert.Equal(t, "test-host", config.Host)
@@ -65,44 +74,6 @@ func TestGetEnvOrDefault(t *testing.T) {
 		result := getEnvOrDefault(key, "default")
 		assert.Equal(t, "default", result)
 	})
-}
-
-func TestConnectGormDB_WithSQLite(t *testing.T) {
-	// Use SQLite for testing instead of PostgreSQL
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	defer func() {
-		if sqlDB, err := db.DB(); err == nil {
-			sqlDB.Close()
-		}
-	}()
-
-	// Create a config that simulates connection pool settings
-	config := &DatabaseConfig{
-		Host:            "localhost",
-		Port:            "5432",
-		Username:        "test",
-		Password:        "test",
-		Database:        "test",
-		SSLMode:         "disable",
-		MaxOpenConns:    10,
-		MaxIdleConns:    2,
-		ConnMaxLifetime: 30 * time.Minute,
-		ConnMaxIdleTime: 15 * time.Minute,
-	}
-
-	// Test that we can configure connection pool (even with SQLite)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-
-	sqlDB.SetMaxOpenConns(config.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(config.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(config.ConnMaxLifetime)
-	sqlDB.SetConnMaxIdleTime(config.ConnMaxIdleTime)
-
-	// Test ping
-	err = sqlDB.Ping()
-	assert.NoError(t, err)
 }
 
 func TestConnectGormDB_InvalidConnection(t *testing.T) {

@@ -58,8 +58,21 @@ func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clau
 		// JSON marshaling of SelectedFieldRecords should never fail under normal circumstances
 		panic(fmt.Sprintf("Failed to marshal SelectedFieldRecords to JSON: %v", err))
 	}
+
+	// Use dialect-appropriate syntax
+	// PostgreSQL uses ::jsonb cast, SQLite uses JSON() function or plain ?
+	dialector := db.Dialector.Name()
+	var sql string
+	if dialector == "postgres" {
+		sql = "?::jsonb"
+	} else {
+		// SQLite and other databases - use plain parameter
+		// GORM will handle JSON encoding automatically
+		sql = "?"
+	}
+
 	return clause.Expr{
-		SQL:  "?::jsonb",
+		SQL:  sql,
 		Vars: []interface{}{string(data)},
 	}
 }
