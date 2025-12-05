@@ -15,6 +15,7 @@ import (
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 )
 
 type Response struct {
@@ -44,7 +45,7 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
+	if err := http.ListenAndServe(port, monitoring.HTTPMetricsMiddleware(corsMiddleware(mux))); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
@@ -60,20 +61,10 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 	schemaDB, err := database.NewSchemaDB(dbConnectionString)
 	if err != nil {
 		logger.Log.Error("Failed to connect to database", "error", err)
-		// Continue without database for now
-		schemaDB = nil
 	}
 
 	// Initialize schema service and handler
-	var schemaService handlers.SchemaService
-	if schemaDB != nil {
-		schemaService = services.NewSchemaService(schemaDB)
-	} else {
-		// Fallback to in-memory service if database is not available
-		schemaService = nil
-		logger.Log.Warn("Running without database - schema management disabled")
-	}
-
+	schemaService := services.NewSchemaService(schemaDB)
 	schemaHandler := handlers.NewSchemaHandler(schemaService)
 
 	// Set the schema service in the federator
