@@ -39,8 +39,8 @@ All quality checks are orchestrated through a centralized Makefile that automati
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/OpenDIF/opendif-mvp.git
-cd opendif-mvp
+git clone https://github.com/OpenDIF/opendif-core.git
+cd opendif-core
 ```
 
 ### 2. Install Go Quality Tools
