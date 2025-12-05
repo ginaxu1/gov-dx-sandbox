@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/configs"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/federator"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/configs"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/provider"
 	"github.com/stretchr/testify/assert"
 )
 
