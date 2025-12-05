@@ -604,4 +604,18 @@ The Consent Engine integrates with:
    - Orchestration Engine uses project-internal network access
    - Orchestration Engine calls `POST /consents` without authentication
    - Consent Engine processes internal requests without JWT validation
+   - Consent Engine processes internal requests without JWT validation
    - Access is restricted to internal services only, not exposed to external clients
+
+## Docker
+
+```bash
+# Build image
+docker build -t consent-engine .
+
+# Run container
+docker run -p 8081:8081 \
+  -e CHOREO_OPENDIF_DB_HOSTNAME=host.docker.internal \
+  --env-file .env.local \
+  consent-engine
+```
