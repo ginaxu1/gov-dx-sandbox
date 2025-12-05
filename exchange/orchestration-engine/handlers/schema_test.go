@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
 	"github.com/go-chi/chi/v5"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/services"
 	"github.com/stretchr/testify/assert"
 )
 
