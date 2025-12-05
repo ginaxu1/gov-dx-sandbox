@@ -38,6 +38,10 @@ func NewSchemaService(db *database.SchemaDB) *SchemaService {
 
 // CreateSchema creates a new schema version
 func (s *SchemaService) CreateSchema(version, sdl, createdBy string) (*Schema, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
 	// Validate SDL
 	if !s.isValidSDL(sdl) {
 		return nil, fmt.Errorf("invalid SDL syntax")
@@ -79,6 +83,10 @@ func (s *SchemaService) CreateSchema(version, sdl, createdBy string) (*Schema, e
 
 // GetActiveSchema returns the currently active schema
 func (s *SchemaService) GetActiveSchema() (*Schema, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
 	dbSchema, err := s.db.GetActiveSchema()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get active schema: %w", err)
@@ -104,11 +112,18 @@ func (s *SchemaService) GetActiveSchema() (*Schema, error) {
 
 // ActivateSchema activates a specific schema version
 func (s *SchemaService) ActivateSchema(version string) error {
+	if s.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
 	return s.db.ActivateSchema(version)
 }
 
 // GetAllSchemas returns all schemas
 func (s *SchemaService) GetAllSchemas() ([]Schema, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
 	dbSchemas, err := s.db.GetAllSchemas()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get schemas: %w", err)

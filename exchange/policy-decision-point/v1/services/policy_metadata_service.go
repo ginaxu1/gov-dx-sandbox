@@ -197,7 +197,7 @@ func (s *PolicyMetadataService) UpdateAllowList(req *models.AllowListUpdateReque
 	}
 
 	// Calculate expiration time based on grant duration
-	var currentTime = time.Now()
+	currentTime := time.Now()
 	var expiresAt time.Time
 	switch req.GrantDuration {
 	case models.GrantDurationTypeOneMonth:

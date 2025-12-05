@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
@@ -95,18 +96,103 @@ func TestCorsMiddleware_OptionsRequest(t *testing.T) {
 }
 
 func TestGetEnv(t *testing.T) {
-	// Test with default value
-	value := getEnv("NON_EXISTENT_VAR", "default-value")
-	assert.Equal(t, "default-value", value)
+	t.Run("Env var exists", func(t *testing.T) {
+		os.Setenv("TEST_EXISTING_VAR", "test_value")
+		defer os.Unsetenv("TEST_EXISTING_VAR")
+		value := getEnv("TEST_EXISTING_VAR", "default")
+		assert.Equal(t, "test_value", value)
+	})
 
-	// Note: Testing with actual environment variables would require setting them
-	// which could affect other tests, so we test the default case
+	t.Run("Env var does not exist", func(t *testing.T) {
+		os.Unsetenv("TEST_NON_EXISTENT_VAR")
+		value := getEnv("TEST_NON_EXISTENT_VAR", "default_value")
+		assert.Equal(t, "default_value", value)
+	})
+
+	t.Run("Env var is empty string", func(t *testing.T) {
+		os.Setenv("TEST_EMPTY_VAR", "")
+		defer os.Unsetenv("TEST_EMPTY_VAR")
+		value := getEnv("TEST_EMPTY_VAR", "default_value")
+		assert.Equal(t, "default_value", value)
+	})
 }
 
 func TestGetDatabaseConnectionString(t *testing.T) {
-	// Test that function returns a connection string
-	// We can't easily test environment variable reading without affecting other tests
-	connStr := getDatabaseConnectionString()
-	assert.NotEmpty(t, connStr)
-	assert.Contains(t, connStr, "host=")
+	t.Run("Choreo environment variables set", func(t *testing.T) {
+		os.Setenv("CHOREO_DB_OE_HOSTNAME", "choreo-host")
+		os.Setenv("CHOREO_DB_OE_PORT", "5433")
+		os.Setenv("CHOREO_DB_OE_USERNAME", "choreo-user")
+		os.Setenv("CHOREO_DB_OE_PASSWORD", "choreo-password")
+		os.Setenv("CHOREO_DB_OE_DATABASENAME", "choreo-db")
+		defer func() {
+			os.Unsetenv("CHOREO_DB_OE_HOSTNAME")
+			os.Unsetenv("CHOREO_DB_OE_PORT")
+			os.Unsetenv("CHOREO_DB_OE_USERNAME")
+			os.Unsetenv("CHOREO_DB_OE_PASSWORD")
+			os.Unsetenv("CHOREO_DB_OE_DATABASENAME")
+		}()
+
+		connStr := getDatabaseConnectionString()
+		expected := "host=choreo-host port=5433 user=choreo-user password=choreo-password dbname=choreo-db sslmode=require"
+		assert.Equal(t, expected, connStr)
+	})
+
+	t.Run("Standard environment variables set", func(t *testing.T) {
+		os.Setenv("DB_HOST", "standard-host")
+		os.Setenv("DB_PORT", "5434")
+		os.Setenv("DB_USER", "standard-user")
+		os.Setenv("DB_PASSWORD", "standard-password")
+		os.Setenv("DB_NAME", "standard-db")
+		os.Setenv("DB_SSLMODE", "prefer")
+		defer func() {
+			os.Unsetenv("DB_HOST")
+			os.Unsetenv("DB_PORT")
+			os.Unsetenv("DB_USER")
+			os.Unsetenv("DB_PASSWORD")
+			os.Unsetenv("DB_NAME")
+			os.Unsetenv("DB_SSLMODE")
+		}()
+
+		connStr := getDatabaseConnectionString()
+		expected := "host=standard-host port=5434 user=standard-user password=standard-password dbname=standard-db sslmode=prefer"
+		assert.Equal(t, expected, connStr)
+	})
+
+	t.Run("Standard environment variables with missing password", func(t *testing.T) {
+		os.Setenv("DB_HOST", "standard-host")
+		os.Setenv("DB_PORT", "5434")
+		os.Setenv("DB_USER", "standard-user")
+		os.Setenv("DB_NAME", "standard-db")
+		os.Setenv("DB_SSLMODE", "prefer")
+		os.Unsetenv("DB_PASSWORD") // Ensure it's unset
+		defer func() {
+			os.Unsetenv("DB_HOST")
+			os.Unsetenv("DB_PORT")
+			os.Unsetenv("DB_USER")
+			os.Unsetenv("DB_NAME")
+			os.Unsetenv("DB_SSLMODE")
+		}()
+
+		connStr := getDatabaseConnectionString()
+		expected := "host=standard-host port=5434 user=standard-user password= dbname=standard-db sslmode=prefer"
+		assert.Equal(t, expected, connStr)
+	})
+
+	t.Run("No environment variables set (defaults)", func(t *testing.T) {
+		os.Unsetenv("CHOREO_DB_OE_HOSTNAME")
+		os.Unsetenv("CHOREO_DB_OE_PORT")
+		os.Unsetenv("CHOREO_DB_OE_USERNAME")
+		os.Unsetenv("CHOREO_DB_OE_PASSWORD")
+		os.Unsetenv("CHOREO_DB_OE_DATABASENAME")
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_PORT")
+		os.Unsetenv("DB_USER")
+		os.Unsetenv("DB_PASSWORD")
+		os.Unsetenv("DB_NAME")
+		os.Unsetenv("DB_SSLMODE")
+
+		connStr := getDatabaseConnectionString()
+		expected := "host=localhost port=5432 user=postgres password= dbname=orchestration_engine sslmode=disable"
+		assert.Equal(t, expected, connStr)
+	})
 }

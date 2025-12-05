@@ -5,15 +5,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func TestBaseModel_BeforeCreate(t *testing.T) {
 	t.Run("BeforeCreate_SetsTimestamps", func(t *testing.T) {
 		// Use a test database connection
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=portal_backend_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
 		if err != nil {
 			t.Skipf("Skipping test: could not connect to test database: %v", err)
 			return
@@ -28,10 +27,11 @@ func TestBaseModel_BeforeCreate(t *testing.T) {
 
 		// Auto-migrate
 		db.AutoMigrate(&TestModel{})
+		defer db.Migrator().DropTable(&TestModel{})
 
 		// Create a record
 		model := TestModel{
-			ID:   "test-123",
+			ID:   "test-create-123",
 			Name: "Test",
 		}
 
@@ -43,16 +43,12 @@ func TestBaseModel_BeforeCreate(t *testing.T) {
 		assert.False(t, model.UpdatedAt.IsZero())
 		assert.WithinDuration(t, time.Now(), model.CreatedAt, 5*time.Second)
 		assert.WithinDuration(t, time.Now(), model.UpdatedAt, 5*time.Second)
-
-		// Cleanup
-		db.Exec("DELETE FROM test_models")
 	})
 }
 
 func TestBaseModel_BeforeUpdate(t *testing.T) {
 	t.Run("BeforeUpdate_UpdatesTimestamp", func(t *testing.T) {
-		dsn := "host=localhost port=5432 user=postgres password=password dbname=portal_backend_test sslmode=disable"
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
 		if err != nil {
 			t.Skipf("Skipping test: could not connect to test database: %v", err)
 			return
@@ -65,10 +61,11 @@ func TestBaseModel_BeforeUpdate(t *testing.T) {
 		}
 
 		db.AutoMigrate(&TestModel{})
+		defer db.Migrator().DropTable(&TestModel{})
 
 		// Create a record - timestamps will be set by BeforeCreate hook
 		model := TestModel{
-			ID:   "test-123",
+			ID:   "test-update-123",
 			Name: "Original",
 		}
 		err = db.Create(&model).Error
@@ -90,8 +87,5 @@ func TestBaseModel_BeforeUpdate(t *testing.T) {
 		// Verify UpdatedAt was changed by BeforeUpdate hook
 		// Note: BeforeUpdate sets UpdatedAt to time.Now(), so it should be >= our explicit time
 		assert.True(t, updatedModel.UpdatedAt.After(originalUpdatedAt) || updatedModel.UpdatedAt.Equal(explicitLaterTime))
-
-		// Cleanup
-		db.Exec("DELETE FROM test_models")
 	})
 }
