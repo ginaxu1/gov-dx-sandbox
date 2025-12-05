@@ -125,7 +125,6 @@ func (pce *postgresConsentEngine) ProcessConsentRequest(req ConsentRequest) (*Co
 		now, now, expiresAt, grantDuration, pq.Array(allFields),
 		"", // Intentionally passing empty string for session_id in the new format (session information not required)
 		consentPortalURL, ownerID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consent record: %w", err)
 	}
@@ -180,7 +179,6 @@ func (pce *postgresConsentEngine) GetConsentStatus(consentID string) (*ConsentRe
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
 		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("consent record with ID '%s' not found", consentID)
@@ -235,7 +233,6 @@ func (pce *postgresConsentEngine) UpdateConsent(consentID string, req UpdateCons
 	_, err = pce.db.Exec(updateSQL,
 		string(req.Status), now, expiresAt, grantDuration,
 		pq.Array(fields), req.UpdatedBy, consentID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to update consent record: %w", err)
 	}
@@ -296,7 +293,6 @@ func (pce *postgresConsentEngine) CheckConsentExpiry() ([]*ConsentRecord, error)
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
 			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan expired record: %w", err)
 		}
@@ -376,7 +372,6 @@ func (pce *postgresConsentEngine) findExistingConsentByOwnerID(ownerID, appID st
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
 		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // No existing consent found
@@ -409,7 +404,6 @@ func (pce *postgresConsentEngine) findExistingPendingConsentByOwnerID(ownerID, a
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
 		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // No existing pending consent found
@@ -450,7 +444,6 @@ func (pce *postgresConsentEngine) updateExistingConsentNewFormat(existingConsent
 
 	_, err = pce.db.Exec(updateSQL,
 		pq.Array(allFields), now, grantDuration, expiresAt, existingConsent.OwnerID, existingConsent.ConsentID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to update existing consent record: %w", err)
 	}
@@ -486,7 +479,6 @@ func (pce *postgresConsentEngine) FindExistingConsent(consumerAppID, ownerID str
 		&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
 		&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 		&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil
@@ -549,7 +541,6 @@ func (pce *postgresConsentEngine) GetConsentsByDataOwner(dataOwner string) ([]*C
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
 			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
 		}
@@ -590,7 +581,6 @@ func (pce *postgresConsentEngine) GetConsentsByConsumer(consumer string) ([]*Con
 			&record.Status, &record.Type, &record.CreatedAt, &record.UpdatedAt,
 			&record.ExpiresAt, &record.GrantDuration, pq.Array(&record.Fields),
 			&record.SessionID, &record.ConsentPortalURL, &record.UpdatedBy)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan consent record: %w", err)
 		}
