@@ -16,13 +16,8 @@ RUN apk add --no-cache git ca-certificates tzdata
 COPY consent-engine/go.mod consent-engine/go.sum ./
 COPY consent-engine/ .
 
-# Copy shared packages to match replace directives
-# Most shared packages use ./shared/ (relative to module root = /app)
-COPY shared/config /app/shared/config
-COPY shared/constants /app/shared/constants
-COPY shared/utils /app/shared/utils
-# Monitoring uses ../shared/monitoring (relative to module root = /shared)
-COPY shared/monitoring /shared/monitoring
+# Copy shared packages
+COPY shared/ /shared/
 
 # Download dependencies
 RUN go mod download
