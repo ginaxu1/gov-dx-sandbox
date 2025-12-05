@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/portal-backend/shared/utils"
 	v1 "github.com/gov-dx-sandbox/portal-backend/v1"
 	v1handlers "github.com/gov-dx-sandbox/portal-backend/v1/handlers"
@@ -117,11 +116,11 @@ func main() {
 
 	// Apply middleware chain (CORS -> JWT Auth -> Authorization) to the API mux ONLY
 	// Note: Audit logging is done directly in handlers via LogAuditEvent calls, not through middleware
-	protectedAPIHandler := monitoring.HTTPMetricsMiddleware(corsMiddleware(
+	protectedAPIHandler := corsMiddleware(
 		jwtAuthMiddleware.AuthenticateJWT(
 			authorizationMiddleware.AuthorizeRequest(apiMux),
 		),
-	))
+	)
 
 	// Create the MAIN (top-level) mux for all incoming traffic
 	topLevelMux := http.NewServeMux()
