@@ -30,6 +30,7 @@ type ConsentRequirement struct {
 // GrantDuration is optional - nil means not provided and will use default value
 type CreateConsentRequest struct {
 	AppID               string               `json:"appId"`
+	AppName             *string              `json:"appName,omitempty"`
 	ConsentRequirements []ConsentRequirement `json:"consentRequirements"`
 	GrantDuration       *string              `json:"grantDuration,omitempty"`
 }
@@ -63,8 +64,9 @@ type ConsentResponsePortalView struct {
 	Fields     []ConsentField `json:"fields"` // Rich field information with display names and descriptions
 }
 
-// ConsentResponseAdminView represents the detailed consent object for Admin API Responses
-type ConsentResponseAdminView struct {
+// ConsentCreateResponse represents the detailed consent object returned upon creation of a consent record
+// Not necessarily returned unless specifically requested
+type ConsentCreateResponse struct {
 	ConsentID        string         `json:"consentId"`
 	OwnerID          string         `json:"ownerId"`
 	OwnerEmail       string         `json:"ownerEmail"`
@@ -102,7 +104,7 @@ func (cr *ConsentRecord) ToConsentResponseInternalView() ConsentResponseInternal
 
 // ToConsentResponsePortalView converts an internal ConsentRecord to a user-facing view.
 // Returns rich field information including display names and descriptions for better UX
-func (cr *ConsentRecord) ToConsentResponsePortalView() *ConsentResponsePortalView {
+func (cr *ConsentRecord) ToConsentResponsePortalView() ConsentResponsePortalView {
 	appDisplayName := cr.AppName
 	if appDisplayName == nil || strings.TrimSpace(*appDisplayName) == "" {
 		// Derive a display name from AppID by capitalizing and replacing underscores/dashes with spaces
@@ -112,7 +114,7 @@ func (cr *ConsentRecord) ToConsentResponsePortalView() *ConsentResponsePortalVie
 		appDisplayName = &derivedName
 	}
 
-	return &ConsentResponsePortalView{
+	return ConsentResponsePortalView{
 		AppID:      cr.AppID,
 		AppName:    *appDisplayName,
 		OwnerID:    cr.OwnerID,
@@ -126,9 +128,9 @@ func (cr *ConsentRecord) ToConsentResponsePortalView() *ConsentResponsePortalVie
 	}
 }
 
-// ToConsentResponseAdminView converts a ConsentRecord to an admin-facing detailed view.
-func (cr *ConsentRecord) ToConsentResponseAdminView() *ConsentResponseAdminView {
-	return &ConsentResponseAdminView{
+// ToConsentCreateResponse converts a ConsentRecord to a detailed ConsentCreateResponse
+func (cr *ConsentRecord) ToConsentCreateResponse() *ConsentCreateResponse {
+	return &ConsentCreateResponse{
 		ConsentID:        cr.ConsentID.String(),
 		OwnerID:          cr.OwnerID,
 		OwnerEmail:       cr.OwnerEmail,
