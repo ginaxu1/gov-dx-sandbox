@@ -188,3 +188,17 @@ go test ./... -cover
 - **Internal service**: Service is intended for internal use within the OpenDIF ecosystem
 - **No authentication required**: Authentication is handled by upstream services (Orchestration Engine, Portal Backend)
 - **Database security**: Uses SSL connections in production (Choreo) with configurable SSL modes
+
+## Docker
+
+```bash
+# Build image
+docker build -t audit-service .
+
+# Run container
+docker run -p 3001:3001 \
+  -e DB_HOST=host.docker.internal \
+  --env-file .env \
+  audit-service
+```
+

@@ -18,6 +18,40 @@ A comprehensive data exchange platform consisting of multiple microservices and 
 - **Admin Portal** - Administrative dashboard for the `OpenDIF Admins`
 - **Consent Portal** - Citizen-facing interface for data consent
 
+## How to Deploy
+
+### Prerequisites
+
+Before deploying OpenDIF, you must configure an Identity Provider (IdP) to handle authentication and authorization.
+
+1.  **Configure IdP**: Set up an IdP (e.g., Asgardeo, Keycloak, Auth0) to manage users and roles.
+2.  **Create Users**: Create the necessary users in your IdP.
+3.  **Assign Roles**:
+    - Create a role named `opendif-admin`.
+    - Assign this role to users who require administrative access to the OpenDIF Admin Portal.
+    - Ensure other roles (e.g., `opendif-member`) are created and assigned as needed for Member Portal access.
+
+### Deployment Steps
+
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/open-dif/opendif-core.git
+    cd opendif-core
+    ```
+
+2.  **Configure Environment**:
+    - Copy `.env.example` to `.env` in each service directory.
+    - Update the `.env` files with your IdP configuration (Client IDs, Issuer URLs, etc.) and database credentials.
+
+3.  **Build and Run**:
+    - Use the provided Makefile to build and run services.
+    ```bash
+    make setup-all
+    make validate-build-all
+    make run-all # If available, or run services individually
+    ```
+
+
 ## Quick Start
 
 ### Initial Setup
