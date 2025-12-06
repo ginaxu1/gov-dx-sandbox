@@ -36,7 +36,6 @@ type CreateConsentRequest struct {
 }
 
 // ConsentPortalActionRequest defines the structure for consent portal interactions
-// Reason is optional - nil means not provided, pointer allows distinguishing from empty string
 type ConsentPortalActionRequest struct {
 	ConsentID string              `json:"consentId"`
 	Action    ConsentPortalAction `json:"action"` // "approve" or "reject"

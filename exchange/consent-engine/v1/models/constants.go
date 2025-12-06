@@ -41,7 +41,6 @@ const (
 	DurationOneDay      GrantDuration = "P1D"           // 1 day
 	DurationSevenDays   GrantDuration = "P7D"           // 7 days
 	DurationThirtyDays  GrantDuration = "P30D"          // 30 days
-	DurationIndefinite  GrantDuration = "indefinite"    // indefinite duration
 	DurationDefault     GrantDuration = DurationOneHour // default duration
 )
 
