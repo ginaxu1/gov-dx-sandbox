@@ -13,11 +13,11 @@ import (
 // SchemaService handles schema-related operations
 type SchemaService struct {
 	db            *gorm.DB
-	policyService *PDPService
+	policyService PDPClient
 }
 
 // NewSchemaService creates a new schema service
-func NewSchemaService(db *gorm.DB, policyService *PDPService) *SchemaService {
+func NewSchemaService(db *gorm.DB, policyService PDPClient) *SchemaService {
 	return &SchemaService{db: db, policyService: policyService}
 }
 
@@ -35,27 +35,47 @@ func (s *SchemaService) CreateSchema(req *models.CreateSchemaRequest) (*models.S
 		schema.SchemaDescription = req.SchemaDescription
 	}
 
-	// Step 1: Create schema in database first
-	if err := s.db.Create(&schema).Error; err != nil {
+	// Start a database transaction
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", tx.Error)
+	}
+
+	// Ensure we rollback on any error
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	// Create the schema record (using the transaction)
+	if err := tx.Create(&schema).Error; err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
-	// Step 2: Create policy metadata in PDP (Saga Pattern)
-	_, err := s.policyService.CreatePolicyMetadata(schema.SchemaID, schema.SDL)
-	if err != nil {
-		// Compensation: Delete the schema we just created
-		if deleteErr := s.db.Delete(&schema).Error; deleteErr != nil {
-			// Log the compensation failure - this needs monitoring
-			slog.Error("Failed to compensate schema creation",
-				"schemaID", schema.SchemaID,
-				"originalError", err,
-				"compensationError", deleteErr)
-			// Return both errors for visibility
-			return nil, fmt.Errorf("failed to create policy metadata in PDP: %w, and failed to compensate: %w", err, deleteErr)
-		}
-		slog.Info("Successfully compensated schema creation", "schemaID", schema.SchemaID)
-		return nil, fmt.Errorf("failed to create policy metadata in PDP: %w", err)
+	// Create the PDP job in the same transaction
+	job := models.PDPJob{
+		JobID:    "job_" + uuid.New().String(),
+		JobType:  models.PDPJobTypeCreatePolicyMetadata,
+		SchemaID: &schema.SchemaID,
+		SDL:      &schema.SDL,
+		Status:   models.PDPJobStatusPending,
 	}
+
+	if err := tx.Create(&job).Error; err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to create PDP job: %w", err)
+	}
+
+	// Commit the transaction - both schema and job are now saved atomically
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Return success immediately - the background worker will handle the PDP call
+	slog.Info("Schema created successfully, PDP job queued", "schemaID", schema.SchemaID, "jobID", job.JobID)
 
 	response := &models.SchemaResponse{
 		SchemaID:   schema.SchemaID,

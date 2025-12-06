@@ -358,6 +358,38 @@ func TestMemberEndpoints(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
+	t.Run("PUT /api/v1/members/:id - UpdateMember_Success", func(t *testing.T) {
+		// Create a member first
+		email := fmt.Sprintf("test-%d@example.com", time.Now().UnixNano())
+		memberID := createTestMember(t, testHandler.db, email)
+
+		// Get the member to find the IDP user ID
+		var member models.Member
+		err := testHandler.db.Where("member_id = ?", memberID).First(&member).Error
+		assert.NoError(t, err)
+
+		// Setup mock IDP for member update
+		setupMockIDPForMemberUpdate(member.IdpUserID, email)
+
+		name := "Updated Name"
+		req := models.UpdateMemberRequest{
+			Name: &name,
+		}
+		reqBody, _ := json.Marshal(req)
+		httpReq := NewAdminRequest(http.MethodPut, fmt.Sprintf("/api/v1/members/%s", memberID), bytes.NewBuffer(reqBody))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var response models.MemberResponse
+		err = json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, name, response.Name)
+	})
+
 	t.Run("GET /api/v1/members - GetAllMembers", func(t *testing.T) {
 		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/members", nil)
 		w := httptest.NewRecorder()
@@ -1066,6 +1098,47 @@ func TestApplicationSubmissionEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 	})
+
+	t.Run("POST /api/v1/application-submissions - Invalid JSON", func(t *testing.T) {
+		httpReq := NewAdminRequest(http.MethodPost, "/api/v1/application-submissions", bytes.NewBufferString("invalid json"))
+		httpReq.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("GET /api/v1/application-submissions - WithStatusFilter", func(t *testing.T) {
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/application-submissions?status=pending&status=approved", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("GET /api/v1/schema-submissions - WithStatusFilter", func(t *testing.T) {
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schema-submissions?status=pending&status=approved", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("GET /api/v1/schemas - WithMemberID", func(t *testing.T) {
+		httpReq := NewAdminRequest(http.MethodGet, "/api/v1/schemas?memberId=test-member-123", nil)
+		w := httptest.NewRecorder()
+		mux := http.NewServeMux()
+		testHandler.handler.SetupV1Routes(mux)
+		mux.ServeHTTP(w, httpReq)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 // TestSchemaEndpoints_EdgeCases tests edge cases for schema endpoints
@@ -1242,81 +1315,6 @@ func TestSchemaSubmissionEndpoints_EdgeCases(t *testing.T) {
 
 // TestNewV1Handler tests the NewV1Handler constructor
 func TestNewV1Handler(t *testing.T) {
-	t.Run("NewV1Handler_MissingPDPURL", func(t *testing.T) {
-		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-		defer func() {
-			if originalURL != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", originalURL)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-			}
-			if originalKey != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY", originalKey)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-			}
-		}()
-
-		os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-
-		// Set IDP env vars to pass IDP check
-		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
-		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
-		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
-		defer os.Unsetenv("ASGARDEO_BASE_URL")
-		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
-		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
-
-		db := services.SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-
-		handler, err := NewV1Handler(db)
-		assert.Error(t, err)
-		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_SERVICEURL")
-	})
-
-	t.Run("NewV1Handler_MissingPDPKey", func(t *testing.T) {
-		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-		originalKey := os.Getenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-		defer func() {
-			if originalURL != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", originalURL)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_SERVICEURL")
-			}
-			if originalKey != "" {
-				os.Setenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY", originalKey)
-			} else {
-				os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-			}
-		}()
-
-		os.Setenv("CHOREO_PDP_CONNECTION_SERVICEURL", "http://localhost:9999")
-		os.Unsetenv("CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-
-		// Set IDP env vars to pass IDP check
-		os.Setenv("ASGARDEO_BASE_URL", "https://example.com")
-		os.Setenv("ASGARDEO_CLIENT_ID", "client-id")
-		os.Setenv("ASGARDEO_CLIENT_SECRET", "client-secret")
-		defer os.Unsetenv("ASGARDEO_BASE_URL")
-		defer os.Unsetenv("ASGARDEO_CLIENT_ID")
-		defer os.Unsetenv("ASGARDEO_CLIENT_SECRET")
-
-		db := services.SetupSQLiteTestDB(t)
-		if db == nil {
-			return
-		}
-
-		handler, err := NewV1Handler(db)
-		assert.Error(t, err)
-		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "CHOREO_PDP_CONNECTION_CHOREOAPIKEY")
-	})
 
 	t.Run("NewV1Handler_Success", func(t *testing.T) {
 		originalURL := os.Getenv("CHOREO_PDP_CONNECTION_SERVICEURL")
@@ -1370,7 +1368,8 @@ func TestNewV1Handler(t *testing.T) {
 			return
 		}
 
-		handler, err := NewV1Handler(db)
+		mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+		handler, err := NewV1Handler(db, mockPDP)
 		assert.NoError(t, err)
 		assert.NotNil(t, handler)
 		assert.NotNil(t, handler.memberService)
@@ -1430,7 +1429,8 @@ func TestNewV1Handler(t *testing.T) {
 			return
 		}
 
-		handler, err := NewV1Handler(db)
+		mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+		handler, err := NewV1Handler(db, mockPDP)
 		assert.NoError(t, err)
 		assert.NotNil(t, handler)
 	})
@@ -1479,7 +1479,8 @@ func TestV1Handler_SetupV1Routes(t *testing.T) {
 	os.Setenv("ASGARDEO_CLIENT_ID", "test-client-id")
 	os.Setenv("ASGARDEO_CLIENT_SECRET", "test-client-secret")
 
-	handler, err := NewV1Handler(db)
+	mockPDP := services.NewPDPService("http://localhost:9999", "test-key")
+	handler, err := NewV1Handler(db, mockPDP)
 	if err != nil {
 		t.Fatalf("Failed to create handler: %v", err)
 	}
