@@ -12,10 +12,49 @@ const (
 	StatusRevoked  ConsentStatus = "revoked"
 )
 
-// DefaultPendingTimeoutDuration is the default duration for pending consent expiry
+// ConsentType represents the type of consent mechanism
+type ConsentType string
+
+// ConsentType constants
+const (
+	TypeRealtime ConsentType = "realtime"
+	TypeOffline  ConsentType = "offline"
+)
+
+// ConsentPortalAction represents the action taken in the consent portal
+type ConsentPortalAction string
+
+// ConsentPortalAction constants
+const (
+	ActionApprove ConsentPortalAction = "approve"
+	ActionReject  ConsentPortalAction = "reject"
+)
+
+// GrantDuration represents the duration for which consent is granted
+type GrantDuration string
+
+// GrantDuration constants
+const (
+	DurationOneHour     GrantDuration = "PT1H"          // 1 hour
+	DurationSixHours    GrantDuration = "PT6H"          // 6 hours
+	DurationTwelveHours GrantDuration = "PT12H"         // 12 hours
+	DurationOneDay      GrantDuration = "P1D"           // 1 day
+	DurationSevenDays   GrantDuration = "P7D"           // 7 days
+	DurationThirtyDays  GrantDuration = "P30D"          // 30 days
+	DurationDefault     GrantDuration = DurationOneHour // default duration
+)
+
+// DefaultPendingTimeoutDuration is the default duration for pending status expiry
 // Pending consents will expire after this duration if not approved or rejected
 // Format: ISO 8601 duration (e.g., "P1D" for 1 day, "PT24H" for 24 hours)
-const DefaultPendingTimeoutDuration = "P1D" // 1 day default
+const DefaultPendingTimeoutDuration = "PT1H" // 1 hour as default
+
+// OwnerType represents the owner enum (matches PolicyDecisionPoint Owner type)
+type OwnerType string
+
+const (
+	OwnerCitizen OwnerType = "citizen"
+)
 
 // ConsentErrorMessage represents an error message
 type ConsentErrorMessage string
