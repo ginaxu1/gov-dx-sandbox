@@ -6,17 +6,17 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
-	"go.opentelemetry.io/otel/exporters/prometheus"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/sdk/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
@@ -80,12 +80,15 @@ func Initialize(config Config) error {
 	switch config.ExporterType {
 	case "prometheus", "":
 		// Use Prometheus exporter (default for local dev)
-		exporter, err := prometheus.New()
+		// Create a Prometheus registry for the exporter
+		reg := prometheus.NewRegistry()
+		exporter, err := otelprom.New(otelprom.WithRegisterer(reg))
 		if err != nil {
 			return fmt.Errorf("failed to create Prometheus exporter: %w", err)
 		}
 		reader = exporter
-		handler = exporter
+		// Use promhttp.HandlerFor with the custom registry
+		handler = promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
 		metricsHandler = handler
 		slog.Info("Initialized OpenTelemetry metrics with Prometheus exporter",
 			"service", config.ServiceName)
@@ -211,7 +214,6 @@ func MetricsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, r)
 
 		duration := time.Since(start).Seconds()
-		status := strconv.Itoa(rw.statusCode)
 
 		// Use the URL path as the label
 		// Note: In a real app with path parameters (e.g. /users/123),

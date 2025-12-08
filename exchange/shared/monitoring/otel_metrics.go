@@ -6,16 +6,16 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
-	"go.opentelemetry.io/otel/exporters/prometheus"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/sdk/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
@@ -85,12 +85,15 @@ func Initialize(config Config) error {
 	switch config.ExporterType {
 	case "prometheus", "":
 		// Use Prometheus exporter (default for local dev)
-		exporter, err := prometheus.New()
+		// Create a Prometheus registry for the exporter
+		reg := prometheus.NewRegistry()
+		exporter, err := otelprom.New(otelprom.WithRegisterer(reg))
 		if err != nil {
 			return fmt.Errorf("failed to create Prometheus exporter: %w", err)
 		}
 		reader = exporter
-		handler = exporter
+		// Use promhttp.HandlerFor with the custom registry
+		handler = promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
 		metricsHandler = handler
 		slog.Info("Initialized OpenTelemetry metrics with Prometheus exporter",
 			"service", config.ServiceName)
@@ -253,7 +256,6 @@ func otelHTTPMetricsMiddleware(next http.Handler) http.Handler {
 		// Record metrics
 		duration := time.Since(start).Seconds()
 		method := r.Method
-		status := strconv.Itoa(rw.statusCode)
 
 		// Normalize route, but use "unknown" for 404s to prevent cardinality explosion
 		route := normalizeRoute(r.URL.Path)
@@ -285,17 +287,15 @@ func otelRecordExternalCall(target, operation string, duration time.Duration, er
 	}
 
 	ctx := context.Background()
-	attrs := []metric.AddOption{
-		metric.WithAttributes(
-			attribute.String("external.target", target),
-			attribute.String("external.operation", operation),
-		),
-	}
+	attrs := metric.WithAttributes(
+		attribute.String("external.target", target),
+		attribute.String("external.operation", operation),
+	)
 
-	externalCallsCounter.Add(ctx, 1, attrs...)
-	externalCallDuration.Record(ctx, duration.Seconds(), attrs...)
+	externalCallsCounter.Add(ctx, 1, attrs)
+	externalCallDuration.Record(ctx, duration.Seconds(), attrs)
 	if err != nil {
-		externalCallErrors.Add(ctx, 1, attrs...)
+		externalCallErrors.Add(ctx, 1, attrs)
 	}
 }
 
