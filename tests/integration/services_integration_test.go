@@ -55,7 +55,9 @@ func TestAuditLogging_From_OrchestrationEngine(t *testing.T) {
 	}
 	jsonData, err := json.Marshal(reqBody)
 	require.NoError(t, err)
-	http.Post(pdpURL+"/metadata", "application/json", bytes.NewBuffer(jsonData))
+	resp, err := http.Post(pdpURL+"/metadata", "application/json", bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	// Send GraphQL Query
 	graphQLQuery := map[string]interface{}{
