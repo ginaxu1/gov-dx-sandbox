@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -26,15 +27,15 @@ func TestMain(m *testing.M) {
 		name string
 		url  string
 	}{
-		{"Orchestration Engine", "http://127.0.0.1:4000/health"},
 		{"Policy Decision Point", "http://127.0.0.1:8082/health"},
 		{"Consent Engine", "http://127.0.0.1:8081/health"},
 		{"Audit Service", "http://127.0.0.1:3001/health"},
 		{"Portal Backend", "http://127.0.0.1:3000/health"},
+		{"Orchestration Engine", "http://127.0.0.1:4000/health"},
 	}
 
 	for _, svc := range services {
-		if err := waitForService(svc.url, 120); err != nil {
+		if err := waitForService(svc.url, 300); err != nil {
 			fmt.Printf("Service %s not available: %v\n", svc.name, err)
 			os.Exit(1)
 		}
@@ -363,9 +364,19 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 	// Test resilience/failure when a dependency (PDP) is down
 
 	// Pause PDP
-	cmd := exec.Command("docker", "compose", "-f", "docker-compose.test.yml", "pause", "policy-decision-point")
-	// We assume the test runs in the directory of the file
-	err := cmd.Run()
+	// Resolve absolute path for docker-compose.test.yml to allow running from any directory
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Skipf("Skipping ServiceTimeout test: unable to get working directory: %v", err)
+		return
+	}
+	// Assuming test is running in the package directory where docker-compose.test.yml resides
+	// or that the file path is relative to the current working directory.
+	// For robustness with 'go test ./...', os.Getwd() returns the package directory.
+	composeFile := filepath.Join(wd, "docker-compose.test.yml")
+	
+	cmd := exec.Command("docker", "compose", "-f", composeFile, "pause", "policy-decision-point")
+	err = cmd.Run()
 	if err != nil {
 		t.Skipf("Skipping ServiceTimeout test: unable to pause docker container: %v", err)
 		return
@@ -373,12 +384,12 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 
 	t.Cleanup(func() {
 		// Unpause PDP
-		unpauseCmd := exec.Command("docker", "compose", "-f", "docker-compose.test.yml", "unpause", "policy-decision-point")
+		unpauseCmd := exec.Command("docker", "compose", "-f", composeFile, "unpause", "policy-decision-point")
 		if err := unpauseCmd.Run(); err != nil {
 			t.Logf("Failed to unpause PDP container during cleanup: %v", err)
 		}
-		// Give it a moment to recover
-		time.Sleep(2 * time.Second)
+		// Wait for PDP to become responsive
+		waitForService(pdpURL, 10)
 	})
 
 	// Make request
