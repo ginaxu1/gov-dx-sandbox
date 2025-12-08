@@ -240,8 +240,8 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 	})
 }
 func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T) {
-	// Query for a field that exists in schema but no policy metadata exists in PDP
-	// This simulates a dev adding a field but forgetting to add policy
+	// Assumes the field exists in the schema, but no policy metadata exists in PDP.
+	// This tests the behavior when a field is queried without any policy metadata configured.
 	fieldName := "unprotected_field"
 	
 	graphQLQuery := map[string]interface{}{
