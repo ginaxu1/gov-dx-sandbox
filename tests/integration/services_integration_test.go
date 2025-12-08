@@ -118,10 +118,10 @@ func TestAuditLogging_From_OrchestrationEngine(t *testing.T) {
 
 	// If the above decoding failed or structure is different, let's log the body to debug if it fails
 	if !auditLogFound && len(events) > 0 {
-		// Just accept any event for now as proof of life if schema_id isn't guaranteed to match
-		// (e.g. if I got the schemaID field name wrong)
+		// Limitation: Could not match specific schemaID. This test only asserts that at least one event exists,
+		// but does not guarantee it is the expected audit event. If schema_id matching is unreliable,
+		// refine the test or improve the event structure for robust verification.
 		t.Log("Found events but didn't match specific schemaID. Inspecting first event:", events[0])
-		// auditLogFound = true // Uncomment if we just want "any" event
 	}
 
 	assert.True(t, len(events) > 0, "Should have at least one audit event")
