@@ -140,7 +140,7 @@ services:
       consent-engine:
         condition: service_healthy
       audit-service:
-        condition: service_started
+        condition: service_healthy
     networks:
       - test-network
     healthcheck:
