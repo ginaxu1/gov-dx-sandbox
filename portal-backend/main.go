@@ -239,11 +239,7 @@ func main() {
 
 	// Register the protected API routes to the top-level mux
 	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware chain
-	// We also wrap it with MetricsMiddleware to capture metrics
-	topLevelMux.Handle("/api/v1/", v1middleware.MetricsMiddleware(protectedAPIHandler))
-
-	// Register metrics endpoint (OpenTelemetry-based, supports Prometheus and OTLP)
-	topLevelMux.Handle("/metrics", v1middleware.MetricsHandler())
+	topLevelMux.Handle("/api/v1/", protectedAPIHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
