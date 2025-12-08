@@ -340,7 +340,8 @@ func TestGraphQLFlow_UnauthorizedApp(t *testing.T) {
 	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	// If the system supports passing App ID via header, we would use unauthorizedAppID here
+	// TODO: Enable passing App ID via X-Consumer-ID header when supported in the test environment.
+	// Currently, the test environment does not support X-Consumer-ID; see system limitations.
 	// req.Header.Set("X-Consumer-ID", unauthorizedAppID)
 
 	client := &http.Client{Timeout: 10 * time.Second}
