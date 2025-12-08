@@ -1,19 +1,59 @@
-# GitHub Actions Docker Image Build Workflows
+# GitHub Actions Workflows
 
-Automatically builds and publishes Docker images to GitHub Container Registry (ghcr.io) when code is merged to main.
+This directory contains GitHub Actions workflows for CI/CD, validation, and publishing.
 
-## Available Workflows
+## Workflow Types
 
-| Workflow                          | Service               | Image                                          |
-| --------------------------------- | --------------------- | ---------------------------------------------- |
-| `build-portal-backend.yml`        | Portal Backend        | `ghcr.io/{owner}/{repo}/portal-backend`        |
-| `build-audit-service.yml`         | Audit Service         | `ghcr.io/{owner}/{repo}/audit-service`         |
-| `build-policy-decision-point.yml` | Policy Decision Point | `ghcr.io/{owner}/{repo}/policy-decision-point` |
-| `build-consent-engine.yml`        | Consent Engine        | `ghcr.io/{owner}/{repo}/consent-engine`        |
-| `build-orchestration-engine.yml`  | Orchestration Engine  | `ghcr.io/{owner}/{repo}/orchestration-engine`  |
-| `release.yml`                     | All Services          | Builds all services with version tags          |
+### 1. Validation Workflows (Pull Requests)
 
-## How It Works
+Run on every PR when service code changes. Perform code quality checks and tests.
+
+| Workflow                             | Service               | Triggers On                                    |
+| ------------------------------------ | --------------------- | ---------------------------------------------- |
+| `audit-service-validate.yml`         | Audit Service         | Changes to `audit-service/**`                  |
+| `consent-engine-validate.yml`        | Consent Engine        | Changes to `exchange/consent-engine/**`        |
+| `orchestration-engine-validate.yml`  | Orchestration Engine  | Changes to `exchange/orchestration-engine/**`  |
+| `policy-decision-point-validate.yml` | Policy Decision Point | Changes to `exchange/policy-decision-point/**` |
+| `portal-backend-validate.yml`        | Portal Backend        | Changes to `portal-backend/**`                 |
+| `integration-tests.yml`              | All Services          | Manual or scheduled                            |
+
+**What they do:**
+
+- Go mod tidy check
+- Go build
+- Unit & integration tests
+- TruffleHog secret scanning
+
+### 2. Docker Validation Workflows (Dockerfile Changes Only)
+
+Run only when Dockerfiles are modified. Optimizes CI time by skipping Docker builds on code-only changes.
+
+| Workflow                                    | Triggers On                                            |
+| ------------------------------------------- | ------------------------------------------------------ |
+| `audit-service-docker-validate.yml`         | Changes to `audit-service/Dockerfile`                  |
+| `consent-engine-docker-validate.yml`        | Changes to `exchange/consent-engine/Dockerfile`        |
+| `orchestration-engine-docker-validate.yml`  | Changes to `exchange/orchestration-engine/Dockerfile`  |
+| `policy-decision-point-docker-validate.yml` | Changes to `exchange/policy-decision-point/Dockerfile` |
+| `portal-backend-docker-validate.yml`        | Changes to `portal-backend/Dockerfile`                 |
+
+**What they do:**
+
+- Docker image build validation
+- Trivy security vulnerability scanning
+- Upload results to GitHub Security tab
+
+### 3. Publish Workflows (Production)
+
+Build and publish Docker images to GitHub Container Registry when code is merged to main.
+
+| Workflow                            | Service               | Image                                          |
+| ----------------------------------- | --------------------- | ---------------------------------------------- |
+| `audit-service-publish.yml`         | Audit Service         | `ghcr.io/{owner}/{repo}/audit-service`         |
+| `consent-engine-publish.yml`        | Consent Engine        | `ghcr.io/{owner}/{repo}/consent-engine`        |
+| `orchestration-engine-publish.yml`  | Orchestration Engine  | `ghcr.io/{owner}/{repo}/orchestration-engine`  |
+| `policy-decision-point-publish.yml` | Policy Decision Point | `ghcr.io/{owner}/{repo}/policy-decision-point` |
+| `portal-backend-publish.yml`        | Portal Backend        | `ghcr.io/{owner}/{repo}/portal-backend`        |
+| `release.yml`                       | All Services          | Builds all services with version tags          |
 
 **Triggers:**
 
@@ -78,17 +118,37 @@ docker compose pull
 docker compose up -d
 ```
 
+## Workflow Optimization
+
+### Why Separate Docker Validation?
+
+Docker validation workflows are separated from code validation to:
+
+- **Reduce CI time**: Skip Docker builds when only code changes
+- **Faster feedback**: Get test results quicker on code-only PRs
+- **Resource efficiency**: Save GitHub Actions minutes
+- **Cleaner PR checks**: Only relevant checks appear (no skipped jobs)
+
+Docker validation only runs when Dockerfiles are modified, as Docker layer caching makes rebuilds fast and build failures due to code changes are caught by Go build steps.
+
 ## Troubleshooting
 
-**Workflow doesn't trigger:**
+**Validation workflow doesn't trigger:**
 
-- Check service directory files changed
-- Verify branch is `main`
+- Check if files in the service directory changed
+- Verify the PR is targeting the correct branch
+
+**Docker validation workflow doesn't trigger:**
+
+- This is expected if you only changed code files
+- Docker validation only runs when the Dockerfile is modified
+- Use workflow_dispatch to manually trigger if needed
 
 **Build fails:**
 
 - Test build locally first
 - Check Dockerfile and dependencies
+- Review test database configuration
 
 **Image not found:**
 
