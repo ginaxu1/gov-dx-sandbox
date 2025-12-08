@@ -4,7 +4,7 @@ services:
     container_name: opendif-prometheus
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -45,5 +45,5 @@ volumes:
 networks:
   opendif-network:
     name: opendif-network
-    driver: bridge
+    external: true
 

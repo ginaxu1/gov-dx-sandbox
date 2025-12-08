@@ -1,103 +1,52 @@
 package monitoring
 
 import (
+	"log/slog"
 	"net/http"
-	"strconv"
+	"os"
 	"strings"
+	"sync"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	// HTTP request counter
-	httpRequestsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests",
-		},
-		[]string{"method", "route", "status"},
-	)
-
-	// HTTP request duration histogram
-	httpRequestDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "HTTP request duration in seconds",
-			Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
-		},
-		[]string{"method", "route"},
-	)
-
-	// External Call Metrics
-	externalCallsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "external_calls_total",
-			Help: "Total number of external service calls",
-		},
-		[]string{"external_target", "external_operation"},
-	)
-
-	externalCallErrors = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "external_call_errors_total",
-			Help: "Total number of failed external service calls",
-		},
-		[]string{"external_target", "external_operation"},
-	)
-
-	// External call duration histogram
-	externalCallDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "external_call_duration_seconds",
-			Help:    "External service call duration in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"external_target", "external_operation"},
-	)
-
-	// Business Event Metrics
-	businessEventsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "business_events_total",
-			Help: "Total number of business events",
-		},
-		[]string{"business_action", "business_outcome"},
-	)
+	initOnce sync.Once
+	initErr  error
 )
 
-// Handler returns the Prometheus metrics handler
+// ensureInitialized ensures OpenTelemetry is initialized with default config
+// This is called automatically when metrics functions are used
+func ensureInitialized() {
+	initOnce.Do(func() {
+		// Try to get service name from environment or use default
+		serviceName := os.Getenv("SERVICE_NAME")
+		if serviceName == "" {
+			serviceName = "opendif-service"
+		}
+
+		config := DefaultConfig(serviceName)
+		initErr = Initialize(config)
+		if initErr != nil {
+			slog.Warn("Failed to initialize OpenTelemetry metrics, metrics will be disabled",
+				"error", initErr)
+		}
+	})
+}
+
+// Handler returns the metrics HTTP handler
+// This now uses OpenTelemetry under the hood, but maintains backward compatibility
+// For Prometheus exporter, this returns the Prometheus metrics endpoint
+// For OTLP exporter, this returns a simple status endpoint
 func Handler() http.Handler {
-	return promhttp.Handler()
+	ensureInitialized()
+	return otelHandler()
 }
 
 // HTTPMetricsMiddleware wraps an HTTP handler to record metrics
+// This now uses OpenTelemetry under the hood, but maintains backward compatibility
 func HTTPMetricsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Wrap ResponseWriter to capture status code
-		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
-		// Call the next handler
-		next.ServeHTTP(rw, r)
-
-		// Record metrics
-		duration := time.Since(start).Seconds()
-		method := r.Method
-		status := strconv.Itoa(rw.statusCode)
-
-		// Normalize route, but use "unknown" for 404s to prevent cardinality explosion
-		route := normalizeRoute(r.URL.Path)
-		if rw.statusCode == http.StatusNotFound {
-			route = "unknown"
-		}
-
-		httpRequestsTotal.WithLabelValues(method, route, status).Inc()
-		httpRequestDuration.WithLabelValues(method, route).Observe(duration)
-	})
+	ensureInitialized()
+	return otelHTTPMetricsMiddleware(next)
 }
 
 // responseWriter wraps http.ResponseWriter to capture status code
@@ -241,15 +190,15 @@ func looksLikeID(s string) bool {
 }
 
 // RecordExternalCall records an external service call
+// This now uses OpenTelemetry under the hood, but maintains backward compatibility
 func RecordExternalCall(target, operation string, duration time.Duration, err error) {
-	externalCallsTotal.WithLabelValues(target, operation).Inc()
-	externalCallDuration.WithLabelValues(target, operation).Observe(duration.Seconds())
-	if err != nil {
-		externalCallErrors.WithLabelValues(target, operation).Inc()
-	}
+	ensureInitialized()
+	otelRecordExternalCall(target, operation, duration, err)
 }
 
 // RecordBusinessEvent records a business event
+// This now uses OpenTelemetry under the hood, but maintains backward compatibility
 func RecordBusinessEvent(action, outcome string) {
-	businessEventsTotal.WithLabelValues(action, outcome).Inc()
+	ensureInitialized()
+	otelRecordBusinessEvent(action, outcome)
 }

@@ -1,8 +1,79 @@
-# Observability Stack for OpenDIF MVP
+# Observability Stack for OpenDIF Core
 
-Local development stack: **Go Services** → **Prometheus** → **Grafana**
+Local development stack: **Go Services** → **OpenTelemetry** → **Prometheus** → **Grafana**
 
-Collects real-time metrics from all Go services for debugging performance and errors.
+Collects real-time metrics from all Go services for debugging performance and errors. Uses **OpenTelemetry** for vendor-agnostic metrics collection, allowing you to switch between Prometheus (default), Datadog, New Relic, or any OTLP-compatible backend without changing code.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Go Services (HTTP Servers)                                                 │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐                   │
+│  │ Portal       │  │ Orchestration │  │ Policy        │  ...               │
+│  │ Backend      │  │ Engine        │  │ Decision      │                    │
+│  │ :3000        │  │ :4000         │  │ Point :8082   │                    │
+│  └──────┬───────┘  └───────┬───────┘  └──────┬───────┘                    │
+│         │                  │                 │                             │
+│         └──────────────────┴─────────────────┘                            │
+│                    │                                                        │
+│                    │ HTTP Requests                                         │
+│                    │ (with OpenTelemetry Middleware)                       │
+│                    ▼                                                        │
+│         ┌──────────────────────────────┐                                   │
+│         │  OpenTelemetry SDK            │                                   │
+│         │  (Vendor-Agnostic)            │                                   │
+│         └──────────────┬────────────────┘                                   │
+│                        │                                                    │
+│                        │ Exporter (Configurable)                            │
+│                        ▼                                                    │
+│         ┌─────────────────────────────────────────────┐                    │
+│         │  /metrics endpoint                           │                    │
+│         │  (Format depends on exporter)               │                    │
+│         └─────────────────────────────────────────────┘                    │
+└────────────────────────┬────────────────────────────────────────────────────┘
+                         │
+                         │ Export (scrape or push)
+                         │
+         ┌───────────────┼───────────────┬───────────────┐
+         │               │               │               │
+         ▼               ▼               ▼               ▼
+┌────────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│  Prometheus    │ │ Datadog  │ │New Relic │ │  Other   │
+│  (Default)     │ │ (OTLP)   │ │ (OTLP)   │ │ (OTLP)   │
+│  :9091         │ │          │ │          │ │          │
+│                │ │          │ │          │ │          │
+│  Scrapes       │ │  Pushes  │ │  Pushes  │ │  Pushes  │
+│  /metrics      │ │  via     │ │  via     │ │  via     │
+│  every 15s     │ │  OTLP    │ │  OTLP    │ │  OTLP    │
+└────────┬───────┘ └──────────┘ └──────────┘ └──────────┘
+         │
+         │ PromQL Queries
+         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Grafana (localhost:3002)                                                  │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Data Source: Prometheus (for local dev)                             │  │
+│  │  URL: http://prometheus:9090                                         │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                            │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Dashboards                                                          │  │
+│  │  - Go Services Metrics                                               │  │
+│  │  - HTTP Traffic, Latency, Errors                                    │  │
+│  │  - Service Health                                                    │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Points:**
+- **OpenTelemetry SDK** provides vendor-agnostic instrumentation
+- **Exporter** determines where metrics go (Prometheus, Datadog, New Relic, etc.)
+- **No code changes** needed to switch backends - just environment variables
+- **Default**: Prometheus exporter for local development
+- **Production**: Switch to OTLP exporter for Datadog/New Relic/etc.
 
 ---
 
@@ -14,8 +85,7 @@ docker compose up -d
 ```
 
 **Services:**
-
-- **Prometheus**: http://localhost:9090 (raw metrics & queries)
+- **Prometheus**: http://localhost:9091 (raw metrics & queries)
 - **Grafana**: http://localhost:3002 (dashboards, login: `admin` / `admin`)
 
 **Prerequisites:**
@@ -29,44 +99,109 @@ Ensure all Go services are running and connected to the `opendif-network`:
 
 ---
 
+## Switching Observability Backends
+
+The observability stack uses **OpenTelemetry**, allowing you to switch between different backends without changing code. Configure via environment variables.
+
+### Default: Prometheus (Local Development)
+
+No configuration needed! Services automatically use Prometheus exporter by default.
+
+```bash
+# Services expose metrics at /metrics endpoint
+# Prometheus scrapes every 15 seconds
+# View in Grafana: http://localhost:3002
+```
+
+### Switch to Datadog (Production)
+
+Set environment variables before starting services:
+
+```bash
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.datadoghq.com/api/v2/otlp
+export OTEL_EXPORTER_OTLP_HEADERS="DD-API-KEY=your-api-key,DD-SITE=datadoghq.com"
+export SERVICE_NAME=portal-backend
+
+# Start your service
+./your-service
+```
+
+**Alternative (via Datadog Agent):**
+```bash
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318  # Datadog Agent OTLP HTTP endpoint
+export SERVICE_NAME=portal-backend
+```
+
+### Switch to New Relic
+
+```bash
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net
+export OTEL_EXPORTER_OTLP_HEADERS="api-key=your-newrelic-license-key"
+export SERVICE_NAME=portal-backend
+
+# Start your service
+./your-service
+```
+
+### Disable Metrics
+
+```bash
+export OTEL_METRICS_EXPORTER=none
+```
+
+### Configuration Reference
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `OTEL_METRICS_EXPORTER` | Exporter type: `prometheus`, `otlp`, or `none` | `prometheus` | `otlp` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL (required for `otlp` exporter) | - | `https://api.datadoghq.com/api/v2/otlp` |
+| `OTEL_EXPORTER_OTLP_HEADERS` | OTLP headers (e.g., API keys). Format: `key1=value1,key2=value2` | - | `DD-API-KEY=xxx,DD-SITE=datadoghq.com` |
+| `SERVICE_NAME` | Service name for metrics | `opendif-service` | `portal-backend` |
+
+**Note:** For Docker Compose deployments, add these environment variables to your `docker-compose.yml`:
+
+```yaml
+services:
+  your-service:
+    environment:
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://api.datadoghq.com/api/v2/otlp
+      - OTEL_EXPORTER_OTLP_HEADERS=DD-API-KEY=xxx,DD-SITE=datadoghq.com
+      - SERVICE_NAME=your-service
+```
+
+---
+
 ## Metrics Overview
 
 ### HTTP Request Metrics
 
 | Metric                          | Type      | Labels                                    | Purpose                    |
 | ------------------------------- | --------- | ----------------------------------------- | -------------------------- |
-| `http_requests_total`           | Counter   | `method`, `route`, `status_code` | Request volume by endpoint |
-| `http_request_duration_seconds` | Histogram | `method`, `route`               | API latency percentiles    |
+| `http_requests_total`           | Counter   | `http_method`, `http_route`, `http_status_code` | Request volume by endpoint |
+| `http_request_duration_seconds` | Histogram | `http_method`, `http_route`               | API latency percentiles    |
 
 **Label Definitions:**
-- `method`: HTTP method (GET, POST, PUT, DELETE, etc.)
-- `route`: Normalized route path (e.g., `/consents`, `/policies`)
-- `status_code`: HTTP response status code (200, 404, 500, etc.)
+- `http_method`: HTTP method (GET, POST, PUT, DELETE, etc.)
+- `http_route`: Normalized route path (e.g., `/api/v1/members`, `/api/v1/policies`)
+- `http_status_code`: HTTP response status code (200, 404, 500, etc.)
 
-### External Call Metrics
+### External Call Metrics (Exchange services)
 
 | Metric                            | Type      | Labels                                    | Purpose                    |
 | --------------------------------- | --------- | ----------------------------------------- | -------------------------- |
-| `external_calls_total`            | Counter   | `external_target`, `external_operation`, `external_success` | External call volume       |
+| `external_calls_total`            | Counter   | `external_target`, `external_operation` | External call volume       |
 | `external_call_duration_seconds`   | Histogram | `external_target`, `external_operation`    | External call latency      |
 | `external_call_errors_total`       | Counter   | `external_target`, `external_operation`    | Failed external calls      |
 
 **Label Definitions:**
 - `external_target`: Target service or system (e.g., `postgres`, `redis`, `external-api`)
 - `external_operation`: Operation type (e.g., `query`, `insert`, `get`, `set`)
-- `external_success`: Success status (`true` or `false`)
 
-### Database Metrics
-
-| Metric                    | Type      | Labels                    | Purpose               |
-| ------------------------- | --------- | ------------------------- | --------------------- |
-| `db_latency_seconds`      | Histogram | `db_name`, `db_operation` | Database query timing |
-
-**Label Definitions:**
-- `db_name`: Database name or identifier
-- `db_operation`: Database operation type (e.g., `select`, `insert`, `update`, `delete`)
-
-### Business Event Metrics
+### Business Event Metrics (Exchange services)
 
 | Metric                    | Type    | Labels                          | Purpose                |
 | ------------------------- | ------- | ------------------------------- | ---------------------- |
@@ -75,37 +210,6 @@ Ensure all Go services are running and connected to the `opendif-network`:
 **Label Definitions:**
 - `business_action`: Business action type (e.g., `consent_created`, `policy_evaluated`)
 - `business_outcome`: Outcome of the action (e.g., `success`, `failure`, `pending`)
-
-### Workflow Metrics
-
-| Metric                          | Type            | Labels          | Purpose               |
-| ------------------------------- | --------------- | --------------- | --------------------- |
-| `workflow_duration_seconds`     | Histogram       | `workflow_name` | End-to-end workflow timing |
-| `workflow_inflight`             | UpDownCounter   | `workflow_name` | Active workflow count |
-
-**Label Definitions:**
-- `workflow_name`: Name of the workflow (e.g., `data_exchange`, `consent_flow`)
-
-### Cache Metrics
-
-| Metric                | Type    | Labels                    | Purpose          |
-| --------------------- | ------- | ------------------------- | ----------------- |
-| `cache_events_total`  | Counter | `cache_name`, `cache_result` | Cache hit/miss tracking |
-
-**Label Definitions:**
-- `cache_name`: Cache identifier or name
-- `cache_result`: Cache operation result (`hit` or `miss`)
-
-### Policy Decision Metrics (PDP)
-
-| Metric                        | Type      | Labels            | Purpose                |
-| ----------------------------- | --------- | ----------------- | ---------------------- |
-| `decision_latency_seconds`    | Histogram | `decision_type`   | Policy evaluation time |
-| `decision_failures_total`     | Counter   | `failure_reason`  | Policy decision errors |
-
-**Label Definitions:**
-- `decision_type`: Type of policy decision (e.g., `allow`, `deny`, `conditional`)
-- `failure_reason`: Reason for decision failure (e.g., `policy_not_found`, `evaluation_error`)
 
 ### Go Runtime Metrics (Automatic)
 
@@ -121,22 +225,22 @@ The monitoring package automatically instruments Go runtime metrics:
 
 **Request Rate by Endpoint:**
 ```promql
-sum by (route, method) (rate(http_requests_total[5m]))
+sum by (http_route, http_method) (rate(http_requests_total[5m]))
 ```
 
 **95th Percentile Latency by Endpoint:**
 ```promql
-histogram_quantile(0.95, sum by (route, le) (rate(http_request_duration_seconds_bucket[5m])))
+histogram_quantile(0.95, sum by (http_route, le) (rate(http_request_duration_seconds_bucket[5m])))
 ```
 
 **Error Rate by Endpoint:**
 ```promql
-sum by (route) (rate(http_requests_total{status_code=~"5.."}[5m]))
+sum by (http_route) (rate(http_requests_total{http_status_code=~"5.."}[5m]))
 ```
 
 **Top 10 Slowest Endpoints:**
 ```promql
-topk(10, histogram_quantile(0.95, sum by (route, le) (rate(http_request_duration_seconds_bucket[5m]))))
+topk(10, histogram_quantile(0.95, sum by (http_route, le) (rate(http_request_duration_seconds_bucket[5m]))))
 ```
 
 **External Call Error Rate:**
@@ -144,19 +248,9 @@ topk(10, histogram_quantile(0.95, sum by (route, le) (rate(http_request_duration
 sum by (external_target, external_operation) (rate(external_call_errors_total[5m]))
 ```
 
-**95th Percentile Database Latency:**
-```promql
-histogram_quantile(0.95, sum by (db_name, db_operation, le) (rate(db_latency_seconds_bucket[5m])))
-```
-
 **Service Availability:**
 ```promql
 up{job=~"orchestration-engine|consent-engine|policy-decision-point|portal-backend|audit-service"}
-```
-
-**Current Metric Values (All):**
-```promql
-{__name__=~"http_.*|external_.*|db_.*|business_.*|workflow_.*|cache_.*|decision_.*"}
 ```
 
 ---
@@ -168,13 +262,47 @@ Pre-configured dashboard: **Go Services Metrics**
 **URL:** http://localhost:3002/d/go-services/go-services-metrics
 
 **Panels:**
-
 - HTTP Traffic (req/s)
 - HTTP Latency (P95)
 - Service Health (1=up, 0=down)
 - External Calls per Second
 - External Call Error %
 - Business Events
+
+---
+
+## Generating Sample Traffic
+
+To populate the Grafana dashboard with metrics, generate sample traffic:
+
+```bash
+# From the observability directory
+./generate_sample_traffic.sh
+```
+
+This sends requests to various endpoints on `portal-backend` (default: `http://localhost:3000`).
+
+### Configuration
+
+```bash
+# Change the base URL
+PORTAL_BACKEND_URL=http://localhost:3000 ./generate_sample_traffic.sh
+
+# Change request interval (default: 2 seconds)
+REQUEST_INTERVAL=5 ./generate_sample_traffic.sh
+
+# Set number of request batches (default: 50, 0 = infinite)
+REQUEST_COUNT=100 ./generate_sample_traffic.sh
+```
+
+### What the Script Does
+
+The script sends requests to:
+- **Health endpoints**: `/health`, `/metrics` (should return 200)
+- **API endpoints**: `/api/v1/members`, `/api/v1/schemas`, etc. (may return 401 without auth, but still generates metrics)
+- **Invalid endpoints**: `/api/v1/unknown` (generates 404s)
+
+**Note**: Many API endpoints require authentication. The script will generate 401 Unauthorized responses, which is still useful for metrics (you'll see error rates, different status codes, etc.).
 
 ---
 
@@ -206,116 +334,51 @@ This setup is for **local development only**. For production:
 4. **Storage & Retention**: Adjust `--storage.tsdb.retention.time` based on storage capacity
 5. **Alerting**: Configure Alertmanager for production alerts
 
+**Switching to Production Backend:**
+
+Simply set the environment variables (see [Switching Observability Backends](#switching-observability-backends)) - no code changes needed!
+
 ---
 
-## Architecture & Data Flow
+## How It Works
 
-### High-Level Flow
+### Service Instrumentation
 
+All services use **OpenTelemetry** for metrics collection:
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│  Go Services (HTTP Servers)                                    │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐         │
-│  │ Portal       │  │ Orchestration │  │ Policy       │  ...    │
-│  │ Backend      │  │ Engine        │  │ Decision     │         │
-│  │ :3000        │  │ :4000         │  │ Point :8082  │         │
-│  └──────┬───────┘  └───────┬───────┘  └──────┬───────┘         │
-│         │                  │                 │                 │
-│         └──────────────────┴─────────────────┘                 │
-│                    │                                           │
-│                    │ HTTP Requests                             │
-│                    │ (with Metrics Middleware)                 │
-│                    ▼                                           │
-│         ┌──────────────────────────┐                           │
-│         │  /metrics endpoint       │                           │
-│         │  (Prometheus format)     │                           │
-│         └──────────────────────────┘                           │
-└────────────────────────┬───────────────────────────────────────┘
-                         │
-                         │ Scrape (every 15s)
-                         │ GET /metrics
-                         ▼
-┌──────────────────────────────────────────────────────────────┐
-│  Prometheus (localhost:9091)                                 │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Scrape Config (prometheus.yml)                        │  │
-│  │  - orchestration-engine:4000/metrics                   │  │
-│  │  - consent-engine:8081/metrics                         │  │
-│  │  - policy-decision-point:8082/metrics                  │  │
-│  │  - portal-backend:3000/metrics                         │  │
-│  │  - audit-service:3001/metrics                          │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Time-Series Database (TSDB)                           │  │
-│  │  - Stores metrics with labels                          │  │
-│  │  - 30-day retention                                    │  │
-│  │  - Queryable via PromQL                                │  │
-│  └────────────────────────────────────────────────────────┘  │
-└────────────────────────┬─────────────────────────────────────┘
-                         │
-                         │ PromQL Queries
-                         │ (via HTTP API)
-                         ▼
-┌────────────────────────────────────────────────────────────────┐
-│  Grafana (localhost:3002)                                      │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Data Source: Prometheus                                 │  │
-│  │  URL: http://prometheus:9090                             │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Dashboards                                              │  │
-│  │  - Go Services Metrics                                   │  │
-│  │  - HTTP Traffic, Latency, Errors                         │  │
-│  │  - Service Health                                        │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────┘
-```
-
-
-### Detailed Flow Steps
-
-#### 1. **Service Instrumentation** (Go Services)
-
-Each Go service instruments HTTP requests using metrics middleware:
-
-**Portal Backend** (`portal-backend/v1/middleware/metrics.go`):
-- Custom metrics middleware wraps `/api/v1/` routes
+**Portal Backend** (`portal-backend/v1/middleware/otel_metrics.go`):
+- OpenTelemetry metrics middleware wraps `/api/v1/` routes
 - Records: `http_request_duration_seconds`, `http_requests_total`
-- Labels: `path`, `method`, `status`
+- Attributes: `http.method`, `http.route`, `http.status_code`
 
-**Orchestration Engine & Policy Decision Point** (`exchange/shared/monitoring/metrics.go`):
-- Shared monitoring package with `HTTPMetricsMiddleware()`
+**Exchange Services** (`exchange/shared/monitoring/otel_metrics.go`):
+- Shared OpenTelemetry monitoring package with `HTTPMetricsMiddleware()`
 - Records: `http_requests_total`, `http_request_duration_seconds`
 - Additional metrics: `external_calls_total`, `business_events_total`
-- Labels: `method`, `route` (normalized), `status`
+- Attributes: `http.method`, `http.route` (normalized), `http.status_code`
 
-**Consent Engine & Audit Service**:
-- Currently **not instrumented** (no metrics endpoint)
-- Prometheus will show these targets as DOWN
+**Default Exporter:** Prometheus (for local dev). Configure via `OTEL_METRICS_EXPORTER` env var.
 
-#### 2. **Metrics Endpoint Exposure**
+### Metrics Endpoint Exposure
 
 Each instrumented service exposes a `/metrics` endpoint:
 
 ```go
 // Portal Backend
-topLevelMux.Handle("/metrics", promhttp.Handler())
+topLevelMux.Handle("/metrics", v1middleware.MetricsHandler())
 
-// Orchestration Engine & Policy Decision Point
-mux.Handle("/metrics", monitoring.Handler())  // Returns promhttp.Handler()
+// Exchange Services
+mux.Handle("/metrics", monitoring.Handler())
 ```
 
-The endpoint returns metrics in **Prometheus text format**:
+The endpoint returns metrics in **Prometheus text format** (when using Prometheus exporter):
 ```
-http_requests_total{method="GET",route="/api/v1/members",status="200"} 42
-http_request_duration_seconds_bucket{method="GET",route="/api/v1/members",le="0.1"} 38
+http_requests_total{http_method="GET",http_route="/api/v1/members",http_status_code="200"} 42
+http_request_duration_seconds_bucket{http_method="GET",http_route="/api/v1/members",le="0.1"} 38
 ...
 ```
 
-#### 3. **Prometheus Scraping**
+### Prometheus Scraping
 
 Prometheus periodically scrapes each service's `/metrics` endpoint:
 
@@ -333,14 +396,14 @@ Example scrape config:
         - orchestration-engine:4000
 ```
 
-#### 4. **Metric Storage**
+### Metric Storage
 
 Prometheus stores scraped metrics in its Time-Series Database (TSDB):
 - **Format**: Time-series with labels (e.g., `http_requests_total{method="GET",route="/api/v1/members"}`)
 - **Retention**: 30 days (configurable)
 - **Query Language**: PromQL (Prometheus Query Language)
 
-#### 5. **Grafana Visualization**
+### Grafana Visualization
 
 Grafana queries Prometheus via PromQL to create dashboards:
 
@@ -352,124 +415,83 @@ Grafana queries Prometheus via PromQL to create dashboards:
   - Error rates
   - Service health status
 
-### Stack Components
-
-- **prometheus**: `prom/prometheus:v2.55.1` - Metrics collection and storage
-- **grafana**: `grafana/grafana:11.2.0` - Visualization and dashboards
-
-### Network Architecture
-
-All services run on a shared Docker network (`opendif-network`) to enable service discovery:
-
-- **Service Discovery**: Services are referenced by their Docker Compose service names
-- **Example**: `orchestration-engine:4000` resolves to the orchestration-engine container on port 4000
-- **Network Type**: Bridge network (default Docker network type)
-
-### Data Persistence
-
-**Volumes:**
-
-- `prometheus-data`: Metric storage (30 day retention)
-  - Location: `/prometheus` in container
-  - Contains: TSDB data, WAL (Write-Ahead Log)
-- `grafana-data`: Dashboard configs & user data
-  - Location: `/var/lib/grafana` in container
-  - Contains: Dashboards, datasources, users, preferences
-
 ---
 
-## Generating Sample Traffic
+## How to Add Metrics to New Go Services
 
-To populate the Grafana dashboard with metrics, you need to send requests to your services. A script is provided to generate sample traffic:
+Services automatically initialize OpenTelemetry metrics when first used. No explicit initialization needed.
 
-### Quick Start
+1. **For Exchange Services** - Use shared monitoring package:
+   ```go
+   import "github.com/gov-dx-sandbox/exchange/shared/monitoring"
+   
+   mux.Handle("/metrics", monitoring.Handler())
+   handler := monitoring.HTTPMetricsMiddleware(mux)
+   ```
 
-```bash
-# From the observability directory
-./generate_sample_traffic.sh
-```
+2. **For Portal Backend** - Use middleware package:
+   ```go
+   import v1middleware "github.com/gov-dx-sandbox/portal-backend/v1/middleware"
+   
+   topLevelMux.Handle("/metrics", v1middleware.MetricsHandler())
+   topLevelMux.Handle("/api/v1/", v1middleware.MetricsMiddleware(handler))
+   ```
 
-This will send requests to various endpoints on `portal-backend` (default: `http://localhost:3000`).
+3. **Add service to Prometheus configuration:**
+   Edit `prometheus/prometheus.yml`:
+   ```yaml
+   - job_name: your-service
+     metrics_path: /metrics
+     static_configs:
+       - targets:
+           - your-service:PORT
+         labels:
+           service: 'your-service'
+           port: 'PORT'
+   ```
 
-### Configuration
+4. **Ensure service is on `opendif-network`:**
+   In your service's `docker-compose.yml`:
+   ```yaml
+   services:
+     your-service:
+       networks:
+         - opendif-network
+   
+   networks:
+     opendif-network:
+       name: opendif-network
+       external: true
+   ```
 
-You can customize the script behavior with environment variables:
-
-```bash
-# Change the base URL (if portal-backend runs on a different host/port)
-PORTAL_BACKEND_URL=http://localhost:3000 ./generate_sample_traffic.sh
-
-# Change request interval (default: 2 seconds)
-REQUEST_INTERVAL=5 ./generate_sample_traffic.sh
-
-# Set number of request batches (default: 50, 0 = infinite)
-REQUEST_COUNT=100 ./generate_sample_traffic.sh
-```
-
-### What the Script Does
-
-The script sends requests to:
-- **Health endpoints**: `/health`, `/metrics` (should return 200)
-- **API endpoints**: `/api/v1/members`, `/api/v1/schemas`, etc. (may return 401 without auth, but still generates metrics)
-- **Invalid endpoints**: `/api/v1/unknown` (generates 404s)
-- **Invalid requests**: Malformed JSON (generates 400s)
-
-**Note**: Many API endpoints require authentication. The script will generate 401 Unauthorized responses, which is still useful for metrics (you'll see error rates, different status codes, etc.).
-
-### Running Continuously
-
-To generate traffic continuously (useful for testing):
-
-```bash
-# Run indefinitely
-REQUEST_COUNT=0 ./generate_sample_traffic.sh
-```
-
-### Manual Request Examples
-
-You can also send requests manually:
-
-```bash
-# Health check
-curl http://localhost:3000/health
-
-# Metrics endpoint
-curl http://localhost:3000/metrics
-
-# API endpoints (will return 401 without auth)
-curl http://localhost:3000/api/v1/members
-curl http://localhost:3000/api/v1/schemas
-curl http://localhost:3000/api/v1/applications
-
-# Check metrics in Prometheus
-curl http://localhost:9090/api/v1/query?query=http_requests_total
-```
-
-### Viewing Results
-
-After running the script:
-
-1. **Grafana Dashboard**: http://localhost:3002/d/go-services/go-services-metrics
-   - You should see HTTP traffic, latency, and error rates
-
-2. **Prometheus**: http://localhost:9090
-   - Query: `sum(rate(http_requests_total[5m])) by (method, route)`
-   - Query: `sum(rate(http_requests_total{status_code=~"4..|5.."}[5m]))` (error rate)
-
-### Tips
-
-- **Run the script in a separate terminal** while monitoring Grafana
-- **Adjust the interval** if you want more/less frequent requests
-- **Check Prometheus targets** at http://localhost:9090/targets to ensure services are being scraped
-- **Wait a few minutes** after starting the script for metrics to accumulate (Prometheus scrapes every 15s)
+5. **Restart Prometheus:**
+   ```bash
+   docker compose restart prometheus
+   ```
 
 ---
 
 ## Troubleshooting
 
+### Metrics not appearing
+
+1. Check that metrics are initialized:
+   - Look for log messages: "Initialized OpenTelemetry metrics with..."
+   - Check `/metrics` endpoint returns data: `curl http://localhost:3000/metrics`
+
+2. For OTLP exporter:
+   - Verify `OTEL_EXPORTER_OTLP_ENDPOINT` is set correctly
+   - Check network connectivity to the endpoint
+   - Verify API keys/headers are correct
+
+3. Check environment variables:
+   ```bash
+   env | grep OTEL
+   ```
+
 ### Prometheus Can't Scrape Services
 
-**Issue**: Targets show as DOWN in Prometheus (http://localhost:9090/targets)
+**Issue**: Targets show as DOWN in Prometheus (http://localhost:9091/targets)
 
 **Solutions:**
 
@@ -495,7 +517,7 @@ After running the script:
 
 **Solutions:**
 
-1. Verify Prometheus is running: `curl http://localhost:9090/-/healthy`
+1. Verify Prometheus is running: `curl http://localhost:9091/-/healthy`
 2. Check datasource URL in `grafana/provisioning/datasources/datasource.yml` (should be `http://prometheus:9090`)
 3. Ensure both containers are on the same Docker network (`opendif-network`)
 
@@ -516,58 +538,11 @@ After running the script:
 
 ---
 
-## How to Add Metrics to New Go Services
-
-1. **Import the monitoring package:**
-   ```go
-   import "github.com/gov-dx-sandbox/exchange/shared/monitoring"
-   ```
-
-2. **Expose metrics endpoint in main.go:**
-   ```go
-   mux.Handle("/metrics", monitoring.Handler())
-   ```
-
-3. **Wrap HTTP handlers with metrics middleware:**
-   ```go
-   handler := monitoring.HTTPMetricsMiddleware(mux)
-   ```
-
-4. **Add service to Prometheus configuration:**
-   Edit `prometheus/prometheus.yml`:
-   ```yaml
-   - job_name: your-service
-     metrics_path: /metrics
-     static_configs:
-       - targets:
-           - your-service:PORT
-         labels:
-           service: 'your-service'
-           port: 'PORT'
-   ```
-
-5. **Ensure service is on `opendif-network`:**
-   In your service's `docker-compose.yml`:
-   ```yaml
-   services:
-     your-service:
-       networks:
-         - opendif-network
-   
-   networks:
-     opendif-network:
-       name: opendif-network
-       external: true
-   ```
-
-6. **Restart Prometheus:**
-   ```bash
-   docker compose restart prometheus
-   ```
-
----
-
 ## Additional Resources
 
+- [OpenTelemetry Go Documentation](https://opentelemetry.io/docs/instrumentation/go/)
+- [OpenTelemetry Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/)
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Grafana Documentation](https://grafana.com/docs/)
+- [Datadog OTLP Ingest](https://docs.datadoghq.com/opentelemetry/otlp_ingest_in_the_agent/)
+- [New Relic OTLP](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup/)
