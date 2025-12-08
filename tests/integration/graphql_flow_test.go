@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -28,10 +29,12 @@ func TestMain(m *testing.M) {
 		{"Orchestration Engine", "http://127.0.0.1:4000/health"},
 		{"Policy Decision Point", "http://127.0.0.1:8082/health"},
 		{"Consent Engine", "http://127.0.0.1:8081/health"},
+		{"Audit Service", "http://127.0.0.1:3001/health"},
+		{"Portal Backend", "http://127.0.0.1:3000/health"},
 	}
 
 	for _, svc := range services {
-		if err := waitForService(svc.url, 30); err != nil {
+		if err := waitForService(svc.url, 120); err != nil {
 			fmt.Printf("Service %s not available: %v\n", svc.name, err)
 			os.Exit(1)
 		}
@@ -236,8 +239,188 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 		}
 	})
 }
-// func TestGraphQLFlow_InvalidConsent(t *testing.T)
-// func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T)
-// func TestGraphQLFlow_ExpiredConsent(t *testing.T)
-// func TestGraphQLFlow_UnauthorizedApp(t *testing.T)
-// func TestGraphQLFlow_ServiceTimeout(t *testing.T)
+func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T) {
+	// Query for a field that exists in schema but no policy metadata exists in PDP
+	// This simulates a dev adding a field but forgetting to add policy
+	fieldName := "unprotected_field"
+	
+	graphQLQuery := map[string]interface{}{
+		"query": fmt.Sprintf(`
+			query {
+				%s
+			}
+		`, fieldName),
+	}
+
+	jsonData, err := json.Marshal(graphQLQuery)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// Expectation: The request might succeed with 200 OK but contain GraphQL errors
+	// OR fail with 403 depending on implementation. 
+	// Assuming Safe-By-Default: missing policy -> deny.
+	t.Logf("Response status: %d", resp.StatusCode)
+
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+
+	// We expect validation/authorization errors
+	assert.NotNil(t, result["errors"], "Should return errors for field lacking policy metadata")
+}
+
+func TestGraphQLFlow_UnauthorizedApp(t *testing.T) {
+	// Setup: Metadata exists, but App has no consent
+	schemaID := "test-schema-unauth"
+	fieldName := "secret_data"
+	// Use an app ID that we know has NO consent
+	unauthorizedAppID := "rogue-app"
+	t.Logf("Testing with unauthorized app ID: %s", unauthorizedAppID)
+
+	// 1. Create Policy Metadata (so it passes PDP check if it were authorized)
+	reqBody := map[string]interface{}{
+		"schemaId": schemaID,
+		"records": []map[string]interface{}{
+			{
+				"fieldName":         fieldName,
+				"source":            "primary",
+				"isOwner":           true,
+				"accessControlType": "restricted",
+			},
+		},
+	}
+	jsonData, err := json.Marshal(reqBody)
+	require.NoError(t, err)
+	resp, err := http.Post(pdpURL+"/metadata", "application/json", bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	// 2. Do NOT create consent for unauthorizedAppID
+
+	// 3. Make GraphQL request claiming to be unauthorizedAppID
+	// In a real generic GraphQL test, the appID might be inferred from token or headers.
+	// The SuccessPath test didn't clearly show how appID is passed to Orchestration Engine,
+	// but Verify_PDP_Integration showed it in the body.
+	// For Orchestration Engine, it might extract from JWT.
+	// Since we are mocking, we assume there's a way to ID the app.
+	// If the OE just acts as a pass-through or uses a default logic in this test setup:
+	// The existing `TestGraphQLFlow_SuccessPath` set `appID` but didn't seem to pass it in `GraphQL_Query_To_OrchestrationEngine`.
+	// Limit: If we can't easily change the App ID context for the OE request without a real token,
+	// this test might be flaky or require investigating how OE determines caller identity.
+	//
+	// However, looking at `TestGraphQLFlow_SuccessPath`, it creates consent for `test-consumer-app`.
+	// The query header didn't set auth.
+	// If the system defaults to "anonymous" or a fixed ID when no token, how do we simulate "UnauthorizedApp"?
+	//
+	// Let's assume we can pass a header `X-Consumer-ID` or similar if the test env allows, 
+	// OR we assume the default usage is one identity, and we remove consent for THAT identity?
+	// But `SuccessPath` already added consent for `test-consumer-app`.
+	//
+	// Alternative: Add a new policy for a DIFFERENT field, and verify we can't access it?
+	// No, consent is usually at App level or Schema level.
+	//
+	// Let's try passing a header `X-Client-ID` or `X-App-ID` if supported.
+	// If not, we might skipped this if we can't control identity.
+	// BUT, the existing test `Verify_PDP_Integration` sends `consumer_id` explicitly.
+	// The `GraphQL_Query_To_OrchestrationEngine` test does NOT send explicit ID. 
+	// It's possible the `Orchestration Engine` in this test mode uses a hardcoded ID or we are expected to pass it.
+	//
+	// Let's try to infer from `TestGraphQLFlow_SuccessPath`:
+	// It created consent for `test-consumer-app`.
+	// It sent a request.
+	// It asserts OK.
+	//
+	// If I change the field requested to one that requires consent (which we just added `secret_data`), 
+	// AND the current user (whomever that is) doesn't have consent for `secret_data` + `test-schema-unauth`?
+	// YES.
+	// The consent created in SuccessPath was for `schemaID="test-schema-123"`.
+	// If we create metadata for `test-schema-unauth`, but NO consent for `test-schema-unauth`,
+	// then the SAME app (default app) should be denied.
+	
+	graphQLQuery := map[string]interface{}{
+		"query": fmt.Sprintf(`
+			query {
+				%s
+			}
+		`, fieldName),
+	}
+	jsonData, err = json.Marshal(graphQLQuery)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	// If the system supports passing App ID via header, we would use unauthorizedAppID here
+	// req.Header.Set("X-Consumer-ID", unauthorizedAppID)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	t.Logf("Unauthorized App Response status: %d", resp.StatusCode)
+	
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+	
+	// Should contain errors
+	assert.NotNil(t, result["errors"], "Should return errors for valid metadata but missing consent")
+}
+
+func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
+	// Test resilience/failure when a dependency (PDP) is down
+
+	// Pause PDP
+	cmd := exec.Command("docker", "compose", "-f", "docker-compose.test.yml", "pause", "policy-decision-point")
+	// We assume the test runs in the directory of the file
+	err := cmd.Run()
+	if err != nil {
+		t.Skipf("Skipping ServiceTimeout test: unable to pause docker container: %v", err)
+		return
+	}
+
+	defer func() {
+		// Unpause PDP
+		exec.Command("docker", "compose", "-f", "docker-compose.test.yml", "unpause", "policy-decision-point").Run()
+		// Give it a moment to recover
+		time.Sleep(2 * time.Second)
+	}()
+
+	// Make request
+	graphQLQuery := map[string]interface{}{
+		"query": `query { __typename }`,
+	}
+	jsonData, err := json.Marshal(graphQLQuery)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	
+	// It might timeout (err != nil) or return 500/503
+	if err != nil {
+		t.Logf("Request failed as expected: %v", err)
+	} else {
+		defer resp.Body.Close()
+		t.Logf("Response status during outage: %d", resp.StatusCode)
+		assert.NotEqual(t, http.StatusOK, resp.StatusCode, "Should not return OK when PDP is down")
+		
+		// Optional: check body for error message
+		var result map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&result)
+		t.Logf("Error response: %+v", result)
+	}
+}

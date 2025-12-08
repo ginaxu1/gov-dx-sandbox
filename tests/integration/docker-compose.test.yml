@@ -129,6 +129,7 @@ services:
       PDP_URL: http://policy-decision-point:8082
       CONSENT_ENGINE_URL: http://consent-engine:8081
       CONFIG_PATH: /app/config/config.json
+      CHOREO_AUDIT_CONNECTION_SERVICEURL: http://audit-service:3001
     volumes:
       - ./config.json:/app/config/config.json:ro
     ports:
@@ -138,6 +139,8 @@ services:
         condition: service_healthy
       consent-engine:
         condition: service_healthy
+      audit-service:
+        condition: service_started
     networks:
       - test-network
     healthcheck:
@@ -154,6 +157,101 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # PostgreSQL Database for Audit Service
+  audit-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: audit_db
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Audit Service
+  audit-service:
+    build:
+      context: ../../audit-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      ENVIRONMENT: test
+      CHOREO_OPENDIF_DB_HOSTNAME: audit-db
+      CHOREO_OPENDIF_DB_PORT: 5432
+      CHOREO_OPENDIF_DB_USERNAME: postgres
+      CHOREO_OPENDIF_DB_PASSWORD: password
+      CHOREO_OPENDIF_DB_DATABASENAME: audit_db
+      DB_SSLMODE: disable
+    ports:
+      - "3001:3001"
+    depends_on:
+      audit-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Portal Backend Service
+  portal-backend:
+    build:
+      context: ../../portal-backend
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3000
+      ENVIRONMENT: test
+      # Asgardeo Config (Mocked for testing)
+      ASGARDEO_BASE_URL: "http://mock-asgardeo"
+      ASGARDEO_MEMBER_PORTAL_CLIENT_ID: "mock-client-id"
+      # DB Config
+      CHOREO_OPENDIF_DB_HOSTNAME: portal-db
+      CHOREO_OPENDIF_DB_PORT: 5432
+      CHOREO_OPENDIF_DB_USERNAME: postgres
+      CHOREO_OPENDIF_DB_PASSWORD: password
+      CHOREO_OPENDIF_DB_DATABASENAME: portal_db
+      DB_SSLMODE: disable
+      RUN_MIGRATION: "true"
+    ports:
+      - "3000:3000"
+    depends_on:
+      portal-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # PostgreSQL Database for Portal Backend
+  portal-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: portal_db
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
 
 networks:
   test-network:
