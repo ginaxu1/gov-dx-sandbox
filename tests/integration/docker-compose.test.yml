@@ -1,30 +1,15 @@
 services:
-  # PostgreSQL Database for Policy Decision Point
-  pdp-db:
+  # Shared PostgreSQL Database for All Services
+  shared-db:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: policy_db
+      POSTGRES_PASSWORD: password # TEST credentials only
+      POSTGRES_DB: postgres
     ports:
-      - "5433:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
-
-  # PostgreSQL Database for Consent Engine
-  ce-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: consent_db
-    ports:
-      - "5434:5432"
+      - "5432:5432"
+    volumes:
+      - ./init-stats.sh:/docker-entrypoint-initdb.d/init-stats.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -40,9 +25,9 @@ services:
       dockerfile: policy-decision-point/Dockerfile
     environment:
       PORT: 8082
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       DB_SSLMODE: disable
-      CHOREO_OPENDIF_DATABASE_HOSTNAME: pdp-db
+      CHOREO_OPENDIF_DATABASE_HOSTNAME: shared-db
       CHOREO_OPENDIF_DATABASE_PORT: 5432
       CHOREO_OPENDIF_DATABASE_USERNAME: postgres
       CHOREO_OPENDIF_DATABASE_PASSWORD: password
@@ -51,7 +36,7 @@ services:
     ports:
       - "8082:8082"
     depends_on:
-      pdp-db:
+      shared-db:
         condition: service_healthy
     networks:
       - test-network
@@ -77,15 +62,15 @@ services:
       dockerfile: consent-engine/Dockerfile
     environment:
       PORT: 8081
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       # Legacy database env vars (for old database.go)
-      CHOREO_DB_CE_HOSTNAME: ce-db
+      CHOREO_DB_CE_HOSTNAME: shared-db
       CHOREO_DB_CE_PORT: 5432
       CHOREO_DB_CE_USERNAME: postgres
       CHOREO_DB_CE_PASSWORD: password
       CHOREO_DB_CE_DATABASENAME: consent_db
       # V1 database env vars (for v1/database/database.go)
-      CHOREO_OPENDIF_DATABASE_HOSTNAME: ce-db
+      CHOREO_OPENDIF_DATABASE_HOSTNAME: shared-db
       CHOREO_OPENDIF_DATABASE_PORT: 5432
       CHOREO_OPENDIF_DATABASE_USERNAME: postgres
       CHOREO_OPENDIF_DATABASE_PASSWORD: password
@@ -99,7 +84,7 @@ services:
     ports:
       - "8081:8081"
     depends_on:
-      ce-db:
+      shared-db:
         condition: service_healthy
     networks:
       - test-network
@@ -118,6 +103,34 @@ services:
       retries: 5
       start_period: 10s
 
+  # Audit Service
+  audit-service:
+    build:
+      context: ../../audit-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      ENVIRONMENT: test
+      CHOREO_OPENDIF_DB_HOSTNAME: shared-db
+      CHOREO_OPENDIF_DB_PORT: 5432
+      CHOREO_OPENDIF_DB_USERNAME: postgres
+      CHOREO_OPENDIF_DB_PASSWORD: password
+      CHOREO_OPENDIF_DB_DATABASENAME: audit_db
+      DB_SSLMODE: disable
+    ports:
+      - "3001:3001"
+    depends_on:
+      shared-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # Orchestration Engine Service
   orchestration-engine:
     build:
@@ -125,7 +138,7 @@ services:
       dockerfile: orchestration-engine/Dockerfile
     environment:
       PORT: 4000
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       PDP_URL: http://policy-decision-point:8082
       CONSENT_ENGINE_URL: http://consent-engine:8081
       CONFIG_PATH: /app/config/config.json
@@ -136,11 +149,11 @@ services:
       - "4000:4000"
     depends_on:
       policy-decision-point:
-        condition: service_healthy
+        condition: service_started
       consent-engine:
-        condition: service_healthy
+        condition: service_started
       audit-service:
-        condition: service_healthy
+        condition: service_started
     networks:
       - test-network
     healthcheck:
@@ -158,51 +171,6 @@ services:
       retries: 5
       start_period: 10s
 
-  # PostgreSQL Database for Audit Service
-  audit-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: audit_db
-    ports:
-      - "5435:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
-
-  # Audit Service
-  audit-service:
-    build:
-      context: ../../audit-service
-      dockerfile: Dockerfile
-    environment:
-      PORT: 3001
-      ENVIRONMENT: test
-      CHOREO_OPENDIF_DB_HOSTNAME: audit-db
-      CHOREO_OPENDIF_DB_PORT: 5432
-      CHOREO_OPENDIF_DB_USERNAME: postgres
-      CHOREO_OPENDIF_DB_PASSWORD: password
-      CHOREO_OPENDIF_DB_DATABASENAME: audit_db
-      DB_SSLMODE: disable
-    ports:
-      - "3001:3001"
-    depends_on:
-      audit-db:
-        condition: service_healthy
-    networks:
-      - test-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   # Portal Backend Service
   portal-backend:
     build:
@@ -215,7 +183,7 @@ services:
       ASGARDEO_BASE_URL: "http://mock-asgardeo"
       ASGARDEO_MEMBER_PORTAL_CLIENT_ID: "mock-client-id"
       # DB Config
-      CHOREO_OPENDIF_DB_HOSTNAME: portal-db
+      CHOREO_OPENDIF_DB_HOSTNAME: shared-db
       CHOREO_OPENDIF_DB_PORT: 5432
       CHOREO_OPENDIF_DB_USERNAME: postgres
       CHOREO_OPENDIF_DB_PASSWORD: password
@@ -225,7 +193,7 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      portal-db:
+      shared-db:
         condition: service_healthy
     networks:
       - test-network
@@ -235,23 +203,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-
-  # PostgreSQL Database for Portal Backend
-  portal-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: portal_db
-    ports:
-      - "5436:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
 
 networks:
   test-network:
