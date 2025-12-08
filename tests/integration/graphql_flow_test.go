@@ -325,26 +325,7 @@ func TestGraphQLFlow_UnauthorizedApp(t *testing.T) {
 	// OR we assume the default usage is one identity, and we remove consent for THAT identity?
 	// But `SuccessPath` already added consent for `test-consumer-app`.
 	//
-	// Alternative: Add a new policy for a DIFFERENT field, and verify we can't access it?
-	// No, consent is usually at App level or Schema level.
-	//
-	// Let's try passing a header `X-Client-ID` or `X-App-ID` if supported.
-	// If not, we might skipped this if we can't control identity.
-	// BUT, the existing test `Verify_PDP_Integration` sends `consumer_id` explicitly.
-	// The `GraphQL_Query_To_OrchestrationEngine` test does NOT send explicit ID. 
-	// It's possible the `Orchestration Engine` in this test mode uses a hardcoded ID or we are expected to pass it.
-	//
-	// Let's try to infer from `TestGraphQLFlow_SuccessPath`:
-	// It created consent for `test-consumer-app`.
-	// It sent a request.
-	// It asserts OK.
-	//
-	// If I change the field requested to one that requires consent (which we just added `secret_data`), 
-	// AND the current user (whomever that is) doesn't have consent for `secret_data` + `test-schema-unauth`?
-	// YES.
-	// The consent created in SuccessPath was for `schemaID="test-schema-123"`.
-	// If we create metadata for `test-schema-unauth`, but NO consent for `test-schema-unauth`,
-	// then the SAME app (default app) should be denied.
+	// This test simulates unauthorized access by querying a field in a schema for which no consent exists.
 	
 	graphQLQuery := map[string]interface{}{
 		"query": fmt.Sprintf(`
