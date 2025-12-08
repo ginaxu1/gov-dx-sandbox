@@ -208,29 +208,260 @@ This setup is for **local development only**. For production:
 
 ---
 
-## Architecture
+## Architecture & Data Flow
+
+### High-Level Flow
+
 
 ```
-Go Services (Port 3000, 4000, 8081, 8082, 3001)
-    ↓ /metrics endpoint (Prometheus format)
-Prometheus (localhost:9090, 30d retention)
-    ↓ PromQL queries
-Grafana (localhost:3002, dashboards)
+┌────────────────────────────────────────────────────────────────┐
+│  Go Services (HTTP Servers)                                    │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐         │
+│  │ Portal       │  │ Orchestration │  │ Policy       │  ...    │
+│  │ Backend      │  │ Engine        │  │ Decision     │         │
+│  │ :3000        │  │ :4000         │  │ Point :8082  │         │
+│  └──────┬───────┘  └───────┬───────┘  └──────┬───────┘         │
+│         │                  │                 │                 │
+│         └──────────────────┴─────────────────┘                 │
+│                    │                                           │
+│                    │ HTTP Requests                             │
+│                    │ (with Metrics Middleware)                 │
+│                    ▼                                           │
+│         ┌──────────────────────────┐                           │
+│         │  /metrics endpoint       │                           │
+│         │  (Prometheus format)     │                           │
+│         └──────────────────────────┘                           │
+└────────────────────────┬───────────────────────────────────────┘
+                         │
+                         │ Scrape (every 15s)
+                         │ GET /metrics
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Prometheus (localhost:9091)                                 │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  Scrape Config (prometheus.yml)                        │  │
+│  │  - orchestration-engine:4000/metrics                   │  │
+│  │  - consent-engine:8081/metrics                         │  │
+│  │  - policy-decision-point:8082/metrics                  │  │
+│  │  - portal-backend:3000/metrics                         │  │
+│  │  - audit-service:3001/metrics                          │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │  Time-Series Database (TSDB)                           │  │
+│  │  - Stores metrics with labels                          │  │
+│  │  - 30-day retention                                    │  │
+│  │  - Queryable via PromQL                                │  │
+│  └────────────────────────────────────────────────────────┘  │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         │ PromQL Queries
+                         │ (via HTTP API)
+                         ▼
+┌────────────────────────────────────────────────────────────────┐
+│  Grafana (localhost:3002)                                      │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Data Source: Prometheus                                 │  │
+│  │  URL: http://prometheus:9090                             │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Dashboards                                              │  │
+│  │  - Go Services Metrics                                   │  │
+│  │  - HTTP Traffic, Latency, Errors                         │  │
+│  │  - Service Health                                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-**Stack Components:**
 
-- **prometheus**: `prom/prometheus:v2.55.1`
-- **grafana**: `grafana/grafana:11.2.0`
+### Detailed Flow Steps
 
-**Network:**
+#### 1. **Service Instrumentation** (Go Services)
 
-All services run on a shared Docker network (`opendif-network`) to enable service discovery. Services are referenced by their Docker Compose service names in Prometheus configuration (e.g., `orchestration-engine:4000`).
+Each Go service instruments HTTP requests using metrics middleware:
+
+**Portal Backend** (`portal-backend/v1/middleware/metrics.go`):
+- Custom metrics middleware wraps `/api/v1/` routes
+- Records: `http_request_duration_seconds`, `http_requests_total`
+- Labels: `path`, `method`, `status`
+
+**Orchestration Engine & Policy Decision Point** (`exchange/shared/monitoring/metrics.go`):
+- Shared monitoring package with `HTTPMetricsMiddleware()`
+- Records: `http_requests_total`, `http_request_duration_seconds`
+- Additional metrics: `external_calls_total`, `business_events_total`
+- Labels: `method`, `route` (normalized), `status`
+
+**Consent Engine & Audit Service**:
+- Currently **not instrumented** (no metrics endpoint)
+- Prometheus will show these targets as DOWN
+
+#### 2. **Metrics Endpoint Exposure**
+
+Each instrumented service exposes a `/metrics` endpoint:
+
+```go
+// Portal Backend
+topLevelMux.Handle("/metrics", promhttp.Handler())
+
+// Orchestration Engine & Policy Decision Point
+mux.Handle("/metrics", monitoring.Handler())  // Returns promhttp.Handler()
+```
+
+The endpoint returns metrics in **Prometheus text format**:
+```
+http_requests_total{method="GET",route="/api/v1/members",status="200"} 42
+http_request_duration_seconds_bucket{method="GET",route="/api/v1/members",le="0.1"} 38
+...
+```
+
+#### 3. **Prometheus Scraping**
+
+Prometheus periodically scrapes each service's `/metrics` endpoint:
+
+- **Interval**: Every 15 seconds (configurable in `prometheus.yml`)
+- **Method**: HTTP GET request to `http://<service>:<port>/metrics`
+- **Configuration**: Defined in `prometheus/prometheus.yml` as scrape jobs
+- **Network**: Uses Docker network (`opendif-network`) for service discovery
+
+Example scrape config:
+```yaml
+- job_name: orchestration-engine
+  metrics_path: /metrics
+  static_configs:
+    - targets:
+        - orchestration-engine:4000
+```
+
+#### 4. **Metric Storage**
+
+Prometheus stores scraped metrics in its Time-Series Database (TSDB):
+- **Format**: Time-series with labels (e.g., `http_requests_total{method="GET",route="/api/v1/members"}`)
+- **Retention**: 30 days (configurable)
+- **Query Language**: PromQL (Prometheus Query Language)
+
+#### 5. **Grafana Visualization**
+
+Grafana queries Prometheus via PromQL to create dashboards:
+
+- **Data Source**: Configured to connect to `http://prometheus:9090`
+- **Queries**: Written in PromQL (e.g., `rate(http_requests_total[5m])`)
+- **Dashboards**: Pre-configured panels showing:
+  - HTTP request rates
+  - Latency percentiles (P95, P99)
+  - Error rates
+  - Service health status
+
+### Stack Components
+
+- **prometheus**: `prom/prometheus:v2.55.1` - Metrics collection and storage
+- **grafana**: `grafana/grafana:11.2.0` - Visualization and dashboards
+
+### Network Architecture
+
+All services run on a shared Docker network (`opendif-network`) to enable service discovery:
+
+- **Service Discovery**: Services are referenced by their Docker Compose service names
+- **Example**: `orchestration-engine:4000` resolves to the orchestration-engine container on port 4000
+- **Network Type**: Bridge network (default Docker network type)
+
+### Data Persistence
 
 **Volumes:**
 
 - `prometheus-data`: Metric storage (30 day retention)
+  - Location: `/prometheus` in container
+  - Contains: TSDB data, WAL (Write-Ahead Log)
 - `grafana-data`: Dashboard configs & user data
+  - Location: `/var/lib/grafana` in container
+  - Contains: Dashboards, datasources, users, preferences
+
+---
+
+## Generating Sample Traffic
+
+To populate the Grafana dashboard with metrics, you need to send requests to your services. A script is provided to generate sample traffic:
+
+### Quick Start
+
+```bash
+# From the observability directory
+./generate_sample_traffic.sh
+```
+
+This will send requests to various endpoints on `portal-backend` (default: `http://localhost:3000`).
+
+### Configuration
+
+You can customize the script behavior with environment variables:
+
+```bash
+# Change the base URL (if portal-backend runs on a different host/port)
+PORTAL_BACKEND_URL=http://localhost:3000 ./generate_sample_traffic.sh
+
+# Change request interval (default: 2 seconds)
+REQUEST_INTERVAL=5 ./generate_sample_traffic.sh
+
+# Set number of request batches (default: 50, 0 = infinite)
+REQUEST_COUNT=100 ./generate_sample_traffic.sh
+```
+
+### What the Script Does
+
+The script sends requests to:
+- **Health endpoints**: `/health`, `/metrics` (should return 200)
+- **API endpoints**: `/api/v1/members`, `/api/v1/schemas`, etc. (may return 401 without auth, but still generates metrics)
+- **Invalid endpoints**: `/api/v1/unknown` (generates 404s)
+- **Invalid requests**: Malformed JSON (generates 400s)
+
+**Note**: Many API endpoints require authentication. The script will generate 401 Unauthorized responses, which is still useful for metrics (you'll see error rates, different status codes, etc.).
+
+### Running Continuously
+
+To generate traffic continuously (useful for testing):
+
+```bash
+# Run indefinitely
+REQUEST_COUNT=0 ./generate_sample_traffic.sh
+```
+
+### Manual Request Examples
+
+You can also send requests manually:
+
+```bash
+# Health check
+curl http://localhost:3000/health
+
+# Metrics endpoint
+curl http://localhost:3000/metrics
+
+# API endpoints (will return 401 without auth)
+curl http://localhost:3000/api/v1/members
+curl http://localhost:3000/api/v1/schemas
+curl http://localhost:3000/api/v1/applications
+
+# Check metrics in Prometheus
+curl http://localhost:9090/api/v1/query?query=http_requests_total
+```
+
+### Viewing Results
+
+After running the script:
+
+1. **Grafana Dashboard**: http://localhost:3002/d/go-services/go-services-metrics
+   - You should see HTTP traffic, latency, and error rates
+
+2. **Prometheus**: http://localhost:9090
+   - Query: `sum(rate(http_requests_total[5m])) by (method, route)`
+   - Query: `sum(rate(http_requests_total{status_code=~"4..|5.."}[5m]))` (error rate)
+
+### Tips
+
+- **Run the script in a separate terminal** while monitoring Grafana
+- **Adjust the interval** if you want more/less frequent requests
+- **Check Prometheus targets** at http://localhost:9090/targets to ensure services are being scraped
+- **Wait a few minutes** after starting the script for metrics to accumulate (Prometheus scrapes every 15s)
 
 ---
 

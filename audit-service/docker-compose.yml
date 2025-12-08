@@ -6,7 +6,7 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - DB_HOST=postgres
+      - CHOREO_OPENDIF_DATABASE_HOSTNAME=postgres
       - DB_PORT=5432
       - DB_USER=user
       - DB_PASSWORD=password

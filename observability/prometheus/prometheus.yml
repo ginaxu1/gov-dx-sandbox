@@ -39,7 +39,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - portal-backend:3000
+          - host.docker.internal:3000
         labels:
           service: 'portal-backend'
           port: '3000'
