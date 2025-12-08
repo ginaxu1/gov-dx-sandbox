@@ -33,8 +33,8 @@ func TestAuditService_Health(t *testing.T) {
 
 func TestAuditLogging_From_OrchestrationEngine(t *testing.T) {
 	// 1. Perform a GraphQL request to Orchestration Engine (reuse simplified setup)
-	// We want to generate an audit log. Any successful or failed request should theoretically generate one 
-	// if configured correctly, but success is safer.
+	// We want to generate an audit log. This test only verifies that a successful request generates an audit log.
+	// If audit logging for failed requests is required, consider adding a separate test case.
 	
 	// Ensure metadata exists for a valid request
 	schemaID := "audit-test-schema"
