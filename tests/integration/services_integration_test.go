@@ -126,5 +126,5 @@ func TestAuditLogging_From_OrchestrationEngine(t *testing.T) {
 		t.Log("Found events but didn't match specific schemaID. Inspecting first event:", events[0])
 	}
 
-	assert.True(t, len(events) > 0, "Should have at least one audit event")
+	assert.True(t, auditLogFound, "Should have found an audit event with the matching schemaID")
 }
