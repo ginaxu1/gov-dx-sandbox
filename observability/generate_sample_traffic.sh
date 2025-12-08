@@ -128,5 +128,3 @@ echo "Or check Prometheus directly:"
 echo "  http://localhost:9091"
 echo ""
 
-
-
