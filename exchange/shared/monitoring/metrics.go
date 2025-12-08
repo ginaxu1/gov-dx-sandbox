@@ -14,6 +14,18 @@ var (
 	initErr  error
 )
 
+// knownRoutes is a set of static routes that should be preserved as-is
+// (not normalized) to prevent cardinality explosion in metrics.
+// This map is initialized once at package load time and reused for all requests.
+var knownRoutes = map[string]bool{
+	"/health":                         true,
+	"/metrics":                        true,
+	"/debug":                          true,
+	"/api/v1/policy/metadata":         true,
+	"/api/v1/policy/decide":           true,
+	"/api/v1/policy/update-allowlist": true,
+}
+
 // ensureInitialized ensures OpenTelemetry is initialized with default config
 // This is called automatically when metrics functions are used
 func ensureInitialized() {
@@ -27,10 +39,28 @@ func ensureInitialized() {
 		config := DefaultConfig(serviceName)
 		initErr = Initialize(config)
 		if initErr != nil {
-			slog.Warn("Failed to initialize OpenTelemetry metrics, metrics will be disabled",
-				"error", initErr)
+			slog.Error("Failed to initialize OpenTelemetry metrics, metrics will be disabled",
+				"error", initErr,
+				"service", serviceName,
+				"impact", "Service will continue running but metrics collection is disabled")
 		}
 	})
+}
+
+// GetInitError returns the initialization error if metrics failed to initialize.
+// Returns nil if initialization succeeded or hasn't been attempted yet.
+// Services can call this to check if metrics are working and take appropriate action
+// (e.g., fail to start if metrics are critical, or log a health check status).
+func GetInitError() error {
+	ensureInitialized()
+	return initErr
+}
+
+// IsInitialized returns true if metrics have been successfully initialized.
+// Returns false if initialization failed or hasn't been attempted yet.
+func IsInitialized() bool {
+	ensureInitialized()
+	return initErr == nil
 }
 
 // Handler returns the metrics HTTP handler
@@ -86,16 +116,6 @@ func normalizeRoute(path string) string {
 
 	if len(parts) == 0 {
 		return "/"
-	}
-
-	// Known static routes that should be preserved
-	knownRoutes := map[string]bool{
-		"/health":                         true,
-		"/metrics":                        true,
-		"/debug":                          true,
-		"/api/v1/policy/metadata":         true,
-		"/api/v1/policy/decide":           true,
-		"/api/v1/policy/update-allowlist": true,
 	}
 
 	// Check if this is a known route

@@ -2,15 +2,18 @@
 
 # Script to generate sample traffic for Grafana dashboard
 # This sends requests to various endpoints to populate metrics
+# Targets: Orchestration Engine (port 4000) and Policy Decision Point (port 8082)
 
-BASE_URL="${PORTAL_BACKEND_URL:-http://localhost:3000}"
+ORCHESTRATION_ENGINE_URL="${ORCHESTRATION_ENGINE_URL:-http://localhost:4000}"
+POLICY_DECISION_POINT_URL="${POLICY_DECISION_POINT_URL:-http://localhost:8082}"
 INTERVAL="${REQUEST_INTERVAL:-2}"  # seconds between requests
 COUNT="${REQUEST_COUNT:-50}"        # number of requests per endpoint (0 = infinite)
 
 echo "=========================================="
 echo "Generating Sample Traffic for Grafana"
 echo "=========================================="
-echo "Base URL: $BASE_URL"
+echo "Orchestration Engine: $ORCHESTRATION_ENGINE_URL"
+echo "Policy Decision Point: $POLICY_DECISION_POINT_URL"
 echo "Interval: ${INTERVAL}s"
 echo "Count: ${COUNT} (0 = infinite)"
 echo ""
@@ -20,19 +23,20 @@ echo ""
 
 # Function to send a request and show status
 send_request() {
-    local method=$1
-    local endpoint=$2
-    local data=$3
-    local description=$4
+    local base_url=$1
+    local method=$2
+    local endpoint=$3
+    local data=$4
+    local description=$5
     
     if [ -n "$data" ]; then
         response=$(curl -s -w "\n%{http_code}" -X "$method" \
             -H "Content-Type: application/json" \
             -d "$data" \
-            "$BASE_URL$endpoint" 2>/dev/null)
+            "$base_url$endpoint" 2>/dev/null)
     else
         response=$(curl -s -w "\n%{http_code}" -X "$method" \
-            "$BASE_URL$endpoint" 2>/dev/null)
+            "$base_url$endpoint" 2>/dev/null)
     fi
     
     http_code=$(echo "$response" | tail -n1)
@@ -46,7 +50,7 @@ send_request() {
         status="✗"
     fi
     
-    echo "[$status] $method $endpoint -> $http_code"
+    echo "[$status] $base_url$endpoint ($method) -> $http_code"
 }
 
 # Function to run requests in a loop
@@ -56,38 +60,42 @@ run_requests() {
         echo ""
         echo "--- Batch $((i+1)) ---"
         
-        # Health and metrics endpoints (should work)
-        send_request "GET" "/health" "" "Health check"
+        # Orchestration Engine endpoints
+        echo ">>> Orchestration Engine ($ORCHESTRATION_ENGINE_URL)"
+        send_request "$ORCHESTRATION_ENGINE_URL" "GET" "/health" "" "Health check"
         sleep 0.5
-        send_request "GET" "/metrics" "" "Metrics endpoint"
-        sleep 0.5
-        
-        # API endpoints (will generate 401s without auth, but that's useful metrics)
-        send_request "GET" "/api/v1/members" "" "Get members"
-        sleep 0.5
-        send_request "GET" "/api/v1/schemas" "" "Get schemas"
-        sleep 0.5
-        send_request "GET" "/api/v1/applications" "" "Get applications"
-        sleep 0.5
-        send_request "GET" "/api/v1/schema-submissions" "" "Get schema submissions"
-        sleep 0.5
-        send_request "GET" "/api/v1/application-submissions" "" "Get application submissions"
+        send_request "$ORCHESTRATION_ENGINE_URL" "GET" "/metrics" "" "Metrics endpoint"
         sleep 0.5
         
-        # POST requests (will fail without auth/data, but generates metrics)
-        send_request "POST" "/api/v1/members" '{"name":"Test User","email":"test@example.com"}' "Create member"
+        # GraphQL endpoint (will generate errors without proper query, but useful for metrics)
+        send_request "$ORCHESTRATION_ENGINE_URL" "POST" "/graphql" '{"query":"{ __typename }"}' "GraphQL query"
         sleep 0.5
-        send_request "POST" "/api/v1/schemas" '{"schema_name":"Test Schema"}' "Create schema"
+        send_request "$ORCHESTRATION_ENGINE_URL" "POST" "/graphql" '{"invalid": "query"}' "Invalid GraphQL"
         sleep 0.5
         
         # Invalid endpoints (404s)
-        send_request "GET" "/api/v1/unknown" "" "Unknown endpoint"
+        send_request "$ORCHESTRATION_ENGINE_URL" "GET" "/unknown" "" "Unknown endpoint"
         sleep 0.5
-        send_request "GET" "/nonexistent" "" "Non-existent path"
+        
+        # Policy Decision Point endpoints
+        echo ">>> Policy Decision Point ($POLICY_DECISION_POINT_URL)"
+        send_request "$POLICY_DECISION_POINT_URL" "GET" "/health" "" "Health check"
+        sleep 0.5
+        send_request "$POLICY_DECISION_POINT_URL" "GET" "/metrics" "" "Metrics endpoint"
+        sleep 0.5
+        
+        # Policy decision endpoint (will generate errors without proper data, but useful for metrics)
+        send_request "$POLICY_DECISION_POINT_URL" "POST" "/api/v1/policy/decide" '{"consumer_id":"test-app","app_id":"test-app","request_id":"req_123","required_fields":["person.name"]}' "Policy decision"
+        sleep 0.5
+        send_request "$POLICY_DECISION_POINT_URL" "POST" "/api/v1/policy/metadata" '{"field_name":"person.name","schema_id":"test-schema"}' "Policy metadata"
+        sleep 0.5
+        
+        # Invalid endpoints (404s)
+        send_request "$POLICY_DECISION_POINT_URL" "GET" "/api/v1/unknown" "" "Unknown endpoint"
         sleep 0.5
         
         # Invalid JSON (400s)
-        send_request "POST" "/api/v1/members" '{"invalid": }' "Invalid JSON"
+        send_request "$POLICY_DECISION_POINT_URL" "POST" "/api/v1/policy/decide" '{"invalid": }' "Invalid JSON"
         sleep 0.5
         
         i=$((i+1))
@@ -100,17 +108,35 @@ run_requests() {
     done
 }
 
-# Check if portal-backend is accessible
-echo "Checking if portal-backend is accessible..."
-if ! curl -s -f "$BASE_URL/health" > /dev/null 2>&1; then
-    echo "❌ ERROR: Cannot reach portal-backend at $BASE_URL"
-    echo "   Make sure the service is running and accessible."
+# Check if services are accessible
+echo "Checking if services are accessible..."
+
+oe_accessible=false
+pdp_accessible=false
+
+if curl -s -f "$ORCHESTRATION_ENGINE_URL/health" > /dev/null 2>&1; then
+    echo "✓ Orchestration Engine is accessible at $ORCHESTRATION_ENGINE_URL"
+    oe_accessible=true
+else
+    echo "⚠ WARNING: Cannot reach Orchestration Engine at $ORCHESTRATION_ENGINE_URL"
+    echo "   Try: curl $ORCHESTRATION_ENGINE_URL/health"
+fi
+
+if curl -s -f "$POLICY_DECISION_POINT_URL/health" > /dev/null 2>&1; then
+    echo "✓ Policy Decision Point is accessible at $POLICY_DECISION_POINT_URL"
+    pdp_accessible=true
+else
+    echo "⚠ WARNING: Cannot reach Policy Decision Point at $POLICY_DECISION_POINT_URL"
+    echo "   Try: curl $POLICY_DECISION_POINT_URL/health"
+fi
+
+if [ "$oe_accessible" = false ] && [ "$pdp_accessible" = false ]; then
     echo ""
-    echo "   Try: curl $BASE_URL/health"
+    echo "❌ ERROR: Neither service is accessible. Cannot generate traffic."
+    echo "   Make sure at least one service is running and accessible."
     exit 1
 fi
 
-echo "✓ Portal-backend is accessible"
 echo ""
 
 # Start generating traffic

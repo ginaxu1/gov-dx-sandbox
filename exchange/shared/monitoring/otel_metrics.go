@@ -24,6 +24,26 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 )
 
+// Custom OpenTelemetry attributes for OpenDIF-specific metrics.
+// These attributes use the "opendif." namespace prefix to distinguish them
+// from standard OpenTelemetry semantic conventions.
+//
+// Custom Attributes:
+//   - opendif.business.action: The business action being performed (e.g., "consent_created", "policy_decision")
+//   - opendif.business.outcome: The outcome of the business action (e.g., "success", "failure", "allow", "deny")
+//   - opendif.external.target: The target system/service for external calls (e.g., "postgres", "redis", "external-api")
+//   - opendif.external.operation: The operation type for external calls (e.g., "query", "insert", "get", "set")
+//
+// Standard semantic conventions (from semconv package) are used for HTTP metrics:
+//   - http.method, http.route, http.status_code (via semconv.HTTPRequestMethodKey, etc.)
+const (
+	// Attribute keys for custom OpenDIF metrics
+	attrBusinessAction    = "opendif.business.action"
+	attrBusinessOutcome   = "opendif.business.outcome"
+	attrExternalTarget    = "opendif.external.target"
+	attrExternalOperation = "opendif.external.operation"
+)
+
 var (
 	// Metrics instruments
 	httpRequestsCounter   metric.Int64Counter
@@ -53,17 +73,26 @@ type Config struct {
 	// OTLPTLSInsecure allows insecure TLS connections (only for development/testing)
 	// Set via OTEL_EXPORTER_OTLP_INSECURE environment variable
 	OTLPTLSInsecure bool
+	// HistogramBuckets allows customization of histogram bucket boundaries (in seconds)
+	// Default: [.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10]
+	// These boundaries are optimized for HTTP request latency measurements:
+	// - Sub-10ms: .005, .01, .025 (very fast responses)
+	// - 10-100ms: .05, .1, .25 (typical API responses)
+	// - 100ms-1s: .5, 1 (slower operations)
+	// - 1s+: 2.5, 5, 10 (long-running operations, timeouts)
+	HistogramBuckets []float64
 }
 
 // DefaultConfig returns a default configuration
 func DefaultConfig(serviceName string) Config {
 	return Config{
-		ExporterType:    getEnvOrDefault("OTEL_METRICS_EXPORTER", "prometheus"),
-		ServiceName:     serviceName,
-		OTLPEndpoint:    getEnvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
-		PrometheusPort:  8888,
-		OTLPHeaders:     parseHeaders(getEnvOrDefault("OTEL_EXPORTER_OTLP_HEADERS", "")),
-		OTLPTLSInsecure: getEnvBoolOrDefault("OTEL_EXPORTER_OTLP_INSECURE", false),
+		ExporterType:     getEnvOrDefault("OTEL_METRICS_EXPORTER", "prometheus"),
+		ServiceName:      serviceName,
+		OTLPEndpoint:     getEnvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+		PrometheusPort:   8888,
+		OTLPHeaders:      parseHeaders(getEnvOrDefault("OTEL_EXPORTER_OTLP_HEADERS", "")),
+		OTLPTLSInsecure:  getEnvBoolOrDefault("OTEL_EXPORTER_OTLP_INSECURE", false),
+		HistogramBuckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 	}
 }
 
@@ -141,8 +170,10 @@ func initializeInternal(ctx context.Context, config Config) error {
 				"warning", "This disables TLS verification and exposes metrics data in transit")
 		}
 
+		// Extract host:port from URL (WithEndpoint expects host:port, not full URL)
+		// The scheme is controlled by WithInsecure() option
 		opts := []otlpmetrichttp.Option{
-			otlpmetrichttp.WithEndpoint(config.OTLPEndpoint),
+			otlpmetrichttp.WithEndpoint(endpointURL.Host),
 		}
 
 		// Only use WithInsecure() if explicitly enabled via environment variable
@@ -165,11 +196,7 @@ func initializeInternal(ctx context.Context, config Config) error {
 			sdkmetric.WithInterval(15*time.Second))
 		metricsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			if config.OTLPTLSInsecure {
-				w.Write([]byte("# Metrics exported via OTLP (insecure)\n"))
-			} else {
-				w.Write([]byte("# Metrics exported via OTLP\n"))
-			}
+			w.Write([]byte("# Metrics exported via OTLP\n"))
 		})
 		slog.Info("Initialized OpenTelemetry metrics with OTLP exporter",
 			"service", config.ServiceName,
@@ -190,6 +217,12 @@ func initializeInternal(ctx context.Context, config Config) error {
 		return fmt.Errorf("unknown exporter type: %s (supported: prometheus, otlp, none)", config.ExporterType)
 	}
 
+	// Use default histogram buckets if not configured
+	histogramBuckets := config.HistogramBuckets
+	if len(histogramBuckets) == 0 {
+		histogramBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+	}
+
 	// Create meter provider
 	meterProvider := sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(res),
@@ -198,7 +231,7 @@ func initializeInternal(ctx context.Context, config Config) error {
 			sdkmetric.Instrument{Name: "http_request_duration_seconds"},
 			sdkmetric.Stream{
 				Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
-					Boundaries: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+					Boundaries: histogramBuckets,
 				},
 			},
 		)),
@@ -312,15 +345,15 @@ func otelHTTPMetricsMiddleware(next http.Handler) http.Handler {
 		// Record metrics with attributes
 		httpRequestsCounter.Add(context.Background(), 1,
 			metric.WithAttributes(
-				attribute.String("http.method", method),
-				attribute.String("http.route", route),
-				attribute.Int("http.status_code", rw.statusCode),
+				semconv.HTTPRequestMethodKey.String(method),
+				semconv.HTTPRouteKey.String(route),
+				semconv.HTTPResponseStatusCodeKey.Int(rw.statusCode),
 			),
 		)
 		httpRequestDuration.Record(context.Background(), duration,
 			metric.WithAttributes(
-				attribute.String("http.method", method),
-				attribute.String("http.route", route),
+				semconv.HTTPRequestMethodKey.String(method),
+				semconv.HTTPRouteKey.String(route),
 			),
 		)
 	})
@@ -334,8 +367,8 @@ func otelRecordExternalCall(target, operation string, duration time.Duration, er
 
 	ctx := context.Background()
 	attrs := metric.WithAttributes(
-		attribute.String("external.target", target),
-		attribute.String("external.operation", operation),
+		attribute.String(attrExternalTarget, target),
+		attribute.String(attrExternalOperation, operation),
 	)
 
 	externalCallsCounter.Add(ctx, 1, attrs)
@@ -353,8 +386,8 @@ func otelRecordBusinessEvent(action, outcome string) {
 
 	businessEventsCounter.Add(context.Background(), 1,
 		metric.WithAttributes(
-			attribute.String("business.action", action),
-			attribute.String("business.outcome", outcome),
+			attribute.String(attrBusinessAction, action),
+			attribute.String(attrBusinessOutcome, outcome),
 		),
 	)
 }
