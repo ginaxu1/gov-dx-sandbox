@@ -371,12 +371,15 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 		return
 	}
 
-	defer func() {
+	t.Cleanup(func() {
 		// Unpause PDP
-		exec.Command("docker", "compose", "-f", "docker-compose.test.yml", "unpause", "policy-decision-point").Run()
+		unpauseCmd := exec.Command("docker", "compose", "-f", "docker-compose.test.yml", "unpause", "policy-decision-point")
+		if err := unpauseCmd.Run(); err != nil {
+			t.Logf("Failed to unpause PDP container during cleanup: %v", err)
+		}
 		// Give it a moment to recover
 		time.Sleep(2 * time.Second)
-	}()
+	})
 
 	// Make request
 	graphQLQuery := map[string]interface{}{
