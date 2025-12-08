@@ -35,9 +35,9 @@ New to the project? Start with our [Development Guide](docs/contributing/develop
 
 If you have questions or want to discuss ideas:
 
--   Check our [Issues](https://github.com/OpenDIF/opendif-core/issues) to see if your question has been asked before
--   Open a new [Issue](https://github.com/OpenDIF/opendif-core/issues/new) for bugs or feature requests
--   Review open [Pull Requests](https://github.com/OpenDIF/opendif-core/pulls) to see what others are working on
+-   Check our [Issues](https://github.com/OpenDIF/opendif-mvp/issues) to see if your question has been asked before
+-   Open a new [Issue](https://github.com/OpenDIF/opendif-mvp/issues/new) for bugs or feature requests
+-   Review open [Pull Requests](https://github.com/OpenDIF/opendif-mvp/pulls) to see what others are working on
 
 ## Recognition
 

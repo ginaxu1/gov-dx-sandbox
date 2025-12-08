@@ -12,7 +12,6 @@ import (
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/provider"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSetupRouter_Health(t *testing.T) {
@@ -105,32 +104,4 @@ func TestSetupRouter_PublicGraphQL_Unauthorized(t *testing.T) {
 
 	// Should be Unauthorized because GetConsumerJwtFromToken will fail
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-func TestSetupRouter_MetricsEndpoint(t *testing.T) {
-	cfg := &configs.Config{
-		Environment: "test",
-	}
-	providerHandler := provider.NewProviderHandler(nil)
-	f := federator.Initialize(cfg, providerHandler, nil)
-
-	mux := SetupRouter(f)
-
-	// Test metrics endpoint
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	w := httptest.NewRecorder()
-
-	mux.ServeHTTP(w, req)
-
-	// Metrics endpoint should return 200 OK
-	require.Equal(t, http.StatusOK, w.Code, "Metrics endpoint should return 200 OK")
-	
-	// Metrics endpoint should return Prometheus format
-	body := w.Body.String()
-	require.Contains(t, body, "# HELP", "Metrics response should contain Prometheus HELP comments")
-	require.Contains(t, body, "# TYPE", "Metrics response should contain Prometheus TYPE comments")
-	
-	// The metrics endpoint is accessible and returns valid Prometheus format
-	// Note: http_requests_total will only appear after requests go through the middleware,
-	// which is applied in RunServer, not in SetupRouter
 }

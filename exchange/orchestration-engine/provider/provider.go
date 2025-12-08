@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
 	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"golang.org/x/oauth2/clientcredentials"
@@ -58,6 +59,11 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 
 	req.Header.Set("Content-Type", "application/json")
 
+	// Propagate trace ID to downstream service
+	if traceID := middleware.GetTraceIDFromContext(ctx); traceID != "" {
+		req.Header.Set(middleware.TraceIDHeader, traceID)
+	}
+
 	start := time.Now()
 
 	if p.Auth != nil {
@@ -70,7 +76,7 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 
 			client := p.OAuth2Config.Client(ctx)
 			resp, err := client.Do(req) // Use context with request
-			monitoring.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
+			monitoring.RecordExternalCall(p.ServiceKey, "provider_request", time.Since(start), err)
 			return resp, err
 		case auth.AuthTypeAPIKey:
 			req.Header.Set(p.Auth.APIKeyName, p.Auth.APIKeyValue)
@@ -79,6 +85,6 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 
 	// Default client execution (for API Key or no auth)
 	resp, err := p.Client.Do(req)
-	monitoring.RecordExternalCall(ctx, p.ServiceKey, "provider_request", time.Since(start), err)
+	monitoring.RecordExternalCall(p.ServiceKey, "provider_request", time.Since(start), err)
 	return resp, err
 }

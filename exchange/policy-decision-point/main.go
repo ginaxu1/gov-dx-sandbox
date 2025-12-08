@@ -132,6 +132,9 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
+	// Wrap with metrics middleware
+	handler := monitoring.HTTPMetricsMiddleware(mux)
+
 	// Create server using utils
 	port := getEnvOrDefault("PORT", "8082")
 	serverConfig := &utils.ServerConfig{
@@ -140,8 +143,6 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	// Wrap handler with metrics middleware
-	handler := monitoring.HTTPMetricsMiddleware(mux)
 	server := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown

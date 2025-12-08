@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"os"
 
@@ -17,16 +16,12 @@ import (
 func main() {
 	logger.Init()
 
-	ctx := context.Background()
-	shutdown, err := monitoring.Setup(ctx, monitoring.Config{
-		ServiceName: "orchestration-engine",
-	})
-	if err != nil {
-		log.Fatalf("Failed to initialize telemetry: %v", err)
+	// Initialize monitoring/observability
+	// This ensures metrics are properly set up before the server starts
+	monitoringConfig := monitoring.DefaultConfig("orchestration-engine")
+	if err := monitoring.Initialize(monitoringConfig); err != nil {
+		log.Printf("Warning: Failed to initialize monitoring: %v (service will continue)", err)
 	}
-	defer func() {
-		_ = shutdown(context.Background())
-	}()
 
 	// Load configuration with proper error handling
 	config, err := configs.LoadConfig()
