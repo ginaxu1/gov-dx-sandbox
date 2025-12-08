@@ -102,7 +102,7 @@ func TestAuditLogging_From_OrchestrationEngine(t *testing.T) {
 	)
 
 	for time.Since(startTime) < timeout {
-		auditResp, err := http.Get(auditServiceURL + "/api/data-exchange-events")
+		auditResp, err := http.Get(fmt.Sprintf("%s/api/data-exchange-events?schema_id=%s&limit=10", auditServiceURL, schemaID))
 		require.NoError(t, err)
 
 		if auditResp.StatusCode == http.StatusOK {
