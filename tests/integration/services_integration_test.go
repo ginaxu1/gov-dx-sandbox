@@ -73,7 +73,7 @@ func TestAuditLogging_From_OrchestrationEngine(t *testing.T) {
 	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	// req.Header.Set("X-Consumer-ID", appID) // If supported
+	// TODO: Enable X-Consumer-ID header when consumer ID tracking is implemented and appID is available in the test context.
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
