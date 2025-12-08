@@ -10,7 +10,6 @@ on:
 env:
   # === Service-specific variables ===
   SERVICE_PATH: 'exchange/policy-decision-point'
-  IMAGE_NAME: ${{ github.repository }}/policy-decision-point
   # ================================
   REGISTRY: ghcr.io
 

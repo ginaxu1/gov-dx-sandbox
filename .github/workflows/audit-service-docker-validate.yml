@@ -10,7 +10,6 @@ on:
 env:
   # === Service-specific variables ===
   SERVICE_PATH: 'audit-service'
-  IMAGE_NAME: ${{ github.repository }}/audit-service
   # ================================
   REGISTRY: ghcr.io
 

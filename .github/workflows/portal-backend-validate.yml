@@ -10,7 +10,6 @@ on:
 env:
   # === Service-specific variables ===
   SERVICE_PATH: 'portal-backend'
-  IMAGE_NAME: ${{ github.repository }}/portal-backend
   TEST_DB_NAME: portal_backend_test
   # ================================
   REGISTRY: ghcr.io

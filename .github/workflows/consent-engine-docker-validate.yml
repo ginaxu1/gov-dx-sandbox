@@ -10,7 +10,6 @@ on:
 env:
   # === Service-specific variables ===
   SERVICE_PATH: 'exchange/consent-engine'
-  IMAGE_NAME: ${{ github.repository }}/consent-engine
   # ================================
   REGISTRY: ghcr.io
 
