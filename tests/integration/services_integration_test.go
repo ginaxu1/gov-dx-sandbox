@@ -78,8 +78,19 @@ func TestAuditLogging_From_OrchestrationEngine(t *testing.T) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	resp.Body.Close()
+	defer resp.Body.Close()
 
+	// Check HTTP status code
+	require.Equal(t, http.StatusOK, resp.StatusCode, "GraphQL request did not return 200 OK")
+
+	// Parse GraphQL response and check for errors
+	var graphQLResp struct {
+		Data   interface{}              `json:"data"`
+		Errors []map[string]interface{} `json:"errors"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&graphQLResp)
+	require.NoError(t, err, "Failed to decode GraphQL response")
+	require.Empty(t, graphQLResp.Errors, "GraphQL response contains errors: %v", graphQLResp.Errors)
 	// 2. Verify Audit Log
 	// Wait for async logging by polling the audit service with a timeout
 	var (
