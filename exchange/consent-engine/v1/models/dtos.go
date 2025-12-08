@@ -1,11 +1,7 @@
 package models
 
 import (
-	"strings"
 	"time"
-
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // ConsentField represents a field that requires consent
@@ -53,7 +49,7 @@ type ConsentResponseInternalView struct {
 // Uses rich field information for better UX in the consent portal
 type ConsentResponsePortalView struct {
 	AppID      string         `json:"appId"`
-	AppName    string         `json:"appName"`
+	AppName    *string        `json:"appName"`
 	OwnerID    string         `json:"ownerId"`
 	OwnerEmail string         `json:"ownerEmail"`
 	Status     ConsentStatus  `json:"status"`
@@ -104,18 +100,9 @@ func (cr *ConsentRecord) ToConsentResponseInternalView() ConsentResponseInternal
 // ToConsentResponsePortalView converts an internal ConsentRecord to a user-facing view.
 // Returns rich field information including display names and descriptions for better UX
 func (cr *ConsentRecord) ToConsentResponsePortalView() ConsentResponsePortalView {
-	appDisplayName := cr.AppName
-	if appDisplayName == nil || strings.TrimSpace(*appDisplayName) == "" {
-		// Derive a display name from AppID by capitalizing and replacing underscores/dashes with spaces
-		derivedName := strings.ReplaceAll(cr.AppID, "_", " ")
-		derivedName = strings.ReplaceAll(derivedName, "-", " ")
-		derivedName = cases.Title(language.English).String(derivedName)
-		appDisplayName = &derivedName
-	}
-
 	return ConsentResponsePortalView{
 		AppID:      cr.AppID,
-		AppName:    *appDisplayName,
+		AppName:    cr.AppName,
 		OwnerID:    cr.OwnerID,
 		OwnerEmail: cr.OwnerEmail,
 		Status:     ConsentStatus(cr.Status),
@@ -123,7 +110,6 @@ func (cr *ConsentRecord) ToConsentResponsePortalView() ConsentResponsePortalView
 		CreatedAt:  cr.CreatedAt,
 		UpdatedAt:  cr.UpdatedAt,
 		Fields:     cr.Fields, // Now includes DisplayName, Description, and Owner for rich UI rendering
-
 	}
 }
 

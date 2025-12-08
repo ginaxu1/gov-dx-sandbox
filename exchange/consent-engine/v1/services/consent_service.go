@@ -1,8 +1,10 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,21 +19,25 @@ type ConsentService struct {
 }
 
 // NewConsentService creates a new consent service
-func NewConsentService(db *gorm.DB, consentPortalBaseURL string) *ConsentService {
+func NewConsentService(db *gorm.DB, consentPortalBaseURL string) (*ConsentService, error) {
+	parsed, err := url.Parse(consentPortalBaseURL)
+	if consentPortalBaseURL == "" || err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return nil, fmt.Errorf("invalid consentPortalBaseURL: must be a non-empty, valid URL with scheme and host")
+	}
 	return &ConsentService{
 		db:                   db,
 		consentPortalBaseURL: consentPortalBaseURL,
-	}
+	}, nil
 }
 
 // CreateConsentRecord creates a new consent record in the database
-func (s *ConsentService) CreateConsentRecord(req models.CreateConsentRequest) ([]models.ConsentResponseInternalView, error) {
+func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.CreateConsentRequest) ([]models.ConsentResponseInternalView, error) {
 	// Validate input
 	if err := validateCreateConsentRequest(req); err != nil {
 		return nil, fmt.Errorf("%s: %w", models.ErrConsentCreateFailed, err)
 	}
 
-	var consentRecords []models.ConsentRecord
+	consentRecords := make([]models.ConsentRecord, 0, len(req.ConsentRequirements))
 	// Iterate over consent requirements to create consent records
 	for _, requirement := range req.ConsentRequirements {
 		consentID := uuid.New()
@@ -48,18 +54,18 @@ func (s *ConsentService) CreateConsentRecord(req models.CreateConsentRequest) ([
 			UpdatedAt:        currentTime,
 			GrantDuration:    string(getGrantDurationOrDefault((*models.GrantDuration)(req.GrantDuration))),
 			Fields:           requirement.Fields,
-			ConsentPortalURL: fmt.Sprintf("%s?%s", s.consentPortalBaseURL, consentID.String()),
+			ConsentPortalURL: fmt.Sprintf("%s?consentId=%s", s.consentPortalBaseURL, consentID.String()),
 		}
 		consentRecords = append(consentRecords, consentRecord)
 	}
 
 	// Bulk insert consent records
-	if err := s.db.Create(&consentRecords).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&consentRecords).Error; err != nil {
 		return nil, fmt.Errorf("%s: %w", models.ErrConsentCreateFailed, err)
 	}
 
 	// Convert to internal view responses
-	var responses []models.ConsentResponseInternalView
+	responses := make([]models.ConsentResponseInternalView, 0, len(consentRecords))
 	for _, record := range consentRecords {
 		responses = append(responses, record.ToConsentResponseInternalView())
 	}
@@ -76,22 +82,25 @@ func getGrantDurationOrDefault(grantDuration *models.GrantDuration) models.Grant
 }
 
 // GetConsentInternalView retrieves a consent record by ID or by ((ownerID OR ownerEmail) AND appID) and returns its internal view
-func (s *ConsentService) GetConsentInternalView(consentID *string, ownerID *string, ownerEmail *string, appID *string) (*models.ConsentResponseInternalView, error) {
+func (s *ConsentService) GetConsentInternalView(ctx context.Context, consentID *string, ownerID *string, ownerEmail *string, appID *string) (*models.ConsentResponseInternalView, error) {
 	var consentRecord models.ConsentRecord
-	query := s.db.Model(&models.ConsentRecord{})
+	query := s.db.WithContext(ctx).Model(&models.ConsentRecord{})
 
 	if consentID != nil {
 		parsedConsentID, err := uuid.Parse(*consentID)
 		if err != nil {
-			return nil, fmt.Errorf("%s: invalid consent ID format: %w", models.ErrConsentGetFailed, err)
+			return nil, fmt.Errorf("%s: invalid consent ID", models.ErrConsentGetFailed)
 		}
 		query = query.Where("consent_id = ?", parsedConsentID)
 	} else if ownerID != nil && appID != nil {
+		// OwnerID gets priority over OwnerEmail if both are provided
 		query = query.Where("owner_id = ? AND app_id = ?", *ownerID, *appID)
 	} else if ownerEmail != nil && appID != nil {
+		// NOTE: This query on (owner_email, app_id) does not benefit from a composite index.
+		// If this query pattern is common or the table is large, consider adding a composite index on (owner_email, app_id)
 		query = query.Where("owner_email = ? AND app_id = ?", *ownerEmail, *appID)
 	} else {
-		return nil, fmt.Errorf("%s: either consentID or both ownerID and appID must be provided", models.ErrConsentGetFailed)
+		return nil, fmt.Errorf("%s: either consentID or (ownerID/ownerEmail and appID) must be provided", models.ErrConsentGetFailed)
 	}
 
 	if err := query.First(&consentRecord).Error; err != nil {
@@ -106,14 +115,14 @@ func (s *ConsentService) GetConsentInternalView(consentID *string, ownerID *stri
 }
 
 // GetConsentPortalView retrieves a consent record by ID and returns its portal view
-func (s *ConsentService) GetConsentPortalView(consentID string) (*models.ConsentResponsePortalView, error) {
+func (s *ConsentService) GetConsentPortalView(ctx context.Context, consentID string) (*models.ConsentResponsePortalView, error) {
 	var consentRecord models.ConsentRecord
 	parsedConsentID, err := uuid.Parse(consentID)
 	if err != nil {
-		return nil, fmt.Errorf("%s: invalid consent ID format: %w", models.ErrConsentGetFailed, err)
+		return nil, fmt.Errorf("%s: invalid consent ID", models.ErrConsentGetFailed)
 	}
 
-	if err := s.db.Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("%s: %w", models.ErrConsentNotFound, err)
 		}
@@ -125,7 +134,7 @@ func (s *ConsentService) GetConsentPortalView(consentID string) (*models.Consent
 }
 
 // UpdateConsentStatusByPortalAction updates the consent status based on user action from the consent portal
-func (s *ConsentService) UpdateConsentStatusByPortalAction(req models.ConsentPortalActionRequest) error {
+func (s *ConsentService) UpdateConsentStatusByPortalAction(ctx context.Context, req models.ConsentPortalActionRequest) error {
 	// Validate action
 	if !isValidConsentPortalAction(req.Action) {
 		return fmt.Errorf("%s: invalid action: %s", models.ErrPortalRequestFailed, req.Action)
@@ -134,10 +143,10 @@ func (s *ConsentService) UpdateConsentStatusByPortalAction(req models.ConsentPor
 	var consentRecord models.ConsentRecord
 	parsedConsentID, err := uuid.Parse(req.ConsentID)
 	if err != nil {
-		return fmt.Errorf("%s: invalid consent ID format: %w", models.ErrPortalRequestFailed, err)
+		return fmt.Errorf("%s: invalid consent ID", models.ErrPortalRequestFailed)
 	}
 
-	if err := s.db.Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("%s: %w", models.ErrConsentNotFound, err)
 		}
@@ -162,7 +171,7 @@ func (s *ConsentService) UpdateConsentStatusByPortalAction(req models.ConsentPor
 		return fmt.Errorf("%s: invalid action: %s", models.ErrPortalRequestFailed, req.Action)
 	}
 
-	if err := s.db.Save(&consentRecord).Error; err != nil {
+	if err := s.db.WithContext(ctx).Save(&consentRecord).Error; err != nil {
 		return fmt.Errorf("%s: %w", models.ErrConsentUpdateFailed, err)
 	}
 
@@ -185,8 +194,7 @@ func parseGrantDuration(grantDuration models.GrantDuration) time.Duration {
 	case models.DurationThirtyDays:
 		return 30 * 24 * time.Hour
 	default:
-		// Use the default duration constant instead of hardcoded value
-		return parseGrantDuration(models.DurationDefault)
+		return time.Hour // Default to 1 hour if unrecognized
 	}
 }
 

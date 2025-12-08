@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"time"
@@ -12,8 +13,8 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// DatabaseConfig holds GORM database connection configuration
-type DatabaseConfig struct {
+// Config holds GORM database connection configuration
+type Config struct {
 	Host            string
 	Port            string
 	Username        string
@@ -24,21 +25,23 @@ type DatabaseConfig struct {
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	ConnMaxIdleTime time.Duration
+	MaxRetries      int
 }
 
 // NewDatabaseConfig creates a new GORM database configuration for V1
-func NewDatabaseConfig() *DatabaseConfig {
-	return &DatabaseConfig{
+func NewDatabaseConfig() *Config {
+	return &Config{
 		Host:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", "localhost"),
 		Port:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432"),
 		Username:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres"),
 		Password:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password"),
 		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "testdb"),
-		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
+		SSLMode:         getEnvOrDefault("DB_SSLMODE", "prefer"),
 		MaxOpenConns:    25,
 		MaxIdleConns:    5,
 		ConnMaxLifetime: time.Hour,
 		ConnMaxIdleTime: 30 * time.Minute,
+		MaxRetries:      5,
 	}
 }
 
@@ -51,18 +54,57 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // ConnectGormDB establishes a GORM connection to PostgreSQL
-func ConnectGormDB(config *DatabaseConfig) (*gorm.DB, error) {
+func ConnectGormDB(config *Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
 
-	// Configure GORM logger
-	gormLogger := logger.Default.LogMode(logger.Warn)
+	// Configure GORM logger with custom config to prevent logging sensitive data
+	// ParameterizedQueries=true prevents logging SQL parameters that might contain passwords
+	gormLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  logger.Warn,
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true, // Prevent logging SQL parameters that might contain sensitive data
+			Colorful:                  false,
+		},
+	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: gormLogger,
-	})
+	// Retry connection with exponential backoff
+	maxRetries := config.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = 1
+	}
+	var db *gorm.DB
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: gormLogger,
+		})
+		if err == nil {
+			break
+		}
+
+		if i < maxRetries-1 {
+			waitTime := time.Second * time.Duration(1<<i) // Exponential backoff: 1s, 2s, 4s, etc.
+			slog.Warn("Failed to connect to database, retrying...",
+				"attempt", i+1,
+				"maxRetries", maxRetries,
+				"error", err,
+				"waitTime", waitTime)
+			time.Sleep(waitTime)
+		}
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, err)
+	}
+
+	// Verify db is not nil before proceeding
+	if db == nil {
+		return nil, fmt.Errorf("database connection is nil after successful connection attempt")
 	}
 
 	// Get underlying sql.DB to configure connection pool

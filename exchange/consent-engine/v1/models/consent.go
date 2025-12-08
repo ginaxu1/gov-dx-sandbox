@@ -11,10 +11,13 @@ type ConsentRecord struct {
 	// ConsentID is the unique identifier for the consent record
 	ConsentID uuid.UUID `gorm:"column:consent_id;type:uuid;primaryKey;default:gen_random_uuid()" json:"consent_id"`
 	// OwnerID is the unique identifier for the data owner
+	// Composite index idx_consent_records_owner_app (OwnerID, AppID) optimizes queries that lookup
+	// consent by owner and application combination (e.g., GetConsentInternalView service method)
 	OwnerID string `gorm:"column:owner_id;type:varchar(255);not null;index:idx_consent_records_owner_id;index:idx_consent_records_owner_app,composite:owner_app" json:"owner_id"`
 	// OwnerEmail is the email address of the data owner
 	OwnerEmail string `gorm:"column:owner_email;type:varchar(255);not null;index:idx_consent_records_owner_email" json:"owner_email"`
 	// AppID is the unique identifier for the consumer application
+	// Part of composite index idx_consent_records_owner_app with OwnerID for efficient lookups
 	AppID string `gorm:"column:app_id;type:varchar(255);not null;index:idx_consent_records_app_id;index:idx_consent_records_owner_app,composite:owner_app" json:"app_id"`
 	// AppName is the name of the consumer application
 	AppName *string `gorm:"column:app_name;type:varchar(255);" json:"app_name,omitempty"`
