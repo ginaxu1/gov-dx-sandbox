@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,7 +33,8 @@ var (
 	externalCallDuration  metric.Float64Histogram
 	businessEventsCounter metric.Int64Counter
 	metricsHandler        http.Handler
-	initialized           bool
+	initialized           int32     // Use atomic int32 for thread-safe reads/writes
+	otelInitOnce          sync.Once // Separate sync.Once for OpenTelemetry initialization
 )
 
 // Config holds the configuration for OpenTelemetry metrics
@@ -46,27 +50,42 @@ type Config struct {
 	OTLPHeaders map[string]string
 	// PrometheusPort is the port for Prometheus exporter (default: 8888)
 	PrometheusPort int
+	// OTLPTLSInsecure allows insecure TLS connections (only for development/testing)
+	// Set via OTEL_EXPORTER_OTLP_INSECURE environment variable
+	OTLPTLSInsecure bool
 }
 
 // DefaultConfig returns a default configuration
 func DefaultConfig(serviceName string) Config {
 	return Config{
-		ExporterType:   getEnvOrDefault("OTEL_METRICS_EXPORTER", "prometheus"),
-		ServiceName:    serviceName,
-		OTLPEndpoint:   getEnvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
-		PrometheusPort: 8888,
-		OTLPHeaders:    parseHeaders(getEnvOrDefault("OTEL_EXPORTER_OTLP_HEADERS", "")),
+		ExporterType:    getEnvOrDefault("OTEL_METRICS_EXPORTER", "prometheus"),
+		ServiceName:     serviceName,
+		OTLPEndpoint:    getEnvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+		PrometheusPort:  8888,
+		OTLPHeaders:     parseHeaders(getEnvOrDefault("OTEL_EXPORTER_OTLP_HEADERS", "")),
+		OTLPTLSInsecure: getEnvBoolOrDefault("OTEL_EXPORTER_OTLP_INSECURE", false),
 	}
 }
 
 // Initialize sets up OpenTelemetry metrics with the given configuration
+// This function is thread-safe and can be called multiple times safely.
+// Only the first call will perform initialization; subsequent calls return nil.
 func Initialize(config Config) error {
-	if initialized {
-		return nil // Already initialized
-	}
+	// Use sync.Once to ensure initialization only happens once
+	var initErr error
+	otelInitOnce.Do(func() {
+		ctx := context.Background()
+		initErr = initializeInternal(ctx, config)
+		if initErr == nil {
+			atomic.StoreInt32(&initialized, 1)
+		}
+	})
 
-	ctx := context.Background()
+	return initErr
+}
 
+// initializeInternal performs the actual initialization work
+func initializeInternal(ctx context.Context, config Config) error {
 	// Create resource with service name
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
@@ -104,10 +123,33 @@ func Initialize(config Config) error {
 			return fmt.Errorf("OTLP endpoint is required when using OTLP exporter")
 		}
 
+		// Parse endpoint URL
+		endpointURL, err := url.Parse(config.OTLPEndpoint)
+		if err != nil {
+			return fmt.Errorf("invalid OTLP endpoint URL: %w", err)
+		}
+
+		// Security: Require HTTPS by default for all endpoints
+		// Only allow insecure connections if explicitly enabled via OTEL_EXPORTER_OTLP_INSECURE
+		if endpointURL.Scheme != "https" {
+			if !config.OTLPTLSInsecure {
+				return fmt.Errorf("OTLP endpoint must use HTTPS (got: %s). Use https:// for secure connections, or set OTEL_EXPORTER_OTLP_INSECURE=true to allow insecure connections (not recommended for production)", endpointURL.Scheme)
+			}
+			// Insecure connection explicitly enabled via environment variable
+			slog.Warn("Using insecure HTTP connection for OTLP endpoint (OTEL_EXPORTER_OTLP_INSECURE=true)",
+				"endpoint", config.OTLPEndpoint,
+				"warning", "This disables TLS verification and exposes metrics data in transit")
+		}
+
 		opts := []otlpmetrichttp.Option{
 			otlpmetrichttp.WithEndpoint(config.OTLPEndpoint),
-			otlpmetrichttp.WithInsecure(), // Use WithTLSClientConfig for production
 		}
+
+		// Only use WithInsecure() if explicitly enabled via environment variable
+		if config.OTLPTLSInsecure && endpointURL.Scheme == "http" {
+			opts = append(opts, otlpmetrichttp.WithInsecure())
+		}
+		// For HTTPS endpoints (default), TLS with proper certificate validation is used automatically
 
 		// Add headers if provided
 		if len(config.OTLPHeaders) > 0 {
@@ -123,11 +165,16 @@ func Initialize(config Config) error {
 			sdkmetric.WithInterval(15*time.Second))
 		metricsHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("# Metrics exported via OTLP\n"))
+			if config.OTLPTLSInsecure {
+				w.Write([]byte("# Metrics exported via OTLP (insecure)\n"))
+			} else {
+				w.Write([]byte("# Metrics exported via OTLP\n"))
+			}
 		})
 		slog.Info("Initialized OpenTelemetry metrics with OTLP exporter",
 			"service", config.ServiceName,
-			"endpoint", config.OTLPEndpoint)
+			"endpoint", config.OTLPEndpoint,
+			"insecure", config.OTLPTLSInsecure)
 
 	case "none":
 		// Disabled - use no-op reader
@@ -218,7 +265,6 @@ func Initialize(config Config) error {
 		return fmt.Errorf("failed to create business_events_total counter: %w", err)
 	}
 
-	initialized = true
 	return nil
 }
 
@@ -226,7 +272,7 @@ func Initialize(config Config) error {
 // For Prometheus exporter, this returns the Prometheus metrics endpoint
 // For OTLP exporter, this returns a simple status endpoint
 func otelHandler() http.Handler {
-	if metricsHandler == nil {
+	if atomic.LoadInt32(&initialized) == 0 || metricsHandler == nil {
 		// Fallback if not initialized
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -239,7 +285,7 @@ func otelHandler() http.Handler {
 // otelHTTPMetricsMiddleware wraps an HTTP handler to record metrics using OpenTelemetry
 func otelHTTPMetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !initialized {
+		if atomic.LoadInt32(&initialized) == 0 {
 			// If metrics not initialized, just pass through
 			next.ServeHTTP(w, r)
 			return
@@ -282,7 +328,7 @@ func otelHTTPMetricsMiddleware(next http.Handler) http.Handler {
 
 // otelRecordExternalCall records an external service call using OpenTelemetry
 func otelRecordExternalCall(target, operation string, duration time.Duration, err error) {
-	if !initialized {
+	if atomic.LoadInt32(&initialized) == 0 {
 		return
 	}
 
@@ -301,7 +347,7 @@ func otelRecordExternalCall(target, operation string, duration time.Duration, er
 
 // otelRecordBusinessEvent records a business event using OpenTelemetry
 func otelRecordBusinessEvent(action, outcome string) {
-	if !initialized {
+	if atomic.LoadInt32(&initialized) == 0 {
 		return
 	}
 
@@ -336,4 +382,14 @@ func parseHeaders(headerStr string) map[string]string {
 		}
 	}
 	return headers
+}
+
+func getEnvBoolOrDefault(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	// Accept common boolean representations
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value == "true" || value == "1" || value == "yes" || value == "on"
 }

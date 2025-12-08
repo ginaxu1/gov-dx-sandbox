@@ -87,7 +87,7 @@ run_requests() {
         sleep 0.5
         
         # Invalid JSON (400s)
-        send_request "POST" "/api/v1/members" '{"invalid": json}' "Invalid JSON"
+        send_request "POST" "/api/v1/members" '{"invalid": }' "Invalid JSON"
         sleep 0.5
         
         i=$((i+1))
