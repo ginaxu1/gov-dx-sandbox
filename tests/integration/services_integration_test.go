@@ -8,9 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	portalBackendURL = "http://127.0.0.1:3000"
-)
+
 
 func TestPortalBackend_Health(t *testing.T) {
 	resp, err := http.Get(portalBackendURL + "/health")

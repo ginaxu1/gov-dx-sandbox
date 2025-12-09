@@ -1,11 +1,13 @@
 services:
   # Shared PostgreSQL Database for All Services
+  # NOTE: These are TEST-ONLY credentials. In production, use secure secrets management.
+  # Credentials can be overridden via environment variables or .env file (gitignored).
   shared-db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password # TEST credentials only
-      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -28,9 +30,9 @@ services:
       LOG_LEVEL: info
       DB_SSLMODE: disable
       CHOREO_OPENDIF_DATABASE_HOSTNAME: shared-db
-      CHOREO_OPENDIF_DATABASE_PORT: 5432
-      CHOREO_OPENDIF_DATABASE_USERNAME: postgres
-      CHOREO_OPENDIF_DATABASE_PASSWORD: password
+      CHOREO_OPENDIF_DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DATABASE_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_OPENDIF_DATABASE_DATABASENAME: policy_db
       RUN_MIGRATION: "true"
     ports:
@@ -65,9 +67,9 @@ services:
       LOG_LEVEL: info
       # Legacy database env vars (for old database.go)
       CHOREO_DB_CE_HOSTNAME: shared-db
-      CHOREO_DB_CE_PORT: 5432
-      CHOREO_DB_CE_USERNAME: postgres
-      CHOREO_DB_CE_PASSWORD: password
+      CHOREO_DB_CE_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_DB_CE_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_DB_CE_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_DB_CE_DATABASENAME: consent_db
       # V1 database env vars (for v1/database/database.go)
       CHOREO_OPENDIF_DATABASE_HOSTNAME: shared-db
@@ -112,9 +114,9 @@ services:
       PORT: 3001
       ENVIRONMENT: test
       CHOREO_OPENDIF_DB_HOSTNAME: shared-db
-      CHOREO_OPENDIF_DB_PORT: 5432
-      CHOREO_OPENDIF_DB_USERNAME: postgres
-      CHOREO_OPENDIF_DB_PASSWORD: password
+      CHOREO_OPENDIF_DB_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DB_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_OPENDIF_DB_DATABASENAME: audit_db
       DB_SSLMODE: disable
     ports:
@@ -145,6 +147,7 @@ services:
       CHOREO_AUDIT_CONNECTION_SERVICEURL: http://audit-service:3001
     volumes:
       - ./config.json:/app/config/config.json:ro
+      - ./schema.graphql:/app/schema.graphql:ro
     ports:
       - "4000:4000"
     depends_on:
@@ -180,16 +183,23 @@ services:
       PORT: 3000
       ENVIRONMENT: test
       # Asgardeo Config (Mocked for testing)
-      ASGARDEO_BASE_URL: "http://mock-asgardeo"
+      ASGARDEO_BASE_URL: "http://host.docker.internal:8090"
       ASGARDEO_MEMBER_PORTAL_CLIENT_ID: "mock-client-id"
+      ASGARDEO_CLIENT_ID: "mock-client-id"
+      ASGARDEO_CLIENT_SECRET: "mock-client-secret"
+      ASGARDEO_ORG_NAME: "mock-org"
+      # PDP Config
+      CHOREO_PDP_CONNECTION_SERVICEURL: "http://policy-decision-point:8082"
+      CHOREO_PDP_CONNECTION_CHOREOAPIKEY: "mock-key"
       # DB Config
       CHOREO_OPENDIF_DB_HOSTNAME: shared-db
-      CHOREO_OPENDIF_DB_PORT: 5432
-      CHOREO_OPENDIF_DB_USERNAME: postgres
-      CHOREO_OPENDIF_DB_PASSWORD: password
+      CHOREO_OPENDIF_DB_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DB_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_OPENDIF_DB_DATABASENAME: portal_db
       DB_SSLMODE: disable
-      RUN_MIGRATION: "true"
+      RUN_MIGRATION: "false"
+
     ports:
       - "3000:3000"
     depends_on:
