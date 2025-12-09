@@ -27,7 +27,7 @@ type testCleanupRegistry struct {
 // cleanupTestData attempts to clean up test data created during test execution.
 // Note: Some services may not have DELETE endpoints, so this is best-effort cleanup.
 func (r *testCleanupRegistry) cleanup(t *testing.T) {
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: cleanupHTTPTimeout}
 
 	// Cleanup consents (if Consent Engine supports deletion)
 	for _, consentID := range r.consentIDs {
@@ -53,9 +53,19 @@ const (
 	testRequestID = "test-req-123"
 )
 
+// Timeout constants for test operations
+const (
+	defaultHTTPTimeout    = 10 * time.Second
+	cleanupHTTPTimeout    = 5 * time.Second
+	serviceCheckTimeout   = 2 * time.Second
+	serviceStartupTimeout = 120 // seconds
+	servicePauseDelay     = 2 * time.Second
+	serviceRetryInterval  = 1 * time.Second
+)
+
 // Shared HTTP client for tests to avoid creating multiple clients
 var testHTTPClient = &http.Client{
-	Timeout: 10 * time.Second,
+	Timeout: defaultHTTPTimeout,
 }
 
 var (
@@ -169,8 +179,7 @@ func TestMain(m *testing.M) {
 
 	var unavailableServices []string
 	for _, svc := range services {
-		// Use sufficient timeout (120 seconds)
-		if err := waitForService(svc.url, 120); err != nil {
+		if err := waitForService(svc.url, serviceStartupTimeout); err != nil {
 			fmt.Printf("❌ Service %s not available: %v\n", svc.name, err)
 			unavailableServices = append(unavailableServices, svc.name)
 		} else {
@@ -195,7 +204,7 @@ func TestMain(m *testing.M) {
 
 func waitForService(url string, maxAttempts int) error {
 	client := &http.Client{
-		Timeout: 2 * time.Second, // Add timeout to prevent hanging
+		Timeout: serviceCheckTimeout,
 	}
 
 	for i := 0; i < maxAttempts; i++ {
@@ -211,7 +220,7 @@ func waitForService(url string, maxAttempts int) error {
 		if i > 0 && i%5 == 0 {
 			fmt.Printf("  Still waiting for %s... (attempt %d/%d)\n", url, i+1, maxAttempts)
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(serviceRetryInterval)
 	}
 	return fmt.Errorf("service at %s did not become available after %d attempts", url, maxAttempts)
 }
@@ -242,7 +251,173 @@ func createTestJWT(appID string) (string, error) {
 	return tokenString, nil
 }
 
-// TestGraphQLFlow tests the complete success path:
+// makeGraphQLRequest performs a GraphQL request to the Orchestration Engine with the given query and JWT token.
+func makeGraphQLRequest(t *testing.T, query string, variables map[string]interface{}, token string) (*http.Response, error) {
+	graphQLQuery := map[string]interface{}{
+		"query":     query,
+		"variables": variables,
+	}
+	jsonData, err := json.Marshal(graphQLQuery)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-JWT-Assertion", token)
+
+	return testHTTPClient.Do(req)
+}
+
+// parseGraphQLResponse parses a GraphQL response body and returns the result map.
+func parseGraphQLResponse(t *testing.T, resp *http.Response) map[string]interface{} {
+	var result map[string]interface{}
+	err := json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err, "Failed to decode GraphQL response")
+	return result
+}
+
+// createPolicyMetadata creates policy metadata in the PDP for the given schema and field.
+func createPolicyMetadata(t *testing.T, schemaID, fieldName string) {
+	reqBody := map[string]interface{}{
+		"schemaId": schemaID,
+		"records": []map[string]interface{}{
+			{
+				"fieldName":         fieldName,
+				"source":            "primary",
+				"isOwner":           false,
+				"owner":             "citizen", // Required when isOwner is false
+				"accessControlType": "restricted",
+			},
+		},
+	}
+	jsonData, err := json.Marshal(reqBody)
+	require.NoError(t, err)
+
+	resp, err := testHTTPClient.Post(pdpURL+"/metadata", "application/json", bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	defer func() {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Policy metadata should be created successfully")
+}
+
+// updatePDPAllowlist adds an application to the PDP allowlist for the given schema and field.
+func updatePDPAllowlist(t *testing.T, appID, schemaID, fieldName string) {
+	allowListReq := map[string]interface{}{
+		"applicationId": appID,
+		"records": []map[string]interface{}{
+			{
+				"fieldName": fieldName,
+				"schemaId":  schemaID,
+			},
+		},
+		"grantDuration": "30d",
+	}
+	allowListData, err := json.Marshal(allowListReq)
+	require.NoError(t, err)
+
+	allowListResp, err := testHTTPClient.Post(pdpURL+"/update-allowlist", "application/json", bytes.NewBuffer(allowListData))
+	require.NoError(t, err)
+	defer func() {
+		io.Copy(io.Discard, allowListResp.Body)
+		allowListResp.Body.Close()
+	}()
+
+	if allowListResp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(allowListResp.Body)
+		if err != nil {
+			t.Logf("Failed to read allowlist response body: %v", err)
+		} else {
+			t.Logf("Update AllowList response: %d, body: %s", allowListResp.StatusCode, string(body))
+		}
+		require.Equal(t, http.StatusOK, allowListResp.StatusCode, "App should be added to AllowList")
+	} else {
+		t.Log("✅ Application added to PDP allowList")
+	}
+}
+
+// createConsent creates a consent record in the Consent Engine and returns the consent ID.
+func createConsent(t *testing.T, appID, schemaID, fieldName, ownerID string) string {
+	consentReq := map[string]interface{}{
+		"app_id": appID,
+		"consent_requirements": []map[string]interface{}{
+			{
+				"owner":    "CITIZEN",
+				"owner_id": ownerID,
+				"fields": []map[string]interface{}{
+					{
+						"fieldName": fieldName,
+						"schemaId":  schemaID,
+					},
+				},
+			},
+		},
+		"grant_duration": "P30D",
+	}
+	jsonData, err := json.Marshal(consentReq)
+	require.NoError(t, err)
+
+	resp, err := testHTTPClient.Post(consentEngineURL, "application/json", bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Logf("Failed to read consent response body: %v", err)
+		} else {
+			t.Logf("Consent creation response status: %d, body: %s", resp.StatusCode, string(bodyBytes))
+		}
+	}
+	require.Equal(t, http.StatusCreated, resp.StatusCode, "Consent should be created successfully")
+
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	require.NoError(t, err)
+	t.Logf("Consent created: %+v", result)
+
+	consentID, ok := result["consent_id"].(string)
+	require.True(t, ok, "Consent ID should be present in response")
+	require.NotEmpty(t, consentID, "Consent ID should not be empty")
+	return consentID
+}
+
+// approveConsent approves a consent record using PATCH endpoint (no auth required for internal use).
+func approveConsent(t *testing.T, consentID string) {
+	patchReq := map[string]interface{}{
+		"status":     "approved",
+		"updated_by": "test-integration",
+		"reason":     "Approved by integration test",
+	}
+	jsonData, err := json.Marshal(patchReq)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("PATCH", fmt.Sprintf("%s/%s", consentEngineURL, consentID), bytes.NewBuffer(jsonData))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := testHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer func() {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Logf("Failed to read consent approval response body: %v", err)
+		} else {
+			t.Logf("Consent approval response status: %d, body: %s", resp.StatusCode, string(bodyBytes))
+		}
+	}
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Consent should be approved successfully")
+	t.Logf("✅ Consent %s approved", consentID)
+}
+
+// TestGraphQLFlow_SuccessPath tests the complete success path:
 // 1. GraphQL query to orchestration-engine-go
 // 2. Success path through PDP (policy evaluation)
 // 3. Success path through consent-engine (consent check)
@@ -268,150 +443,34 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 	defer cleanup.cleanup(t)
 
 	t.Run("Setup_PolicyMetadata", func(t *testing.T) {
-		reqBody := map[string]interface{}{
-			"schemaId": schemaID,
-			"records": []map[string]interface{}{
-				{
-					"fieldName":         "person.email", // Match the providerField from @sourceInfo directive
-					"source":            "primary",
-					"isOwner":           true,
-					"accessControlType": "restricted",
-				},
-			},
-		}
-		jsonData, err := json.Marshal(reqBody)
-		require.NoError(t, err)
-
-		resp, err := testHTTPClient.Post(pdpURL+"/metadata", "application/json", bytes.NewBuffer(jsonData))
-		require.NoError(t, err)
-		defer func() {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-		}()
-
-		assert.Equal(t, http.StatusCreated, resp.StatusCode, "Policy metadata should be created successfully")
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-		assert.NotNil(t, result["records"])
-
-		// Add application to allowList so PDP authorizes the request
-		allowListReq := map[string]interface{}{
-			"applicationId": appID,
-			"records": []map[string]interface{}{
-				{
-					"fieldName": "person.email",
-					"schemaId":  schemaID,
-				},
-			},
-			"grantDuration": "30d", // PDP expects "30d" format, not ISO 8601 "P30D"
-		}
-		allowListData, err := json.Marshal(allowListReq)
-		require.NoError(t, err)
-
-		allowListResp, err := testHTTPClient.Post(pdpURL+"/update-allowlist", "application/json", bytes.NewBuffer(allowListData))
-		require.NoError(t, err)
-		defer allowListResp.Body.Close()
-
-		if allowListResp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(allowListResp.Body)
-			if err != nil {
-				t.Logf("Failed to read allowlist response body: %v", err)
-			}
-			t.Logf("Update AllowList response: %d, body: %s", allowListResp.StatusCode, string(body))
-		} else {
-			io.Copy(io.Discard, allowListResp.Body) // Ensure body is consumed
-			t.Log("✅ Application added to PDP allowList")
-		}
+		createPolicyMetadata(t, schemaID, fieldName)
+		updatePDPAllowlist(t, appID, schemaID, fieldName)
 	})
 
 	t.Run("Setup_Consent", func(t *testing.T) {
-		// Create a consent record for the test scenario
-		// Format based on consent-engine API: app_id, consent_requirements with owner, owner_id, and fields
-		consentReq := map[string]interface{}{
-			"app_id": appID,
-			"consent_requirements": []map[string]interface{}{
-				{
-					"owner":    "CITIZEN",
-					"owner_id": testOwnerID,
-					"fields": []map[string]interface{}{
-						{
-							"fieldName": "person.email", // Match the providerField from @sourceInfo directive
-							"schemaId":  schemaID,
-						},
-					},
-				},
-			},
-			"grant_duration": "P30D",
-		}
-		jsonData, err := json.Marshal(consentReq)
-		require.NoError(t, err)
-
-		resp, err := testHTTPClient.Post(consentEngineURL, "application/json", bytes.NewBuffer(jsonData))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		// Consent creation should return 201
-		if resp.StatusCode != http.StatusCreated {
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Logf("Failed to read consent response body: %v", err)
-			}
-			t.Logf("Consent creation response status: %d, body: %s", resp.StatusCode, string(bodyBytes))
-		}
-		assert.Equal(t, http.StatusCreated, resp.StatusCode, "Consent should be created successfully")
-
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
-		t.Logf("Consent created: %+v", result)
-		assert.NotEmpty(t, result["consent_id"], "Consent ID should be present in response")
-
-		// Track consent ID for cleanup
-		if consentID, ok := result["consent_id"].(string); ok {
-			cleanup.consentIDs = append(cleanup.consentIDs, consentID)
-		}
+		// Use testNIC as owner_id to match the GraphQL query variable
+		consentID := createConsent(t, appID, schemaID, fieldName, testNIC)
+		approveConsent(t, consentID)
+		cleanup.consentIDs = append(cleanup.consentIDs, consentID)
 	})
 
 	t.Run("GraphQL_Query_To_OrchestrationEngine", func(t *testing.T) {
-		// Create a GraphQL query using the actual schema
-		graphQLQuery := map[string]interface{}{
-			"query": `
-				query TestQuery($nic: String!) {
-					personInfo(nic: $nic) {
-						email
-					}
-				}
-			`,
-			"variables": map[string]interface{}{
-				"nic": testNIC,
-			},
-		}
-
-		jsonData, err := json.Marshal(graphQLQuery)
-		require.NoError(t, err)
-
-		// Create JWT token for the test app
 		token, err := createTestJWT(appID)
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-JWT-Assertion", token)
-
-		resp, err := testHTTPClient.Do(req)
+		resp, err := makeGraphQLRequest(t, `
+			query TestQuery($nic: String!) {
+				personInfo(nic: $nic) {
+					email
+				}
+			}
+		`, map[string]interface{}{"nic": testNIC}, token)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		// The orchestration engine should process the request
-		// It will call PDP and consent-engine internally
 		t.Logf("Orchestration Engine response status: %d", resp.StatusCode)
 
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		require.NoError(t, err)
+		result := parseGraphQLResponse(t, resp)
 		t.Logf("Orchestration Engine response: %+v", result)
 
 		// Validate response structure
@@ -499,9 +558,10 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 		}
 	})
 }
+
+// TestGraphQLFlow_MissingPolicyMetadata tests the behavior when a field is queried
+// without any policy metadata configured in PDP. This should result in an authorization error.
 func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T) {
-	// Tests the behavior when a field is queried without any policy metadata configured in PDP.
-	// This should result in an authorization error.
 	testID := fmt.Sprintf("%d", time.Now().UnixNano())
 	appID := fmt.Sprintf("test-app-missing-policy-%s", testID)
 
@@ -510,42 +570,22 @@ func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T) {
 	}
 	defer cleanup.cleanup(t)
 
-	// Create JWT token
 	token, err := createTestJWT(appID)
 	require.NoError(t, err)
 
-	// Query a field that doesn't have policy metadata
-	graphQLQuery := map[string]interface{}{
-		"query": `
-			query TestQuery($nic: String!) {
-				personInfo(nic: $nic) {
-					profession
-				}
+	resp, err := makeGraphQLRequest(t, `
+		query TestQuery($nic: String!) {
+			personInfo(nic: $nic) {
+				profession
 			}
-		`,
-		"variables": map[string]interface{}{
-			"nic": "123456789V",
-		},
-	}
-
-	jsonData, err := json.Marshal(graphQLQuery)
-	require.NoError(t, err)
-
-	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-JWT-Assertion", token)
-
-	resp, err := testHTTPClient.Do(req)
+		}
+	`, map[string]interface{}{"nic": testNIC}, token)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// GraphQL returns 200 OK even with errors
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "GraphQL should return 200 OK even with errors")
 
-	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	require.NoError(t, err)
+	result := parseGraphQLResponse(t, resp)
 
 	// We expect authorization/validation errors
 	errors, hasErrors := result["errors"]
@@ -570,11 +610,10 @@ func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T) {
 	}
 }
 
+// TestGraphQLFlow_UnauthorizedApp tests the behavior when an app queries a field that
+// requires consent but has no consent granted. Policy metadata exists, but app has no consent.
 func TestGraphQLFlow_UnauthorizedApp(t *testing.T) {
-	// Tests the behavior when an app queries a field that requires consent but has no consent granted.
-	// Setup: Policy metadata exists, but app has no consent
 	timestamp := time.Now().UnixNano()
-	// NOTE: Must match schema.graphql
 	schemaID := "test-schema-123"
 	fieldName := "person.address"
 	unauthorizedAppID := fmt.Sprintf("rogue-app-%d", timestamp)
@@ -586,86 +625,27 @@ func TestGraphQLFlow_UnauthorizedApp(t *testing.T) {
 	}
 	defer cleanup.cleanup(t)
 
-	// 1. Create Policy Metadata (so it passes PDP check if it were authorized)
-	reqBody := map[string]interface{}{
-		"schemaId": schemaID,
-		"records": []map[string]interface{}{
-			{
-				"fieldName":         fieldName,
-				"source":            "primary",
-				"isOwner":           true,
-				"accessControlType": "restricted",
-			},
-		},
-	}
-	jsonData, err := json.Marshal(reqBody)
-	require.NoError(t, err)
-	resp, err := testHTTPClient.Post(pdpURL+"/metadata", "application/json", bytes.NewBuffer(jsonData))
-	require.NoError(t, err)
-	defer func() {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-	}()
-	require.Equal(t, http.StatusCreated, resp.StatusCode, "Policy metadata should be created")
+	createPolicyMetadata(t, schemaID, fieldName)
+	updatePDPAllowlist(t, unauthorizedAppID, schemaID, fieldName)
 
-	// 1a. Add to AllowList (so PDP says "OK, but consent required")
-	// If it's not in AllowList, PDP returns "Not Allowed" and we never test Consent logic.
-	allowListReq := map[string]interface{}{
-		"applicationId": unauthorizedAppID,
-		"records": []map[string]interface{}{
-			{
-				"fieldName": fieldName,
-				"schemaId":  schemaID,
-			},
-		},
-		"grantDuration": "30d",
-	}
-	allowListData, err := json.Marshal(allowListReq)
-	require.NoError(t, err)
-
-	allowListResp, err := testHTTPClient.Post(pdpURL+"/update-allowlist", "application/json", bytes.NewBuffer(allowListData))
-	require.NoError(t, err)
-	defer allowListResp.Body.Close()
-	require.Equal(t, http.StatusOK, allowListResp.StatusCode, "App should be added to AllowList")
-
-	// 2. Do NOT create consent for unauthorizedAppID
-
-	// 3. Make GraphQL request with unauthorizedAppID token
 	token, err := createTestJWT(unauthorizedAppID)
 	require.NoError(t, err)
 
-	graphQLQuery := map[string]interface{}{
-		"query": `
-			query TestQuery($nic: String!) {
-				personInfo(nic: $nic) {
-					address
-				}
+	resp, err := makeGraphQLRequest(t, `
+		query TestQuery($nic: String!) {
+			personInfo(nic: $nic) {
+				address
 			}
-		`,
-		"variables": map[string]interface{}{
-			"nic": "123456789V",
-		},
-	}
-	jsonData, err = json.Marshal(graphQLQuery)
-	require.NoError(t, err)
-
-	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-JWT-Assertion", token)
-
-	resp, err := testHTTPClient.Do(req)
+		}
+	`, map[string]interface{}{"nic": testNIC}, token)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	t.Logf("Unauthorized App Response status: %d", resp.StatusCode)
 
-	// GraphQL returns 200 OK even with errors
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "GraphQL should return 200 OK even with errors")
 
-	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	require.NoError(t, err)
+	result := parseGraphQLResponse(t, resp)
 
 	// Should contain errors indicating consent not approved
 	errors, hasErrors := result["errors"]
@@ -688,8 +668,8 @@ func TestGraphQLFlow_UnauthorizedApp(t *testing.T) {
 	}
 }
 
+// TestGraphQLFlow_ServiceTimeout tests resilience/failure when a dependency (PDP) is down or times out.
 func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
-	// Test resilience/failure when a dependency (PDP) is down or times out
 	testID := fmt.Sprintf("%d", time.Now().UnixNano())
 	appID := fmt.Sprintf("test-app-timeout-%s", testID)
 
@@ -698,11 +678,9 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 	}
 	defer cleanup.cleanup(t)
 
-	// Create JWT token
 	token, err := createTestJWT(appID)
 	require.NoError(t, err)
 
-	// Resolve absolute path for docker-compose.test.yml
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Skipf("Skipping ServiceTimeout test: unable to get working directory: %v", err)
@@ -710,13 +688,11 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 	}
 	composeFile := filepath.Join(wd, "docker-compose.test.yml")
 
-	// Check if docker-compose file exists
 	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
 		t.Skipf("Skipping ServiceTimeout test: docker-compose.test.yml not found: %v", err)
 		return
 	}
 
-	// Pause PDP to simulate service outage
 	cmd := exec.Command("docker", "compose", "-f", composeFile, "pause", "policy-decision-point")
 	err = cmd.Run()
 	if err != nil {
@@ -725,72 +701,46 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		// Unpause PDP
 		unpauseCmd := exec.Command("docker", "compose", "-f", composeFile, "unpause", "policy-decision-point")
 		if err := unpauseCmd.Run(); err != nil {
 			t.Logf("Failed to unpause PDP container during cleanup: %v", err)
 		}
-		// Wait for PDP to become responsive
 		waitForService(pdpURL+"/health", 10)
 	})
 
-	// Wait a moment for the pause to take effect
-	time.Sleep(2 * time.Second)
+	time.Sleep(servicePauseDelay)
 
-	// Make GraphQL request
-	graphQLQuery := map[string]interface{}{
-		"query": `
-			query TestQuery($nic: String!) {
-				personInfo(nic: $nic) {
-					fullName
-				}
+	resp, err := makeGraphQLRequest(t, `
+		query TestQuery($nic: String!) {
+			personInfo(nic: $nic) {
+				fullName
 			}
-		`,
-		"variables": map[string]interface{}{
-			"nic": "123456789V",
-		},
-	}
-	jsonData, err := json.Marshal(graphQLQuery)
-	require.NoError(t, err)
+		}
+	`, map[string]interface{}{"nic": testNIC}, token)
 
-	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-JWT-Assertion", token)
-
-	resp, err := testHTTPClient.Do(req)
-
-	// It might timeout (err != nil) or return 200 with GraphQL errors
 	if err != nil {
 		t.Logf("Request failed as expected (timeout/connection error): %v", err)
 		assert.Error(t, err, "Request should fail when PDP is down")
-	} else {
-		defer resp.Body.Close()
-		t.Logf("Response status during outage: %d", resp.StatusCode)
+		return
+	}
+	defer resp.Body.Close()
 
-		// GraphQL typically returns 200 OK even with errors
-		if resp.StatusCode == http.StatusOK {
-			var result map[string]interface{}
-			err = json.NewDecoder(resp.Body).Decode(&result)
-			if err == nil {
-				t.Logf("Error response: %+v", result)
-				// Should contain errors indicating PDP failure
-				errors, hasErrors := result["errors"]
-				if hasErrors {
-					errorList := errors.([]interface{})
-					assert.NotEmpty(t, errorList, "Should have errors when PDP is down")
-					t.Logf("Received errors as expected: %+v", errorList)
-				}
-			}
-		} else {
-			// Non-200 status is also acceptable
-			assert.NotEqual(t, http.StatusOK, resp.StatusCode, "Should not return OK when PDP is down")
+	t.Logf("Response status during outage: %d", resp.StatusCode)
+
+	if resp.StatusCode == http.StatusOK {
+		result := parseGraphQLResponse(t, resp)
+		t.Logf("Error response: %+v", result)
+		if errors, ok := result["errors"].([]interface{}); ok {
+			assert.NotEmpty(t, errors, "Should have errors when PDP is down")
+			t.Logf("Received errors as expected: %+v", errors)
 		}
+	} else {
+		assert.NotEqual(t, http.StatusOK, resp.StatusCode, "Should not return OK when PDP is down")
 	}
 }
 
+// TestGraphQLFlow_InvalidQuery tests the behavior when an invalid/malformed GraphQL query is sent.
 func TestGraphQLFlow_InvalidQuery(t *testing.T) {
-	// Tests the behavior when an invalid/malformed GraphQL query is sent
 	testID := fmt.Sprintf("%d", time.Now().UnixNano())
 	appID := fmt.Sprintf("test-app-invalid-query-%s", testID)
 
@@ -799,39 +749,22 @@ func TestGraphQLFlow_InvalidQuery(t *testing.T) {
 	}
 	defer cleanup.cleanup(t)
 
-	// Create JWT token
 	token, err := createTestJWT(appID)
 	require.NoError(t, err)
 
-	// Send an invalid GraphQL query (missing required argument)
-	graphQLQuery := map[string]interface{}{
-		"query": `
-			query TestQuery {
-				personInfo {
-					fullName
-				}
+	resp, err := makeGraphQLRequest(t, `
+		query TestQuery {
+			personInfo {
+				fullName
 			}
-		`,
-	}
-
-	jsonData, err := json.Marshal(graphQLQuery)
-	require.NoError(t, err)
-
-	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-JWT-Assertion", token)
-
-	resp, err := testHTTPClient.Do(req)
+		}
+	`, nil, token)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// GraphQL returns 200 OK even with errors
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "GraphQL should return 200 OK even with errors")
 
-	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	require.NoError(t, err)
+	result := parseGraphQLResponse(t, resp)
 
 	// Should contain errors for invalid query
 	errors, hasErrors := result["errors"]
@@ -843,8 +776,8 @@ func TestGraphQLFlow_InvalidQuery(t *testing.T) {
 	}
 }
 
+// TestGraphQLFlow_MissingToken tests the behavior when no JWT token is provided.
 func TestGraphQLFlow_MissingToken(t *testing.T) {
-	// Tests the behavior when no JWT token is provided
 	graphQLQuery := map[string]interface{}{
 		"query": `
 			query TestQuery($nic: String!) {
@@ -854,38 +787,27 @@ func TestGraphQLFlow_MissingToken(t *testing.T) {
 			}
 		`,
 		"variables": map[string]interface{}{
-			"nic": "123456789V",
+			"nic": testNIC,
 		},
 	}
-
 	jsonData, err := json.Marshal(graphQLQuery)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	// Intentionally not setting X-JWT-Assertion or Authorization header
 
 	resp, err := testHTTPClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	// Should return 401 Unauthorized when token is missing (in production/test environment)
-	// In local environment, it might return 200 OK
 	t.Logf("Response status without token: %d", resp.StatusCode)
 
-	// The exact behavior depends on the environment configuration
-	// If environment is "local", it might return 200 OK
-	// If environment is "test" or "production", it should return 401
 	if resp.StatusCode == http.StatusUnauthorized {
 		t.Logf("Correctly returned 401 Unauthorized for missing token")
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Should return 401 when token is missing")
 	} else {
-		// In local environment, might return 200 with errors
-		var result map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&result)
-		if err == nil {
-			t.Logf("Response (may be local env): %+v", result)
-		}
+		result := parseGraphQLResponse(t, resp)
+		t.Logf("Response (may be local env): %+v", result)
 	}
 }
