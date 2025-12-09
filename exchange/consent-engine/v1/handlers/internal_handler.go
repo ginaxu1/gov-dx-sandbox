@@ -8,6 +8,7 @@ import (
 
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
+	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/utils"
 )
 
 // InternalHandler handles internal API requests (no authentication required)
@@ -25,14 +26,14 @@ func NewInternalHandler(consentService *services.ConsentService) *InternalHandle
 // HealthCheck handles GET /internal/api/v1/health
 func (h *InternalHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		respondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	response := map[string]string{
 		"status": "healthy",
 	}
-	respondWithJSON(w, http.StatusOK, response)
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 // GetConsent handles GET /internal/api/v1/consents
@@ -40,7 +41,7 @@ func (h *InternalHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 // Returns: models.ConsentResponseInternalView
 func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		respondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -51,12 +52,12 @@ func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 
 	// Validate required parameters
 	if appID == "" {
-		respondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, "appId is required")
+		utils.RespondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, "appId is required")
 		return
 	}
 
 	if ownerEmail == "" && ownerID == "" {
-		respondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, "either ownerEmail or ownerId is required")
+		utils.RespondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, "either ownerEmail or ownerId is required")
 		return
 	}
 
@@ -74,19 +75,19 @@ func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 		// Check if error is due to context cancellation or timeout
 		if r.Context().Err() != nil {
 			slog.Warn("Request context cancelled during service call", "error", r.Context().Err())
-			respondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
+			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
-		if containsError(err, string(models.ErrConsentNotFound)) {
-			respondWithError(w, http.StatusNotFound, models.ErrorCodeConsentNotFound, err.Error())
+		if utils.ContainsError(err, string(models.ErrConsentNotFound)) {
+			utils.RespondWithError(w, http.StatusNotFound, models.ErrorCodeConsentNotFound, err.Error())
 			return
 		}
 		slog.Error("Failed to get consent", "error", err)
-		respondWithError(w, http.StatusInternalServerError, models.ErrorCodeInternalError, "An unexpected error occurred")
+		utils.RespondWithError(w, http.StatusInternalServerError, models.ErrorCodeInternalError, "An unexpected error occurred")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, consent)
+	utils.RespondWithJSON(w, http.StatusOK, consent)
 }
 
 // CreateConsent handles POST /internal/api/v1/consents
@@ -94,7 +95,7 @@ func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 // Returns: []models.ConsentResponseInternalView
 func (h *InternalHandler) CreateConsent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -102,7 +103,7 @@ func (h *InternalHandler) CreateConsent(w http.ResponseWriter, r *http.Request) 
 	// Parse request body
 	var req models.CreateConsentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, fmt.Sprintf("Invalid request body: %v", err))
+		utils.RespondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
@@ -112,18 +113,18 @@ func (h *InternalHandler) CreateConsent(w http.ResponseWriter, r *http.Request) 
 		// Check if error is due to context cancellation or timeout
 		if r.Context().Err() != nil {
 			slog.Warn("Request context cancelled during service call", "error", r.Context().Err())
-			respondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
+			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
-		if containsError(err, string(models.ErrConsentCreateFailed)) {
+		if utils.ContainsError(err, string(models.ErrConsentCreateFailed)) {
 			slog.Error("Failed to create consent", "error", err)
-			respondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, err.Error())
+			utils.RespondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, err.Error())
 			return
 		}
 		slog.Error("Failed to create consent", "error", err)
-		respondWithError(w, http.StatusInternalServerError, models.ErrorCodeInternalError, "An unexpected error occurred")
+		utils.RespondWithError(w, http.StatusInternalServerError, models.ErrorCodeInternalError, "An unexpected error occurred")
 		return
 	}
 
-	respondWithJSON(w, http.StatusCreated, consents)
+	utils.RespondWithJSON(w, http.StatusCreated, consents)
 }
