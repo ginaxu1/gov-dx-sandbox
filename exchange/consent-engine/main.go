@@ -13,6 +13,13 @@ import (
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/constants"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
+
+	// V1 API imports
+	v1auth "github.com/gov-dx-sandbox/exchange/consent-engine/v1/auth"
+	v1db "github.com/gov-dx-sandbox/exchange/consent-engine/v1/database"
+	v1handlers "github.com/gov-dx-sandbox/exchange/consent-engine/v1/handlers"
+	v1router "github.com/gov-dx-sandbox/exchange/consent-engine/v1/router"
+	v1services "github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 )
 
 // getEnvOrDefault returns the environment variable value or a default
@@ -782,6 +789,50 @@ func main() {
 	// Setup routes using utils
 	mux := http.NewServeMux()
 
+	// ========== V1 API Routes ==========
+	// Initialize V1 services and handlers
+	slog.Info("Initializing V1 API services...")
+
+	// Initialize V1 database connection
+	v1DBConfig := v1db.NewDatabaseConfig()
+	v1DB, err := v1db.ConnectGormDB(v1DBConfig)
+	if err != nil {
+		slog.Error("Failed to connect to V1 database", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("V1 database connected successfully")
+
+	// Initialize V1 consent service
+	v1ConsentService, err := v1services.NewConsentService(v1DB, consentPortalUrl)
+	if err != nil {
+		slog.Error("Failed to initialize V1 consent service", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize V1 handlers
+	v1InternalHandler := v1handlers.NewInternalHandler(v1ConsentService)
+	v1PortalHandler := v1handlers.NewPortalHandler(v1ConsentService)
+
+	// Initialize V1 JWT verifier
+	v1JWTVerifier, err := v1auth.NewJWTVerifier(v1auth.JWTVerifierConfig{
+		JWKSUrl:      userJwksURL,
+		Issuer:       userIssuer,
+		Audience:     userAudience,
+		Organization: orgName,
+	})
+	if err != nil {
+		slog.Error("Failed to initialize V1 JWT verifier", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize V1 router and register all V1 routes
+	v1Router := v1router.NewV1Router(v1InternalHandler, v1PortalHandler, v1JWTVerifier)
+	slog.Info("Registering V1 API routes")
+	v1Router.RegisterRoutes(mux)
+	slog.Info("V1 API routes registered successfully")
+	// ===================================
+
+	// Existing routes (unchanged)
 	// Routes that don't require authentication
 	mux.Handle("/consents", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.consentHandler)))
 	mux.Handle("/data-owner/", utils.PanicRecoveryMiddleware(http.HandlerFunc(server.dataOwnerHandler)))
@@ -801,8 +852,8 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Wrap the mux with CORS middleware
-	handler := corsMiddleware(mux)
+	// Wrap the mux with CORS middleware from v1 router
+	handler := v1Router.ApplyCORS(mux)
 	httpServer := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
