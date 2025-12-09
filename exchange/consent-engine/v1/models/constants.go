@@ -75,11 +75,12 @@ type ConsentErrorCode string
 
 // ConsentErrorCode constants
 const (
-	ErrorCodeConsentNotFound ConsentErrorCode = "CONSENT_NOT_FOUND"
-	ErrorCodeInternalError   ConsentErrorCode = "INTERNAL_ERROR"
-	ErrorCodeBadRequest      ConsentErrorCode = "BAD_REQUEST"
-	ErrorCodeUnauthorized    ConsentErrorCode = "UNAUTHORIZED"
-	ErrorCodeForbidden       ConsentErrorCode = "FORBIDDEN"
+	ErrorCodeConsentNotFound  ConsentErrorCode = "CONSENT_NOT_FOUND"
+	ErrorCodeInternalError    ConsentErrorCode = "INTERNAL_ERROR"
+	ErrorCodeBadRequest       ConsentErrorCode = "BAD_REQUEST"
+	ErrorCodeUnauthorized     ConsentErrorCode = "UNAUTHORIZED"
+	ErrorCodeForbidden        ConsentErrorCode = "FORBIDDEN"
+	ErrorCodeMethodNotAllowed ConsentErrorCode = "METHOD_NOT_ALLOWED"
 )
 
 // ConsentEngineOperation represents the operation
