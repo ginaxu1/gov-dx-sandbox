@@ -1,0 +1,768 @@
+openapi: 3.0.3
+info:
+  title: Consent Engine API v1
+  description: |
+    Handles consent creation, approval, and management for the OpenDIF Data Exchange Platform.
+    
+    ## API Structure
+    The API is divided into two main categories:
+    
+    ### External APIs (Authorization Required)
+    User-facing endpoints protected by Bearer Token authentication:
+    - Health check endpoint
+    - Get consent details (owner verification required)
+    - Update consent status (owner verification required)
+    
+    ### Internal APIs (No Authorization Required)
+    Service-to-service endpoints for internal communication:
+    - Health check endpoint
+    - Query consents by owner email or owner ID
+    - Create consent records
+    
+    ## Authorization
+    External APIs require a Bearer token in the Authorization header. The system verifies that:
+    - The token is valid
+    - The email from the decoded token matches the consent owner's email
+  version: 1.0.0
+  contact:
+    name: OpenDIF Team
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:8081
+    description: Local Development Environment
+  - url: https://consent-engine-dev.choreo.dev
+    description: Choreo Development Environment
+
+tags:
+  - name: External
+    description: External API endpoints (authentication required)
+  - name: Internal
+    description: Internal API endpoints (no authentication required)
+
+paths:
+  # External APIs (Authorization Required)
+  /api/v1/health:
+    get:
+      summary: Health Check (External)
+      description: Check if the external API service is running and healthy.
+      operationId: externalHealthCheck
+      tags:
+        - External
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                required:
+                  - status
+
+  /api/v1/consents/{consentId}:
+    get:
+      summary: Get Consent Details
+      description: |
+        Retrieves consent details for the specified consent ID.
+        
+        **Authorization:** Requires Bearer Token
+        
+        **Ownership Verification:** The consent owner_email must match the email from the decoded token.
+      operationId: getConsent
+      tags:
+        - External
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: The unique identifier of the consent record
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Consent details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponsePortalView'
+        '400':
+          description: Bad request - invalid consent ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "BAD_REQUEST"
+                  message: "consentId is required"
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "User email not found in token"
+        '403':
+          description: Forbidden - consent belongs to a different user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "FORBIDDEN"
+                  message: "Access denied: consent belongs to a different user"
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "CONSENT_NOT_FOUND"
+                  message: "Consent not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "An unexpected error occurred"
+
+    put:
+      summary: Update Consent Status
+      description: |
+        Updates the consent status by approving or rejecting it.
+        
+        **Authorization:** Requires Bearer Token
+        
+        **Ownership Verification:** The consent owner_email must match the email from the decoded token.
+        
+        **Valid Actions:**
+        - `approve` - Approve the consent request
+        - `reject` - Reject the consent request
+      operationId: updateConsent
+      tags:
+        - External
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: consentId
+          in: path
+          required: true
+          description: The unique identifier of the consent record
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [approve, reject]
+                  description: The action to perform on the consent
+              required:
+                - action
+            example:
+              action: "approve"
+      responses:
+        '200':
+          description: Consent updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Consent updated successfully"
+                  status:
+                    type: string
+                    enum: [approved, rejected]
+                    description: The resulting consent status (not the action)
+                    example: "approved"
+                required:
+                  - message
+                  - status
+        '400':
+          description: Bad request - invalid action or consent ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidAction:
+                  summary: Invalid action
+                  value:
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Invalid action: pending. Must be 'approve' or 'reject'"
+                invalidRequest:
+                  summary: Invalid request body
+                  value:
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Invalid request body: unexpected EOF"
+                portalRequestFailed:
+                  summary: Invalid consent update request
+                  value:
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Invalid consent update request"
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "User email not found in token"
+        '403':
+          description: Forbidden - consent belongs to a different user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "FORBIDDEN"
+                  message: "Access denied: consent belongs to a different user"
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "CONSENT_NOT_FOUND"
+                  message: "Consent not found"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "METHOD_NOT_ALLOWED"
+                  message: "Method not allowed"
+        '408':
+          description: Request timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "Request timeout or cancelled"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "An unexpected error occurred"
+
+  # Internal APIs (No Authorization Required)
+  /internal/api/v1/health:
+    get:
+      summary: Health Check (Internal)
+      description: Check if the internal API service is running and healthy.
+      operationId: internalHealthCheck
+      tags:
+        - Internal
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                required:
+                  - status
+
+  /internal/api/v1/consents:
+    get:
+      summary: Get Consent by Owner and App
+      description: |
+        Retrieves consent information by owner email/ID and application ID.
+        
+        **Query Parameters:**
+        - Either `ownerEmail` OR `ownerId` must be provided (not both)
+        - `appId` is required
+        
+        **Response:** Returns a simplified internal view of the consent record.
+      operationId: getConsentInternal
+      tags:
+        - Internal
+      security: []
+      parameters:
+        - name: ownerEmail
+          in: query
+          required: false
+          description: The email address of the consent owner
+          schema:
+            type: string
+            format: email
+          example: "user@example.com"
+        - name: ownerId
+          in: query
+          required: false
+          description: The unique identifier of the consent owner
+          schema:
+            type: string
+          example: "user123"
+        - name: appId
+          in: query
+          required: true
+          description: The unique identifier of the application
+          schema:
+            type: string
+          example: "app-12345"
+      responses:
+        '200':
+          description: Consent retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentResponseInternalView'
+        '400':
+          description: Bad request - missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missingAppId:
+                  summary: Missing appId
+                  value:
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "appId is required"
+                missingOwner:
+                  summary: Missing owner identifier
+                  value:
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "either ownerEmail or ownerId is required"
+        '404':
+          description: Consent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "CONSENT_NOT_FOUND"
+                  message: "consent record not found"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "METHOD_NOT_ALLOWED"
+                  message: "Method not allowed"
+        '408':
+          description: Request timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "Request timeout or cancelled"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "An unexpected error occurred"
+
+    post:
+      summary: Create Consent Records
+      description: |
+        Creates consent records for multiple owners based on the provided consent requirements.
+        
+        **Request Body:** Contains application information and consent requirements for each owner.
+        
+        **Response:** Returns an array of consent records in internal view format.
+      operationId: createConsent
+      tags:
+        - Internal
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConsentRequest'
+      responses:
+        '201':
+          description: Consent records created successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConsentResponseInternalView'
+        '400':
+          description: Bad request - invalid request body or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidBody:
+                  summary: Invalid request body
+                  value:
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "Invalid request body: unexpected EOF"
+                validationError:
+                  summary: Validation error
+                  value:
+                    error:
+                      code: "BAD_REQUEST"
+                      message: "failed to create consent record: validation failed"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "METHOD_NOT_ALLOWED"
+                  message: "Method not allowed"
+        '408':
+          description: Request timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "Request timeout or cancelled"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "An unexpected error occurred"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from the identity provider.
+        The token must contain the user's email address.
+        
+        Example: `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+
+  schemas:
+    ConsentField:
+      type: object
+      description: Represents a field that requires consent
+      properties:
+        fieldName:
+          type: string
+          description: The name of the field requiring consent
+          example: "personInfo.name"
+        schemaId:
+          type: string
+          description: The schema identifier for the field
+          example: "acde070d-8c4c-4f0d-9d8a-000000a111111"
+        displayName:
+          type: string
+          nullable: true
+          description: Human-readable display name for the field
+          example: "Full Name"
+        description:
+          type: string
+          nullable: true
+          description: Description of what this field contains
+          example: "Your legal full name as it appears on official documents"
+        owner:
+          type: string
+          enum: [citizen]
+          description: The type of owner for this field
+          example: "citizen"
+      required:
+        - fieldName
+        - schemaId
+        - owner
+
+    ConsentRequirement:
+      type: object
+      description: Represents consent requirements for a specific owner
+      properties:
+        owner:
+          type: string
+          description: The owner type (e.g., "citizen")
+          example: "citizen"
+        ownerId:
+          type: string
+          description: The unique identifier for the data owner
+          example: "user123"
+        ownerEmail:
+          type: string
+          format: email
+          description: The email address of the data owner
+          example: "user@example.com"
+        fields:
+          type: array
+          description: List of fields requiring consent
+          items:
+            $ref: '#/components/schemas/ConsentField'
+      required:
+        - owner
+        - ownerId
+        - ownerEmail
+        - fields
+
+    CreateConsentRequest:
+      type: object
+      description: Request body for creating consent records
+      properties:
+        appId:
+          type: string
+          description: The unique identifier of the application requesting consent
+          example: "app-12345"
+        appName:
+          type: string
+          nullable: true
+          description: The name of the application
+          example: "Passport Application"
+        consentRequirements:
+          type: array
+          description: List of consent requirements for different owners
+          items:
+            $ref: '#/components/schemas/ConsentRequirement'
+          minItems: 1
+        grantDuration:
+          type: string
+          nullable: true
+          description: |
+            ISO 8601 duration format for how long the consent grant is valid.
+            If not provided, defaults to PT1H (1 hour).
+            
+            Examples:
+            - PT1H: 1 hour
+            - PT6H: 6 hours
+            - PT12H: 12 hours
+            - P1D: 1 day
+            - P7D: 7 days
+            - P30D: 30 days
+          example: "P30D"
+      required:
+        - appId
+        - consentRequirements
+      example:
+        appId: "app-12345"
+        appName: "Passport Application"
+        consentRequirements:
+          - owner: "citizen"
+            ownerId: "user123"
+            ownerEmail: "user@example.com"
+            fields:
+              - fieldName: "personInfo.name"
+                schemaId: "schema-001"
+                displayName: "Full Name"
+                description: "Your legal full name"
+                owner: "citizen"
+              - fieldName: "personInfo.dateOfBirth"
+                schemaId: "schema-002"
+                displayName: "Date of Birth"
+                description: "Your date of birth"
+                owner: "citizen"
+        grantDuration: "P30D"
+
+    ConsentResponseInternalView:
+      type: object
+      description: Simplified consent response for internal API responses
+      properties:
+        consentId:
+          type: string
+          format: uuid
+          description: The unique identifier of the consent record
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        status:
+          type: string
+          enum: [pending, approved, rejected, expired, revoked]
+          description: The current status of the consent
+          example: "pending"
+        consentPortalUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: The URL to the consent portal (only present when status is pending)
+          example: "https://consent-portal.example.com/?consentId=550e8400-e29b-41d4-a716-446655440000"
+      required:
+        - consentId
+        - status
+      example:
+        consentId: "550e8400-e29b-41d4-a716-446655440000"
+        status: "pending"
+        consentPortalUrl: "https://consent-portal.example.com/?consentId=550e8400-e29b-41d4-a716-446655440000"
+
+    ConsentResponsePortalView:
+      type: object
+      description: User-facing consent object for the consent portal UI
+      properties:
+        appId:
+          type: string
+          description: The unique identifier of the application
+          example: "app-12345"
+        appName:
+          type: string
+          nullable: true
+          description: The name of the application
+          example: "Passport Application"
+        ownerId:
+          type: string
+          description: The unique identifier of the data owner
+          example: "user123"
+        ownerEmail:
+          type: string
+          format: email
+          description: The email address of the data owner
+          example: "user@example.com"
+        status:
+          type: string
+          enum: [pending, approved, rejected, expired, revoked]
+          description: The current status of the consent
+          example: "pending"
+        type:
+          type: string
+          enum: [realtime, offline]
+          description: The type of consent mechanism
+          example: "realtime"
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the consent was created
+          example: "2023-12-09T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the consent was last updated
+          example: "2023-12-09T10:30:00Z"
+        fields:
+          type: array
+          description: List of fields requiring consent with rich information
+          items:
+            $ref: '#/components/schemas/ConsentField'
+      required:
+        - appId
+        - ownerId
+        - ownerEmail
+        - status
+        - type
+        - createdAt
+        - updatedAt
+        - fields
+      example:
+        appId: "app-12345"
+        appName: "Passport Application"
+        ownerId: "user123"
+        ownerEmail: "user@example.com"
+        status: "pending"
+        type: "realtime"
+        createdAt: "2023-12-09T10:30:00Z"
+        updatedAt: "2023-12-09T10:30:00Z"
+        fields:
+          - fieldName: "personInfo.name"
+            schemaId: "schema-001"
+            displayName: "Full Name"
+            description: "Your legal full name"
+            owner: "citizen"
+          - fieldName: "personInfo.dateOfBirth"
+            schemaId: "schema-002"
+            displayName: "Date of Birth"
+            description: "Your date of birth"
+            owner: "citizen"
+
+    ErrorResponse:
+      type: object
+      description: Standard error response format
+      properties:
+        error:
+          type: object
+          description: Error details wrapper
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code
+              enum:
+                - CONSENT_NOT_FOUND
+                - INTERNAL_ERROR
+                - BAD_REQUEST
+                - UNAUTHORIZED
+                - FORBIDDEN
+                - METHOD_NOT_ALLOWED
+              example: "BAD_REQUEST"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Invalid request body"
+          required:
+            - code
+            - message
+      required:
+        - error
+      example:
+        error:
+          code: "BAD_REQUEST"
+          message: "Invalid request body"
