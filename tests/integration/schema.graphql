@@ -1,0 +1,10 @@
+type Query {
+  personInfo(nic: String!): Person
+}
+
+type Person {
+  fullName: String @sourceInfo(providerKey: "mock-provider", schemaId: "test-schema-123", providerField: "person.fullName")
+  email: String @sourceInfo(providerKey: "mock-provider", schemaId: "test-schema-123", providerField: "person.email")
+  address: String @sourceInfo(providerKey: "mock-provider", schemaId: "test-schema-123", providerField: "person.address")
+  profession: String @sourceInfo(providerKey: "mock-provider", schemaId: "test-schema-123", providerField: "person.profession")
+}
