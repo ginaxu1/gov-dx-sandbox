@@ -15,7 +15,6 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
 	"github.com/go-chi/chi/v5"
-	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 )
 
 type Response struct {
@@ -45,10 +44,7 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	// Wrap mux with metrics middleware (outermost) and CORS middleware
-	// Metrics must be outermost to capture all requests, including CORS-blocked ones
-	handler := monitoring.HTTPMetricsMiddleware(corsMiddleware(mux))
-	if err := http.ListenAndServe(port, handler); err != nil {
+	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
@@ -82,10 +78,6 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 
 	// Set the schema service in the federator
 	f.SchemaService = schemaService
-
-	// Metrics endpoint
-	mux.Handle("/metrics", monitoring.Handler())
-
 	// /health route
 	mux.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
