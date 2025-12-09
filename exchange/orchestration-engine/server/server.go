@@ -15,6 +15,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
 	"github.com/go-chi/chi/v5"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 )
 
 type Response struct {
@@ -44,7 +45,10 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
+	// Wrap with metrics middleware (outermost layer, before CORS)
+	handler := monitoring.HTTPMetricsMiddleware(corsMiddleware(mux))
+
+	if err := http.ListenAndServe(port, handler); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
@@ -101,6 +105,9 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 
 	// Handle activation endpoint with proper path matching
 	mux.Post("/sdl/versions/{version}/activate", schemaHandler.ActivateSchema)
+
+	// Metrics endpoint
+	mux.Handle("/metrics", monitoring.Handler())
 
 	// Publicly accessible Endpoints
 	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {
