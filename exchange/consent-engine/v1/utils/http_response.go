@@ -1,10 +1,9 @@
-package handlers
+package utils
 
 import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 )
@@ -17,8 +16,8 @@ type ErrorResponse struct {
 	} `json:"error"`
 }
 
-// respondWithJSON sends a JSON response with the given status code
-func respondWithJSON(w http.ResponseWriter, statusCode int, payload interface{}) {
+// RespondWithJSON sends a JSON response with the given status code
+func RespondWithJSON(w http.ResponseWriter, statusCode int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
@@ -30,19 +29,12 @@ func respondWithJSON(w http.ResponseWriter, statusCode int, payload interface{})
 	}
 }
 
-// respondWithError sends a JSON error response with the given status code
-func respondWithError(w http.ResponseWriter, statusCode int, errorCode models.ConsentErrorCode, message string) {
+// RespondWithError sends a JSON error response with the given status code
+// This version accepts models.ConsentErrorCode for type-safe error codes
+func RespondWithError(w http.ResponseWriter, statusCode int, errorCode models.ConsentErrorCode, message string) {
 	response := ErrorResponse{}
 	response.Error.Code = string(errorCode)
 	response.Error.Message = message
 
-	respondWithJSON(w, statusCode, response)
-}
-
-// containsError checks if an error message contains a specific substring
-func containsError(err error, substr string) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), substr)
+	RespondWithJSON(w, statusCode, response)
 }

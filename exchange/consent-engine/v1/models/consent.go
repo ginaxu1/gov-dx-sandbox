@@ -40,7 +40,7 @@ type ConsentRecord struct {
 	// Used to calculate GrantExpiresAt: GrantExpiresAt = current_time + GrantDuration
 	GrantDuration string `gorm:"column:grant_duration;type:varchar(50);not null" json:"grant_duration"`
 	// Fields is the list of data fields that require consent (stored as array of field names)
-	Fields []ConsentField `gorm:"column:fields;type:jsonb;not null" json:"fields"`
+	Fields []ConsentField `gorm:"column:fields;type:jsonb;serializer:json;not null" json:"fields"`
 	// SessionID is the session identifier for tracking the consent flow
 	SessionID *string `gorm:"column:session_id;type:varchar(255);" json:"session_id,omitempty"`
 	// ConsentPortalURL is the URL to redirect to for consent portal
