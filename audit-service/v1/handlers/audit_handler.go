@@ -3,24 +3,25 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/v1/models"
 	"github.com/gov-dx-sandbox/audit-service/v1/services"
+	"github.com/gov-dx-sandbox/audit-service/v1/types"
 )
 
 const (
 	// maxRequestSize limits the request body size to 1MB
 	maxRequestSize = 1 << 20 // 1MB
-	// maxServiceNameLength limits service name length
-	maxServiceNameLength = 50
-	// maxEventTypeLength limits event type length
-	maxEventTypeLength = 50
+	// maxStringLength limits string field lengths
+	maxStringLength = 100
 )
 
 // AuditHandler handles HTTP requests for audit logs
@@ -68,7 +69,7 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 	// Limit request body size
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
 
-	var req models.CreateAuditLogRequest
+	var req types.CreateAuditLogRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
@@ -93,34 +94,11 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse TraceID to UUID
-	traceUUID, err := uuid.Parse(req.TraceID)
+	// Convert request to model
+	auditLog, err := convertRequestToModel(&req)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid traceId format (expected UUID)")
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
-	}
-
-	// Parse timestamp or use current time
-	timestamp := time.Now()
-	if req.Timestamp != "" {
-		parsedTime, err := time.Parse(time.RFC3339, req.Timestamp)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid timestamp format (expected RFC3339)")
-			return
-		}
-		timestamp = parsedTime
-	}
-
-	auditLog := &models.AuditLog{
-		TraceID:       traceUUID,
-		Timestamp:     timestamp,
-		SourceService: strings.TrimSpace(req.SourceService),
-		TargetService: strings.TrimSpace(req.TargetService),
-		EventType:     strings.TrimSpace(req.EventType),
-		Status:        req.Status,
-		ActorID:       req.ActorID,
-		Resources:     req.Resources,
-		Metadata:      req.Metadata,
 	}
 
 	createdLog, err := h.service.CreateAuditLog(r.Context(), auditLog)
@@ -129,9 +107,7 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 		slog.Error("Failed to create audit log",
 			"error", err,
 			"traceId", req.TraceID,
-			"sourceService", req.SourceService,
-			"targetService", req.TargetService,
-			"eventType", req.EventType,
+			"eventName", req.EventName,
 			"status", req.Status)
 
 		writeError(w, http.StatusInternalServerError, "Failed to create audit log")
@@ -141,88 +117,259 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 	// Log successful creation for observability
 	slog.Info("Audit log created",
 		"traceId", createdLog.TraceID,
-		"sourceService", createdLog.SourceService,
-		"targetService", createdLog.TargetService,
-		"eventType", createdLog.EventType,
+		"eventName", createdLog.EventName,
 		"status", createdLog.Status,
 		"id", createdLog.ID)
 
 	writeJSON(w, http.StatusCreated, createdLog)
 }
 
-// validateCreateRequest validates the create audit log request
-func validateCreateRequest(req *models.CreateAuditLogRequest) error {
-	if req.TraceID == "" {
-		return errors.New("traceId is required")
-	}
-	if req.SourceService == "" {
-		return errors.New("sourceService is required")
-	}
-	if req.EventType == "" {
-		return errors.New("eventType is required")
-	}
-	if req.Status == "" {
-		return errors.New("status is required")
-	}
-
-	// Validate Status value
-	if req.Status != models.StatusSuccess && req.Status != models.StatusFailure {
-		return errors.New("status must be either 'SUCCESS' or 'FAILURE'")
-	}
-
-	// Validate string lengths
-	if len(req.SourceService) > maxServiceNameLength {
-		return errors.New("sourceService exceeds maximum length")
-	}
-	if req.TargetService != "" && len(req.TargetService) > maxServiceNameLength {
-		return errors.New("targetService exceeds maximum length")
-	}
-	if len(req.EventType) > maxEventTypeLength {
-		return errors.New("eventType exceeds maximum length")
-	}
-
-	return nil
-}
-
-// GetAuditLogs handles the GET request to retrieve logs for a trace
+// GetAuditLogs handles the GET request to retrieve logs with flexible filtering
 func (h *AuditHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	traceIDStr := r.URL.Query().Get("traceId")
-	if traceIDStr == "" {
-		writeError(w, http.StatusBadRequest, "Missing traceId query parameter")
-		return
+	// Parse query parameters
+	filter := &types.GetAuditLogsRequest{}
+
+	// Trace ID (optional)
+	if traceIDStr := r.URL.Query().Get("traceId"); traceIDStr != "" {
+		traceUUID, err := uuid.Parse(traceIDStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid traceId format (expected UUID)")
+			return
+		}
+		filter.TraceID = &traceUUID
 	}
 
-	traceUUID, err := uuid.Parse(traceIDStr)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid traceId format (expected UUID)")
-		return
+	// Event name (optional)
+	if eventName := r.URL.Query().Get("eventName"); eventName != "" {
+		filter.EventName = &eventName
 	}
 
-	logs, err := h.service.GetAuditLogs(r.Context(), traceUUID)
+	// Status (optional)
+	if status := r.URL.Query().Get("status"); status != "" {
+		filter.Status = &status
+	}
+
+	// Actor service name (optional)
+	if actorServiceName := r.URL.Query().Get("actorServiceName"); actorServiceName != "" {
+		filter.ActorServiceName = &actorServiceName
+	}
+
+	// Actor user ID (optional)
+	if actorUserIDStr := r.URL.Query().Get("actorUserId"); actorUserIDStr != "" {
+		actorUserUUID, err := uuid.Parse(actorUserIDStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid actorUserId format (expected UUID)")
+			return
+		}
+		filter.ActorUserID = &actorUserUUID
+	}
+
+	// Target service name (optional)
+	if targetServiceName := r.URL.Query().Get("targetServiceName"); targetServiceName != "" {
+		filter.TargetServiceName = &targetServiceName
+	}
+
+	// Target resource (optional)
+	if targetResource := r.URL.Query().Get("targetResource"); targetResource != "" {
+		filter.TargetResource = &targetResource
+	}
+
+	// Start time (optional)
+	if startTime := r.URL.Query().Get("startTime"); startTime != "" {
+		filter.StartTime = &startTime
+	}
+
+	// End time (optional)
+	if endTime := r.URL.Query().Get("endTime"); endTime != "" {
+		filter.EndTime = &endTime
+	}
+
+	// Limit (optional)
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil || limit < 1 {
+			writeError(w, http.StatusBadRequest, "Invalid limit (must be positive integer)")
+			return
+		}
+		filter.Limit = &limit
+	}
+
+	// Offset (optional)
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		offset, err := strconv.Atoi(offsetStr)
+		if err != nil || offset < 0 {
+			writeError(w, http.StatusBadRequest, "Invalid offset (must be non-negative integer)")
+			return
+		}
+		filter.Offset = &offset
+	}
+
+	response, err := h.service.GetAuditLogs(r.Context(), filter)
 	if err != nil {
 		// Log the error with details for debugging
 		slog.Error("Failed to retrieve audit logs",
 			"error", err,
-			"traceId", traceIDStr)
+			"filter", filter)
 
 		writeError(w, http.StatusInternalServerError, "Failed to retrieve audit logs")
 		return
 	}
 
-	// Return empty array instead of null if no logs found
-	if logs == nil {
-		logs = []models.AuditLog{}
-	}
-
 	// Log successful retrieval for observability
 	slog.Info("Audit logs retrieved",
-		"traceId", traceUUID,
-		"count", len(logs))
+		"total", response.Total,
+		"count", len(response.Events))
 
-	writeJSON(w, http.StatusOK, logs)
+	writeJSON(w, http.StatusOK, response)
+}
+
+// validateCreateRequest validates the create audit log request
+func validateCreateRequest(req *types.CreateAuditLogRequest) error {
+	if req.EventName == "" {
+		return errors.New("eventName is required")
+	}
+	if req.Status == "" {
+		return errors.New("status is required")
+	}
+	if req.Status != models.StatusSuccess && req.Status != models.StatusFailure {
+		return errors.New("status must be either 'SUCCESS' or 'FAILURE'")
+	}
+	if req.ActorType == "" {
+		return errors.New("actorType is required")
+	}
+	if req.ActorType != models.ActorTypeUser && req.ActorType != models.ActorTypeService {
+		return errors.New("actorType must be either 'USER' or 'SERVICE'")
+	}
+	if req.TargetType == "" {
+		return errors.New("targetType is required")
+	}
+	if req.TargetType != models.TargetTypeResource && req.TargetType != models.TargetTypeService {
+		return errors.New("targetType must be either 'RESOURCE' or 'SERVICE'")
+	}
+
+	// Validate actor constraints
+	if req.ActorType == models.ActorTypeService {
+		if req.ActorServiceName == nil || *req.ActorServiceName == "" {
+			return errors.New("actorServiceName is required when actorType is SERVICE")
+		}
+		if req.ActorUserID != nil {
+			return errors.New("actorUserId must be null when actorType is SERVICE")
+		}
+	} else if req.ActorType == models.ActorTypeUser {
+		if req.ActorUserID == nil || *req.ActorUserID == "" {
+			return errors.New("actorUserId is required when actorType is USER")
+		}
+		if req.ActorServiceName != nil && *req.ActorServiceName != "" {
+			return errors.New("actorServiceName must be null when actorType is USER")
+		}
+	}
+
+	// Validate target constraints
+	if req.TargetType == models.TargetTypeService {
+		if req.TargetServiceName == nil || *req.TargetServiceName == "" {
+			return errors.New("targetServiceName is required when targetType is SERVICE")
+		}
+		if req.TargetResource != nil && *req.TargetResource != "" {
+			return errors.New("targetResource must be null when targetType is SERVICE")
+		}
+	} else if req.TargetType == models.TargetTypeResource {
+		if req.TargetResource == nil || *req.TargetResource == "" {
+			return errors.New("targetResource is required when targetType is RESOURCE")
+		}
+		if req.TargetServiceName != nil && *req.TargetServiceName != "" {
+			return errors.New("targetServiceName must be null when targetType is RESOURCE")
+		}
+	}
+
+	// Validate string lengths
+	if len(req.EventName) > maxStringLength {
+		return errors.New("eventName exceeds maximum length")
+	}
+	if req.EventType != nil && len(*req.EventType) > 20 {
+		return errors.New("eventType exceeds maximum length")
+	}
+
+	return nil
+}
+
+// convertRequestToModel converts a CreateAuditLogRequest to an AuditLog model
+func convertRequestToModel(req *types.CreateAuditLogRequest) (*models.AuditLog, error) {
+	log := &models.AuditLog{
+		EventName:        strings.TrimSpace(req.EventName),
+		Status:           req.Status,
+		ActorType:        req.ActorType,
+		TargetType:       req.TargetType,
+		RequestedData:    req.RequestedData,
+		ResponseMetadata: req.ResponseMetadata,
+		EventMetadata:    req.EventMetadata,
+		ActorMetadata:    req.ActorMetadata,
+		TargetMetadata:   req.TargetMetadata,
+	}
+
+	// Parse timestamp or use current time
+	timestamp := time.Now().UTC()
+	if req.Timestamp != nil && *req.Timestamp != "" {
+		parsedTime, err := time.Parse(time.RFC3339, *req.Timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("invalid timestamp format (expected RFC3339): %w", err)
+		}
+		timestamp = parsedTime
+	}
+	log.Timestamp = timestamp
+
+	// Parse trace ID (nullable)
+	if req.TraceID != nil && *req.TraceID != "" {
+		traceUUID, err := uuid.Parse(*req.TraceID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid traceId format (expected UUID): %w", err)
+		}
+		log.TraceID = &traceUUID
+	}
+
+	// Parse event type (nullable)
+	if req.EventType != nil && *req.EventType != "" {
+		eventType := strings.TrimSpace(*req.EventType)
+		log.EventType = &eventType
+	}
+
+	// Parse actor fields
+	if req.ActorServiceName != nil {
+		serviceName := strings.TrimSpace(*req.ActorServiceName)
+		log.ActorServiceName = &serviceName
+	}
+	if req.ActorUserID != nil && *req.ActorUserID != "" {
+		userUUID, err := uuid.Parse(*req.ActorUserID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid actorUserId format (expected UUID): %w", err)
+		}
+		log.ActorUserID = &userUUID
+	}
+	if req.ActorUserType != nil {
+		userType := strings.TrimSpace(*req.ActorUserType)
+		log.ActorUserType = &userType
+	}
+
+	// Parse target fields
+	if req.TargetServiceName != nil {
+		serviceName := strings.TrimSpace(*req.TargetServiceName)
+		log.TargetServiceName = &serviceName
+	}
+	if req.TargetResource != nil {
+		resource := strings.TrimSpace(*req.TargetResource)
+		log.TargetResource = &resource
+	}
+	if req.TargetResourceID != nil && *req.TargetResourceID != "" {
+		resourceUUID, err := uuid.Parse(*req.TargetResourceID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid targetResourceId format (expected UUID): %w", err)
+		}
+		log.TargetResourceID = &resourceUUID
+	}
+
+	return log, nil
 }

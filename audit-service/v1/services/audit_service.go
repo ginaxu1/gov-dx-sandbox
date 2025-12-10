@@ -5,16 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/v1/models"
+	"github.com/gov-dx-sandbox/audit-service/v1/types"
 	"gorm.io/gorm"
 )
 
 // AuditService interface defines methods for handling audit logs
 type AuditService interface {
 	CreateAuditLog(ctx context.Context, log *models.AuditLog) (*models.AuditLog, error)
-	GetAuditLogs(ctx context.Context, traceID uuid.UUID) ([]models.AuditLog, error)
+	GetAuditLogs(ctx context.Context, filter *types.GetAuditLogsRequest) (*types.GetAuditLogsResponse, error)
 }
 
 // auditService implementation
@@ -41,15 +42,14 @@ func (s *auditService) CreateAuditLog(ctx context.Context, log *models.AuditLog)
 		return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
 	}
 
-	// Validate required fields before database operation
-	if log.TraceID == uuid.Nil {
-		return nil, errors.New("traceId cannot be nil")
+	// Validate using model's Validate method
+	if err := log.Validate(); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
 	}
-	if log.SourceService == "" {
-		return nil, errors.New("sourceService is required")
-	}
-	if log.EventType == "" {
-		return nil, errors.New("eventType is required")
+
+	// Additional validation for required fields
+	if log.EventName == "" {
+		return nil, errors.New("eventName is required")
 	}
 	if log.Status != models.StatusSuccess && log.Status != models.StatusFailure {
 		return nil, fmt.Errorf("invalid status: %s (must be SUCCESS or FAILURE)", log.Status)
@@ -63,24 +63,81 @@ func (s *auditService) CreateAuditLog(ctx context.Context, log *models.AuditLog)
 	return log, nil
 }
 
-// GetAuditLogs retrieves audit logs by trace ID
-func (s *auditService) GetAuditLogs(ctx context.Context, traceID uuid.UUID) ([]models.AuditLog, error) {
+// GetAuditLogs retrieves audit logs with flexible filtering
+func (s *auditService) GetAuditLogs(ctx context.Context, filter *types.GetAuditLogsRequest) (*types.GetAuditLogsResponse, error) {
 	// Check if context is already cancelled
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
 	}
 
-	// Validate traceID
-	if traceID == uuid.Nil {
-		return nil, errors.New("traceId cannot be nil")
+	// Build query
+	query := s.db.WithContext(ctx).Model(&models.AuditLog{})
+
+	// Apply filters
+	if filter.TraceID != nil {
+		query = query.Where("trace_id = ?", *filter.TraceID)
+	}
+	if filter.EventName != nil && *filter.EventName != "" {
+		query = query.Where("event_name = ?", *filter.EventName)
+	}
+	if filter.Status != nil && *filter.Status != "" {
+		query = query.Where("status = ?", *filter.Status)
+	}
+	if filter.ActorServiceName != nil && *filter.ActorServiceName != "" {
+		query = query.Where("actor_service_name = ? AND actor_type = ?", *filter.ActorServiceName, models.ActorTypeService)
+	}
+	if filter.ActorUserID != nil {
+		query = query.Where("actor_user_id = ? AND actor_type = ?", *filter.ActorUserID, models.ActorTypeUser)
+	}
+	if filter.TargetServiceName != nil && *filter.TargetServiceName != "" {
+		query = query.Where("target_service_name = ? AND target_type = ?", *filter.TargetServiceName, models.TargetTypeService)
+	}
+	if filter.TargetResource != nil && *filter.TargetResource != "" {
+		query = query.Where("target_resource = ? AND target_type = ?", *filter.TargetResource, models.TargetTypeResource)
 	}
 
+	// Time range filters
+	if filter.StartTime != nil && *filter.StartTime != "" {
+		startTime, err := time.Parse(time.RFC3339, *filter.StartTime)
+		if err != nil {
+			return nil, fmt.Errorf("invalid startTime format: %w", err)
+		}
+		query = query.Where("timestamp >= ?", startTime)
+	}
+	if filter.EndTime != nil && *filter.EndTime != "" {
+		endTime, err := time.Parse(time.RFC3339, *filter.EndTime)
+		if err != nil {
+			return nil, fmt.Errorf("invalid endTime format: %w", err)
+		}
+		query = query.Where("timestamp <= ?", endTime)
+	}
+
+	// Get total count
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, fmt.Errorf("failed to count audit logs: %w", err)
+	}
+
+	// Apply pagination
+	limit := 100 // default
+	if filter.Limit != nil {
+		if *filter.Limit > 0 && *filter.Limit <= 1000 {
+			limit = *filter.Limit
+		} else if *filter.Limit > 1000 {
+			limit = 1000 // max limit
+		}
+	}
+	offset := 0 // default
+	if filter.Offset != nil && *filter.Offset > 0 {
+		offset = *filter.Offset
+	}
+
+	// Fetch logs
 	var logs []models.AuditLog
-	// Order by timestamp to show the flow chronologically
-	// GORM will map uuid.UUID to the UUID column correctly
-	result := s.db.WithContext(ctx).
-		Where("trace_id = ?", traceID).
-		Order("timestamp ASC").
+	result := query.
+		Order("timestamp DESC"). // Most recent first
+		Limit(limit).
+		Offset(offset).
 		Find(&logs)
 
 	if result.Error != nil {
@@ -92,5 +149,16 @@ func (s *auditService) GetAuditLogs(ctx context.Context, traceID uuid.UUID) ([]m
 		logs = []models.AuditLog{}
 	}
 
-	return logs, nil
+	// Convert to response type
+	events := make([]types.AuditLogResponse, len(logs))
+	for i := range logs {
+		events[i] = types.AuditLogResponse{AuditLog: logs[i]}
+	}
+
+	return &types.GetAuditLogsResponse{
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+		Events: events,
+	}, nil
 }

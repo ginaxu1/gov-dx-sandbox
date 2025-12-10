@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/middleware"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/auth"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -55,6 +56,11 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+
+	// Propagate trace ID to downstream service
+	if traceID := middleware.GetTraceIDFromContext(ctx); traceID != "" {
+		req.Header.Set(middleware.TraceIDHeader, traceID)
+	}
 
 	if p.Auth != nil {
 		switch p.Auth.Type {
