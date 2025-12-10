@@ -152,11 +152,11 @@ services:
       - "4000:4000"
     depends_on:
       policy-decision-point:
-        condition: service_started
+        condition: service_healthy
       consent-engine:
-        condition: service_started
+        condition: service_healthy
       audit-service:
-        condition: service_started
+        condition: service_healthy
     networks:
       - test-network
     healthcheck:
@@ -223,7 +223,6 @@ services:
       - "8083:8083"
     networks:
       - test-network
-
 
 networks:
   test-network:
