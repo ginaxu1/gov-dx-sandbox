@@ -6,6 +6,30 @@ End-to-end integration tests for the Data Exchange Platform covering GraphQL wor
 
 ## Quick Start
 
+### Option 1: Automated Script (Recommended)
+
+Run the automated test script that mimics the CI/CD workflow:
+
+```bash
+cd tests/integration
+./run-local-tests.sh
+```
+
+This script:
+- Checks Docker and Go are available
+- Installs dependencies
+- Starts all services
+- Waits for services to be healthy
+- Runs tests with race detection
+- Cleans up automatically
+
+**Skip go.mod check for local development:**
+```bash
+SKIP_GO_MOD_CHECK=1 ./run-local-tests.sh
+```
+
+### Option 2: Manual Steps
+
 ```bash
 cd tests/integration
 docker compose -f docker-compose.test.yml up -d
