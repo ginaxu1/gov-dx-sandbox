@@ -1,7 +1,7 @@
 // services/schemaService.ts
 import { getIntrospectionQuery, buildClientSchema, buildSchema, printSchema, parse, print, visit, Kind, graphql } from "graphql";
 import type { ObjectTypeDefinitionNode, ObjectTypeExtensionNode } from "graphql";
-import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType, SchemaSubmission, ApprovedSchema, ApprovedSchemaApiResponse, PendingSchemaApiResponse} from '../types/graphql';
+import type { IntrospectionResult, SchemaRegistration, FieldConfiguration, GraphQLType, SchemaSubmission, ApprovedSchema, ApprovedSchemaApiResponse, PendingSchemaApiResponse } from '../types/graphql';
 
 export class SchemaService {
   private static readonly INTROSPECTION_QUERY = getIntrospectionQuery();
@@ -15,7 +15,8 @@ export class SchemaService {
     );
   }
 
-  static getTypeString(type: any): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  static getTypeString(type: GraphQLType | { kind: string; name?: string; ofType?: any }): string {
     if (type.kind === 'NON_NULL') {
       return `${this.getTypeString(type.ofType)}!`;
     }
@@ -42,9 +43,9 @@ export class SchemaService {
       }
 
       const result = await response.json();
-      
+
       if (result.errors) {
-        throw new Error(`GraphQL errors: ${result.errors.map((e: any) => e.message).join(', ')}`);
+        throw new Error(`GraphQL errors: ${result.errors.map((e: { message: string }) => e.message).join(', ')}`);
       }
 
       return result;
@@ -59,12 +60,12 @@ export class SchemaService {
       reader.onload = (event) => {
         try {
           const result = JSON.parse(event.target?.result as string);
-          
+
           // Validate basic structure
           if (!result.data?.__schema?.types) {
             throw new Error('Invalid introspection result format');
           }
-          
+
           resolve(result);
         } catch (error) {
           reject(new Error(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Invalid JSON format'}`));
@@ -82,7 +83,7 @@ export class SchemaService {
       }
 
       const schema = buildSchema(sdl);
-      
+
       const result = await graphql({
         schema,
         source: this.INTROSPECTION_QUERY
@@ -92,10 +93,10 @@ export class SchemaService {
         throw new Error(`SDL introspection errors: ${result.errors.map(e => e.message).join(', ')}`);
       }
 
-      if (!result.data || !(result as any).data.__schema?.types) {
+      if (!result.data || !(result as unknown as { data: { __schema: { types: unknown[] } } }).data.__schema?.types) {
         throw new Error('Invalid introspection result from SDL');
       }
-      return result as any as IntrospectionResult;
+      return result as unknown as IntrospectionResult;
     } catch (error) {
       throw new Error(`Failed to parse SDL: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -118,12 +119,12 @@ export class SchemaService {
       }
 
       const result: ApprovedSchemaApiResponse = await response.json();
-      
+
       // Handle API response structure {count: number, items: Array | null}
       if (result && typeof result === 'object' && 'items' in result) {
         return Array.isArray(result.items) ? result.items : [];
       }
-      
+
       // Fallback for direct array response
       console.log('Result is not in expected format, returning empty array.');
       return Array.isArray(result) ? result : [];
@@ -142,9 +143,9 @@ export class SchemaService {
       const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
-        'Content-Type': 'application/json',
-      },
-       
+          'Content-Type': 'application/json',
+        },
+
       });
 
       if (!response.ok) {
@@ -180,7 +181,7 @@ export class SchemaService {
 
       if (!response.ok) {
         let errorMessage = `Schema registration failed with status: ${response.status}`;
-        
+
         try {
           // Try to get error details from response
           const errorData = await response.json();
@@ -191,11 +192,11 @@ export class SchemaService {
           } else if (typeof errorData === 'string') {
             errorMessage += ` - ${errorData}`;
           }
-        } catch (jsonError) {
+        } catch {
           // If we can't parse the error response, use the status text
           errorMessage += ` - ${response.statusText || 'Unknown error'}`;
         }
-        
+
         throw new Error(errorMessage);
       }
     } catch (error) {
@@ -208,18 +209,19 @@ export class SchemaService {
   }
 
   static async generateSDLWithDirectives(
-		result: IntrospectionResult,
-		configurations: Record<string, Record<string, FieldConfiguration>>
-	): Promise<string> {
+    result: IntrospectionResult,
+    configurations: Record<string, Record<string, FieldConfiguration>>
+  ): Promise<string> {
 
-		// 1. Build GraphQL schema
-		const gqlSchema = buildClientSchema(result.data as any);
+    // 1. Build GraphQL schema
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gqlSchema = buildClientSchema(result.data as unknown as any);
 
-		// 2. Print schema → SDL
-		const baseSDL = printSchema(gqlSchema);
+    // 2. Print schema → SDL
+    const baseSDL = printSchema(gqlSchema);
 
-		// 3. Add directive definitions
-		const sdlWithDirectives = `
+    // 3. Add directive definitions
+    const sdlWithDirectives = `
       directive @accessControl(type: String) on FIELD_DEFINITION
 			directive @source(value: String) on FIELD_DEFINITION
 			directive @isOwner(value: Boolean) on FIELD_DEFINITION
@@ -229,7 +231,7 @@ export class SchemaService {
 			${baseSDL}
 		`;
 
-		const ast = parse(sdlWithDirectives);
+    const ast = parse(sdlWithDirectives);
     // 4. Visit AST, attach directives based on configurations
     const modifiedAST = visit(ast, {
       FieldDefinition(node, _key, _parent, _path, ancestors) {
@@ -282,9 +284,9 @@ export class SchemaService {
             name: { kind: Kind.NAME, value: "isOwner" },
             arguments: [
               {
-              kind: Kind.ARGUMENT,
-              name: { kind: Kind.NAME, value: "value" },
-              value: { kind: Kind.BOOLEAN, value: config.isOwner },
+                kind: Kind.ARGUMENT,
+                name: { kind: Kind.NAME, value: "value" },
+                value: { kind: Kind.BOOLEAN, value: config.isOwner },
               },
             ],
           });
@@ -310,9 +312,9 @@ export class SchemaService {
             name: { kind: Kind.NAME, value: "description" },
             arguments: [
               {
-              kind: Kind.ARGUMENT,
-              name: { kind: Kind.NAME, value: "value" },
-              value: { kind: Kind.STRING, value: config.description },
+                kind: Kind.ARGUMENT,
+                name: { kind: Kind.NAME, value: "value" },
+                value: { kind: Kind.STRING, value: config.description },
               },
             ],
           });
@@ -321,8 +323,8 @@ export class SchemaService {
         return { ...node, directives };
       },
     });
-		// 5. Print AST back to SDL
-		return print(modifiedAST);
-	}
+    // 5. Print AST back to SDL
+    return print(modifiedAST);
+  }
 
 }

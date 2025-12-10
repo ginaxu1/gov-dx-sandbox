@@ -4,30 +4,30 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from "@asgardeo/auth-react";
 
 interface NavItem {
-  label: string;
-  path: string;
-  icon?: React.ReactNode;
+    label: string;
+    path: string;
+    icon?: React.ReactNode;
 }
 
 const MemberNavItems: NavItem[] = [
-  {
-    label: 'Schemas',
-    path: '/schemas',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Schemas Logs',
-    path: '/schemas/logs',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 8V7a3 3 0 013-3h10a3 3 0 013 3v1m-16 0a3 3 0 003 3h10a3 3 0 003-3m-16 8a3 3 0 003 3h10a3 3 0 003-3m-16-8a3 3 0 003-3h10a3 3 0 003 3" />
-      </svg>
-    ),
-  },
+    {
+        label: 'Schemas',
+        path: '/schemas',
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        ),
+    },
+    {
+        label: 'Schemas Logs',
+        path: '/schemas/logs',
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M4 8V7a3 3 0 013-3h10a3 3 0 013 3v1m-16 0a3 3 0 003 3h10a3 3 0 003-3m-16 8a3 3 0 003 3h10a3 3 0 003-3m-16-8a3 3 0 003-3h10a3 3 0 003 3" />
+            </svg>
+        ),
+    },
     {
         label: 'Applications',
         path: '/applications',
@@ -53,15 +53,15 @@ interface SideNavbarProps {
 }
 
 export const SideNavbar: React.FC<SideNavbarProps> = (
-  {
-    onSignOut
-  }) => {
+    {
+        onSignOut
+    }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [sidebarExpanded, setSidebarExpanded] = useState(true);
     const { state, getBasicUserInfo } = useAuthContext();
-    const [ userName, setUserName ] = useState<string | null>(null);
+    const [userName, setUserName] = useState<string | null>(null);
 
     const isActive = (path: string) => {
         if (path === '/') {
@@ -89,25 +89,23 @@ export const SideNavbar: React.FC<SideNavbarProps> = (
         };
 
         fetchUserName();
-    }, [state.isAuthenticated]);
+    }, [state.isAuthenticated, getBasicUserInfo]);
 
     return (
         <>
             {/* Left Sidebar */}
-            <div className={`bg-white shadow-xl border-r border-gray-200 h-screen transition-all duration-300 ease-in-out ${
-                sidebarExpanded ? 'w-64' : 'w-16'
-            }`}>
+            <div className={`bg-white shadow-xl border-r border-gray-200 h-screen transition-all duration-300 ease-in-out ${sidebarExpanded ? 'w-64' : 'w-16'
+                }`}>
                 {/* Navigation Items */}
                 <nav className="pt-20 p-4 space-y-2">
                     {MemberNavItems.map((item) => (
                         <button
                             key={item.path}
                             onClick={() => handleNavItemClick(item.path)}
-                            className={`w-full flex items-center ${sidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                isActive(item.path)
+                            className={`w-full flex items-center ${sidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg text-sm font-medium transition-all duration-200 ${isActive(item.path)
                                     ? 'bg-blue-100 text-blue-800 border border-blue-300 shadow-sm'
                                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                            }`}
+                                }`}
                             title={!sidebarExpanded ? item.label : undefined}
                         >
                             <div className="flex-shrink-0">
@@ -149,8 +147,8 @@ export const SideNavbar: React.FC<SideNavbarProps> = (
                                         </svg>
                                     </div>
                                     <span className="hidden sm:inline text-sm font-medium">
-                    {userName ? userName : 'User'}
-                  </span>
+                                        {userName ? userName : 'User'}
+                                    </span>
                                     <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>

@@ -61,7 +61,7 @@ interface NavbarProps {
   onSignOut: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ 
+export const Navbar: React.FC<NavbarProps> = ({
   onSignOut
 }) => {
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const { state, getBasicUserInfo } = useAuthContext();
-  const [ userName, setUserName ] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
 
   const isActive = (path: string) => {
     if (path === '/') {
@@ -96,25 +96,23 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
 
     fetchUserName();
-  }, [state.isAuthenticated]);
+  }, [state.isAuthenticated, getBasicUserInfo]);
 
   return (
     <>
       {/* Left Sidebar */}
-      <div className={`bg-white shadow-xl border-r border-gray-200 h-screen transition-all duration-300 ease-in-out ${
-        sidebarExpanded ? 'w-64' : 'w-16'
-      }`}>
+      <div className={`bg-white shadow-xl border-r border-gray-200 h-screen transition-all duration-300 ease-in-out ${sidebarExpanded ? 'w-64' : 'w-16'
+        }`}>
         {/* Navigation Items */}
         <nav className="pt-20 p-4 space-y-2">
           {AdminNavItems.map((item) => (
             <button
               key={item.path}
               onClick={() => handleNavItemClick(item.path)}
-              className={`w-full flex items-center ${sidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                isActive(item.path)
+              className={`w-full flex items-center ${sidebarExpanded ? 'space-x-3 px-4' : 'justify-center px-2'} py-3 rounded-lg text-sm font-medium transition-all duration-200 ${isActive(item.path)
                   ? 'bg-blue-100 text-blue-800 border border-blue-300 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
+                }`}
               title={!sidebarExpanded ? item.label : undefined}
             >
               <div className="flex-shrink-0">

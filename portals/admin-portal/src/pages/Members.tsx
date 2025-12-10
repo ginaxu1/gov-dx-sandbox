@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Search, 
-    RefreshCw, 
-    Building2, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    Search,
+    RefreshCw,
+    Building2,
     Mail,
     Phone,
     Calendar,
@@ -32,10 +32,8 @@ interface UpdateMemberFormData {
     phoneNumber: string;
 }
 
-interface MembersProps {
-}
 
-export const Members: React.FC<MembersProps> = () => {
+export const Members: React.FC = () => {
     const [members, setMembers] = useState<Member[]>([]);
     const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
     const [filters, setFilters] = useState<FilterOptions>({
@@ -68,7 +66,7 @@ export const Members: React.FC<MembersProps> = () => {
         });
     };
 
-    const fetchMembers = async () => {
+    const fetchMembers = useCallback(async () => {
         setLoading(true);
         try {
             const data: Member[] = await MemberService.fetchMembers();
@@ -82,15 +80,15 @@ export const Members: React.FC<MembersProps> = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchMembers();
     }, []);
 
     useEffect(() => {
+        fetchMembers();
+    }, [fetchMembers]);
+
+    useEffect(() => {
         let filtered = members;
-        
+
         // Filter by search term (name)
         if (filters.searchByName) {
             filtered = filtered.filter(member =>
@@ -223,7 +221,7 @@ export const Members: React.FC<MembersProps> = () => {
                                 <RefreshCw className="w-4 h-4" />
                                 <span>Refresh</span>
                             </button>
-                            <button 
+                            <button
                                 className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                                 onClick={handleAddMember}
                             >
@@ -251,7 +249,7 @@ export const Members: React.FC<MembersProps> = () => {
                                     />
                                 </div>
                             </div>
-                        </div>                       
+                        </div>
                         {/* Clear Filters Button */}
                         <div className="flex justify-end">
                             <button
@@ -313,14 +311,14 @@ export const Members: React.FC<MembersProps> = () => {
                             </span>
                         </h2>
                     </div>
-                    
+
                     <div className="divide-y divide-gray-100">
                         {filteredMembers.map((member) => {
                             const isExpanded = expandedCards.has(member.memberId);
                             return (
                                 <div key={member.memberId} className="group hover:bg-gray-50 transition-all duration-200">
                                     {/* Main Card Content - Always Visible */}
-                                    <div 
+                                    <div
                                         className="p-6 cursor-pointer"
                                         onClick={() => toggleCardExpansion(member.memberId)}
                                     >
@@ -333,7 +331,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                         <ChevronRight className="w-4 h-4 text-blue-600" />
                                                     )}
                                                 </div>
-                                                
+
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-2 sm:space-y-0">
                                                         <div className="flex-shrink-0">
@@ -350,7 +348,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="flex items-center space-x-2 ml-4">
                                                 <button
                                                     onClick={(e) => {
@@ -387,7 +385,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        
+
                                                         <div className="bg-white rounded-lg p-4 shadow-sm">
                                                             <div className="flex items-start space-x-3">
                                                                 <div className="bg-green-100 rounded-full p-2">
@@ -404,7 +402,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <div className="space-y-4">
                                                         <div className="bg-white rounded-lg p-4 shadow-sm">
                                                             <div className="flex items-start space-x-3">
@@ -421,7 +419,7 @@ export const Members: React.FC<MembersProps> = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        
+
                                                         <div className="bg-white rounded-lg p-4 shadow-sm">
                                                             <div className="flex items-start space-x-3">
                                                                 <div className="bg-orange-100 rounded-full p-2">
@@ -449,7 +447,7 @@ export const Members: React.FC<MembersProps> = () => {
                             );
                         })}
                     </div>
-                    
+
                     {filteredMembers.length === 0 && (
                         <div className="text-center py-16 px-6">
                             <div className="max-w-sm mx-auto">
@@ -458,7 +456,7 @@ export const Members: React.FC<MembersProps> = () => {
                                 </div>
                                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No members found</h3>
                                 <p className="text-gray-600 mb-4">
-                                    {filters.searchByName 
+                                    {filters.searchByName
                                         ? "No members match your search criteria. Try adjusting your search terms."
                                         : "Get started by adding your first member to the system."
                                     }

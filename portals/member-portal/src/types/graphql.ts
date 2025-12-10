@@ -4,7 +4,7 @@ export interface GraphQLField {
   type: {
     kind: string;
     name?: string;
-    ofType?: any;
+    ofType?: GraphQLTypeRef;
   };
   description?: string;
   args?: GraphQLInputValue[];
@@ -15,10 +15,10 @@ export interface GraphQLInputValue {
   type: {
     kind: string;
     name?: string;
-    ofType?: any;
+    ofType?: GraphQLTypeRef;
   };
   description?: string;
-  defaultValue?: any;
+  defaultValue?: unknown;
 }
 
 export interface GraphQLType {
@@ -35,6 +35,13 @@ export interface GraphQLType {
     isDeprecated?: boolean;
     deprecationReason?: string;
   }>;
+  ofType?: GraphQLTypeRef;
+}
+
+export interface GraphQLTypeRef {
+  kind: string;
+  name?: string;
+  ofType?: GraphQLTypeRef;
 }
 
 export interface IntrospectionResult {

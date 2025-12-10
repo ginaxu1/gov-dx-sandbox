@@ -1,13 +1,13 @@
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
-import {useAuthContext} from "@asgardeo/auth-react";
-import {SideNavbar} from "./components/Navbar";
-import {SchemasPage} from './pages/Schemas';
-import {SchemaRegistrationPage} from "./pages/SchemaRegistrationPage";
-import {Logs} from "./pages/Logs";
-import {ApplicationsPage as Applications} from "./pages/Applications";
-import {useEffect, useState} from "react";
-import {ApplicationRegistration} from './pages/ApplicationRegistration';
-import {Shield} from 'lucide-react';
+import { useAuthContext } from "@asgardeo/auth-react";
+import { SideNavbar } from "./components/Navbar";
+import { SchemasPage } from './pages/Schemas';
+import { SchemaRegistrationPage } from "./pages/SchemaRegistrationPage";
+import { Logs } from "./pages/Logs";
+import { ApplicationsPage as Applications } from "./pages/Applications";
+import { useEffect, useState } from "react";
+import { ApplicationRegistration } from './pages/ApplicationRegistration';
+import { Shield } from 'lucide-react';
 import MemberInfo from './pages/MemberInfo';
 
 interface MemberProps {
@@ -22,7 +22,7 @@ interface MemberProps {
 
 function App() {
   const [memberData, setMemberData] = useState<MemberProps | null>(null);
-  const {state, signIn, signOut, getBasicUserInfo} = useAuthContext();
+  const { state, signIn, signOut, getBasicUserInfo } = useAuthContext();
   const [loading, setLoading] = useState(false);
 
   // Save member state to localStorage to persist through auth redirects
@@ -40,7 +40,7 @@ function App() {
       };
     } catch (error) {
       console.error('Failed to parse stored member data:', error);
-      return {memberData: null};
+      return { memberData: null };
     }
   };
 
@@ -61,7 +61,7 @@ function App() {
         throw new Error('Failed to fetch member info');
       }
       const data = await response.json();
-      if (data.count !== 1 ){
+      if (data.count !== 1) {
         console.error('Member info not found or multiple entries returned');
         return null;
       }
@@ -147,7 +147,7 @@ function App() {
     };
 
     fetchMemberInfo();
-  }, [state.isAuthenticated]);
+  }, [state.isAuthenticated, getBasicUserInfo]);
 
   const handleSignIn = () => {
     signIn();
@@ -165,7 +165,7 @@ function App() {
       <div
         className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
-          <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4"/>
+          <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-800 mb-4">Member Portal</h1>
           <p className="text-gray-600 mb-4">
             Sign in to access the OpenDIF Member Portal.
@@ -208,9 +208,9 @@ function App() {
                 phoneNumber={memberData.phoneNumber}
                 createdAt={memberData.createdAt}
                 updatedAt={memberData.updatedAt}
-              />}/>
+              />} />
               <Route path="/schemas"
-                     element={<SchemasPage memberId={memberData?.memberId || ''}/>}/>
+                element={<SchemasPage memberId={memberData?.memberId || ''} />} />
               <Route
                 path="/schemas/new"
                 element={
@@ -220,9 +220,9 @@ function App() {
                 }
               />
               <Route path="/schemas/logs"
-                     element={<Logs role="provider" memberId={memberData?.memberId || ''}/>}/>
+                element={<Logs role="provider" memberId={memberData?.memberId || ''} />} />
               <Route path="/applications"
-                     element={<Applications memberId={memberData?.memberId || ''}/>}/>
+                element={<Applications memberId={memberData?.memberId || ''} />} />
               <Route
                 path="/applications/new"
                 element={
@@ -232,8 +232,8 @@ function App() {
                 }
               />
               <Route path="/applications/logs"
-                     element={<Logs role="consumer" memberId={memberData?.memberId || ''}/>}/>
-              <Route path="*" element={<Navigate to="/" replace/>}/>
+                element={<Logs role="consumer" memberId={memberData?.memberId || ''} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
         </div>
