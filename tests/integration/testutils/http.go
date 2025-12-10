@@ -26,14 +26,13 @@ func WaitForService(url string) error {
 			continue
 		}
 
-		// Ensure response body is closed
-		defer resp.Body.Close()
-
 		if resp.StatusCode == http.StatusOK {
+			resp.Body.Close()
 			return nil
 		}
 
 		// Non-200 status - service might be starting
+		resp.Body.Close()
 		time.Sleep(DefaultRetryInterval)
 	}
 

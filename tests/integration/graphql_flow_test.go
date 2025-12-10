@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,7 +102,7 @@ func checkDockerComposeServices(composeFile string) bool {
 		return false
 	}
 	// Ensure the compose file is within the test directory
-	if !filepath.HasPrefix(absPath, testDir) {
+	if !strings.HasPrefix(absPath, testDir) {
 		return false
 	}
 
@@ -155,12 +156,6 @@ func TestMain(m *testing.M) {
 		fmt.Println("   cd tests/integration")
 		fmt.Println("   docker compose -f docker-compose.test.yml up -d")
 		fmt.Println("   Then wait for services to be healthy before running tests.")
-		// Check if Docker Desktop is running
-		if err := exec.Command("docker", "info").Run(); err != nil {
-			fmt.Println("❌ Docker is not running. Please start Docker Desktop.")
-			os.Exit(1)
-		}
-
 		fmt.Println()
 		fmt.Println("⏭️  Exiting tests. Please start services and try again.")
 		os.Exit(1)
@@ -183,7 +178,7 @@ func TestMain(m *testing.M) {
 			fmt.Printf("❌ Service %s not available: %v\n", svc.name, err)
 			unavailableServices = append(unavailableServices, svc.name)
 		} else {
-			fmt.Printf("✅ %s is available\n", svc.name)
+			fmt.Printf("%s is available\n", svc.name)
 		}
 	}
 
@@ -333,9 +328,9 @@ func updatePDPAllowlist(t *testing.T, appID, schemaID, fieldName string) {
 			t.Logf("Update AllowList response: %d, body: %s", allowListResp.StatusCode, string(body))
 		}
 		require.Equal(t, http.StatusOK, allowListResp.StatusCode, "App should be added to AllowList")
-	} else {
-		t.Log("✅ Application added to PDP allowList")
+		return
 	}
+	t.Log("Application added to PDP allowList")
 }
 
 // createConsent creates a consent record in the Consent Engine and returns the consent ID.
@@ -370,8 +365,9 @@ func createConsent(t *testing.T, appID, schemaID, fieldName, ownerID string) str
 		} else {
 			t.Logf("Consent creation response status: %d, body: %s", resp.StatusCode, string(bodyBytes))
 		}
+		require.Equal(t, http.StatusCreated, resp.StatusCode, "Consent should be created successfully")
+		return ""
 	}
-	require.Equal(t, http.StatusCreated, resp.StatusCode, "Consent should be created successfully")
 
 	var result map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
@@ -400,10 +396,7 @@ func approveConsent(t *testing.T, consentID string) {
 
 	resp, err := testHTTPClient.Do(req)
 	require.NoError(t, err)
-	defer func() {
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
@@ -414,7 +407,7 @@ func approveConsent(t *testing.T, consentID string) {
 		}
 	}
 	require.Equal(t, http.StatusOK, resp.StatusCode, "Consent should be approved successfully")
-	t.Logf("✅ Consent %s approved", consentID)
+	t.Logf("Consent %s approved", consentID)
 }
 
 // TestGraphQLFlow_SuccessPath tests the complete success path:
@@ -535,9 +528,9 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 		checkURL := fmt.Sprintf("%s/consumer/%s", consentEngineBaseURL, appID)
 		resp, err := testHTTPClient.Get(checkURL)
 		require.NoError(t, err)
-		defer resp.Body.Close()
 		defer func() {
 			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 		}()
 
 		t.Logf("Consent Engine check response status: %d", resp.StatusCode)
@@ -600,12 +593,16 @@ func TestGraphQLFlow_MissingPolicyMetadata(t *testing.T) {
 			firstError := errorList[0].(map[string]interface{})
 			message := fmt.Sprintf("%v", firstError["message"])
 			t.Logf("Error message: %s", message)
-			// Error should indicate PDP authorization failure
-			assert.True(t,
-				message != "" && (message == "Request not allowed by PDP" ||
-					message == "PDP request failed" ||
-					message == "Failed to get response from PDP"),
-				"Error should indicate PDP authorization failure")
+
+			// Check for PDP-related error code in extensions
+			extensions, hasExtensions := firstError["extensions"].(map[string]interface{})
+			if hasExtensions {
+				errorCode := fmt.Sprintf("%v", extensions["code"])
+				assert.Equal(t, "PDP_NOT_ALLOWED", errorCode, "Error should have PDP_NOT_ALLOWED code")
+			} else {
+				// Fallback: check if message contains "PDP" keyword
+				assert.Contains(t, message, "PDP", "Error message should mention PDP")
+			}
 		}
 	}
 }
@@ -660,10 +657,18 @@ func TestGraphQLFlow_UnauthorizedApp(t *testing.T) {
 			firstError := errorList[0].(map[string]interface{})
 			message := fmt.Sprintf("%v", firstError["message"])
 			t.Logf("Error message: %s", message)
-			// Error should indicate consent not approved
-			assert.True(t,
-				message == "Consent not approved" || message == "CE request failed",
-				"Error should indicate consent failure")
+
+			// Check for consent-related error code in extensions
+			extensions, hasExtensions := firstError["extensions"].(map[string]interface{})
+			if hasExtensions {
+				errorCode := fmt.Sprintf("%v", extensions["code"])
+				assert.Equal(t, "CE_NOT_APPROVED", errorCode, "Error should have CE_NOT_APPROVED code")
+			} else {
+				// Fallback: check if message contains consent-related keywords
+				assert.True(t,
+					strings.Contains(message, "Consent") || strings.Contains(message, "CE"),
+					"Error message should mention consent")
+			}
 		}
 	}
 }

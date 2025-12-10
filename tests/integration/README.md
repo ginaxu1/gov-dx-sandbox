@@ -88,10 +88,12 @@ tests/integration/
 
 ### Environment Variables
 
-**Database Credentials (Required):**
-- `POSTGRES_PASSWORD` - Database password (required, no default)
+**Database Credentials:**
+- `POSTGRES_PASSWORD` - Database password (default: `test-password-change-in-production` in `docker-compose.test.yml`; **override for security**)
 - `POSTGRES_USER` - Database username (default: `postgres`)
 - `POSTGRES_DB` - Database name (default: `postgres`)
+
+> **Note:** The default `POSTGRES_PASSWORD` is for convenience in local testing only. Always set a strong password for production or CI environments.
 
 **Service URLs (Optional):**
 - `ORCHESTRATION_ENGINE_URL` - Default: `http://127.0.0.1:4000/public/graphql`
