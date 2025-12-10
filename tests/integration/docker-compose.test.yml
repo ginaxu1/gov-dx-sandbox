@@ -83,8 +83,8 @@ services:
   # Orchestration Engine Service
   orchestration-engine:
     build:
-      context: ../../exchange
-      dockerfile: orchestration-engine/Dockerfile
+      context: ../../
+      dockerfile: exchange/orchestration-engine/Dockerfile
     environment:
       PORT: 4000
       LOG_LEVEL: info
