@@ -161,7 +161,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
     if (isSignedIn) {
       fetchUserInfo();
     }
-  }, [fetchUserInfo, isSignedIn, user]);
+  }, [fetchUserInfo, isSignedIn]);
 
   return (
     <ConsentContext.Provider
