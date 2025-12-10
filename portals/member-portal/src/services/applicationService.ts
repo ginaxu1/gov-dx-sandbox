@@ -1,14 +1,14 @@
 // services/applicationService.ts
-import type { 
-  ApplicationRegistration, 
-  ApplicationSubmission, 
+import type {
+  ApplicationRegistration,
+  ApplicationSubmission,
   ApprovedApplication,
   PendingApplicationApiResponse,
   ApprovedApplicationApiResponse
 } from '../types/applications';
 
 export class ApplicationService {
-  
+
   static async getApprovedApplications(memberId: string): Promise<ApprovedApplication[]> {
     const baseUrl = window.configs.apiUrl || import.meta.env.VITE_BASE_PATH || '';
     try {
@@ -26,12 +26,12 @@ export class ApplicationService {
       }
 
       const result: ApprovedApplicationApiResponse = await response.json();
-      
+
       // Handle API response structure {count: number, items: Array | null}
       if (result && typeof result === 'object' && 'items' in result) {
         return Array.isArray(result.items) ? result.items : [];
       }
-      
+
       // Fallback for direct array response
       return Array.isArray(result) ? result : [];
     } catch (error) {
@@ -58,12 +58,12 @@ export class ApplicationService {
       }
 
       const result: PendingApplicationApiResponse = await response.json();
-      
+
       // Handle API response structure {count: number, items: Array | null}
       if (result && typeof result === 'object' && 'items' in result) {
         return Array.isArray(result.items) ? result.items : [];
       }
-      
+
       // Fallback for direct array response
       return Array.isArray(result) ? result : [];
     } catch (error) {
@@ -85,7 +85,7 @@ export class ApplicationService {
 
       if (!response.ok) {
         let errorMessage = `Application registration failed with status: ${response.status}`;
-        
+
         try {
           // Try to get error details from response
           const errorData = await response.json();
@@ -96,11 +96,11 @@ export class ApplicationService {
           } else if (typeof errorData === 'string') {
             errorMessage += ` - ${errorData}`;
           }
-        } catch (jsonError) {
+        } catch {
           // If we can't parse the error response, use the status text
           errorMessage += ` - ${response.statusText || 'Unknown error'}`;
         }
-        
+
         throw new Error(errorMessage);
       }
     } catch (error) {

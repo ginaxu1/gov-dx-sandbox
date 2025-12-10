@@ -37,7 +37,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         if (response) {
           setRegisteredSchemas(response);
         }
-      } catch (_error) {
+      } catch {
         setError('Failed to fetch registered schemas');
       }
     };

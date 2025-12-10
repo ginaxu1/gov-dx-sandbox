@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Activity,
     Search,
@@ -73,9 +73,13 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
         fetchLogsWithFilters(1, clearedFilters);
     };
 
+    const filtersRef = useRef(filters);
+    useEffect(() => {
+        filtersRef.current = filters;
+    }, [filters]);
+
     // Helper function to fetch logs with specific filters
-    const fetchLogsWithFilters = useCallback(async (page: number, filterOverrides?: FilterOptions) => {
-        const activeFilters = filterOverrides || filters;
+    const fetchLogsWithFilters = useCallback(async (page: number, currentFilters: FilterOptions) => {
         setLoading(true);
         try {
             const offset = (page - 1) * pageSize;
@@ -84,9 +88,9 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                 limit: pageSize,
                 offset: offset,
                 // Server-side filters
-                status: activeFilters.status !== 'all' ? activeFilters.status : undefined,
-                startDate: activeFilters.startDate || undefined,
-                endDate: activeFilters.endDate || undefined
+                status: currentFilters.status !== 'all' ? currentFilters.status : undefined,
+                startDate: currentFilters.startDate || undefined,
+                endDate: currentFilters.endDate || undefined
             });
 
             setLogResponse(response);
@@ -101,18 +105,18 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
         } finally {
             setLoading(false);
         }
-    }, [filters, pageSize, role, memberId]);
+    }, [pageSize, role, memberId]);
 
     useEffect(() => {
         setCurrentPage(1); // Reset to first page when role/IDs change
-        fetchLogsWithFilters(1);
+        fetchLogsWithFilters(1, filtersRef.current);
     }, [role, memberId, fetchLogsWithFilters]);
 
     // Auto-refresh functionality
     useEffect(() => {
         if (autoRefresh) {
             const interval = setInterval(() => {
-                fetchLogsWithFilters(currentPage);
+                fetchLogsWithFilters(currentPage, filtersRef.current);
             }, 30000); // Refresh every 30 seconds
 
             return () => clearInterval(interval);
@@ -183,7 +187,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
     const statuses = ['success', 'failure'];
 
     const handleRefresh = () => {
-        fetchLogsWithFilters(currentPage);
+        fetchLogsWithFilters(currentPage, filters);
     };
 
     const handleExport = async () => {
@@ -265,8 +269,8 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                             <button
                                 onClick={() => setAutoRefresh(!autoRefresh)}
                                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${autoRefresh
-                                        ? 'bg-green-100 text-green-700 border border-green-300'
-                                        : 'bg-white border border-gray-300 hover:bg-gray-50'
+                                    ? 'bg-green-100 text-green-700 border border-green-300'
+                                    : 'bg-white border border-gray-300 hover:bg-gray-50'
                                     }`}
                             >
                                 <Activity className="w-4 h-4" />
@@ -433,7 +437,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                         const newPageSize = parseInt(e.target.value);
                                         setPageSize(newPageSize);
                                         setCurrentPage(1);
-                                        fetchLogsWithFilters(1);
+                                        fetchLogsWithFilters(1, filters);
                                     }}
                                     className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 >
@@ -455,7 +459,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                     onClick={() => {
                                         const newPage = currentPage - 1;
                                         setCurrentPage(newPage);
-                                        fetchLogsWithFilters(newPage);
+                                        fetchLogsWithFilters(newPage, filters);
                                     }}
                                     disabled={currentPage === 1}
                                     className="flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -472,7 +476,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                     onClick={() => {
                                         const newPage = currentPage + 1;
                                         setCurrentPage(newPage);
-                                        fetchLogsWithFilters(newPage);
+                                        fetchLogsWithFilters(newPage, filters);
                                     }}
                                     disabled={currentPage >= Math.ceil(logResponse.total / pageSize)}
                                     className="flex items-center gap-1 px-3 py-1 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -547,8 +551,8 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.status === 'success'
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : 'bg-red-100 text-red-800'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-red-100 text-red-800'
                                                         }`}>
                                                         {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                                                     </span>
