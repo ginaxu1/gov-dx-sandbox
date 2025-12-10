@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -76,7 +77,7 @@ func (h *PortalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
-		if utils.ContainsError(err, string(models.ErrConsentNotFound)) {
+		if errors.Is(err, models.ErrConsentNotFound) {
 			utils.RespondWithError(w, http.StatusNotFound, models.ErrorCodeConsentNotFound, "Consent not found")
 			return
 		}
@@ -149,7 +150,7 @@ func (h *PortalHandler) UpdateConsent(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
-		if utils.ContainsError(err, string(models.ErrConsentNotFound)) {
+		if errors.Is(err, models.ErrConsentNotFound) {
 			utils.RespondWithError(w, http.StatusNotFound, models.ErrorCodeConsentNotFound, "Consent not found")
 			return
 		}
@@ -178,11 +179,11 @@ func (h *PortalHandler) UpdateConsent(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
-		if utils.ContainsError(err, string(models.ErrConsentNotFound)) {
+		if errors.Is(err, models.ErrConsentNotFound) {
 			utils.RespondWithError(w, http.StatusNotFound, models.ErrorCodeConsentNotFound, "Consent not found")
 			return
 		}
-		if utils.ContainsError(err, string(models.ErrPortalRequestFailed)) {
+		if errors.Is(err, models.ErrPortalRequestFailed) {
 			utils.RespondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, "Invalid consent update request")
 			return
 		}

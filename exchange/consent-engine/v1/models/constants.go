@@ -1,5 +1,7 @@
 package models
 
+import "errors"
+
 // ConsentStatus represents the status of a consent record
 type ConsentStatus string
 
@@ -56,18 +58,16 @@ const (
 	OwnerCitizen OwnerType = "citizen"
 )
 
-// ConsentErrorMessage represents an error message
-type ConsentErrorMessage string
-
-// ConsentErrorMessage constants
-const (
-	ErrConsentNotFound     ConsentErrorMessage = "consent record not found"
-	ErrConsentCreateFailed ConsentErrorMessage = "failed to create consent record"
-	ErrConsentUpdateFailed ConsentErrorMessage = "failed to update consent record"
-	ErrConsentRevokeFailed ConsentErrorMessage = "failed to revoke consent record"
-	ErrConsentGetFailed    ConsentErrorMessage = "failed to get consent records"
-	ErrConsentExpiryFailed ConsentErrorMessage = "failed to check consent expiry"
-	ErrPortalRequestFailed ConsentErrorMessage = "failed to process consent portal request"
+// Sentinel errors for consent operations
+// These errors can be checked using errors.Is()
+var (
+	ErrConsentNotFound     = errors.New("consent record not found")
+	ErrConsentCreateFailed = errors.New("failed to create consent record")
+	ErrConsentUpdateFailed = errors.New("failed to update consent record")
+	ErrConsentRevokeFailed = errors.New("failed to revoke consent record")
+	ErrConsentGetFailed    = errors.New("failed to get consent records")
+	ErrConsentExpiryFailed = errors.New("failed to check consent expiry")
+	ErrPortalRequestFailed = errors.New("failed to process consent portal request")
 )
 
 // ConsentErrorCode represents an error code

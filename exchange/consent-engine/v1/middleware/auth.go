@@ -11,12 +11,13 @@ import (
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/utils"
 )
 
-// contextKey is a custom type for context keys to avoid collisions
+// contextKey is a custom type for context keys used with context.WithValue.
+// Defining a custom type helps avoid key collisions with context keys defined in other packages.
 type contextKey string
 
 const (
-	// UserEmailKey is the context key for user email
-	UserEmailKey contextKey = "userEmail"
+	// userEmailKey is the context key for user email
+	userEmailKey contextKey = "userEmail"
 )
 
 // JWTAuthMiddleware provides HTTP middleware for JWT authentication
@@ -64,7 +65,7 @@ func (m *JWTAuthMiddleware) Authenticate(next http.Handler) http.Handler {
 		}
 
 		// Add email to request context
-		ctx := context.WithValue(r.Context(), UserEmailKey, email)
+		ctx := context.WithValue(r.Context(), userEmailKey, email)
 		r = r.WithContext(ctx)
 
 		slog.Debug("User authenticated", "email", email)
@@ -76,6 +77,6 @@ func (m *JWTAuthMiddleware) Authenticate(next http.Handler) http.Handler {
 
 // GetUserEmailFromContext extracts the user email from the request context
 func GetUserEmailFromContext(ctx context.Context) (string, bool) {
-	email, ok := ctx.Value(UserEmailKey).(string)
+	email, ok := ctx.Value(userEmailKey).(string)
 	return email, ok
 }

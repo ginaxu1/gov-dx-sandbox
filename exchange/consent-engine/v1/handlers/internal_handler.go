@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -78,7 +79,7 @@ func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
-		if utils.ContainsError(err, string(models.ErrConsentNotFound)) {
+		if errors.Is(err, models.ErrConsentNotFound) {
 			utils.RespondWithError(w, http.StatusNotFound, models.ErrorCodeConsentNotFound, err.Error())
 			return
 		}
@@ -116,7 +117,7 @@ func (h *InternalHandler) CreateConsent(w http.ResponseWriter, r *http.Request) 
 			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
-		if utils.ContainsError(err, string(models.ErrConsentCreateFailed)) {
+		if errors.Is(err, models.ErrConsentCreateFailed) {
 			slog.Error("Failed to create consent", "error", err)
 			utils.RespondWithError(w, http.StatusBadRequest, models.ErrorCodeBadRequest, err.Error())
 			return

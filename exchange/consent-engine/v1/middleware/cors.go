@@ -17,7 +17,8 @@ type CORSConfig struct {
 	MaxAge           int
 }
 
-// DefaultCORSConfig returns the default CORS configuration
+// DefaultCORSConfig returns the default CORS configuration.
+// The allowed origins can be overridden by setting the CORS_ALLOWED_ORIGINS environment variable (comma-separated).
 func DefaultCORSConfig() CORSConfig {
 	// Get allowed origins from environment variable, default to localhost:5173
 	allowedOrigins := []string{"http://localhost:5173"}
@@ -48,6 +49,15 @@ func DefaultCORSConfig() CORSConfig {
 
 // CORSMiddleware creates a CORS middleware with the given configuration
 func CORSMiddleware(config CORSConfig) func(http.Handler) http.Handler {
+	// Validate configuration: wildcard origin is incompatible with credentials
+	if config.AllowCredentials {
+		for _, origin := range config.AllowedOrigins {
+			if origin == "*" {
+				panic("CORS configuration error: wildcard origin (*) cannot be used with AllowCredentials=true")
+			}
+		}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -67,13 +77,8 @@ func CORSMiddleware(config CORSConfig) func(http.Handler) http.Handler {
 				w.Header().Add("Vary", "Origin")
 
 				// Set CORS headers
-				if allowedOrigin == "*" && config.AllowCredentials {
-					// Security fix: Cannot use wildcard with credentials
-					// If credentials are required, we must reflect the actual origin
-					if origin != "" {
-						w.Header().Set("Access-Control-Allow-Origin", origin)
-					}
-				} else if allowedOrigin == "*" {
+				// Note: wildcard with credentials is prevented at configuration time
+				if allowedOrigin == "*" {
 					w.Header().Set("Access-Control-Allow-Origin", "*")
 				} else {
 					w.Header().Set("Access-Control-Allow-Origin", origin)

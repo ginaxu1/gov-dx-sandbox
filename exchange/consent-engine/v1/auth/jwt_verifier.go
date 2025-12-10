@@ -41,10 +41,6 @@ type JWTVerifierConfig struct {
 // JWTVerifier handles JWT token verification
 type JWTVerifier struct {
 	config        JWTVerifierConfig
-	jwksURL       string
-	issuer        string
-	audience      string
-	organization  string
 	keys          map[string]*rsa.PublicKey
 	keyMutex      sync.RWMutex
 	lastFetchTime time.Time
@@ -55,22 +51,20 @@ type JWTVerifier struct {
 // NewJWTVerifier creates a new JWT verifier instance
 func NewJWTVerifier(config JWTVerifierConfig) (*JWTVerifier, error) {
 	verifier := &JWTVerifier{
-		config:       config,
-		jwksURL:      config.JWKSUrl,
-		issuer:       config.Issuer,
-		audience:     config.Audience,
-		organization: config.Organization,
-		keys:         make(map[string]*rsa.PublicKey),
-		logger:       slog.Default(),
+		config: config,
+		keys:   make(map[string]*rsa.PublicKey),
+		logger: slog.Default(),
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
 
-	// Initial fetch of JWKS
-	if err := verifier.fetchJWKS(); err != nil {
-		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
-	}
+	// Initial fetch of JWKS (non-blocking to prevent startup failure)
+	go func() {
+		if err := verifier.fetchJWKS(); err != nil {
+			verifier.logger.Warn("Failed to perform initial JWKS fetch", "error", err)
+		}
+	}()
 
 	return verifier, nil
 }
@@ -78,17 +72,19 @@ func NewJWTVerifier(config JWTVerifierConfig) (*JWTVerifier, error) {
 // fetchJWKS retrieves and caches the public keys from the JWKS endpoint
 func (jv *JWTVerifier) fetchJWKS() error {
 	jv.keyMutex.Lock()
-	defer jv.keyMutex.Unlock()
 
 	// Check if we need to refresh (refresh every hour)
 	if time.Since(jv.lastFetchTime) < time.Hour && len(jv.keys) > 0 {
+		jv.keyMutex.Unlock()
 		return nil
 	}
+
+	defer jv.keyMutex.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jv.jwksURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jv.config.JWKSUrl, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create JWKS request: %w", err)
 	}
@@ -164,6 +160,7 @@ func (jv *JWTVerifier) buildRSAPublicKey(key JSONWebKey) (*rsa.PublicKey, error)
 
 // getPublicKey retrieves the public key for a given key ID
 func (jv *JWTVerifier) getPublicKey(kid string) (*rsa.PublicKey, error) {
+	// First, try to get the key with a read lock
 	jv.keyMutex.RLock()
 	key, exists := jv.keys[kid]
 	jv.keyMutex.RUnlock()
@@ -172,11 +169,25 @@ func (jv *JWTVerifier) getPublicKey(kid string) (*rsa.PublicKey, error) {
 		return key, nil
 	}
 
-	// Key not found, try refreshing JWKS
+	// Key not found, acquire write lock to ensure only one goroutine refreshes
+	jv.keyMutex.Lock()
+
+	// Check again in case another goroutine already refreshed
+	key, exists = jv.keys[kid]
+	if exists {
+		jv.keyMutex.Unlock()
+		return key, nil
+	}
+
+	// Release the lock before fetching (fetchJWKS will acquire its own lock)
+	jv.keyMutex.Unlock()
+
+	// Refresh JWKS
 	if err := jv.fetchJWKS(); err != nil {
 		return nil, fmt.Errorf("failed to refresh JWKS: %w", err)
 	}
 
+	// Check one more time after refresh
 	jv.keyMutex.RLock()
 	key, exists = jv.keys[kid]
 	jv.keyMutex.RUnlock()
@@ -220,20 +231,35 @@ func (jv *JWTVerifier) VerifyToken(tokenString string) (*jwt.Token, error) {
 		return nil, fmt.Errorf("invalid token claims")
 	}
 
-	// Verify issuer
-	if iss, ok := claims["iss"].(string); !ok || iss != jv.issuer {
-		return nil, fmt.Errorf("invalid issuer: expected %s, got %v", jv.issuer, claims["iss"])
+	issVal, ok := claims["iss"]
+	if !ok {
+		return nil, fmt.Errorf("issuer (iss) claim is missing")
+	}
+	iss, ok := issVal.(string)
+	if !ok {
+		return nil, fmt.Errorf("issuer (iss) claim is not a string: got type %T", issVal)
+	}
+	if iss != jv.config.Issuer {
+		return nil, fmt.Errorf("invalid issuer: expected %s, got %s", jv.config.Issuer, iss)
 	}
 
 	// Verify audience
-	if aud, ok := claims["aud"].(string); !ok || aud != jv.audience {
-		return nil, fmt.Errorf("invalid audience: expected %s, got %v", jv.audience, claims["aud"])
+	if audVal, ok := claims["aud"]; !ok {
+		return nil, fmt.Errorf("audience (aud) claim is missing")
+	} else {
+		aud, ok := audVal.(string)
+		if !ok {
+			return nil, fmt.Errorf("audience (aud) claim is not a string: got type %T", audVal)
+		}
+		if aud != jv.config.Audience {
+			return nil, fmt.Errorf("invalid audience: expected %s, got %s", jv.config.Audience, aud)
+		}
 	}
 
 	// Verify organization if specified
-	if jv.organization != "" {
-		if org, ok := claims["org_name"].(string); !ok || org != jv.organization {
-			return nil, fmt.Errorf("invalid organization: expected %s, got %v", jv.organization, claims["org_name"])
+	if jv.config.Organization != "" {
+		if org, ok := claims["org_name"].(string); !ok || org != jv.config.Organization {
+			return nil, fmt.Errorf("invalid organization: expected %s, got %v", jv.config.Organization, claims["org_name"])
 		}
 	}
 

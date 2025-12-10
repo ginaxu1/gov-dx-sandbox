@@ -34,7 +34,7 @@ func NewConsentService(db *gorm.DB, consentPortalBaseURL string) (*ConsentServic
 func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.CreateConsentRequest) ([]models.ConsentResponseInternalView, error) {
 	// Validate input
 	if err := validateCreateConsentRequest(req); err != nil {
-		return nil, fmt.Errorf("%s: %w", models.ErrConsentCreateFailed, err)
+		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
 	}
 
 	consentRecords := make([]models.ConsentRecord, 0, len(req.ConsentRequirements))
@@ -61,7 +61,7 @@ func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.Cre
 
 	// Bulk insert consent records
 	if err := s.db.WithContext(ctx).Create(&consentRecords).Error; err != nil {
-		return nil, fmt.Errorf("%s: %w", models.ErrConsentCreateFailed, err)
+		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
 	}
 
 	// Convert to internal view responses
@@ -89,7 +89,7 @@ func (s *ConsentService) GetConsentInternalView(ctx context.Context, consentID *
 	if consentID != nil {
 		parsedConsentID, err := uuid.Parse(*consentID)
 		if err != nil {
-			return nil, fmt.Errorf("%s: invalid consent ID", models.ErrConsentGetFailed)
+			return nil, fmt.Errorf("%w: invalid consent ID", models.ErrConsentGetFailed)
 		}
 		query = query.Where("consent_id = ?", parsedConsentID)
 	} else if ownerID != nil && appID != nil {
@@ -100,14 +100,14 @@ func (s *ConsentService) GetConsentInternalView(ctx context.Context, consentID *
 		// If this query pattern is common or the table is large, consider adding a composite index on (owner_email, app_id)
 		query = query.Where("owner_email = ? AND app_id = ?", *ownerEmail, *appID)
 	} else {
-		return nil, fmt.Errorf("%s: either consentID or (ownerID/ownerEmail and appID) must be provided", models.ErrConsentGetFailed)
+		return nil, fmt.Errorf("%w: either consentID or (ownerID/ownerEmail and appID) must be provided", models.ErrConsentGetFailed)
 	}
 
 	if err := query.First(&consentRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("%s: %w", models.ErrConsentNotFound, err)
+			return nil, fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
 		}
-		return nil, fmt.Errorf("%s: %w", models.ErrConsentGetFailed, err)
+		return nil, fmt.Errorf("%w: %w", models.ErrConsentGetFailed, err)
 	}
 
 	internalView := consentRecord.ToConsentResponseInternalView()
@@ -119,14 +119,14 @@ func (s *ConsentService) GetConsentPortalView(ctx context.Context, consentID str
 	var consentRecord models.ConsentRecord
 	parsedConsentID, err := uuid.Parse(consentID)
 	if err != nil {
-		return nil, fmt.Errorf("%s: invalid consent ID", models.ErrConsentGetFailed)
+		return nil, fmt.Errorf("%w: invalid consent ID", models.ErrConsentGetFailed)
 	}
 
 	if err := s.db.WithContext(ctx).Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("%s: %w", models.ErrConsentNotFound, err)
+			return nil, fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
 		}
-		return nil, fmt.Errorf("%s: %w", models.ErrConsentGetFailed, err)
+		return nil, fmt.Errorf("%w: %w", models.ErrConsentGetFailed, err)
 	}
 
 	portalView := consentRecord.ToConsentResponsePortalView()
@@ -137,20 +137,20 @@ func (s *ConsentService) GetConsentPortalView(ctx context.Context, consentID str
 func (s *ConsentService) UpdateConsentStatusByPortalAction(ctx context.Context, req models.ConsentPortalActionRequest) error {
 	// Validate action
 	if !isValidConsentPortalAction(req.Action) {
-		return fmt.Errorf("%s: invalid action: %s", models.ErrPortalRequestFailed, req.Action)
+		return fmt.Errorf("%w: invalid action: %s", models.ErrPortalRequestFailed, req.Action)
 	}
 
 	var consentRecord models.ConsentRecord
 	parsedConsentID, err := uuid.Parse(req.ConsentID)
 	if err != nil {
-		return fmt.Errorf("%s: invalid consent ID", models.ErrPortalRequestFailed)
+		return fmt.Errorf("%w: invalid consent ID", models.ErrPortalRequestFailed)
 	}
 
 	if err := s.db.WithContext(ctx).Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("%s: %w", models.ErrConsentNotFound, err)
+			return fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
 		}
-		return fmt.Errorf("%s: %w", models.ErrConsentUpdateFailed, err)
+		return fmt.Errorf("%w: %w", models.ErrConsentUpdateFailed, err)
 	}
 
 	currentTime := time.Now().UTC()
@@ -168,11 +168,11 @@ func (s *ConsentService) UpdateConsentStatusByPortalAction(ctx context.Context, 
 		// Do not set GrantExpiresAt on rejection - only approval gets a grant expiry
 		consentRecord.PendingExpiresAt = nil
 	default:
-		return fmt.Errorf("%s: invalid action: %s", models.ErrPortalRequestFailed, req.Action)
+		return fmt.Errorf("%w: invalid action: %s", models.ErrPortalRequestFailed, req.Action)
 	}
 
 	if err := s.db.WithContext(ctx).Save(&consentRecord).Error; err != nil {
-		return fmt.Errorf("%s: %w", models.ErrConsentUpdateFailed, err)
+		return fmt.Errorf("%w: %w", models.ErrConsentUpdateFailed, err)
 	}
 
 	return nil

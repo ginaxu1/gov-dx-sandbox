@@ -802,6 +802,20 @@ func main() {
 	}
 	slog.Info("V1 database connected successfully")
 
+	// Get underlying SQL DB for proper cleanup
+	v1SqlDB, err := v1DB.DB()
+	if err != nil {
+		slog.Error("Failed to get V1 database connection", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := v1SqlDB.Close(); err != nil {
+			slog.Error("Failed to close V1 database connection", "error", err)
+		} else {
+			slog.Info("V1 database connection closed successfully")
+		}
+	}()
+
 	// Initialize V1 consent service
 	v1ConsentService, err := v1services.NewConsentService(v1DB, consentPortalUrl)
 	if err != nil {

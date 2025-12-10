@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 )
@@ -38,12 +37,4 @@ func RespondWithError(w http.ResponseWriter, statusCode int, errorCode models.Co
 	response.Error.Message = message
 
 	RespondWithJSON(w, statusCode, response)
-}
-
-// ContainsError checks if an error message contains a specific substring
-func ContainsError(err error, substr string) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), substr)
 }
