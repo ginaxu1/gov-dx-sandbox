@@ -1,4 +1,3 @@
-
 import { Route, Routes } from 'react-router-dom';
 import ConsentPage from "./pages/ConsentPage.tsx";
 import ErrorPage from "./pages/ErrorPage.tsx";

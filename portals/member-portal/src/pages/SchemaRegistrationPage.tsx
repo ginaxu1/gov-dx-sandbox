@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { IntrospectionResult, FieldConfiguration, SchemaRegistration, GraphQLType, ApprovedSchema} from '../types/graphql';
+import type { IntrospectionResult, FieldConfiguration, SchemaRegistration, GraphQLType, ApprovedSchema } from '../types/graphql';
 import { SchemaInput } from '../components/SchemaInput';
 import { SchemaExplorer } from '../components/SchemaExplorer';
 import { SchemaService } from '../services/schemaService';
@@ -37,13 +37,13 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         if (response) {
           setRegisteredSchemas(response);
         }
-      } catch (error) {
+      } catch (_error) {
         setError('Failed to fetch registered schemas');
       }
     };
 
     fetchRegisteredSchemas();
-  }, []);
+  }, [memberId]);
 
   const handleSchemaLoaded = (loadedSchema: IntrospectionResult, endpoint: string) => {
     setSchema(loadedSchema);
@@ -56,14 +56,14 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
     const userDefinedTypes_ = SchemaService.getUserDefinedTypes(loadedSchema);
     setUserDefinedTypes(userDefinedTypes_);
     loadedSchema.data.__schema.types
-      .filter(type => 
-        !type.name.startsWith('__') && 
-        type.kind === 'OBJECT' && 
+      .filter(type =>
+        !type.name.startsWith('__') &&
+        type.kind === 'OBJECT' &&
         type.fields
       )
       .forEach(type => {
         initialConfigs[type.name] = {};
-        if (type.name === "Query"){
+        if (type.name === "Query") {
           type.fields?.forEach(field => {
             initialConfigs[type.name][field.name] = {
               accessControlType: '',
@@ -80,24 +80,24 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
           type.fields?.forEach(field => {
             const isUserDefinedTypeField_ = userDefinedTypes_.map(t => t.name).includes(SchemaService.getTypeString(field.type));
             initialConfigs[type.name][field.name] = {
-              accessControlType: isUserDefinedTypeField_ ? '' :'public',
+              accessControlType: isUserDefinedTypeField_ ? '' : 'public',
               source: isUserDefinedTypeField_ ? '' : 'fallback',
               isOwner: null,
               owner: '',
               description: field.description || isUserDefinedTypeField_ ? 'Default Description' : '',
               isQueryType: false,
               isUserDefinedTypeField: isUserDefinedTypeField_
-            };   
+            };
           });
-        }        
+        }
       });
-    
+
     setConfigurations(initialConfigs);
   };
 
   const handleConfigurationChange = (
-    typeName: string, 
-    fieldName: string, 
+    typeName: string,
+    fieldName: string,
     config: FieldConfiguration
   ) => {
     setConfigurations(prev => ({
@@ -130,12 +130,12 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         schemaEndpoint: endpoint,
         memberId: memberId
       };
-      
+
       await SchemaService.registerSchema(registration);
-      
+
       // Show success page on successful registration
       setShowSuccess(true);
-      
+
     } catch (error) {
       console.error('Error registering schema:', error);
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
@@ -159,7 +159,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
   // Show success page after successful registration
   if (showSuccess) {
     return (
-      <RegistrationSuccess 
+      <RegistrationSuccess
         type="schema"
         title={schemaName || 'Schema'}
         onRedirect={handleSuccessRedirect}
@@ -169,12 +169,12 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
 
   const getSchemaStats = () => {
     if (!schema) return null;
-    
-    const types = schema.data.__schema.types.filter(type => 
+
+    const types = schema.data.__schema.types.filter(type =>
       !type.name.startsWith('__') && type.kind === 'OBJECT'
     );
-    
-    const totalFields = types.reduce((sum, type) => 
+
+    const totalFields = types.reduce((sum, type) =>
       sum + (type.fields?.length || 0), 0
     );
 
@@ -206,20 +206,18 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
         <div className="mb-8">
           <div className="flex items-center justify-center space-x-4">
             <div className={`flex items-center space-x-2 ${step === 'input' ? 'text-blue-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step === 'input' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'input' ? 'bg-blue-600 text-white' : 'bg-gray-200'
+                }`}>
                 1
               </div>
               <span className="font-medium">Schema Input</span>
             </div>
-            
+
             <div className="w-16 h-px bg-gray-300"></div>
-            
+
             <div className={`flex items-center space-x-2 ${step === 'configure' ? 'text-blue-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step === 'configure' ? 'bg-blue-600 text-white' : 'bg-gray-200'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step === 'configure' ? 'bg-blue-600 text-white' : 'bg-gray-200'
+                }`}>
                 2
               </div>
               <span className="font-medium">Configure Fields</span>
@@ -310,7 +308,7 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                 />
               </div>
               {/* Previous Schema Selection */}
-                <div className="mt-4">
+              <div className="mt-4">
                 <label htmlFor="previousSchemaId" className="block text-sm font-medium text-gray-700 mb-2">
                   Previous Schema
                 </label>
@@ -318,24 +316,24 @@ export const SchemaRegistrationPage: React.FC<SchemaRegistrationPageProps> = ({
                   id="previousSchemaId"
                   value={previous_schema?.schemaId || ''}
                   onChange={(e) => {
-                  const selectedId = e.target.value;
-                  if (selectedId) {
-                    const selectedSchema = registeredSchemas.find(schema => schema.schemaId.toString() === selectedId);
-                    setPreviousSchema(selectedSchema || null);
-                  } else {
-                    setPreviousSchema(null);
-                  }
+                    const selectedId = e.target.value;
+                    if (selectedId) {
+                      const selectedSchema = registeredSchemas.find(schema => schema.schemaId.toString() === selectedId);
+                      setPreviousSchema(selectedSchema || null);
+                    } else {
+                      setPreviousSchema(null);
+                    }
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">None</option>
                   {registeredSchemas.map((schema) => (
-                  <option key={schema.schemaId} value={schema.schemaId}>
-                    {schema.schemaName}
-                  </option>
+                    <option key={schema.schemaId} value={schema.schemaId}>
+                      {schema.schemaName}
+                    </option>
                   ))}
                 </select>
-                </div>
+              </div>
               <div className="mt-4">
                 <label htmlFor="schemaEndpoint" className="block text-sm font-medium text-gray-700 mb-2">
                   Schema Endpoint

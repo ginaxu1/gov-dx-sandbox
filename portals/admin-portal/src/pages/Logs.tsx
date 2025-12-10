@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Activity, 
-    Search, 
-    Download, 
-    RefreshCw, 
-    CheckCircle, 
-    XCircle, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    Activity,
+    Search,
+    Download,
+    RefreshCw,
+    CheckCircle,
+    XCircle,
     Info,
     Clock
 } from 'lucide-react';
@@ -21,10 +21,8 @@ interface FilterOptions {
     searchTerm?: string;
 }
 
-interface LogsProps {
-}
 
-export const Logs: React.FC<LogsProps> = () => {
+export const Logs: React.FC = () => {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
     const [filters, setFilters] = useState<FilterOptions>({
@@ -55,7 +53,7 @@ export const Logs: React.FC<LogsProps> = () => {
         });
     };
 
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async () => {
         setLoading(true);
         try {
             const logs = await LogService.fetchLogsWithParams();
@@ -72,11 +70,11 @@ export const Logs: React.FC<LogsProps> = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchLogs();
-    }, []);
+    }, [fetchLogs]);
 
     // Auto-refresh functionality
     useEffect(() => {
@@ -87,11 +85,11 @@ export const Logs: React.FC<LogsProps> = () => {
 
             return () => clearInterval(interval);
         }
-    }, [autoRefresh]);
+    }, [autoRefresh, fetchLogs]);
 
     useEffect(() => {
         let filtered = logs;
-        
+
         // Filter by search term
         if (filters.searchTerm) {
             filtered = filtered.filter(log =>
@@ -109,27 +107,27 @@ export const Logs: React.FC<LogsProps> = () => {
 
         // Filter by consumer ID
         if (filters.byConsumerId) {
-            filtered = filtered.filter(log => 
+            filtered = filtered.filter(log =>
                 log.consumerId.toLowerCase().includes(filters.byConsumerId!.toLowerCase())
             );
         }
 
         // Filter by provider ID
         if (filters.byProviderId) {
-            filtered = filtered.filter(log => 
+            filtered = filtered.filter(log =>
                 log.providerId.toLowerCase().includes(filters.byProviderId!.toLowerCase())
             );
         }
 
         // Filter by date range
         if (filters.startDate) {
-            filtered = filtered.filter(log => 
+            filtered = filtered.filter(log =>
                 new Date(log.timestamp) >= new Date(filters.startDate!)
             );
         }
 
         if (filters.endDate) {
-            filtered = filtered.filter(log => 
+            filtered = filtered.filter(log =>
                 new Date(log.timestamp) <= new Date(filters.endDate!)
             );
         }
@@ -241,16 +239,15 @@ export const Logs: React.FC<LogsProps> = () => {
                             </button>
                             <button
                                 onClick={() => setAutoRefresh(!autoRefresh)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                                    autoRefresh 
-                                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${autoRefresh
+                                        ? 'bg-green-100 text-green-700 border border-green-300'
                                         : 'bg-white border border-gray-300 hover:bg-gray-50'
-                                }`}
+                                    }`}
                             >
                                 <Activity className="w-4 h-4" />
                                 <span>Auto Refresh</span>
                             </button>
-                            <button 
+                            <button
                                 onClick={handleExport}
                                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                             >
@@ -293,7 +290,7 @@ export const Logs: React.FC<LogsProps> = () => {
                                 </select>
                             </div>
                         </div>
-                        
+
                         {/* Additional Filters Row */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <input
@@ -325,7 +322,7 @@ export const Logs: React.FC<LogsProps> = () => {
                                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
-                        
+
                         {/* Clear Filters Button */}
                         <div className="flex justify-end">
                             <button
@@ -353,11 +350,11 @@ export const Logs: React.FC<LogsProps> = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     {statuses.map(status => {
                         const count = filteredLogs.filter(log => log.status === status).length;
                         const percentage = filteredLogs.length > 0 ? (count / filteredLogs.length * 100) : 0;
-                        
+
                         return (
                             <div key={status} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                                 <div className="flex items-center justify-between">
@@ -396,7 +393,7 @@ export const Logs: React.FC<LogsProps> = () => {
                                 <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
                                     {filters.searchTerm || filters.status !== 'all' || filters.byConsumerId || filters.byProviderId || filters.startDate || filters.endDate
-                                        ? 'No logs match your filters' 
+                                        ? 'No logs match your filters'
                                         : 'No logs available'
                                     }
                                 </p>
@@ -428,11 +425,10 @@ export const Logs: React.FC<LogsProps> = () => {
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                        log.status === 'success' 
-                                                            ? 'bg-green-100 text-green-800' 
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.status === 'success'
+                                                            ? 'bg-green-100 text-green-800'
                                                             : 'bg-red-100 text-red-800'
-                                                    }`}>
+                                                        }`}>
                                                         {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                                                     </span>
                                                 </div>
