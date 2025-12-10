@@ -134,7 +134,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
 
       setTimeout(() => {
         if (window.opener) {
-          window.opener.postMessage("consent_granted", "*");
+          window.opener.postMessage("consentGranted", "*");
         }
         if (consentRecord.redirect_url) {
           window.location.href = consentRecord.redirect_url;
