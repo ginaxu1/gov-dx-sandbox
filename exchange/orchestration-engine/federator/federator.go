@@ -21,6 +21,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/provider"
+	"github.com/google/uuid"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -168,9 +169,53 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 	return federator
 }
 
+// logAuditEvent logs a generalized audit event
+func (f *Federator) logAuditEvent(ctx context.Context, traceID, eventType, status, targetService string, resources, metadata map[string]interface{}) {
+	resBytes, resErr := json.Marshal(resources)
+	if resErr != nil {
+		logger.Log.Error("Failed to marshal resources for audit log", "error", resErr, "eventType", eventType)
+		resBytes = []byte("{}") // Use empty JSON object as fallback
+	}
+	metaBytes, metaErr := json.Marshal(metadata)
+	if metaErr != nil {
+		logger.Log.Error("Failed to marshal metadata for audit log", "error", metaErr, "eventType", eventType)
+		metaBytes = []byte("{}") // Use empty JSON object as fallback
+	}
+
+	req := &middleware.CreateAuditLogRequest{
+		TraceID:       traceID,
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		SourceService: "orchestration-engine",
+		TargetService: targetService,
+		EventType:     eventType,
+		Status:        status,
+		Resources:     resBytes,
+		Metadata:      metaBytes,
+	}
+
+	middleware.LogGeneralizedAuditEvent(ctx, req)
+}
+
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
+	// Retrieve Trace ID for this request flow from context
+	traceID := middleware.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		// Fallback if not in context (shouldn't happen with middleware)
+		traceID = uuid.New().String()
+	}
+
+	// Base resources to be logged in every audit log
+	baseResources := map[string]interface{}{
+		"applicationId": consumerInfo.ApplicationId,
+		"subscriber":    consumerInfo.Subscriber,
+	}
+
+	// Log request received
+	f.logAuditEvent(ctx, traceID, "ORCHESTRATION_REQUEST_RECEIVED", "SUCCESS", "", baseResources, map[string]interface{}{
+		"query": request.Query,
+	})
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
 		Body: []byte(request.Query),
@@ -296,6 +341,9 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		logger.Log.Warn("PDP client not available, skipping policy check")
 		// Continue without PDP check - this allows the system to work without PDP
 	} else {
+		// Log PDP check request
+		f.logAuditEvent(ctx, traceID, "POLICY_CHECK_REQUEST", "SUCCESS", "policy-decision-point", baseResources, nil)
+
 		pdpRequest := &policy.PdpRequest{
 			AppId: consumerInfo.ApplicationId,
 		}
@@ -314,11 +362,17 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		pdpResponse, err = pdpClient.MakePdpRequest(ctx, pdpRequest)
 		if err != nil {
 			logger.Log.Error("PDP request failed", "error", err)
+			f.logAuditEvent(ctx, traceID, "POLICY_CHECK_RESPONSE", "FAILURE", "policy-decision-point", baseResources, map[string]interface{}{
+				"error": err.Error(),
+			})
 			return createErrorResponseWithCode(fmt.Sprintf("Authorization check failed: %v", err), errors.CodePDPError)
 		}
 
 		if pdpResponse == nil {
 			logger.Log.Error("Failed to get response from PDP")
+			f.logAuditEvent(ctx, traceID, "POLICY_CHECK_RESPONSE", "FAILURE", "policy-decision-point", baseResources, map[string]interface{}{
+				"error": "No response",
+			})
 			return createErrorResponseWithCode("No response from authorization service", errors.CodePDPNoResponse)
 		}
 
@@ -332,6 +386,10 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		if !pdpResponse.AppAuthorized {
 			logger.Log.Info("Request not authorized by PDP",
 				"unauthorizedFields", pdpResponse.UnauthorizedFields)
+			f.logAuditEvent(ctx, traceID, "POLICY_CHECK_RESPONSE", "FAILURE", "policy-decision-point", baseResources, map[string]interface{}{
+				"reason":             "App not authorized",
+				"unauthorizedFields": pdpResponse.UnauthorizedFields,
+			})
 			return createErrorResponse("Access denied", map[string]interface{}{
 				"code":               errors.CodePDPNotAllowed,
 				"unauthorizedFields": pdpResponse.UnauthorizedFields,
@@ -341,11 +399,21 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		if pdpResponse.AppAccessExpired {
 			logger.Log.Info("Application access expired",
 				"expiredFields", pdpResponse.ExpiredFields)
+			f.logAuditEvent(ctx, traceID, "POLICY_CHECK_RESPONSE", "FAILURE", "policy-decision-point", baseResources, map[string]interface{}{
+				"reason":        "Access expired",
+				"expiredFields": pdpResponse.ExpiredFields,
+			})
 			return createErrorResponse("Access expired", map[string]interface{}{
 				"code":          errors.CodePDPNotAllowed,
 				"expiredFields": pdpResponse.ExpiredFields,
 			})
 		}
+
+		// Log successful PDP check
+		f.logAuditEvent(ctx, traceID, "POLICY_CHECK_RESPONSE", "SUCCESS", "policy-decision-point", baseResources, map[string]interface{}{
+			"authorized":      true,
+			"consentRequired": pdpResponse.AppRequiresOwnerConsent,
+		})
 	}
 
 	// Check for Data Owner ID in extracted arguments
@@ -381,8 +449,14 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		// Check if CE client is available
 		if ceClient == nil {
 			logger.Log.Warn("CE client not available, skipping consent check")
+			f.logAuditEvent(ctx, traceID, "CONSENT_CHECK_RESPONSE", "FAILURE", "consent-engine", baseResources, map[string]interface{}{
+				"error": "CE client unavailable",
+			})
 			return createErrorResponseWithCode("Consent required but consent engine not available", errors.CodeCEError)
 		}
+
+		// Log consent check request
+		f.logAuditEvent(ctx, traceID, "CONSENT_CHECK_REQUEST", "SUCCESS", "consent-engine", baseResources, nil)
 
 		ownerEmail := dataOwnerID // assuming dataOwnerID is ownerEmail for this example
 
@@ -417,10 +491,16 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		ceResp, err := ceClient.CreateConsent(ctx, ceRequest)
 		if err != nil {
 			logger.Log.Info("CE request failed", "error", err)
+			f.logAuditEvent(ctx, traceID, "CONSENT_CHECK_RESPONSE", "FAILURE", "consent-engine", baseResources, map[string]interface{}{
+				"error": err.Error(),
+			})
 			return createErrorResponseWithCode("CE request failed", errors.CodeCEError)
 		}
 		if ceResp == nil {
 			logger.Log.Error("Failed to get response from CE")
+			f.logAuditEvent(ctx, traceID, "CONSENT_CHECK_RESPONSE", "FAILURE", "consent-engine", baseResources, map[string]interface{}{
+				"error": "No response",
+			})
 			return createErrorResponseWithCode("Failed to get response from CE", errors.CodeCENoResponse)
 		}
 
@@ -430,9 +510,16 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		// Check consent status - only proceed if approved
 		if ceResp.Status == consent.StatusApproved {
 			logger.Log.Info("Consent approved, proceeding with query execution")
+			f.logAuditEvent(ctx, traceID, "CONSENT_CHECK_RESPONSE", "SUCCESS", "consent-engine", baseResources, map[string]interface{}{
+				"status": ceResp.Status,
+			})
 		} else {
 			// Status is pending or any other non-approved status
 			logger.Log.Info("Consent not approved", "status", ceResp.Status)
+			f.logAuditEvent(ctx, traceID, "CONSENT_CHECK_RESPONSE", "FAILURE", "consent-engine", baseResources, map[string]interface{}{
+				"status":           ceResp.Status,
+				"consentPortalUrl": ceResp.ConsentPortalURL,
+			})
 			return createErrorResponse("Consent not approved", map[string]interface{}{
 				"code":             errors.CodeCENotApproved,
 				"consentPortalUrl": ceResp.ConsentPortalURL,
@@ -468,7 +555,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	}
 	ctxWithAudit := NewContextWithAuditMetadata(ctx, auditMetadata)
 
-	responses := f.performFederation(ctxWithAudit, federationRequest)
+	responses := f.performFederation(ctxWithAudit, federationRequest, traceID, baseResources)
 
 	// Build schema info map for array-aware processing
 	var schemaInfoMap map[string]*SourceSchemaInfo
@@ -486,7 +573,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	return response
 }
 
-func (f *Federator) performFederation(ctx context.Context, r *federationRequest) *FederationResponse {
+func (f *Federator) performFederation(ctx context.Context, r *federationRequest, traceID string, baseResources map[string]interface{}) *FederationResponse {
 	FederationResponse := &FederationResponse{
 		Responses: make([]*ProviderResponse, 0, len(r.FederationServiceRequest)),
 	}
@@ -505,48 +592,65 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 		go func(req *federationServiceRequest, prov *provider.Provider) {
 			defer wg.Done()
 
-			logAudit := func(status string, err error) {
-				f.logAuditEvent(ctx, req.SchemaID, req, status, err)
+			// Log provider fetch request
+			providerResources := make(map[string]interface{})
+			for k, v := range baseResources {
+				providerResources[k] = v
+			}
+			providerResources["schemaId"] = req.SchemaID
+			providerResources["serviceKey"] = req.ServiceKey
+
+			f.logAuditEvent(ctx, traceID, "PROVIDER_FETCH_REQUEST", "SUCCESS", req.ServiceKey, providerResources, nil)
+
+			// Helper for logging failures
+			logFailure := func(err error, msg string) {
+				logger.Log.Error(msg, "Provider Key", req.ServiceKey, "Error", err)
+				f.logAuditEvent(ctx, traceID, "PROVIDER_FETCH_RESPONSE", "FAILURE", req.ServiceKey, providerResources, map[string]interface{}{
+					"error": err.Error(),
+				})
 			}
 
 			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
-				logger.Log.Info("Failed to marshal request", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logFailure(err, "Failed to marshal request")
 				return
 			}
 
 			response, err := prov.PerformRequest(ctx, reqBody)
 			if err != nil {
-				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logFailure(err, "Request failed to the Provider")
 				return
 			}
 			defer response.Body.Close()
 
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
-				logger.Log.Error("Failed to read response body", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logFailure(err, "Failed to read response body")
 				return
 			}
 
 			var bodyJson graphql.Response
 			err = json.Unmarshal(body, &bodyJson)
 			if err != nil {
-				logger.Log.Error("Failed to unmarshal response", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logFailure(err, "Failed to unmarshal response")
 				return
 			}
 
 			// Determine status based on response
-			status := "success"
+			status := "SUCCESS"
+			metadata := map[string]interface{}{}
 			if len(bodyJson.Errors) > 0 || response.StatusCode >= 400 {
-				status = "failure"
+				status = "FAILURE"
+				if len(bodyJson.Errors) > 0 {
+					metadata["errors"] = bodyJson.Errors
+				}
+				if response.StatusCode >= 400 {
+					metadata["statusCode"] = response.StatusCode
+				}
 			}
 
 			// Log audit event
-			logAudit(status, nil)
+			f.logAuditEvent(ctx, traceID, "PROVIDER_FETCH_RESPONSE", status, req.ServiceKey, providerResources, metadata)
 
 			// Thread-safe append
 			mu.Lock()
@@ -560,65 +664,6 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 
 	wg.Wait()
 	return FederationResponse
-}
-
-// logAuditEvent logs a data exchange event to the audit service asynchronously
-func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, req *federationServiceRequest, status string, err error) {
-	// Retrieve metadata from context
-	metadata := AuditMetadataFromContext(ctx)
-	if metadata == nil {
-		logger.Log.Warn("Audit metadata missing from context, skipping audit log")
-		return
-	}
-
-	// Extract requested fields for this provider
-	requestedFields := make([]string, 0)
-	if metadata.ProviderFieldMap != nil {
-		for _, field := range *metadata.ProviderFieldMap {
-			if field.SchemaId == req.SchemaID && field.ServiceKey == req.ServiceKey {
-				requestedFields = append(requestedFields, field.FieldPath)
-			}
-		}
-	}
-
-	// Prepare requested data as JSON
-	requestedDataMap := map[string]interface{}{
-		"fields": requestedFields,
-		"query":  req.GraphQLRequest.Query,
-	}
-	requestedDataJSON, jsonErr := json.Marshal(requestedDataMap)
-	if jsonErr != nil {
-		logger.Log.Error("Failed to marshal requested data for audit", "error", jsonErr)
-		return
-	}
-
-	// Prepare additional info for audit
-	additionalInfo := map[string]interface{}{
-		"serviceKey": req.ServiceKey,
-	}
-	if err != nil {
-		additionalInfo["error"] = err.Error()
-	}
-	additionalInfoJSON, jsonErr := json.Marshal(additionalInfo)
-	if jsonErr != nil {
-		logger.Log.Error("Failed to marshal additional info for audit", "error", jsonErr)
-		additionalInfoJSON = []byte("{}")
-	}
-
-	// Create audit request for data exchange event
-	auditRequest := &middleware.DataExchangeEventAuditRequest{
-		Timestamp:     time.Now().UTC().Format(time.RFC3339),
-		Status:        status,
-		ApplicationID: metadata.ConsumerAppID,
-		SchemaID:      providerSchemaID,
-		RequestedData: json.RawMessage(requestedDataJSON),
-		// Note: OnBehalfOfOwnerID, ConsumerID, and ProviderID are not populated here
-		// to avoid expensive lookup calls. The audit service can handle missing member IDs.
-		AdditionalInfo: json.RawMessage(additionalInfoJSON),
-	}
-
-	// Log the audit event asynchronously using the global middleware function
-	middleware.LogAuditEvent(auditRequest)
 }
 
 func (f *Federator) mergeResponses(responses []*ProviderResponse) graphql.Response {

@@ -3,6 +3,7 @@ module github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine
 go 1.25.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/graphql-go/graphql v0.8.1
 	github.com/stretchr/testify v1.11.1
 )

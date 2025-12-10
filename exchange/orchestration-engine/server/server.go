@@ -12,6 +12,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/federator"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/handlers"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/middleware"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
 	"github.com/go-chi/chi/v5"
@@ -44,7 +45,10 @@ func RunServer(f *federator.Federator) {
 
 	logger.Log.Info("Server is Listening", "port", port)
 
-	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
+	// Apply middleware chain: TraceID -> CORS -> Router
+	handler := corsMiddleware(middleware.TraceIDMiddleware(mux))
+
+	if err := http.ListenAndServe(port, handler); err != nil {
 		logger.Log.Error("Failed to start server", "error", err)
 	} else {
 		logger.Log.Info("Server stopped")
@@ -161,7 +165,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		// Allow specific methods
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		// Allow specific headers
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Trace-ID")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "86400") // 24 hours
 

@@ -7,6 +7,11 @@ import (
 	"os"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -168,4 +173,153 @@ func ConnectGORM(config *DatabaseConfig) (*gorm.DB, error) {
 	}
 
 	return nil, fmt.Errorf("failed to establish GORM database connection after %d attempts", config.RetryAttempts)
+}
+
+// MongoDBConfig holds MongoDB connection configuration
+type MongoDBConfig struct {
+	URI            string
+	Database       string
+	Collection     string
+	ConnectTimeout time.Duration
+	RetryAttempts  int
+	RetryDelay     time.Duration
+}
+
+// NewMongoDBConfig creates a new MongoDB configuration from environment variables
+func NewMongoDBConfig() *MongoDBConfig {
+	connectTimeout := parseDurationOrDefault("MONGODB_CONNECT_TIMEOUT", "10s")
+	retryAttempts := parseIntOrDefault("MONGODB_RETRY_ATTEMPTS", 10)
+	retryDelay := parseDurationOrDefault("MONGODB_RETRY_DELAY", "2s")
+
+	uri := getEnvOrDefault("MONGODB_URI", getEnvOrDefault("CHOREO_MONGODB_CONNECTION_URI", "mongodb://localhost:27017"))
+	database := getEnvOrDefault("MONGODB_DATABASE", "audit")
+	collection := getEnvOrDefault("MONGODB_COLLECTION", "audit_logs")
+
+	slog.Info("MongoDB configuration",
+		"uri", maskURI(uri),
+		"database", database,
+		"collection", collection,
+		"connect_timeout", connectTimeout,
+		"retry_attempts", retryAttempts,
+		"retry_delay", retryDelay)
+
+	return &MongoDBConfig{
+		URI:            uri,
+		Database:       database,
+		Collection:     collection,
+		ConnectTimeout: connectTimeout,
+		RetryAttempts:  retryAttempts,
+		RetryDelay:     retryDelay,
+	}
+}
+
+// maskURI masks sensitive parts of MongoDB URI for logging
+func maskURI(uri string) string {
+	// Simple masking - replace password part if present
+	// mongodb://user:password@host:port/db -> mongodb://user:***@host:port/db
+	if len(uri) > 20 {
+		return uri[:10] + "***" + uri[len(uri)-10:]
+	}
+	return "***"
+}
+
+// ConnectMongoDB establishes a MongoDB connection
+func ConnectMongoDB(config *MongoDBConfig) (*mongo.Client, *mongo.Database, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
+	defer cancel()
+
+	clientOptions := options.Client().ApplyURI(config.URI)
+	clientOptions.SetWriteConcern(writeconcern.New(writeconcern.WMajority(), writeconcern.J(true)))
+	clientOptions.SetReadConcern(readconcern.Majority())
+
+	var client *mongo.Client
+	var err error
+
+	// Retry connection attempts
+	for attempt := 1; attempt <= config.RetryAttempts; attempt++ {
+		slog.Info("Attempting MongoDB connection", "attempt", attempt, "max_attempts", config.RetryAttempts)
+
+		client, err = mongo.Connect(ctx, clientOptions)
+		if err != nil {
+			slog.Warn("Failed to connect to MongoDB", "attempt", attempt, "error", err)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, nil, fmt.Errorf("failed to connect to MongoDB after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		// Test connection
+		err = client.Ping(ctx, nil)
+		if err != nil {
+			slog.Warn("Failed to ping MongoDB", "attempt", attempt, "error", err)
+			client.Disconnect(ctx)
+			if attempt < config.RetryAttempts {
+				time.Sleep(config.RetryDelay)
+				continue
+			}
+			return nil, nil, fmt.Errorf("failed to ping MongoDB after %d attempts: %w", config.RetryAttempts, err)
+		}
+
+		slog.Info("MongoDB connection established successfully",
+			"database", config.Database,
+			"collection", config.Collection)
+		break
+	}
+
+	db := client.Database(config.Database)
+	return client, db, nil
+}
+
+// CreateMongoDBIndexes creates indexes for the audit_logs collection
+func CreateMongoDBIndexes(ctx context.Context, db *mongo.Database, collectionName string) error {
+	collection := db.Collection(collectionName)
+
+	indexes := []mongo.IndexModel{
+		// Trace ID index (partial, only for non-null trace_id)
+		{
+			Keys:    bson.D{{Key: "trace_id", Value: 1}, {Key: "timestamp", Value: 1}},
+			Options: options.Index().SetPartialFilterExpression(bson.M{"trace_id": bson.M{"$ne": nil}}),
+		},
+		// Timestamp index
+		{
+			Keys: bson.D{{Key: "timestamp", Value: -1}},
+		},
+		// Event name index
+		{
+			Keys: bson.D{{Key: "event_name", Value: 1}},
+		},
+		// Status index
+		{
+			Keys: bson.D{{Key: "status", Value: 1}},
+		},
+		// Actor service name index (partial, only for SERVICE actor_type)
+		{
+			Keys:    bson.D{{Key: "actor_service_name", Value: 1}, {Key: "actor_type", Value: 1}},
+			Options: options.Index().SetPartialFilterExpression(bson.M{"actor_type": "SERVICE"}),
+		},
+		// Actor user ID index (partial, only for USER actor_type)
+		{
+			Keys:    bson.D{{Key: "actor_user_id", Value: 1}, {Key: "actor_type", Value: 1}},
+			Options: options.Index().SetPartialFilterExpression(bson.M{"actor_type": "USER"}),
+		},
+		// Target service name index (partial, only for SERVICE target_type)
+		{
+			Keys:    bson.D{{Key: "target_service_name", Value: 1}, {Key: "target_type", Value: 1}},
+			Options: options.Index().SetPartialFilterExpression(bson.M{"target_type": "SERVICE"}),
+		},
+		// Target resource index (partial, only for RESOURCE target_type)
+		{
+			Keys:    bson.D{{Key: "target_resource", Value: 1}, {Key: "target_type", Value: 1}},
+			Options: options.Index().SetPartialFilterExpression(bson.M{"target_type": "RESOURCE"}),
+		},
+	}
+
+	_, err := collection.Indexes().CreateMany(ctx, indexes)
+	if err != nil {
+		return fmt.Errorf("failed to create indexes: %w", err)
+	}
+
+	slog.Info("MongoDB indexes created successfully", "collection", collectionName, "count", len(indexes))
+	return nil
 }

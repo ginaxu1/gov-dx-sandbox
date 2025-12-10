@@ -605,6 +605,81 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/audit-logs:
+    post:
+      summary: Create Audit Log
+      description: |
+        Create a generalized audit log entry suitable for distributed tracing.
+        This endpoint is used by various microservices (OE, PDP, CE, Provider) to log
+        key events in a request flow.
+      operationId: createAuditLog
+      tags:
+        - Audit Logs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAuditLogRequest'
+      responses:
+        '201':
+          description: Audit log created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: Get Audit Logs
+      description: |
+        Retrieve audit logs for a specific flow using the trace ID.
+        Returns a time-ordered list of events associated with that trace.
+      operationId: getAuditLogs
+      tags:
+        - Audit Logs
+      parameters:
+        - name: traceId
+          in: query
+          description: The global trace ID to filter by
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Successfully retrieved audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditLog'
+        '400':
+          description: Missing traceId parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   schemas:
     ErrorResponse:
@@ -965,6 +1040,115 @@ components:
         - limit
         - offset
 
+    CreateAuditLogRequest:
+      type: object
+      description: Request payload for creating a generic audit log
+      properties:
+        traceId:
+          type: string
+          format: uuid
+          description: Global trace ID for distributed requests
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        timestamp:
+          type: string
+          format: date-time
+          description: Time of event (optional, defaults to now)
+          example: "2024-01-20T10:00:00Z"
+        sourceService:
+          type: string
+          description: Service reporting the event
+          example: "orchestration-engine"
+        targetService:
+          type: string
+          description: Target service being called
+          example: "pdp"
+        eventType:
+          type: string
+          description: Type of event
+          example: "POLICY_CHECK"
+        status:
+          type: string
+          enum: [SUCCESS, FAILURE]
+          description: Outcome of the event
+          example: "SUCCESS"
+        actorId:
+          type: string
+          description: ID of the actor (user or system)
+          example: "user-123"
+        resources:
+          type: object
+          description: JSON object describing affected resources
+          example:
+            schemaId: "schema-123"
+        metadata:
+          type: object
+          description: JSON object for additional context
+          example:
+            policyId: "policy-456"
+      required:
+        - traceId
+        - sourceService
+        - eventType
+        - status
+
+    AuditLog:
+      type: object
+      description: Generalized audit log entry
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        traceId:
+          type: string
+          format: uuid
+          description: Global trace ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        timestamp:
+          type: string
+          format: date-time
+          description: Time of event
+          example: "2024-01-20T10:00:00Z"
+        sourceService:
+          type: string
+          description: Service reporting the event
+          example: "orchestration-engine"
+        targetService:
+          type: string
+          description: Target service
+          example: "pdp"
+        eventType:
+          type: string
+          description: Event type
+          example: "POLICY_CHECK"
+        status:
+          type: string
+          enum: [SUCCESS, FAILURE]
+          description: Status
+          example: "SUCCESS"
+        actorId:
+          type: string
+          description: Actor ID
+          example: "user-123"
+        resources:
+          type: object
+          description: Resources info
+        metadata:
+          type: object
+          description: Additional metadata
+        createdAt:
+          type: string
+          format: date-time
+          description: Record creation time
+      required:
+        - id
+        - traceId
+        - timestamp
+        - sourceService
+        - eventType
+        - status
+
 tags:
   - name: Health
     description: Health check endpoints
@@ -973,3 +1157,6 @@ tags:
     description: Data exchange audit logging - called by Orchestration Engine
   - name: Management Events
     description: Management portal audit logging - called by Portal Backend
+  - name: Audit Logs
+    description: General purpose distributed audit logging
+

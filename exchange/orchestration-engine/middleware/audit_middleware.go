@@ -7,8 +7,53 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
+
+	"github.com/google/uuid"
 )
+
+// TraceIDKey is the context key for Trace ID
+type TraceIDKey struct{}
+
+const (
+	// TraceIDHeader is the HTTP header name for trace ID
+	TraceIDHeader = "X-Trace-ID"
+)
+
+// GetTraceIDFromContext retrieves the trace ID from the context
+func GetTraceIDFromContext(ctx context.Context) string {
+	if traceID, ok := ctx.Value(TraceIDKey{}).(string); ok {
+		return traceID
+	}
+	return ""
+}
+
+// TraceIDMiddleware extracts or generates a trace ID and adds it to the request context
+func TraceIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract trace ID from header or generate new one
+		traceID := r.Header.Get(TraceIDHeader)
+		if traceID == "" {
+			// Generate new trace ID if not provided
+			traceID = generateTraceID()
+		}
+
+		// Add trace ID to context
+		ctx := context.WithValue(r.Context(), TraceIDKey{}, traceID)
+
+		// Add trace ID to response header for client visibility
+		w.Header().Set(TraceIDHeader, traceID)
+
+		// Continue with updated context
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// generateTraceID generates a UUID trace ID
+func generateTraceID() string {
+	return uuid.New().String()
+}
 
 // AuditMiddleware handles audit logging for CUD operations
 type AuditMiddleware struct {
@@ -80,7 +125,12 @@ func (m *AuditMiddleware) logDataExchangeEvent(ctx context.Context, event DataEx
 		return
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", m.auditServiceURL+"/data-exchange-events", bytes.NewReader(payloadBytes))
+	auditURL, err := url.JoinPath(m.auditServiceURL, "data-exchange-events")
+	if err != nil {
+		slog.Error("Failed to construct audit URL", "error", err)
+		return
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", auditURL, bytes.NewReader(payloadBytes))
 	if err != nil {
 		slog.Error("Failed to create audit request", "error", err)
 		return
@@ -115,6 +165,95 @@ func (m *AuditMiddleware) logDataExchangeEvent(ctx context.Context, event DataEx
 func LogAuditEvent(auditRequest *DataExchangeEventAuditRequest) {
 	if globalAuditMiddleware != nil {
 		globalAuditMiddleware.LogAudit(auditRequest)
+	} else {
+		slog.Warn("Global AuditMiddleware is not initialized; audit event not logged")
+	}
+}
+
+// CreateAuditLogRequest represents the request payload for creating a generalized audit log
+type CreateAuditLogRequest struct {
+	TraceID       string          `json:"traceId" validate:"required,uuid"`
+	Timestamp     string          `json:"timestamp"` // Optional, defaults to now
+	SourceService string          `json:"sourceService" validate:"required"`
+	TargetService string          `json:"targetService,omitempty"`
+	EventType     string          `json:"eventType" validate:"required"`
+	Status        string          `json:"status" validate:"required"`
+	ActorID       *string         `json:"actorId,omitempty"`
+	Resources     json.RawMessage `json:"resources,omitempty"`
+	Metadata      json.RawMessage `json:"metadata,omitempty"`
+}
+
+// LogGeneralizedAudit logs a generalized audit event
+func (m *AuditMiddleware) LogGeneralizedAudit(ctx context.Context, auditRequest *CreateAuditLogRequest) {
+	// Skip if audit service is not configured
+	if m.auditServiceURL == "" {
+		return
+	}
+
+	// If TraceID is missing in request but present in context, use it
+	if auditRequest.TraceID == "" {
+		if val := ctx.Value(TraceIDKey{}); val != nil {
+			if traceID, ok := val.(string); ok {
+				auditRequest.TraceID = traceID
+			}
+		}
+	}
+
+	// Log asynchronously (fire-and-forget) using background context
+	go m.logGeneralizedAuditEvent(context.Background(), *auditRequest)
+}
+
+// logGeneralizedAuditEvent sends the audit log to the audit service
+func (m *AuditMiddleware) logGeneralizedAuditEvent(ctx context.Context, event CreateAuditLogRequest) {
+	if m.httpClient == nil {
+		return
+	}
+
+	payloadBytes, err := json.Marshal(event)
+	if err != nil {
+		slog.Error("Failed to marshal audit request", "error", err)
+		return
+	}
+
+	auditURL, err := url.JoinPath(m.auditServiceURL, "api", "audit-logs")
+	if err != nil {
+		slog.Error("Failed to construct audit URL", "error", err)
+		return
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", auditURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		slog.Error("Failed to create audit request", "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		slog.Error("Failed to send audit request", "error", err)
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			slog.Error("Failed to close audit response body", "error", err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		slog.Error("Audit service returned non-201 status", "status", resp.StatusCode, "body", string(bodyBytes))
+		return
+	}
+
+	slog.Debug("Generalized audit event logged successfully",
+		"traceId", event.TraceID,
+		"eventType", event.EventType)
+}
+
+// LogGeneralizedAuditEvent helper for global access
+func LogGeneralizedAuditEvent(ctx context.Context, auditRequest *CreateAuditLogRequest) {
+	if globalAuditMiddleware != nil {
+		globalAuditMiddleware.LogGeneralizedAudit(ctx, auditRequest)
 	} else {
 		slog.Warn("Global AuditMiddleware is not initialized; audit event not logged")
 	}
