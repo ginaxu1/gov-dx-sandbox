@@ -34,6 +34,11 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
   const {isSignedIn, user, getAccessToken} = useAsgardeo();
 
   const CONSENT_ENGINE_PATH = window?.configs?.apiUrl;
+  if (!CONSENT_ENGINE_PATH) {
+    throw new Error(
+      "Consent Engine API URL is not defined. Please ensure window.configs.apiUrl is set before loading the Consent Portal."
+    );
+  }
 
   const getAuthHeaders = async (): Promise<HeadersInit> => {
     const accessToken = await getAccessToken();
