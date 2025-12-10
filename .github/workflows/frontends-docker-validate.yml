@@ -3,7 +3,9 @@ name: Validate Frontends Docker
 on:
   pull_request:
     paths:
-      - 'portals/**'
+      - 'portals/**/Dockerfile'
+      - 'portals/**/nginx.conf'
+      - 'portals/**/entrypoint.sh'
       - '.github/workflows/frontends-docker-validate.yml'
   workflow_dispatch:
 
