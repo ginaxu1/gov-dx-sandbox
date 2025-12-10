@@ -35,6 +35,17 @@ func (s *DataExchangeEventService) CreateDataExchangeEvent(ctx context.Context, 
 		return nil, fmt.Errorf("invalid status: %s. Must be success or failure", req.Status)
 	}
 
+	// Validate required fields
+	if req.ApplicationID == "" {
+		return nil, fmt.Errorf("applicationId is required")
+	}
+	if req.SchemaID == "" {
+		return nil, fmt.Errorf("schemaId is required")
+	}
+	if len(req.RequestedData) == 0 {
+		return nil, fmt.Errorf("requestedData is required")
+	}
+
 	// Create the event record
 	event := &models.DataExchangeEvent{
 		Timestamp:         timestamp,
