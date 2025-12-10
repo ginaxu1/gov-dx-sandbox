@@ -1,14 +1,16 @@
 package services
 
 import (
+	"context"
+
 	"github.com/gov-dx-sandbox/audit-service/models"
 	"gorm.io/gorm"
 )
 
 // AuditService interface defines methods for handling audit logs
 type AuditService interface {
-	CreateAuditLog(log *models.AuditLog) (*models.AuditLog, error)
-	GetAuditLogs(traceID string) ([]models.AuditLog, error)
+	CreateAuditLog(ctx context.Context, log *models.AuditLog) (*models.AuditLog, error)
+	GetAuditLogs(ctx context.Context, traceID string) ([]models.AuditLog, error)
 }
 
 // auditService implementation
@@ -24,8 +26,8 @@ func NewAuditService(db *gorm.DB) AuditService {
 }
 
 // CreateAuditLog creates a new audit log entry
-func (s *auditService) CreateAuditLog(log *models.AuditLog) (*models.AuditLog, error) {
-	result := s.db.Create(log)
+func (s *auditService) CreateAuditLog(ctx context.Context, log *models.AuditLog) (*models.AuditLog, error) {
+	result := s.db.WithContext(ctx).Create(log)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -33,10 +35,10 @@ func (s *auditService) CreateAuditLog(log *models.AuditLog) (*models.AuditLog, e
 }
 
 // GetAuditLogs retrieves audit logs by trace ID
-func (s *auditService) GetAuditLogs(traceID string) ([]models.AuditLog, error) {
+func (s *auditService) GetAuditLogs(ctx context.Context, traceID string) ([]models.AuditLog, error) {
 	var logs []models.AuditLog
 	// Order by timestamp to show the flow
-	result := s.db.Where("trace_id = ?", traceID).Order("timestamp asc").Find(&logs)
+	result := s.db.WithContext(ctx).Where("trace_id = ?", traceID).Order("timestamp asc").Find(&logs)
 	if result.Error != nil {
 		return nil, result.Error
 	}

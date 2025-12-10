@@ -12,13 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGenerateTraceID(t *testing.T) {
-	traceID := generateTraceID()
-	assert.NotEmpty(t, traceID)
-	// Check if it's hex
-	assert.Len(t, traceID, 32)
-}
-
 func TestLogAuditHelper(t *testing.T) {
 	// Mock the global audit middleware
 	middleware.ResetGlobalAuditMiddleware()

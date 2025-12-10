@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ func TestAuditService_CreateAuditLog(t *testing.T) {
 			Metadata:      json.RawMessage(`{"query": "some-query"}`),
 		}
 
-		resp, err := service.CreateAuditLog(req)
+		resp, err := service.CreateAuditLog(context.Background(), req)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "trace-123", resp.TraceID)
@@ -75,12 +76,12 @@ func TestAuditService_GetAuditLogs(t *testing.T) {
 	}
 
 	for _, l := range logs {
-		_, err := service.CreateAuditLog(l)
+		_, err := service.CreateAuditLog(context.Background(), l)
 		require.NoError(t, err)
 	}
 
 	t.Run("Get logs by trace ID", func(t *testing.T) {
-		resp, err := service.GetAuditLogs(traceID)
+		resp, err := service.GetAuditLogs(context.Background(), traceID)
 		require.NoError(t, err)
 		assert.Len(t, resp, 2)
 		assert.Equal(t, "REQ_1", resp[0].EventType)
@@ -88,7 +89,7 @@ func TestAuditService_GetAuditLogs(t *testing.T) {
 	})
 
 	t.Run("Get logs for non-existent trace", func(t *testing.T) {
-		resp, err := service.GetAuditLogs("non-existent")
+		resp, err := service.GetAuditLogs(context.Background(), "non-existent")
 		require.NoError(t, err)
 		assert.Empty(t, resp)
 	})
