@@ -120,6 +120,81 @@ func LogAuditEvent(auditRequest *DataExchangeEventAuditRequest) {
 	}
 }
 
+// CreateAuditLogRequest represents the request payload for creating an audit log
+type CreateAuditLogRequest struct {
+	TraceID       string          `json:"traceId" validate:"required"`
+	Timestamp     string          `json:"timestamp"` // Optional, defaults to now
+	SourceService string          `json:"sourceService" validate:"required"`
+	TargetService string          `json:"targetService,omitempty"`
+	EventType     string          `json:"eventType" validate:"required"`
+	Status        string          `json:"status" validate:"required"`
+	ActorID       *string         `json:"actorId,omitempty"`
+	Resources     json.RawMessage `json:"resources,omitempty"`
+	Metadata      json.RawMessage `json:"metadata,omitempty"`
+}
+
+// LogGeneralizedAudit logs a generalized audit event
+func (m *AuditMiddleware) LogGeneralizedAudit(ctx context.Context, auditRequest *CreateAuditLogRequest) {
+	// Skip if audit service is not configured
+	if m.auditServiceURL == "" {
+		return
+	}
+
+	// Log asynchronously (fire-and-forget) using background context
+	go m.logAuditLogEvent(context.Background(), *auditRequest)
+}
+
+// logAuditLogEvent sends the audit log to the audit service
+func (m *AuditMiddleware) logAuditLogEvent(ctx context.Context, event CreateAuditLogRequest) {
+	if m.httpClient == nil {
+		return
+	}
+
+	payloadBytes, err := json.Marshal(event)
+	if err != nil {
+		slog.Error("Failed to marshal audit request", "error", err)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", m.auditServiceURL+"/api/audit-logs", bytes.NewReader(payloadBytes))
+	if err != nil {
+		slog.Error("Failed to create audit request", "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		slog.Error("Failed to send audit request", "error", err)
+		return
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			slog.Error("Failed to close audit response body", "error", err)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		slog.Error("Audit service returned non-201 status", "status", resp.StatusCode, "body", string(bodyBytes))
+		return
+	}
+
+	slog.Debug("Audit log event logged successfully",
+		"traceId", event.TraceID,
+		"eventType", event.EventType)
+}
+
+// LogGeneralizedAuditEvent helper for global access
+func LogGeneralizedAuditEvent(ctx context.Context, auditRequest *CreateAuditLogRequest) {
+	if globalAuditMiddleware != nil {
+		globalAuditMiddleware.LogGeneralizedAudit(ctx, auditRequest)
+	} else {
+		slog.Warn("Global AuditMiddleware is not initialized; audit event not logged")
+	}
+}
+
 // ResetGlobalAuditMiddleware is a helper function for tests to reset the global audit middleware instance
 func ResetGlobalAuditMiddleware() {
 	globalAuditOnce = sync.Once{}

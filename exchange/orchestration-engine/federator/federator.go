@@ -2,6 +2,8 @@ package federator
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -145,9 +147,51 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 	return federator
 }
 
+// generateTraceID generates a random trace ID
+func generateTraceID() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(bytes)
+}
+
+// logAuditHelper helper to log generalized audit events
+func (f *Federator) logAuditHelper(ctx context.Context, traceID, eventType, status, targetService string, resources, metadata map[string]interface{}) {
+	resBytes, _ := json.Marshal(resources)
+	metaBytes, _ := json.Marshal(metadata)
+	
+	req := &middleware.CreateAuditLogRequest{
+		TraceID:       traceID,
+		Timestamp:     time.Now().UTC().Format(time.RFC3339),
+		SourceService: "orchestration-engine",
+		TargetService: targetService,
+		EventType:     eventType,
+		Status:        status,
+		Resources:     resBytes,
+		Metadata:      metaBytes,
+	}
+	
+	middleware.LogGeneralizedAuditEvent(ctx, req)
+}
+
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
+	// Generate Trace ID for this request flow
+	traceID := generateTraceID()
+	
+	// properties to be logged in every audit log
+	baseResources := map[string]interface{}{
+		"applicationId": consumerInfo.ApplicationId,
+		"subscriber":    consumerInfo.Subscriber,
+	}
+
+	// Log Request Received
+	f.logAuditHelper(ctx, traceID, "ORCHESTRATION_REQUEST_RECEIVED", "SUCCESS", "", baseResources, map[string]interface{}{
+		"query": request.Query,
+	})
+
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
 		Body: []byte(request.Query),
@@ -267,6 +311,9 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		ceClient = consent.NewCEClient(f.Configs.CeConfig.ClientURL)
 	}
 
+	// PDP Check
+	f.logAuditHelper(ctx, traceID, "POLICY_CHECK_REQUEST", "SUCCESS", "policy-decision-point", baseResources, nil)
+	
 	// Check if PDP client is available before making request
 	var pdpResponse *policy.PdpResponse
 	if pdpClient == nil {
@@ -296,6 +343,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		pdpResponse, err = pdpClient.MakePdpRequest(pdpRequest)
 		if err != nil {
 			logger.Log.Info("PDP request failed", "error", err)
+			f.logAuditHelper(ctx, traceID, "POLICY_CHECK_RESPONSE", "FAILURE", "policy-decision-point", baseResources, map[string]interface{}{"error": err.Error()})
 			return graphql.Response{
 				Data: nil,
 				Errors: []interface{}{
@@ -311,6 +359,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		if pdpResponse == nil {
 			logger.Log.Error("Failed to get response from PDP")
+			f.logAuditHelper(ctx, traceID, "POLICY_CHECK_RESPONSE", "FAILURE", "policy-decision-point", baseResources, map[string]interface{}{"error": "No response"})
 			return graphql.Response{
 				Data: nil,
 				Errors: []interface{}{
@@ -326,6 +375,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		if !pdpResponse.AppAuthorized {
 			logger.Log.Info("Request not allowed by PDP")
+			f.logAuditHelper(ctx, traceID, "POLICY_CHECK_RESPONSE", "FAILURE", "policy-decision-point", baseResources, map[string]interface{}{"reason": "App not authorized"})
 			return graphql.Response{
 				Data: nil,
 				Errors: []interface{}{
@@ -356,13 +406,19 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		}
 	}
 
+	// Log success for PDP check if we pass
+	f.logAuditHelper(ctx, traceID, "POLICY_CHECK_RESPONSE", "SUCCESS", "policy-decision-point", baseResources, map[string]interface{}{"authorized": true})
+
 	// Handle consent check only if PDP client was available and consent is required
 	if pdpClient != nil && pdpResponse != nil && pdpResponse.ConsentRequired {
 		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
+		
+		f.logAuditHelper(ctx, traceID, "CONSENT_CHECK_REQUEST", "SUCCESS", "consent-engine", baseResources, nil)
 
 		// Check if CE client is available
 		if ceClient == nil {
 			logger.Log.Warn("CE client not available, skipping consent check")
+			f.logAuditHelper(ctx, traceID, "CONSENT_CHECK_RESPONSE", "FAILURE", "consent-engine", baseResources, map[string]interface{}{"error": "CE client unavailable"})
 			return graphql.Response{
 				Data: nil,
 				Errors: []interface{}{
@@ -398,6 +454,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		ceResp, err := ceClient.MakeConsentRequest(ceRequest)
 		if err != nil {
 			logger.Log.Info("CE request failed", "error", err)
+			f.logAuditHelper(ctx, traceID, "CONSENT_CHECK_RESPONSE", "FAILURE", "consent-engine", baseResources, map[string]interface{}{"error": err.Error()})
 			return graphql.Response{
 				Data: nil,
 				Errors: []interface{}{
@@ -416,6 +473,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		if ceResp.Status != "approved" {
 			logger.Log.Info("Consent not approved")
+			f.logAuditHelper(ctx, traceID, "CONSENT_CHECK_RESPONSE", "FAILURE", "consent-engine", baseResources, map[string]interface{}{"status": ceResp.Status})
 			return graphql.Response{
 				Data: nil,
 				Errors: []interface{}{
@@ -466,9 +524,10 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		ConsumerAppID:    consumerInfo.ApplicationId,
 		ProviderFieldMap: schemaCollection.ProviderFieldMap,
 	}
+	// Pass traceID via context to performFederation if needed, or just pass it in struct
 	ctxWithAudit := NewContextWithAuditMetadata(ctx, auditMetadata)
-
-	responses := f.performFederation(ctxWithAudit, federationRequest)
+	// We'll update performFederation to take traceID
+	responses := f.performFederation(ctxWithAudit, federationRequest, traceID)
 
 	// Build schema info map for array-aware processing
 	var schemaInfoMap map[string]*SourceSchemaInfo
@@ -486,7 +545,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	return response
 }
 
-func (f *Federator) performFederation(ctx context.Context, r *federationRequest) *FederationResponse {
+func (f *Federator) performFederation(ctx context.Context, r *federationRequest, traceID string) *FederationResponse {
 	FederationResponse := &FederationResponse{
 		Responses: make([]*ProviderResponse, 0, len(r.FederationServiceRequest)),
 	}
@@ -506,8 +565,18 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			defer wg.Done()
 
 			logAudit := func(status string, err error) {
-				f.logAuditEvent(ctx, req.SchemaID, req, status, err)
+				// Log legacy event (optional)
+				// f.logAuditEvent(ctx, req.SchemaID, req, status, err)
+				
+				// Log generalized event
+				f.logAuditHelper(ctx, traceID, "PROVIDER_FETCH_RESPONSE", "SUCCESS", req.ServiceKey, 
+					map[string]interface{}{"schemaId": req.SchemaID, "serviceKey": req.ServiceKey}, 
+					map[string]interface{}{"status": status})
 			}
+			
+			f.logAuditHelper(ctx, traceID, "PROVIDER_FETCH_REQUEST", "SUCCESS", req.ServiceKey, 
+					map[string]interface{}{"schemaId": req.SchemaID, "serviceKey": req.ServiceKey}, nil)
+
 
 			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
