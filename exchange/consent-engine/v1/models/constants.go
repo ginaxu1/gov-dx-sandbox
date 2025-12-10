@@ -46,10 +46,13 @@ const (
 	DurationDefault     GrantDuration = DurationOneHour // default duration
 )
 
-// DefaultPendingTimeoutDuration is the default duration for pending status expiry
-// Pending consents will expire after this duration if not approved or rejected
+// DefaultPendingTimeoutDuration represents the default duration for pending status expiry
+// based on consent type. Pending consents will expire after this duration if not approved or rejected
 // Format: ISO 8601 duration (e.g., "P1D" for 1 day, "PT24H" for 24 hours)
-const DefaultPendingTimeoutDuration = "PT1H" // 1 hour as default
+const (
+	DefaultPendingTimeoutRealtimeDuration = "PT1H" // 1 hour for realtime consent
+	DefaultPendingTimeoutOfflineDuration  = "P1D"  // 1 day for offline consent
+)
 
 // OwnerType represents the owner enum (matches PolicyDecisionPoint Owner type)
 type OwnerType string

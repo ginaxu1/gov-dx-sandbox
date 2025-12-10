@@ -42,6 +42,11 @@ func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.Cre
 	for _, requirement := range req.ConsentRequirements {
 		consentID := uuid.New()
 		currentTime := time.Now().UTC()
+		consentType := models.TypeRealtime
+
+		// Calculate pending expiry time based on consent type
+		pendingExpiresAt := currentTime.Add(parsePendingTimeoutDuration(consentType))
+
 		consentRecord := models.ConsentRecord{
 			ConsentID:        consentID,
 			OwnerID:          requirement.OwnerID,
@@ -49,12 +54,13 @@ func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.Cre
 			AppID:            req.AppID,
 			AppName:          req.AppName,
 			Status:           string(models.StatusPending),
-			Type:             string(models.TypeRealtime),
+			Type:             string(consentType),
 			CreatedAt:        currentTime,
 			UpdatedAt:        currentTime,
 			GrantDuration:    string(getGrantDurationOrDefault((*models.GrantDuration)(req.GrantDuration))),
 			Fields:           requirement.Fields,
 			ConsentPortalURL: fmt.Sprintf("%s?consentId=%s", s.consentPortalBaseURL, consentID.String()),
+			PendingExpiresAt: &pendingExpiresAt,
 		}
 		consentRecords = append(consentRecords, consentRecord)
 	}
@@ -193,6 +199,18 @@ func parseGrantDuration(grantDuration models.GrantDuration) time.Duration {
 		return 7 * 24 * time.Hour
 	case models.DurationThirtyDays:
 		return 30 * 24 * time.Hour
+	default:
+		return time.Hour // Default to 1 hour if unrecognized
+	}
+}
+
+// parsePendingTimeoutDuration returns the pending timeout duration based on consent type
+func parsePendingTimeoutDuration(consentType models.ConsentType) time.Duration {
+	switch consentType {
+	case models.TypeRealtime:
+		return time.Hour // 1 hour for realtime
+	case models.TypeOffline:
+		return 24 * time.Hour // 1 day for offline
 	default:
 		return time.Hour // Default to 1 hour if unrecognized
 	}

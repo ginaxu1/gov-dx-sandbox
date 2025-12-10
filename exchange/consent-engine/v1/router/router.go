@@ -6,8 +6,6 @@ import (
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/auth"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/handlers"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/middleware"
-	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
-	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/utils"
 
 	sharedUtils "github.com/gov-dx-sandbox/exchange/shared/utils"
 )
@@ -47,8 +45,10 @@ func (r *V1Router) registerInternalRoutes(mux *http.ServeMux) {
 		sharedUtils.PanicRecoveryMiddleware(http.HandlerFunc(r.internalHandler.HealthCheck)))
 
 	// Consents endpoint
-	mux.Handle("/internal/api/v1/consents",
-		sharedUtils.PanicRecoveryMiddleware(http.HandlerFunc(r.handleInternalConsents)))
+	mux.Handle("GET /internal/api/v1/consents",
+		sharedUtils.PanicRecoveryMiddleware(http.HandlerFunc(r.internalHandler.GetConsent)))
+	mux.Handle("POST /internal/api/v1/consents",
+		sharedUtils.PanicRecoveryMiddleware(http.HandlerFunc(r.internalHandler.CreateConsent)))
 }
 
 // registerPortalRoutes registers portal API routes (authentication required for protected endpoints)
@@ -58,33 +58,12 @@ func (r *V1Router) registerPortalRoutes(mux *http.ServeMux) {
 		sharedUtils.PanicRecoveryMiddleware(http.HandlerFunc(r.portalHandler.HealthCheck)))
 
 	// Consent endpoints (authentication required)
-	mux.Handle("/api/v1/consents/",
+	mux.Handle("GET /api/v1/consents/{consentId}",
 		sharedUtils.PanicRecoveryMiddleware(
-			r.authMiddleware.Authenticate(http.HandlerFunc(r.handlePortalConsents))))
-}
-
-// handleInternalConsents routes internal consent requests to appropriate handlers
-func (r *V1Router) handleInternalConsents(w http.ResponseWriter, req *http.Request) {
-	switch req.Method {
-	case http.MethodGet:
-		r.internalHandler.GetConsent(w, req)
-	case http.MethodPost:
-		r.internalHandler.CreateConsent(w, req)
-	default:
-		utils.RespondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
-	}
-}
-
-// handlePortalConsents routes portal consent requests to appropriate handlers
-func (r *V1Router) handlePortalConsents(w http.ResponseWriter, req *http.Request) {
-	switch req.Method {
-	case http.MethodGet:
-		r.portalHandler.GetConsent(w, req)
-	case http.MethodPut:
-		r.portalHandler.UpdateConsent(w, req)
-	default:
-		utils.RespondWithError(w, http.StatusMethodNotAllowed, models.ErrorCodeMethodNotAllowed, "Method not allowed")
-	}
+			r.authMiddleware.Authenticate(http.HandlerFunc(r.portalHandler.GetConsent))))
+	mux.Handle("PUT /api/v1/consents/{consentId}",
+		sharedUtils.PanicRecoveryMiddleware(
+			r.authMiddleware.Authenticate(http.HandlerFunc(r.portalHandler.UpdateConsent))))
 }
 
 // ApplyCORS wraps a handler with CORS middleware
