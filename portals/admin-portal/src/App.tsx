@@ -32,7 +32,7 @@ function App() {
         setLoading(false);
         return;
       }
-      
+
       try {
         // Fetch fresh data from API
         const userBasicInfo = await getBasicUserInfo();
@@ -54,7 +54,7 @@ function App() {
       }
     };
     fetchUserInfo();
-  }, [state.isAuthenticated, state.isLoading, isSigningIn, isSigningOut]);
+  }, [state.isAuthenticated, state.isLoading, isSigningIn, isSigningOut, getBasicUserInfo]);
 
   const handleSignIn = () => {
     setIsSigningIn(true);
@@ -92,8 +92,8 @@ function App() {
           <p className="text-gray-600 mb-4">
             Sign in to access the OpenDIF Admin Portal.
           </p>
-          <button 
-            onClick={handleSignIn} 
+          <button
+            onClick={handleSignIn}
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
           >
             Sign In to Continue
@@ -109,8 +109,8 @@ function App() {
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
           <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={handleSignOut} 
+          <button
+            onClick={handleSignOut}
             className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
           >
             Sign Out
@@ -123,12 +123,12 @@ function App() {
   return (
     <Router>
       <div className="App h-screen flex">
-        <Navbar 
+        <Navbar
           onSignOut={handleSignOut}
         />
         <main className="flex-1 overflow-auto pt-16">
           <Routes>
-            <Route path="/" element={<Home/>} />
+            <Route path="/" element={<Home />} />
             <Route path="/members" element={<Members />} />
             <Route path="/schemas" element={<Schemas />} />
             <Route path="/logs" element={<Logs />} />

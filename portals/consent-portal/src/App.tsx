@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthContext } from "@asgardeo/auth-react";
 import { Shield, CheckCircle, X, AlertCircle } from 'lucide-react';
 
@@ -19,7 +19,7 @@ declare global {
 // Types
 interface ConsentRecord {
   consent_id: string;
-  owner_id: string;  
+  owner_id: string;
   owner_name: string;
   owner_email: string;
   data_consumer: string;
@@ -34,9 +34,8 @@ interface ConsentRecord {
   app_display_name: string;
 }
 
-interface ConsentGatewayProps {}
 
-const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
+const ConsentGateway: React.FC = () => {
   // State management
   const [currentStep, setCurrentStep] = useState<'loading' | 'consent' | 'success' | 'error' | 'statusInfo' | 'unauthorized'>('loading');
   const [consentRecord, setConsentRecord] = useState<ConsentRecord | null>(null);
@@ -52,14 +51,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   const CONSENT_ENGINE_PATH = window?.configs?.apiUrl;
 
   // Helper function to get headers with JWT token
-  const getAuthHeaders = async (): Promise<HeadersInit> => {
+  const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
     const accessToken = await getAccessToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       'X-Requested-With': 'XMLHttpRequest', // Mark as frontend request for hybrid auth
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' // Browser user agent for frontend detection
     };
-    
+
     if (accessToken) {
       console.log("Using access token for API call");
       console.log("Access Token:", accessToken);
@@ -69,9 +68,9 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       console.warn("No access token available - request may fail for frontend authentication");
       console.log("Headers set without Authorization:", headers);
     }
-    
+
     return headers;
-  };
+  }, [getAccessToken]);
 
   // Step 1: Check for consent_id in URL parameters
   const getConsentIdFromUrl = (): string | null => {
@@ -80,11 +79,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   };
 
   // Step 2: Get authenticated user info
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = useCallback(async () => {
     try {
       const userBasicInfo = await getBasicUserInfo();
       console.log('User Basic Info:', userBasicInfo);
-      
+
       if (userBasicInfo) {
         setName(userBasicInfo.name || '');
         setUserEmail(userBasicInfo.email || '');
@@ -92,10 +91,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     } catch (error) {
       console.error('Failed to fetch user info:', error);
     }
-  };
+  }, [getBasicUserInfo]);
 
   // Step 3: Fetch consent data
-  const fetchConsentData = async (consentUuid: string) => {
+  const fetchConsentData = useCallback(async (consentUuid: string) => {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`, {
@@ -111,7 +110,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         } catch (parseError) {
           console.warn('Failed to parse error response:', parseError);
         }
-        
+
         if (response.status === 401) {
           throw new Error(errorMessage || 'Unauthorized: Please sign in to access this consent');
         } else if (response.status === 403) {
@@ -130,7 +129,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         ...data,
         consent_id: consentUuid,
       });
-      
+
       return data;
     } catch (err) {
       console.error('Failed to fetch consent data:', err);
@@ -138,7 +137,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       setCurrentStep('error');
       return null;
     }
-  };
+  }, [CONSENT_ENGINE_PATH, getAuthHeaders]);
 
   // Step 4: Handle consent decision (approve/deny)
   const handleConsentDecision = async (decision: 'approved' | 'rejected') => {
@@ -172,7 +171,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         } catch (parseError) {
           console.warn('Failed to parse error response:', parseError);
         }
-        
+
         if (response.status === 401) {
           throw new Error(errorMessage || 'Unauthorized: Please sign in to update this consent');
         } else if (response.status === 403) {
@@ -185,10 +184,10 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
       }
 
       setCurrentStep('success');
-      
+
       // Clear consent_id from storage since the flow is complete
       clearConsentIdFromStorage();
-      
+
       // Redirect after success
       setTimeout(() => {
         if (window.opener) {
@@ -249,28 +248,28 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
   useEffect(() => {
     // Step 1: Check for consent_id in URL first, then fallback to localStorage
     let urlConsentId = getConsentIdFromUrl();
-    
+
     if (!urlConsentId) {
       // Try to get from localStorage (after auth redirect)
       urlConsentId = getConsentIdFromStorage();
     }
-    
+
     if (!urlConsentId) {
       setError('URL missing the consent_id parameter');
       setCurrentStep('error');
       return;
     }
-    
+
     // Save to localStorage and update URL if needed
     saveConsentIdToStorage(urlConsentId);
-    
+
     // Update URL to include consent_id if it's missing
     const currentUrl = new URL(window.location.href);
     if (!currentUrl.searchParams.get('consent_id')) {
       currentUrl.searchParams.set('consent_id', urlConsentId);
       window.history.replaceState({}, '', currentUrl.toString());
     }
-    
+
     setConsentId(urlConsentId);
   }, []);
 
@@ -305,7 +304,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     const initializeConsentFlow = async () => {
       // await fetchUserInfo();
       const consent = await fetchConsentData(consentId);
-      
+
       if (consent) {
         // Step 4: Check owner email authorization
         // console.log('Consent Owner Email:', consent.owner_email);
@@ -315,7 +314,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         //   setCurrentStep('unauthorized');
         //   return;
         // }
-        
+
         // Step 5: Set appropriate step based on status
         if (consent.status === 'pending') {
           setCurrentStep('consent');
@@ -326,14 +325,14 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
     };
 
     initializeConsentFlow();
-  }, [state.isAuthenticated, consentId, userEmail]);
+  }, [state.isAuthenticated, consentId, userEmail, fetchConsentData]);
 
   // Update user email when authentication state changes
   useEffect(() => {
     if (state.isAuthenticated) {
       fetchUserInfo();
     }
-  }, [state.isAuthenticated]);
+  }, [state.isAuthenticated, fetchUserInfo]);
 
   // Handle sign in with consent_id preservation
   const handleSignIn = () => {
@@ -368,7 +367,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
         </div>
       );
     }
-    
+
     return (
       <div className="absolute top-4 right-4 flex items-center space-x-4 bg-white rounded-lg shadow-md px-4 py-2">
         <div className="text-sm text-gray-600">
@@ -393,8 +392,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-gray-800 mb-2">Error</h1>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
           >
             Try Again
@@ -416,7 +415,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
           <p className="text-sm text-gray-500 mb-4">
             Your email: <span className="font-mono text-blue-600">{userEmail}</span>
           </p>
-          <button 
+          <button
             onClick={handleSignOut}
             className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors"
           >
@@ -440,8 +439,8 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
           {/* <p className="text-sm text-gray-500 mb-6">
             Consent ID: <span className="font-mono text-blue-600">{consentId}</span>
           </p> */}
-          <button 
-            onClick={handleSignIn} 
+          <button
+            onClick={handleSignIn}
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors"
           >
             Sign In to Continue
@@ -572,12 +571,11 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
                 </div>
                 <div>
                   <span className="font-medium text-gray-600">Status:</span>
-                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                    consentRecord.status === 'approved' ? 'bg-green-100 text-green-800' :
-                    consentRecord.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                    consentRecord.status === 'expired' ? 'bg-orange-100 text-orange-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${consentRecord.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      consentRecord.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        consentRecord.status === 'expired' ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-800'
+                    }`}>
                     {consentRecord.status.charAt(0).toUpperCase() + consentRecord.status.slice(1)}
                   </span>
                 </div>
@@ -602,7 +600,7 @@ const ConsentGateway: React.FC<ConsentGatewayProps> = () => {
             </div>
 
             {/* Redirect Button */}
-            <button 
+            <button
               onClick={() => {
                 if (consentRecord.redirect_url) {
                   window.location.href = consentRecord.redirect_url;

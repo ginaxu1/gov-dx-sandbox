@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Activity, 
-    Search, 
-    Download, 
-    RefreshCw, 
-    CheckCircle, 
-    XCircle, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    Activity,
+    Search,
+    Download,
+    RefreshCw,
+    CheckCircle,
+    XCircle,
     Info,
     Clock,
     ChevronLeft,
@@ -49,7 +49,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
     const updateFilter = <K extends keyof FilterOptions>(key: K, value: FilterOptions[K]) => {
         const newFilters = { ...filters, [key]: value };
         setFilters(newFilters);
-        
+
         // If this is a server-side filter, reset to page 1 and fetch new data
         if (key === 'status' || key === 'startDate' || key === 'endDate') {
             setCurrentPage(1);
@@ -74,7 +74,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
     };
 
     // Helper function to fetch logs with specific filters
-    const fetchLogsWithFilters = async (page: number, filterOverrides?: FilterOptions) => {
+    const fetchLogsWithFilters = useCallback(async (page: number, filterOverrides?: FilterOptions) => {
         const activeFilters = filterOverrides || filters;
         setLoading(true);
         try {
@@ -88,7 +88,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                 startDate: activeFilters.startDate || undefined,
                 endDate: activeFilters.endDate || undefined
             });
-            
+
             setLogResponse(response);
             setLogs(response.logs || []);
             setFilteredLogs(response.logs || []);
@@ -101,12 +101,12 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [filters, pageSize, role, memberId]);
 
     useEffect(() => {
         setCurrentPage(1); // Reset to first page when role/IDs change
         fetchLogsWithFilters(1);
-    }, [role, memberId]);
+    }, [role, memberId, fetchLogsWithFilters]);
 
     // Auto-refresh functionality
     useEffect(() => {
@@ -117,13 +117,13 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
 
             return () => clearInterval(interval);
         }
-    }, [autoRefresh, currentPage]);
+    }, [autoRefresh, currentPage, fetchLogsWithFilters]);
 
     // Client-side filtering for additional filters not supported by server
     // Note: For better performance, these filters should be moved to server-side
     useEffect(() => {
         let filtered = logs;
-        
+
         // Filter by search term (client-side for now)
         if (filters.searchTerm) {
             filtered = filtered.filter(log =>
@@ -136,17 +136,17 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
 
         // Additional client-side filters for byConsumerId and byProviderId
         // (These should ideally be handled server-side as part of the main query)
-        
+
         // Filter by consumer ID (only for providers)
         if (role === 'provider' && filters.byConsumerId) {
-            filtered = filtered.filter(log => 
+            filtered = filtered.filter(log =>
                 log.consumerId.toLowerCase().includes(filters.byConsumerId!.toLowerCase())
             );
         }
 
         // Filter by provider ID (only for consumers)
         if (role === 'consumer' && filters.byProviderId) {
-            filtered = filtered.filter(log => 
+            filtered = filtered.filter(log =>
                 log.providerId.toLowerCase().includes(filters.byProviderId!.toLowerCase())
             );
         }
@@ -264,16 +264,15 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                             </button>
                             <button
                                 onClick={() => setAutoRefresh(!autoRefresh)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                                    autoRefresh 
-                                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${autoRefresh
+                                        ? 'bg-green-100 text-green-700 border border-green-300'
                                         : 'bg-white border border-gray-300 hover:bg-gray-50'
-                                }`}
+                                    }`}
                             >
                                 <Activity className="w-4 h-4" />
                                 <span>Auto Refresh</span>
                             </button>
-                            <button 
+                            <button
                                 onClick={handleExport}
                                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                             >
@@ -316,7 +315,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                 </select>
                             </div>
                         </div>
-                        
+
                         {/* Additional Filters Row - Role specific */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {/* Show Consumer ID filter only for providers */}
@@ -329,7 +328,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             )}
-                            
+
                             {/* Show Provider ID filter only for consumers */}
                             {role === 'consumer' && (
                                 <input
@@ -340,7 +339,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             )}
-                            
+
                             <input
                                 type="date"
                                 placeholder="Start Date"
@@ -356,7 +355,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
-                        
+
                         {/* Clear Filters Button */}
                         <div className="flex justify-end">
                             <button
@@ -384,7 +383,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                             </div>
                         </div>
                     </div>
-                    
+
                     {/* Current Page Stats */}
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
@@ -398,11 +397,11 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                             </div>
                         </div>
                     </div>
-                    
+
                     {statuses.map(status => {
                         const count = filteredLogs.filter(log => log.status === status).length;
                         const percentage = filteredLogs.length > 0 ? (count / filteredLogs.length * 100) : 0;
-                        
+
                         return (
                             <div key={status} className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                                 <div className="flex items-center justify-between">
@@ -444,13 +443,13 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                     <option value={100}>100</option>
                                 </select>
                             </div>
-                            
+
                             <div className="flex items-center gap-2">
                                 <span className="text-sm text-gray-700">
                                     Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, logResponse.total)} of {logResponse.total} entries
                                 </span>
                             </div>
-                            
+
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => {
@@ -464,11 +463,11 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                     <ChevronLeft className="w-4 h-4" />
                                     Previous
                                 </button>
-                                
+
                                 <span className="px-3 py-1 text-sm">
                                     Page {currentPage} of {Math.ceil(logResponse.total / pageSize)}
                                 </span>
-                                
+
                                 <button
                                     onClick={() => {
                                         const newPage = currentPage + 1;
@@ -493,7 +492,7 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                             <div className="flex items-center">
                                 <Activity className="w-6 h-6 text-white mr-3" />
                                 <h2 className="text-xl font-semibold text-white">
-                                    Log Entries 
+                                    Log Entries
                                     {logResponse && (
                                         <span className="text-sm font-normal text-gray-200 ml-2">
                                             (Page {currentPage}: {filteredLogs.length} of {logResponse.total} total)
@@ -511,11 +510,11 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                             <div className="text-center py-12">
                                 <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
-                                    {filters.searchTerm || filters.status !== 'all' || 
-                                     (role === 'provider' && filters.byConsumerId) ||
-                                     (role === 'consumer' && filters.byProviderId) ||
-                                     filters.startDate || filters.endDate
-                                        ? 'No logs match your filters' 
+                                    {filters.searchTerm || filters.status !== 'all' ||
+                                        (role === 'provider' && filters.byConsumerId) ||
+                                        (role === 'consumer' && filters.byProviderId) ||
+                                        filters.startDate || filters.endDate
+                                        ? 'No logs match your filters'
                                         : 'No logs available'
                                     }
                                 </p>
@@ -547,11 +546,10 @@ export const Logs: React.FC<LogsProps> = ({ role, memberId }) => {
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                        log.status === 'success' 
-                                                            ? 'bg-green-100 text-green-800' 
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${log.status === 'success'
+                                                            ? 'bg-green-100 text-green-800'
                                                             : 'bg-red-100 text-red-800'
-                                                    }`}>
+                                                        }`}>
                                                         {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
                                                     </span>
                                                 </div>
