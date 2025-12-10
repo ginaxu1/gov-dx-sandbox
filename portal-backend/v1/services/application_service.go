@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,11 +14,11 @@ import (
 // ApplicationService handles application-related operations
 type ApplicationService struct {
 	db            *gorm.DB
-	policyService *PDPService
+	policyService PDPClient
 }
 
 // NewApplicationService creates a new application service
-func NewApplicationService(db *gorm.DB, pdpService *PDPService) *ApplicationService {
+func NewApplicationService(db *gorm.DB, pdpService PDPClient) *ApplicationService {
 	return &ApplicationService{db: db, policyService: pdpService}
 }
 
@@ -35,33 +36,57 @@ func (s *ApplicationService) CreateApplication(req *models.CreateApplicationRequ
 		application.ApplicationDescription = req.ApplicationDescription
 	}
 
-	// Step 1: Create application in database first
-	if err := s.db.Create(&application).Error; err != nil {
+	// Start a database transaction
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", tx.Error)
+	}
+
+	// Ensure we rollback on any error
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	// Step 1: Create the application record (using the transaction)
+	if err := tx.Create(&application).Error; err != nil {
+		tx.Rollback()
 		return nil, fmt.Errorf("failed to create application: %w", err)
 	}
 
-	// Step 2: Update allow list in PDP (Saga Pattern)
-	policyReq := models.AllowListUpdateRequest{
-		ApplicationID: application.ApplicationID,
-		Records:       application.SelectedFields,
-		GrantDuration: models.GrantDurationTypeOneMonth, // Default duration
+	// Step 2: Serialize SelectedFields to JSON for the job
+	selectedFieldsJSON, err := json.Marshal(application.SelectedFields)
+	if err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to marshal selected fields: %w", err)
+	}
+	selectedFieldsStr := string(selectedFieldsJSON)
+
+	// Step 3: Create the PDP job in the same transaction
+	grantDuration := string(models.GrantDurationTypeOneMonth)
+	job := models.PDPJob{
+		JobID:          "job_" + uuid.New().String(),
+		JobType:        models.PDPJobTypeUpdateAllowList,
+		ApplicationID:  &application.ApplicationID,
+		SelectedFields: &selectedFieldsStr,
+		GrantDuration:  &grantDuration,
+		Status:         models.PDPJobStatusPending,
 	}
 
-	_, err := s.policyService.UpdateAllowList(policyReq)
-	if err != nil {
-		// Compensation: Delete the application we just created
-		if deleteErr := s.db.Delete(&application).Error; deleteErr != nil {
-			// Log the compensation failure - this needs monitoring
-			slog.Error("Failed to compensate application creation",
-				"applicationID", application.ApplicationID,
-				"originalError", err,
-				"compensationError", deleteErr)
-			// Return both errors for visibility
-			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate: %w", err, deleteErr)
-		}
-		slog.Info("Successfully compensated application creation", "applicationID", application.ApplicationID)
-		return nil, fmt.Errorf("failed to update allow list: %w", err)
+	if err := tx.Create(&job).Error; err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("failed to create PDP job: %w", err)
 	}
+
+	// Step 4: Commit the transaction - both application and job are now saved atomically
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Return success immediately - the background worker will handle the PDP call
+	slog.Info("Application created successfully, PDP job queued", "applicationID", application.ApplicationID, "jobID", job.JobID)
 
 	response := &models.ApplicationResponse{
 		ApplicationID:   application.ApplicationID,
