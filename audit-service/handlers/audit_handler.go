@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -38,6 +39,12 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate Status value
+	if req.Status != "SUCCESS" && req.Status != "FAILURE" {
+		http.Error(w, "Status must be either 'SUCCESS' or 'FAILURE'", http.StatusBadRequest)
+		return
+	}
+
 	// Parse timestamp or use current time
 	timestamp := time.Now()
 	if req.Timestamp != "" {
@@ -61,13 +68,22 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 
 	createdLog, err := h.service.CreateAuditLog(auditLog)
 	if err != nil {
+		// Log the error with details for debugging
+		slog.Error("Failed to create audit log",
+			"error", err,
+			"traceId", req.TraceID,
+			"sourceService", req.SourceService,
+			"eventType", req.EventType)
+
 		http.Error(w, "Failed to create audit log", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(createdLog)
+	if err := json.NewEncoder(w).Encode(createdLog); err != nil {
+		slog.Error("Failed to encode response", "error", err)
+	}
 }
 
 // GetAuditLogs handles the GET request to retrieve logs for a trace
@@ -79,12 +95,17 @@ func (h *AuditHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 
 	traceID := r.URL.Query().Get("traceId")
 	if traceID == "" {
-		http.Error(w, "Missing traceId parameter", http.StatusBadRequest)
+		http.Error(w, "Missing traceId query parameter", http.StatusBadRequest)
 		return
 	}
 
 	logs, err := h.service.GetAuditLogs(traceID)
 	if err != nil {
+		// Log the error with details for debugging
+		slog.Error("Failed to retrieve audit logs",
+			"error", err,
+			"traceId", traceID)
+
 		http.Error(w, "Failed to retrieve audit logs", http.StatusInternalServerError)
 		return
 	}

@@ -158,9 +158,15 @@ func generateTraceID() string {
 
 // logAuditHelper helper to log generalized audit events
 func (f *Federator) logAuditHelper(ctx context.Context, traceID, eventType, status, targetService string, resources, metadata map[string]interface{}) {
-	resBytes, _ := json.Marshal(resources)
-	metaBytes, _ := json.Marshal(metadata)
-	
+	resBytes, err := json.Marshal(resources)
+	if err != nil {
+		logger.Log.Warn("Failed to marshal audit resources", "error", err, "resources", resources)
+	}
+	metaBytes, err := json.Marshal(metadata)
+	if err != nil {
+		logger.Log.Warn("Failed to marshal audit metadata", "error", err, "metadata", metadata)
+	}
+
 	req := &middleware.CreateAuditLogRequest{
 		TraceID:       traceID,
 		Timestamp:     time.Now().UTC().Format(time.RFC3339),
@@ -171,7 +177,7 @@ func (f *Federator) logAuditHelper(ctx context.Context, traceID, eventType, stat
 		Resources:     resBytes,
 		Metadata:      metaBytes,
 	}
-	
+
 	middleware.LogGeneralizedAuditEvent(ctx, req)
 }
 
@@ -180,7 +186,7 @@ func (f *Federator) logAuditHelper(ctx context.Context, traceID, eventType, stat
 func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
 	// Generate Trace ID for this request flow
 	traceID := generateTraceID()
-	
+
 	// properties to be logged in every audit log
 	baseResources := map[string]interface{}{
 		"applicationId": consumerInfo.ApplicationId,
@@ -313,7 +319,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// PDP Check
 	f.logAuditHelper(ctx, traceID, "POLICY_CHECK_REQUEST", "SUCCESS", "policy-decision-point", baseResources, nil)
-	
+
 	// Check if PDP client is available before making request
 	var pdpResponse *policy.PdpResponse
 	if pdpClient == nil {
@@ -412,7 +418,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	// Handle consent check only if PDP client was available and consent is required
 	if pdpClient != nil && pdpResponse != nil && pdpResponse.ConsentRequired {
 		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
-		
+
 		f.logAuditHelper(ctx, traceID, "CONSENT_CHECK_REQUEST", "SUCCESS", "consent-engine", baseResources, nil)
 
 		// Check if CE client is available
@@ -526,7 +532,6 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	}
 	// Pass traceID via context to performFederation if needed, or just pass it in struct
 	ctxWithAudit := NewContextWithAuditMetadata(ctx, auditMetadata)
-	// We'll update performFederation to take traceID
 	responses := f.performFederation(ctxWithAudit, federationRequest, traceID)
 
 	// Build schema info map for array-aware processing
@@ -565,19 +570,27 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest,
 			defer wg.Done()
 
 			logAudit := func(status string, err error) {
-				// Log legacy event (optional)
-				// f.logAuditEvent(ctx, req.SchemaID, req, status, err)
-				
 				// Log generalized event
-				f.logAuditHelper(ctx, traceID, "PROVIDER_FETCH_RESPONSE", "SUCCESS", req.ServiceKey, 
-					map[string]interface{}{"schemaId": req.SchemaID, "serviceKey": req.ServiceKey}, 
-					map[string]interface{}{"status": status})
+				auditStatus := "SUCCESS"
+				if status == "failure" {
+					auditStatus = "FAILURE"
+				}
+
+				// Build metadata with status and error details if present
+				metadata := map[string]interface{}{
+					"status": status,
+				}
+				if err != nil {
+					metadata["error"] = err.Error()
+				}
+
+				f.logAuditHelper(ctx, traceID, "PROVIDER_FETCH_RESPONSE", auditStatus, req.ServiceKey,
+					map[string]interface{}{"schemaId": req.SchemaID, "serviceKey": req.ServiceKey},
+					metadata)
 			}
-			
-			f.logAuditHelper(ctx, traceID, "PROVIDER_FETCH_REQUEST", "SUCCESS", req.ServiceKey, 
-					map[string]interface{}{"schemaId": req.SchemaID, "serviceKey": req.ServiceKey}, nil)
 
-
+			f.logAuditHelper(ctx, traceID, "PROVIDER_FETCH_REQUEST", "SUCCESS", req.ServiceKey,
+				map[string]interface{}{"schemaId": req.SchemaID, "serviceKey": req.ServiceKey}, nil)
 			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
 				logger.Log.Info("Failed to marshal request", "Provider Key", req.ServiceKey, "Error", err)
@@ -610,12 +623,18 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest,
 
 			// Determine status based on response
 			status := "success"
-			if len(bodyJson.Errors) > 0 || response.StatusCode >= 400 {
+			var responseErr error
+			if len(bodyJson.Errors) > 0 {
 				status = "failure"
+				// Include GraphQL errors in the audit log
+				responseErr = fmt.Errorf("GraphQL errors: %v", bodyJson.Errors)
+			} else if response.StatusCode >= 400 {
+				status = "failure"
+				responseErr = fmt.Errorf("HTTP status code: %d", response.StatusCode)
 			}
 
-			// Log audit event
-			logAudit(status, nil)
+			// Log audit event with error details if present
+			logAudit(status, responseErr)
 
 			// Thread-safe append
 			mu.Lock()

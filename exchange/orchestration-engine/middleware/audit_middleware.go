@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+
+	"github.com/gov-dx-sandbox/audit-service/models"
 )
 
 // AuditMiddleware handles audit logging for CUD operations
@@ -120,18 +122,10 @@ func LogAuditEvent(auditRequest *DataExchangeEventAuditRequest) {
 	}
 }
 
-// CreateAuditLogRequest represents the request payload for creating an audit log
-type CreateAuditLogRequest struct {
-	TraceID       string          `json:"traceId" validate:"required"`
-	Timestamp     string          `json:"timestamp"` // Optional, defaults to now
-	SourceService string          `json:"sourceService" validate:"required"`
-	TargetService string          `json:"targetService,omitempty"`
-	EventType     string          `json:"eventType" validate:"required"`
-	Status        string          `json:"status" validate:"required"`
-	ActorID       *string         `json:"actorId,omitempty"`
-	Resources     json.RawMessage `json:"resources,omitempty"`
-	Metadata      json.RawMessage `json:"metadata,omitempty"`
-}
+// CreateAuditLogRequest is imported from audit-service/models to avoid duplication.
+// This ensures consistency between the orchestration-engine and audit-service.
+// There is no circular dependency concern as audit-service does not import orchestration-engine.
+type CreateAuditLogRequest = models.CreateAuditLogRequest
 
 // LogGeneralizedAudit logs a generalized audit event
 func (m *AuditMiddleware) LogGeneralizedAudit(ctx context.Context, auditRequest *CreateAuditLogRequest) {
