@@ -2,8 +2,6 @@ package federator
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +19,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/middleware"
 	auth2 "github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/utils"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/provider"
 	"github.com/graphql-go/graphql/language/ast"
@@ -147,15 +146,6 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 	return federator
 }
 
-// generateTraceID generates a random trace ID
-func generateTraceID() string {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(bytes)
-}
-
 // logAuditHelper helper to log generalized audit events
 func (f *Federator) logAuditHelper(ctx context.Context, traceID, eventType, status, targetService string, resources, metadata map[string]interface{}) {
 	resBytes, err := json.Marshal(resources)
@@ -185,7 +175,7 @@ func (f *Federator) logAuditHelper(ctx context.Context, traceID, eventType, stat
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
 	// Generate Trace ID for this request flow
-	traceID := generateTraceID()
+	traceID := utils.GenerateTraceID()
 
 	// properties to be logged in every audit log
 	baseResources := map[string]interface{}{

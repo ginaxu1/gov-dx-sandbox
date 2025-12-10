@@ -49,9 +49,11 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 	timestamp := time.Now()
 	if req.Timestamp != "" {
 		parsedTime, err := time.Parse(time.RFC3339, req.Timestamp)
-		if err == nil {
-			timestamp = parsedTime
+		if err != nil {
+			http.Error(w, "Invalid timestamp format (expected RFC3339)", http.StatusBadRequest)
+			return
 		}
+		timestamp = parsedTime
 	}
 
 	auditLog := &models.AuditLog{
@@ -66,7 +68,7 @@ func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 		Metadata:      req.Metadata,
 	}
 
-	createdLog, err := h.service.CreateAuditLog(auditLog)
+	createdLog, err := h.service.CreateAuditLog(r.Context(), auditLog)
 	if err != nil {
 		// Log the error with details for debugging
 		slog.Error("Failed to create audit log",
@@ -99,7 +101,7 @@ func (h *AuditHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs, err := h.service.GetAuditLogs(traceID)
+	logs, err := h.service.GetAuditLogs(r.Context(), traceID)
 	if err != nil {
 		// Log the error with details for debugging
 		slog.Error("Failed to retrieve audit logs",
@@ -111,5 +113,7 @@ func (h *AuditHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
+	if err := json.NewEncoder(w).Encode(logs); err != nil {
+		slog.Error("Failed to encode response", "error", err)
+	}
 }

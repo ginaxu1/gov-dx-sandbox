@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -72,38 +73,8 @@ func (m *AuditMiddleware) LogAudit(auditRequest *DataExchangeEventAuditRequest) 
 
 // logDataExchangeEvent sends the audit event to the audit service
 func (m *AuditMiddleware) logDataExchangeEvent(ctx context.Context, event DataExchangeEventAuditRequest) {
-	if m.httpClient == nil {
-		return
-	}
-
-	payloadBytes, err := json.Marshal(event)
-	if err != nil {
-		slog.Error("Failed to marshal audit request", "error", err)
-		return
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", m.auditServiceURL+"/data-exchange-events", bytes.NewReader(payloadBytes))
-	if err != nil {
-		slog.Error("Failed to create audit request", "error", err)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := m.httpClient.Do(req)
-	if err != nil {
-		slog.Error("Failed to send audit request", "error", err)
-		return
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			slog.Error("Failed to close audit response body", "error", err)
-		}
-	}(resp.Body)
-
-	if resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		slog.Error("Audit service returned non-201 status", "status", resp.StatusCode, "body", string(bodyBytes))
+	if err := m.sendPostRequest(ctx, "/data-exchange-events", event); err != nil {
+		slog.Error("Failed to log data exchange event", "error", err)
 		return
 	}
 
@@ -140,44 +111,49 @@ func (m *AuditMiddleware) LogGeneralizedAudit(ctx context.Context, auditRequest 
 
 // logAuditLogEvent sends the audit log to the audit service
 func (m *AuditMiddleware) logAuditLogEvent(ctx context.Context, event CreateAuditLogRequest) {
-	if m.httpClient == nil {
-		return
-	}
-
-	payloadBytes, err := json.Marshal(event)
-	if err != nil {
-		slog.Error("Failed to marshal audit request", "error", err)
-		return
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", m.auditServiceURL+"/api/audit-logs", bytes.NewReader(payloadBytes))
-	if err != nil {
-		slog.Error("Failed to create audit request", "error", err)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := m.httpClient.Do(req)
-	if err != nil {
-		slog.Error("Failed to send audit request", "error", err)
-		return
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			slog.Error("Failed to close audit response body", "error", err)
-		}
-	}(resp.Body)
-
-	if resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		slog.Error("Audit service returned non-201 status", "status", resp.StatusCode, "body", string(bodyBytes))
+	if err := m.sendPostRequest(ctx, "/api/audit-logs", event); err != nil {
+		slog.Error("Failed to log audit event", "error", err)
 		return
 	}
 
 	slog.Debug("Audit log event logged successfully",
 		"traceId", event.TraceID,
 		"eventType", event.EventType)
+}
+
+// sendPostRequest handles the common logic for sending POST requests to the audit service
+func (m *AuditMiddleware) sendPostRequest(ctx context.Context, endpoint string, payload interface{}) error {
+	if m.httpClient == nil {
+		return nil
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", m.auditServiceURL+endpoint, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("execute request: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Error("Failed to close response body", "error", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
 }
 
 // LogGeneralizedAuditEvent helper for global access

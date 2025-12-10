@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -61,7 +62,7 @@ func TestGetAuditLogs(t *testing.T) {
 	handler := NewAuditHandler(service)
 
 	// Seed data
-	_, _ = service.CreateAuditLog(&models.AuditLog{
+	_, _ = service.CreateAuditLog(context.Background(), &models.AuditLog{
 		TraceID:       "trace-test",
 		Timestamp:     time.Now(),
 		SourceService: "oe",

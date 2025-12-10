@@ -34,7 +34,7 @@ jobs:
       - name: Build Docker image (validation only)
         uses: docker/build-push-action@v5
         with:
-          context: exchange
+          context: .
           file: ${{ env.SERVICE_PATH }}/Dockerfile
           push: false  # Don't push, just validate build
           load: true   # Load image locally for security scanning
