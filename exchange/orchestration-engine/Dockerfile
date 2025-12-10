@@ -8,11 +8,14 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
 # Copy go mod files and source code
-COPY orchestration-engine/go.mod orchestration-engine/go.sum ./
-COPY orchestration-engine/ .
+COPY exchange/orchestration-engine/go.mod exchange/orchestration-engine/go.sum ./
+COPY exchange/orchestration-engine/ .
 
 # Copy shared packages
-COPY shared/ /shared/
+COPY exchange/shared/ /shared/
+
+# Copy audit-service for local replacement
+COPY audit-service/ /audit-service/
 
 # Download dependencies
 RUN go mod download
