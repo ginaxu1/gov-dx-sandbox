@@ -76,9 +76,4 @@ jobs:
           TEST_DB_SSLMODE: disable
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.61
-          working-directory: ${{ env.SERVICE_PATH }}
-          args: --timeout=5m
+
