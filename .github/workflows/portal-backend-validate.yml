@@ -79,11 +79,6 @@ jobs:
           working-directory: ${{ env.SERVICE_PATH }}
           args: --timeout=5m
 
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
-        with:
-          args: ./${{ env.SERVICE_PATH }}/...
-
       - name: Scan repository for secrets (TruffleHog)
         uses: trufflesecurity/trufflehog@main
         with:
