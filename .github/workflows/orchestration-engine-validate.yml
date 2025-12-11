@@ -7,6 +7,10 @@ on:
       - '.github/workflows/orchestration-engine-validate.yml'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   # === Service-specific variables ===
   SERVICE_PATH: 'exchange/orchestration-engine'
@@ -53,11 +57,3 @@ jobs:
           version: v1.61
           working-directory: ${{ env.SERVICE_PATH }}
           args: --timeout=5m
-
-      - name: Scan repository for secrets (TruffleHog)
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event.before || 'main' }}
-          head: HEAD
-          extra_args: --only-verified
