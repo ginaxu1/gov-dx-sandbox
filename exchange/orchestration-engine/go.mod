@@ -1,6 +1,8 @@
 module github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine
 
-go 1.22.0
+go 1.24.0
+
+toolchain go1.24.6
 
 require (
 	github.com/graphql-go/graphql v0.8.1
