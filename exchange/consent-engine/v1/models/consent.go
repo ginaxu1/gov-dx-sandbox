@@ -11,14 +11,14 @@ type ConsentRecord struct {
 	// ConsentID is the unique identifier for the consent record
 	ConsentID uuid.UUID `gorm:"column:consent_id;type:uuid;primaryKey;default:gen_random_uuid()" json:"consent_id"`
 	// OwnerID is the unique identifier for the data owner
-	// Composite index idx_consent_records_owner_app (OwnerID, AppID) optimizes queries that lookup
-	// consent by owner and application combination (e.g., GetConsentInternalView service method)
-	OwnerID string `gorm:"column:owner_id;type:varchar(255);not null;index:idx_consent_records_owner_id;index:idx_consent_records_owner_app,composite:owner_app" json:"owner_id"`
+	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
+	OwnerID string `gorm:"column:owner_id;type:varchar(255);not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;index:idx_consent_records_owner_id;index:idx_consent_records_owner_app,composite:owner_app" json:"owner_id"`
 	// OwnerEmail is the email address of the data owner
-	OwnerEmail string `gorm:"column:owner_email;type:varchar(255);not null;index:idx_consent_records_owner_email" json:"owner_email"`
+	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
+	OwnerEmail string `gorm:"column:owner_email;type:varchar(255);not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;index:idx_consent_records_owner_email" json:"owner_email"`
 	// AppID is the unique identifier for the consumer application
-	// Part of composite index idx_consent_records_owner_app with OwnerID for efficient lookups
-	AppID string `gorm:"column:app_id;type:varchar(255);not null;index:idx_consent_records_app_id;index:idx_consent_records_owner_app,composite:owner_app" json:"app_id"`
+	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
+	AppID string `gorm:"column:app_id;type:varchar(255);not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;index:idx_consent_records_app_id;index:idx_consent_records_owner_app,composite:owner_app" json:"app_id"`
 	// AppName is the name of the consumer application
 	AppName *string `gorm:"column:app_name;type:varchar(255);" json:"app_name,omitempty"`
 	// Status is the status of the consent record: pending, approved, rejected, expired, revoked
@@ -26,7 +26,8 @@ type ConsentRecord struct {
 	// Type is the type of consent mechanism "realtime" or "offline"
 	Type string `gorm:"column:type;type:varchar(50);not null" json:"type"`
 	// CreatedAt is the timestamp when the consent record was created
-	CreatedAt time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;default:CURRENT_TIMESTAMP;index:idx_consent_records_created_at" json:"created_at"`
+	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
+	CreatedAt time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;default:CURRENT_TIMESTAMP;index:idx_consent_records_created_at" json:"created_at"`
 	// UpdatedAt is the timestamp when the consent record was last updated
 	UpdatedAt time.Time `gorm:"column:updated_at;type:timestamp with time zone;not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
 	// PendingExpiresAt is the timestamp when a pending consent expires (timeout waiting for approval/denial)

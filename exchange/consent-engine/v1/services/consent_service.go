@@ -31,52 +31,135 @@ func NewConsentService(db *gorm.DB, consentPortalBaseURL string) (*ConsentServic
 }
 
 // CreateConsentRecord creates a new consent record in the database
-func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.CreateConsentRequest) ([]models.ConsentResponseInternalView, error) {
+func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.CreateConsentRequest) (*models.ConsentResponseInternalView, error) {
+	// First Check if a pending or approved consent already exists for the same (ownerID/ownerEmail, appID)
+	existingConsent, err := s.GetConsentInternalView(ctx, nil, &req.ConsentRequirement.OwnerID, &req.ConsentRequirement.OwnerEmail, &req.AppID)
+	if err == nil {
+		// An existing consent was found
+		if existingConsent.Status == string(models.StatusPending) || existingConsent.Status == string(models.StatusApproved) {
+			// Check if the fields match
+			if areConsentFieldsEqual(existingConsent.Fields, &req.ConsentRequirement.Fields) {
+				// Return the existing consent instead of creating a new one
+				return existingConsent, nil
+			}
+			// Revoke the existing consent if fields do not match and create a new one
+			// This operation must be transactional
+			return s.revokeAndCreateConsent(ctx, existingConsent.ConsentID, req)
+		}
+	} else {
+		// If the error is not "not found", return the error
+		if !errors.Is(err, models.ErrConsentNotFound) {
+			return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
+		}
+	}
+
 	// Validate input
 	if err := validateCreateConsentRequest(req); err != nil {
 		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
 	}
 
-	consentRecords := make([]models.ConsentRecord, 0, len(req.ConsentRequirements))
-	// Iterate over consent requirements to create consent records
-	for _, requirement := range req.ConsentRequirements {
-		consentID := uuid.New()
-		currentTime := time.Now().UTC()
-		consentType := models.TypeRealtime
-
-		// Calculate pending expiry time based on consent type
-		pendingExpiresAt := currentTime.Add(parsePendingTimeoutDuration(consentType))
-
-		consentRecord := models.ConsentRecord{
-			ConsentID:        consentID,
-			OwnerID:          requirement.OwnerID,
-			OwnerEmail:       requirement.OwnerEmail,
-			AppID:            req.AppID,
-			AppName:          req.AppName,
-			Status:           string(models.StatusPending),
-			Type:             string(consentType),
-			CreatedAt:        currentTime,
-			UpdatedAt:        currentTime,
-			GrantDuration:    string(getGrantDurationOrDefault((*models.GrantDuration)(req.GrantDuration))),
-			Fields:           requirement.Fields,
-			ConsentPortalURL: fmt.Sprintf("%s?consentId=%s", s.consentPortalBaseURL, consentID.String()),
-			PendingExpiresAt: &pendingExpiresAt,
-		}
-		consentRecords = append(consentRecords, consentRecord)
-	}
-
-	// Bulk insert consent records
-	if err := s.db.WithContext(ctx).Create(&consentRecords).Error; err != nil {
+	// Create new consent record
+	consentRecord, err := s.buildConsentRecord(req)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
 	}
 
-	// Convert to internal view responses
-	responses := make([]models.ConsentResponseInternalView, 0, len(consentRecords))
-	for _, record := range consentRecords {
-		responses = append(responses, record.ToConsentResponseInternalView())
+	// Insert consent record
+	if err := s.db.WithContext(ctx).Create(&consentRecord).Error; err != nil {
+		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
 	}
 
-	return responses, nil
+	// Convert to internal view response
+	internalView := consentRecord.ToConsentResponseInternalView()
+	return &internalView, nil
+}
+
+// revokeAndCreateConsent revokes an existing consent and creates a new one in a single transaction
+func (s *ConsentService) revokeAndCreateConsent(ctx context.Context, existingConsentID string, req models.CreateConsentRequest) (*models.ConsentResponseInternalView, error) {
+	var newConsentRecord models.ConsentRecord
+
+	// Execute revoke and create in a transaction
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Step 1: Revoke the existing consent
+		var existingConsentRecord models.ConsentRecord
+		parsedConsentID, err := uuid.Parse(existingConsentID)
+		if err != nil {
+			return fmt.Errorf("invalid consent ID: %w", err)
+		}
+
+		if err := tx.Where("consent_id = ?", parsedConsentID).First(&existingConsentRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
+			}
+			return fmt.Errorf("failed to find existing consent: %w", err)
+		}
+
+		if existingConsentRecord.Status != string(models.StatusApproved) && existingConsentRecord.Status != string(models.StatusPending) {
+			return fmt.Errorf("only approved or pending consents can be revoked")
+		}
+
+		existingConsentRecord.Status = string(models.StatusRevoked)
+		currentTime := time.Now().UTC()
+		existingConsentRecord.UpdatedAt = currentTime
+		revokedBy := "system - new consent with different fields"
+		existingConsentRecord.UpdatedBy = &revokedBy
+
+		if err := tx.Save(&existingConsentRecord).Error; err != nil {
+			return fmt.Errorf("failed to revoke existing consent: %w", err)
+		}
+
+		// Step 2: Validate and create new consent record
+		if err := validateCreateConsentRequest(req); err != nil {
+			return err
+		}
+
+		newConsentRecord, err = s.buildConsentRecord(req)
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Create(&newConsentRecord).Error; err != nil {
+			return fmt.Errorf("failed to create new consent: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
+	}
+
+	// Convert to internal view response
+	internalView := newConsentRecord.ToConsentResponseInternalView()
+	return &internalView, nil
+}
+
+// buildConsentRecord builds a ConsentRecord from the request
+func (s *ConsentService) buildConsentRecord(req models.CreateConsentRequest) (models.ConsentRecord, error) {
+	consentID := uuid.New()
+	currentTime := time.Now().UTC()
+
+	if req.ConsentType == nil {
+		defaultType := models.TypeRealtime
+		req.ConsentType = &defaultType
+	}
+	pendingTimeout := parsePendingTimeoutDuration(*req.ConsentType)
+	pendingExpiresAt := currentTime.Add(pendingTimeout)
+
+	return models.ConsentRecord{
+		ConsentID:        consentID,
+		OwnerID:          req.ConsentRequirement.OwnerID,
+		OwnerEmail:       req.ConsentRequirement.OwnerEmail,
+		AppID:            req.AppID,
+		AppName:          req.AppName,
+		Status:           string(models.StatusPending),
+		Type:             string(*req.ConsentType),
+		CreatedAt:        currentTime,
+		UpdatedAt:        currentTime,
+		GrantDuration:    string(getGrantDurationOrDefault((*models.GrantDuration)(req.GrantDuration))),
+		Fields:           req.ConsentRequirement.Fields,
+		ConsentPortalURL: fmt.Sprintf("%s?consentId=%s", s.consentPortalBaseURL, consentID.String()),
+		PendingExpiresAt: &pendingExpiresAt,
+	}, nil
 }
 
 // getGrantDurationOrDefault returns the provided grant duration or the default if empty
@@ -109,11 +192,29 @@ func (s *ConsentService) GetConsentInternalView(ctx context.Context, consentID *
 		return nil, fmt.Errorf("%w: either consentID or (ownerID/ownerEmail and appID) must be provided", models.ErrConsentGetFailed)
 	}
 
+	// There is a possibility of multiple records for (ownerID/ownerEmail, appID) if previous consents exist.
+	// We fetch the latest one based on CreatedAt timestamp.
+	query = query.Order("created_at DESC").Limit(1)
+
 	if err := query.First(&consentRecord).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
 		}
 		return nil, fmt.Errorf("%w: %w", models.ErrConsentGetFailed, err)
+	}
+
+	// Either PendingExpiresAt or GrantExpiresAt will be nil depending on status
+	// Check and update status to expired if necessary
+	if consentRecord.PendingExpiresAt != nil && time.Now().UTC().After(*consentRecord.PendingExpiresAt) && consentRecord.Status == string(models.StatusPending) {
+		consentRecord.Status = string(models.StatusExpired)
+		if err := s.db.WithContext(ctx).Save(&consentRecord).Error; err != nil {
+			return nil, fmt.Errorf("%w: %w", models.ErrConsentGetFailed, err)
+		}
+	} else if consentRecord.GrantExpiresAt != nil && time.Now().UTC().After(*consentRecord.GrantExpiresAt) && consentRecord.Status == string(models.StatusApproved) {
+		consentRecord.Status = string(models.StatusExpired)
+		if err := s.db.WithContext(ctx).Save(&consentRecord).Error; err != nil {
+			return nil, fmt.Errorf("%w: %w", models.ErrConsentGetFailed, err)
+		}
 	}
 
 	internalView := consentRecord.ToConsentResponseInternalView()
@@ -184,6 +285,37 @@ func (s *ConsentService) UpdateConsentStatusByPortalAction(ctx context.Context, 
 	return nil
 }
 
+// RevokeConsent revokes an existing approved or pending consent
+func (s *ConsentService) RevokeConsent(ctx context.Context, consentID string, revokedBy string) error {
+	var consentRecord models.ConsentRecord
+	parsedConsentID, err := uuid.Parse(consentID)
+	if err != nil {
+		return fmt.Errorf("%w: invalid consent ID", models.ErrConsentRevokeFailed)
+	}
+
+	if err := s.db.WithContext(ctx).Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
+		}
+		return fmt.Errorf("%w: %w", models.ErrConsentRevokeFailed, err)
+	}
+
+	if consentRecord.Status != string(models.StatusApproved) && consentRecord.Status != string(models.StatusPending) {
+		return fmt.Errorf("%w: only approved or pending consents can be revoked", models.ErrConsentRevokeFailed)
+	}
+
+	consentRecord.Status = string(models.StatusRevoked)
+	currentTime := time.Now().UTC()
+	consentRecord.UpdatedAt = currentTime
+	consentRecord.UpdatedBy = &revokedBy
+
+	if err := s.db.WithContext(ctx).Save(&consentRecord).Error; err != nil {
+		return fmt.Errorf("%w: %w", models.ErrConsentRevokeFailed, err)
+	}
+
+	return nil
+}
+
 // parseGrantDuration parses the grant duration string into a time.Duration
 func parseGrantDuration(grantDuration models.GrantDuration) time.Duration {
 	switch grantDuration {
@@ -216,14 +348,30 @@ func parsePendingTimeoutDuration(consentType models.ConsentType) time.Duration {
 	}
 }
 
+// areConsentFieldsEqual checks if two slices of ConsentField are equal
+func areConsentFieldsEqual(a, b *[]models.ConsentField) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if len(*a) != len(*b) {
+		return false
+	}
+
+	for i := range *a {
+		if !(*a)[i].Equals((*b)[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // validateCreateConsentRequest validates the create consent request input
 func validateCreateConsentRequest(req models.CreateConsentRequest) error {
 	if req.AppID == "" {
 		return errors.New("appId is required")
-	}
-
-	if len(req.ConsentRequirements) == 0 {
-		return errors.New("consentRequirements cannot be empty")
 	}
 
 	// Validate grant duration if provided
@@ -233,25 +381,23 @@ func validateCreateConsentRequest(req models.CreateConsentRequest) error {
 		}
 	}
 
-	for i, requirement := range req.ConsentRequirements {
-		if requirement.OwnerID == "" {
-			return fmt.Errorf("consentRequirements[%d].ownerId is required", i)
-		}
-		if requirement.OwnerEmail == "" {
-			return fmt.Errorf("consentRequirements[%d].ownerEmail is required", i)
-		}
-		if len(requirement.Fields) == 0 {
-			return fmt.Errorf("consentRequirements[%d].fields cannot be empty", i)
-		}
+	if req.ConsentRequirement.OwnerID == "" {
+		return fmt.Errorf("consentRequirement.ownerId is required")
+	}
+	if req.ConsentRequirement.OwnerEmail == "" {
+		return fmt.Errorf("consentRequirement.ownerEmail is required")
+	}
+	if len(req.ConsentRequirement.Fields) == 0 {
+		return fmt.Errorf("consentRequirement.fields cannot be empty")
+	}
 
-		// Validate each field
-		for j, field := range requirement.Fields {
-			if field.FieldName == "" {
-				return fmt.Errorf("consentRequirements[%d].fields[%d].fieldName is required", i, j)
-			}
-			if field.SchemaID == "" {
-				return fmt.Errorf("consentRequirements[%d].fields[%d].schemaId is required", i, j)
-			}
+	// Validate each field
+	for j, field := range req.ConsentRequirement.Fields {
+		if field.FieldName == "" {
+			return fmt.Errorf("consentRequirement.fields[%d].fieldName is required", j)
+		}
+		if field.SchemaID == "" {
+			return fmt.Errorf("consentRequirement.fields[%d].schemaId is required", j)
 		}
 	}
 
