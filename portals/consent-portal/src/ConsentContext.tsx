@@ -1,7 +1,7 @@
 import React, {createContext, useContext, useState, useEffect, type ReactNode, useCallback} from 'react';
 import {useAsgardeo} from "@asgardeo/react";
 import {useNavigate} from 'react-router-dom';
-import type {ConsentRecord} from "./types.ts";
+import type {ConsentRecord} from "./types";
 
 interface ConsentContextType {
   consentRecord: ConsentRecord | null;
@@ -40,7 +40,14 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
     );
   }
 
-  const getAuthHeaders = async (): Promise<HeadersInit> => {
+  useEffect(() => {
+    if (!CONSENT_ENGINE_PATH) {
+      setError('API URL is not configured properly.');
+      navigate('/error');
+    }
+  }, [CONSENT_ENGINE_PATH, navigate]);
+
+  const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
     const accessToken = await getAccessToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -51,7 +58,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
     }
 
     return headers;
-  };
+  }, [getAccessToken]);
 
   const fetchUserInfo = useCallback(() => {
     if (user) {
