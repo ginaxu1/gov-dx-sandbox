@@ -162,7 +162,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
     setConsentId(consentId);
     // Store the consent_id in localStorage for persistence across redirects
     localStorage.setItem('consent_id', consentId);
-  }
+  };
 
   useEffect(() => {
     if (isSignedIn) {
