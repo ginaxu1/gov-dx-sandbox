@@ -73,9 +73,9 @@ services:
       CHOREO_DB_CE_DATABASENAME: consent_db
       # V1 database env vars (for v1/database/database.go)
       CHOREO_OPENDIF_DATABASE_HOSTNAME: shared-db
-      CHOREO_OPENDIF_DATABASE_PORT: 5432
-      CHOREO_OPENDIF_DATABASE_USERNAME: postgres
-      CHOREO_OPENDIF_DATABASE_PASSWORD: password
+      CHOREO_OPENDIF_DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DATABASE_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_OPENDIF_DATABASE_DATABASENAME: consent_db
       DB_SSLMODE: disable
       # JWT/Asgardeo configuration for V1 auth (using Google's public JWKS for testing)
