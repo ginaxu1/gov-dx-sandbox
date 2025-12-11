@@ -66,7 +66,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
     }
   }, [user]);
 
-  const fetchConsentData = async (consentUuid: string) => {
+  const fetchConsentData = useCallback(async (consentUuid: string) => {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`, {headers});
@@ -97,7 +97,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
       navigate('/error');
       return null;
     }
-  };
+  }, [CONSENT_ENGINE_PATH, getAuthHeaders, navigate]);
 
   const handleConsentFetch = async () => {
     const consentUuid = consentId || localStorage.getItem('consent_id') || '';
