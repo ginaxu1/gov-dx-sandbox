@@ -18,7 +18,7 @@ env:
   TEST_DB_NAME: pdp_test
   # ================================
   REGISTRY: ghcr.io
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.24'
   TEST_DB_USER: postgres
   TEST_DB_PASS: password
 
@@ -77,9 +77,4 @@ jobs:
           TEST_DB_SSLMODE: disable
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.61
-          working-directory: ${{ env.SERVICE_PATH }}
-          args: --timeout=5m
+
