@@ -107,7 +107,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
       navigate('/error');
       return;
     }
-    await fetchConsentData(consentUuid);
+    return fetchConsentData(consentUuid);
   };
 
   const handleConsentDecision = async (decision: 'approved' | 'rejected') => {
