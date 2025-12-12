@@ -98,6 +98,29 @@ func (f *FederationResponse) GetProviderResponse(providerKey string) *ProviderRe
 	return nil
 }
 
+// createErrorResponse creates a GraphQL error response with the given message and optional extensions
+func createErrorResponse(message string, extensions map[string]interface{}) graphql.Response {
+	errorMap := map[string]interface{}{
+		"message": message,
+	}
+	if extensions != nil {
+		errorMap["extensions"] = extensions
+	}
+	return graphql.Response{
+		Data: nil,
+		Errors: []interface{}{
+			errorMap,
+		},
+	}
+}
+
+// createErrorResponseWithCode creates a GraphQL error response with a message and error code
+func createErrorResponseWithCode(message string, code string) graphql.Response {
+	return createErrorResponse(message, map[string]interface{}{
+		"code": code,
+	})
+}
+
 // Initialize sets up the Federator with providers and an HTTP client.
 func Initialize(configs *configs.Config, providerHandler *provider.Handler, schemaService interface{}) *Federator {
 	federator := &Federator{
@@ -258,13 +281,13 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// Safely initialize PDP and CE clients with nil checks
 	var pdpClient *policy.PdpClient
-	var ceClient *consent.CEClient
+	var ceClient *consent.CEServiceClient
 
 	if f.Configs.PdpConfig.ClientURL != "" {
 		pdpClient = policy.NewPdpClient(f.Configs.PdpConfig.ClientURL)
 	}
 	if f.Configs.CeConfig.ClientURL != "" {
-		ceClient = consent.NewCEClient(f.Configs.CeConfig.ClientURL)
+		ceClient = consent.NewCEServiceClient(f.Configs.CeConfig.ClientURL)
 	}
 
 	// Check if PDP client is available before making request
@@ -273,8 +296,6 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		logger.Log.Warn("PDP client not available, skipping policy check")
 		// Continue without PDP check - this allows the system to work without PDP
 	} else {
-		var err error
-
 		pdpRequest := &policy.PdpRequest{
 			ConsumerId: consumerInfo.Subscriber,
 			AppId:      consumerInfo.ApplicationId,
@@ -296,143 +317,95 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		pdpResponse, err = pdpClient.MakePdpRequest(pdpRequest)
 		if err != nil {
 			logger.Log.Info("PDP request failed", "error", err)
-			return graphql.Response{
-				Data: nil,
-				Errors: []interface{}{
-					map[string]interface{}{
-						"message": "PDP request failed",
-						"extensions": map[string]interface{}{
-							"code": errors.CodePDPError,
-						},
-					},
-				},
-			}
+			return createErrorResponseWithCode("PDP request failed", errors.CodePDPError)
 		}
 
 		if pdpResponse == nil {
 			logger.Log.Error("Failed to get response from PDP")
-			return graphql.Response{
-				Data: nil,
-				Errors: []interface{}{
-					map[string]interface{}{
-						"message": "Failed to get response from PDP",
-						"extensions": map[string]interface{}{
-							"code": errors.CodePDPNoResponse,
-						},
-					},
-				},
-			}
+			return createErrorResponseWithCode("Failed to get response from PDP", errors.CodePDPNoResponse)
 		}
 
 		if !pdpResponse.AppAuthorized {
 			logger.Log.Info("Request not allowed by PDP")
-			return graphql.Response{
-				Data: nil,
-				Errors: []interface{}{
-					map[string]interface{}{
-						"message": "Request not allowed by PDP",
-						"extensions": map[string]interface{}{
-							"code": errors.CodePDPNotAllowed,
-						},
-					},
-				},
-			}
+			return createErrorResponseWithCode("Request not allowed by PDP", errors.CodePDPNotAllowed)
 		}
 	}
 
-	// check whether the arguments contain the citizen id
-	if len(extractedArgs) == 0 || extractedArgs[0].Value.GetValue() == nil {
-		logger.Log.Info("Citizen ID argument is missing or invalid")
-		return graphql.Response{
-			Data: nil,
-			Errors: []interface{}{
-				map[string]interface{}{
-					"message": "Citizen ID argument is missing or invalid",
-					"extensions": map[string]interface{}{
-						"code": errors.CodeMissingEntityIdentifier,
-					},
-				},
-			},
-		}
+	// Check for Data Owner ID in extracted arguments
+	var dataOwnerID string
+	if len(extractedArgs) == 0 {
+		logger.Log.Info("Data Owner ID argument is missing: extractedArgs is empty or nil")
+		return createErrorResponseWithCode("Data Owner ID argument is missing", errors.CodeMissingEntityIdentifier)
+	}
+	val := extractedArgs[0].Value.GetValue()
+	if s, ok := val.(string); ok {
+		dataOwnerID = s
+	} else {
+		logger.Log.Error("CitizenID is not a string", "value", val)
+		dataOwnerID = ""
+	}
+	if dataOwnerID == "" {
+		logger.Log.Info("Data Owner ID argument is missing or invalid")
+		return createErrorResponseWithCode("Data Owner ID argument is missing or invalid", errors.CodeMissingEntityIdentifier)
 	}
 
-	// Handle consent check only if PDP client was available and consent is required
-	if pdpClient != nil && pdpResponse != nil && pdpResponse.ConsentRequired {
+	// Handle consent check if consent is required
+	if pdpResponse != nil && pdpResponse.ConsentRequired {
 		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
 
 		// Check if CE client is available
 		if ceClient == nil {
 			logger.Log.Warn("CE client not available, skipping consent check")
-			return graphql.Response{
-				Data: nil,
-				Errors: []interface{}{
-					map[string]interface{}{
-						"message": "Consent required but consent engine not available",
-						"extensions": map[string]interface{}{
-							"code": errors.CodeCEError,
-						},
-					},
-				},
-			}
+			return createErrorResponseWithCode("Consent required but consent engine not available", errors.CodeCEError)
 		}
+
+		ownerEmail := dataOwnerID // assuming dataOwnerID is ownerEmail for this example
 
 		fields := make([]consent.ConsentField, len(pdpResponse.ConsentRequiredFields))
 		for i, f := range pdpResponse.ConsentRequiredFields {
 			fields[i].FieldName = f.FieldName
 			fields[i].SchemaID = f.SchemaID
+			fields[i].Owner = consent.OwnerCitizen
 		}
 
-		ceRequest := &consent.CERequest{
-			AppId:     consumerInfo.ApplicationId,
-			Purpose:   "testing",
-			SessionId: "session_123",
-			ConsentRequirements: []consent.ConsentRequirement{
-				{
-					Owner:   "citizen",
-					OwnerID: extractedArgs[0].Value.GetValue().(string),
-					Fields:  fields,
-				},
+		typeRealTime := consent.TypeRealtime
+		ceRequest := &consent.CreateConsentRequest{
+			AppID: consumerInfo.ApplicationId,
+			ConsentRequirement: consent.ConsentRequirement{
+				Owner:      consent.OwnerCitizen,
+				OwnerID:    ownerEmail,
+				OwnerEmail: ownerEmail,
+				Fields:     fields,
 			},
+			ConsentType: &typeRealTime,
 		}
 
-		ceResp, err := ceClient.MakeConsentRequest(ceRequest)
+		ceResp, err := ceClient.CreateConsent(ctx, ceRequest)
 		if err != nil {
 			logger.Log.Info("CE request failed", "error", err)
-			return graphql.Response{
-				Data: nil,
-				Errors: []interface{}{
-					map[string]interface{}{
-						"message": "CE request failed",
-						"extensions": map[string]interface{}{
-							"code": errors.CodeCEError,
-						},
-					},
-				},
-			}
+			return createErrorResponseWithCode("CE request failed", errors.CodeCEError)
+		}
+		if ceResp == nil {
+			logger.Log.Error("Failed to get response from CE")
+			return createErrorResponseWithCode("Failed to get response from CE", errors.CodeCENoResponse)
 		}
 
 		// log the consent response
 		logger.Log.Info("Consent Response", "response", ceResp)
 
-		if ceResp.Status != "approved" {
-			logger.Log.Info("Consent not approved")
-			return graphql.Response{
-				Data: nil,
-				Errors: []interface{}{
-					map[string]interface{}{
-						"message": "Consent not approved",
-						"extensions": map[string]interface{}{
-							"code":             errors.CodeCENotApproved,
-							"consentPortalUrl": ceResp.ConsentPortalUrl,
-							"consentStatus":    ceResp.Status,
-						},
-					},
-				},
-			}
+		// Check consent status - only proceed if approved
+		if ceResp.Status == consent.StatusApproved {
+			logger.Log.Info("Consent approved, proceeding with query execution")
+		} else {
+			// Status is pending or any other non-approved status
+			logger.Log.Info("Consent not approved", "status", ceResp.Status)
+			return createErrorResponse("Consent not approved", map[string]interface{}{
+				"code":             errors.CodeCENotApproved,
+				"consentPortalUrl": ceResp.ConsentPortalURL,
+				"consentStatus":    ceResp.Status,
+			})
 		}
 	}
-
-	logger.Log.Info("Consent approved, proceeding with query execution")
 
 	splitRequests, err := QueryBuilder(schemaCollection.ProviderFieldMap, extractedArgs)
 	if err != nil {
@@ -447,14 +420,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	if len(splitRequests) == 0 {
 		logger.Log.Info("No valid service queries found in the request")
-		return graphql.Response{
-			Data: nil,
-			Errors: []interface{}{
-				map[string]interface{}{
-					"message": "No valid service queries found in the request",
-				},
-			},
-		}
+		return createErrorResponse("No valid service queries found in the request", nil)
 	}
 
 	federationRequest := &federationRequest{
