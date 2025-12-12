@@ -423,13 +423,13 @@ paths:
                   message: "An unexpected error occurred"
 
     post:
-      summary: Create Consent Records
+      summary: Create Consent Record
       description: |
-        Creates consent records for multiple owners based on the provided consent requirements.
+        Creates a consent record for a data owner based on the provided consent requirement.
         
-        **Request Body:** Contains application information and consent requirements for each owner.
+        **Request Body:** Contains application information and consent requirement for the owner.
         
-        **Response:** Returns an array of consent records in internal view format.
+        **Response:** Returns the created consent record in internal view format.
       operationId: createConsent
       tags:
         - Internal
@@ -442,13 +442,11 @@ paths:
               $ref: '#/components/schemas/CreateConsentRequest'
       responses:
         '201':
-          description: Consent records created successfully
+          description: Consent record created successfully
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ConsentResponseInternalView'
+                $ref: '#/components/schemas/ConsentResponseInternalView'
         '400':
           description: Bad request - invalid request body or validation error
           content:
@@ -574,7 +572,7 @@ components:
 
     CreateConsentRequest:
       type: object
-      description: Request body for creating consent records
+      description: Request body for creating a consent record
       properties:
         appId:
           type: string
@@ -585,12 +583,9 @@ components:
           nullable: true
           description: The name of the application
           example: "Passport Application"
-        consentRequirements:
-          type: array
-          description: List of consent requirements for different owners
-          items:
-            $ref: '#/components/schemas/ConsentRequirement'
-          minItems: 1
+        consentRequirement:
+          $ref: '#/components/schemas/ConsentRequirement'
+          description: Consent requirement for the data owner
         grantDuration:
           type: string
           nullable: true
@@ -606,28 +601,35 @@ components:
             - P7D: 7 days
             - P30D: 30 days
           example: "P30D"
+        consentType:
+          type: string
+          enum: [realtime, offline]
+          nullable: true
+          description: The type of consent mechanism. If not provided, defaults to "realtime"
+          example: "realtime"
       required:
         - appId
-        - consentRequirements
+        - consentRequirement
       example:
         appId: "app-12345"
         appName: "Passport Application"
-        consentRequirements:
-          - owner: "citizen"
-            ownerId: "user123"
-            ownerEmail: "user@example.com"
-            fields:
-              - fieldName: "personInfo.name"
-                schemaId: "schema-001"
-                displayName: "Full Name"
-                description: "Your legal full name"
-                owner: "citizen"
-              - fieldName: "personInfo.dateOfBirth"
-                schemaId: "schema-002"
-                displayName: "Date of Birth"
-                description: "Your date of birth"
-                owner: "citizen"
+        consentRequirement:
+          owner: "citizen"
+          ownerId: "user123"
+          ownerEmail: "user@example.com"
+          fields:
+            - fieldName: "personInfo.name"
+              schemaId: "schema-001"
+              displayName: "Full Name"
+              description: "Your legal full name"
+              owner: "citizen"
+            - fieldName: "personInfo.dateOfBirth"
+              schemaId: "schema-002"
+              displayName: "Date of Birth"
+              description: "Your date of birth"
+              owner: "citizen"
         grantDuration: "P30D"
+        consentType: "realtime"
 
     ConsentResponseInternalView:
       type: object
@@ -649,6 +651,12 @@ components:
           nullable: true
           description: The URL to the consent portal (only present when status is pending)
           example: "https://consent-portal.example.com/?consentId=550e8400-e29b-41d4-a716-446655440000"
+        fields:
+          type: array
+          nullable: true
+          description: List of fields requiring consent (included when status is pending or approved)
+          items:
+            $ref: '#/components/schemas/ConsentField'
       required:
         - consentId
         - status
@@ -656,6 +664,12 @@ components:
         consentId: "550e8400-e29b-41d4-a716-446655440000"
         status: "pending"
         consentPortalUrl: "https://consent-portal.example.com/?consentId=550e8400-e29b-41d4-a716-446655440000"
+        fields:
+          - fieldName: "personInfo.name"
+            schemaId: "schema-001"
+            displayName: "Full Name"
+            description: "Your legal full name"
+            owner: "citizen"
 
     ConsentResponsePortalView:
       type: object
