@@ -53,11 +53,6 @@ func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.Cre
 		}
 	}
 
-	// Validate input
-	if err := validateCreateConsentRequest(req); err != nil {
-		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
-	}
-
 	// Create new consent record
 	consentRecord, err := s.buildConsentRecord(req)
 	if err != nil {
@@ -101,22 +96,19 @@ func (s *ConsentService) revokeAndCreateConsent(ctx context.Context, existingCon
 		existingConsentRecord.Status = string(models.StatusRevoked)
 		currentTime := time.Now().UTC()
 		existingConsentRecord.UpdatedAt = currentTime
-		revokedBy := "system - new consent with different fields"
-		existingConsentRecord.UpdatedBy = &revokedBy
+		revokedBy := models.RevokedByNewConsentWithDifferentFields
+		existingConsentRecord.UpdatedBy = (*string)(&revokedBy)
 
 		if err := tx.Save(&existingConsentRecord).Error; err != nil {
 			return fmt.Errorf("failed to revoke existing consent: %w", err)
 		}
 
-		// Step 2: Validate and create new consent record
-		if err := validateCreateConsentRequest(req); err != nil {
-			return err
-		}
-
-		newConsentRecord, err = s.buildConsentRecord(req)
+		// Step 2: Create the new consent record
+		newConsentRecordPtr, err := s.buildConsentRecord(req)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to build new consent record: %w", err)
 		}
+		newConsentRecord = *newConsentRecordPtr
 
 		if err := tx.Create(&newConsentRecord).Error; err != nil {
 			return fmt.Errorf("failed to create new consent: %w", err)
@@ -134,7 +126,12 @@ func (s *ConsentService) revokeAndCreateConsent(ctx context.Context, existingCon
 }
 
 // buildConsentRecord builds a ConsentRecord from the request
-func (s *ConsentService) buildConsentRecord(req models.CreateConsentRequest) (models.ConsentRecord, error) {
+func (s *ConsentService) buildConsentRecord(req models.CreateConsentRequest) (*models.ConsentRecord, error) {
+	// Validate input
+	if err := validateCreateConsentRequest(req); err != nil {
+		return nil, err
+	}
+
 	consentID := uuid.New()
 	currentTime := time.Now().UTC()
 
@@ -145,7 +142,7 @@ func (s *ConsentService) buildConsentRecord(req models.CreateConsentRequest) (mo
 	pendingTimeout := parsePendingTimeoutDuration(*req.ConsentType)
 	pendingExpiresAt := currentTime.Add(pendingTimeout)
 
-	return models.ConsentRecord{
+	return &models.ConsentRecord{
 		ConsentID:        consentID,
 		OwnerID:          req.ConsentRequirement.OwnerID,
 		OwnerEmail:       req.ConsentRequirement.OwnerEmail,
@@ -194,6 +191,7 @@ func (s *ConsentService) GetConsentInternalView(ctx context.Context, consentID *
 
 	// There is a possibility of multiple records for (ownerID/ownerEmail, appID) if previous consents exist.
 	// We fetch the latest one based on CreatedAt timestamp.
+	// We can safely assume CreatedAt is unique for active consents due to the conditional unique constraint.
 	query = query.Order("created_at DESC").Limit(1)
 
 	if err := query.First(&consentRecord).Error; err != nil {
@@ -287,33 +285,35 @@ func (s *ConsentService) UpdateConsentStatusByPortalAction(ctx context.Context, 
 
 // RevokeConsent revokes an existing approved or pending consent
 func (s *ConsentService) RevokeConsent(ctx context.Context, consentID string, revokedBy string) error {
-	var consentRecord models.ConsentRecord
-	parsedConsentID, err := uuid.Parse(consentID)
-	if err != nil {
-		return fmt.Errorf("%w: invalid consent ID", models.ErrConsentRevokeFailed)
-	}
-
-	if err := s.db.WithContext(ctx).Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var consentRecord models.ConsentRecord
+		parsedConsentID, err := uuid.Parse(consentID)
+		if err != nil {
+			return fmt.Errorf("%w: invalid consent ID", models.ErrConsentRevokeFailed)
 		}
-		return fmt.Errorf("%w: %w", models.ErrConsentRevokeFailed, err)
-	}
 
-	if consentRecord.Status != string(models.StatusApproved) && consentRecord.Status != string(models.StatusPending) {
-		return fmt.Errorf("%w: only approved or pending consents can be revoked", models.ErrConsentRevokeFailed)
-	}
+		if err := tx.Where("consent_id = ?", parsedConsentID).First(&consentRecord).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("%w: %w", models.ErrConsentNotFound, err)
+			}
+			return fmt.Errorf("%w: %w", models.ErrConsentRevokeFailed, err)
+		}
 
-	consentRecord.Status = string(models.StatusRevoked)
-	currentTime := time.Now().UTC()
-	consentRecord.UpdatedAt = currentTime
-	consentRecord.UpdatedBy = &revokedBy
+		if consentRecord.Status != string(models.StatusApproved) && consentRecord.Status != string(models.StatusPending) {
+			return fmt.Errorf("%w: only approved or pending consents can be revoked", models.ErrConsentRevokeFailed)
+		}
 
-	if err := s.db.WithContext(ctx).Save(&consentRecord).Error; err != nil {
-		return fmt.Errorf("%w: %w", models.ErrConsentRevokeFailed, err)
-	}
+		consentRecord.Status = string(models.StatusRevoked)
+		currentTime := time.Now().UTC()
+		consentRecord.UpdatedAt = currentTime
+		consentRecord.UpdatedBy = &revokedBy
 
-	return nil
+		if err := tx.Save(&consentRecord).Error; err != nil {
+			return fmt.Errorf("%w: %w", models.ErrConsentRevokeFailed, err)
+		}
+
+		return nil
+	})
 }
 
 // parseGrantDuration parses the grant duration string into a time.Duration
