@@ -18,7 +18,7 @@ const ConsentContext = createContext<ConsentContextType | undefined>(undefined);
 export const useConsent = () => {
   const context = useContext(ConsentContext);
   if (!context) {
-    throw new Error("useConsent must be used within ConsentProvider Make sure to wrap your component tree with <ConsentProvider>.</ConsentProvider>");
+    throw new Error("useConsent must be used within a ConsentProvider");
   }
   return context;
 };
