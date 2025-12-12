@@ -37,7 +37,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
 
   useEffect(() => {
     if (!CONSENT_ENGINE_PATH) {
-      setError('API URL is not configured properly.');
+      setError('Missing required configuration: window.configs.apiUrl');
       navigate('/error');
     }
   }, [CONSENT_ENGINE_PATH, navigate]);
