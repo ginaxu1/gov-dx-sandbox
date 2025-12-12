@@ -64,51 +64,117 @@ jobs:
           fi
           echo "Go mod files are clean."
 
-      - name: Start Docker Compose services
+      - name: Start Database Services
         working-directory: tests/integration
         run: |
-          echo "🚀 Starting Docker Compose services..."
-          docker compose -f docker-compose.test.yml up -d
+          echo "🚀 Starting Database services..."
+          docker compose -f docker-compose.db.yml up -d
           
-          echo "📋 Checking service status..."
-          docker compose -f docker-compose.test.yml ps
+          echo "⏳ Waiting for databases to be healthy..."
+          sleep 10
+          
+          # Basic check to ensure containers are running
+          docker compose -f docker-compose.db.yml ps
 
-      - name: Wait for services to be healthy
-        working-directory: tests/integration
+      - name: Build Services
         run: |
-          echo "⏳ Waiting for all services to be healthy..."
+          echo "🔨 Building Policy Decision Point..."
+          go build -o tests/integration/bin/policy-decision-point ./exchange/policy-decision-point
           
+          echo "🔨 Building Consent Engine..."
+          go build -o tests/integration/bin/consent-engine ./exchange/consent-engine
+          
+          echo "🔨 Building Orchestration Engine..."
+          go build -o tests/integration/bin/orchestration-engine ./exchange/orchestration-engine
+
+      - name: Start Services
+        working-directory: tests/integration
+        env:
+          # PDP Config
+          PDP_PORT: 8082
+          PDP_DB_HOST: localhost
+          PDP_DB_PORT: 5433
+          
+          # CE Config
+          CE_PORT: 8081
+          CE_DB_HOST: localhost
+          CE_DB_PORT: 5434
+          
+          # OE Config
+          OE_PORT: 4000
+        run: |
+          mkdir -p logs
+          
+          echo "🚀 Starting Policy Decision Point..."
+          # Running with env vars mapping to what the code expects (based on docker-compose.test.yml analysis)
+          PORT=8082 \
+          LOG_LEVEL=debug \
+          DB_SSLMODE=disable \
+          CHOREO_OPENDIF_DATABASE_HOSTNAME=localhost \
+          CHOREO_OPENDIF_DATABASE_PORT=5433 \
+          CHOREO_OPENDIF_DATABASE_USERNAME=postgres \
+          CHOREO_OPENDIF_DATABASE_PASSWORD=password \
+          CHOREO_OPENDIF_DATABASE_DATABASENAME=policy_db \
+          RUN_MIGRATION=true \
+          ./bin/policy-decision-point > logs/pdp.log 2>&1 &
+          PDP_PID=$!
+          echo "PDP PID: $PDP_PID"
+          
+          echo "🚀 Starting Consent Engine..."
+          PORT=8081 \
+          LOG_LEVEL=debug \
+          CHOREO_DB_CE_HOSTNAME=localhost \
+          CHOREO_DB_CE_PORT=5434 \
+          CHOREO_DB_CE_USERNAME=postgres \
+          CHOREO_DB_CE_PASSWORD=password \
+          CHOREO_DB_CE_DATABASENAME=consent_db \
+          CHOREO_OPENDIF_DATABASE_HOSTNAME=localhost \
+          CHOREO_OPENDIF_DATABASE_PORT=5434 \
+          CHOREO_OPENDIF_DATABASE_USERNAME=postgres \
+          CHOREO_OPENDIF_DATABASE_PASSWORD=password \
+          CHOREO_OPENDIF_DATABASE_DATABASENAME=consent_db \
+          DB_SSLMODE=disable \
+          ASGARDEO_JWKS_URL="https://www.googleapis.com/oauth2/v3/certs" \
+          ASGARDEO_ISSUER="https://accounts.google.com" \
+          ASGARDEO_AUDIENCE="test-audience" \
+          ASGARDEO_ORG_NAME="test-org" \
+          ./bin/consent-engine > logs/ce.log 2>&1 &
+          CE_PID=$!
+          echo "CE PID: $CE_PID"
+          
+          echo "⏳ Waiting for PDP and CE to be ready..."
+          sleep 5
+          
+          echo "🚀 Starting Orchestration Engine..."
+          PORT=4000 \
+          LOG_LEVEL=debug \
+          PDP_URL=http://localhost:8082 \
+          CONSENT_ENGINE_URL=http://localhost:8081 \
+          CONFIG_PATH=$(pwd)/config.json \
+          ./bin/orchestration-engine > logs/oe.log 2>&1 &
+          OE_PID=$!
+          echo "OE PID: $OE_PID"
+          
+          echo "⏳ Waiting for all services to initialize..."
+          sleep 10
+
+      - name: Check Service Health
+        run: |
           check_health() {
             local service_name=$1
             local health_url=$2
-            local max_attempts=30
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              if curl -f -s $health_url > /dev/null 2>&1; then
-                echo "✅ $service_name is healthy"
-                return 0
-              fi
-              echo "  Waiting for $service_name... (attempt $attempt/$max_attempts)"
-              sleep 2
-              attempt=$((attempt + 1))
-            done
-            
-            echo "❌ $service_name failed to become healthy"
-            echo "Service logs:"
-            docker compose -f docker-compose.test.yml logs $service_name
-            return 1
+            if curl -s -f "$health_url" > /dev/null; then
+              echo "✅ $service_name is healthy"
+              return 0
+            else
+              echo "❌ $service_name is NOT healthy"
+              return 1
+            fi
           }
           
-          # Wait for databases first
-          sleep 10
-          
-          # Check each service health endpoint
-          check_health "policy-decision-point" "http://localhost:8082/health" || exit 1
-          check_health "consent-engine" "http://localhost:8081/health" || exit 1
-          check_health "orchestration-engine" "http://localhost:4000/health" || exit 1
-          
-          echo "🎉 All services are healthy and ready!"
+          check_health "Policy Decision Point" "http://localhost:8082/health" || (cat tests/integration/logs/pdp.log && exit 1)
+          check_health "Consent Engine" "http://localhost:8081/health" || (cat tests/integration/logs/ce.log && exit 1)
+          check_health "Orchestration Engine" "http://localhost:4000/health" || (cat tests/integration/logs/oe.log && exit 1)
 
       - name: Run integration tests
         working-directory: tests/integration
