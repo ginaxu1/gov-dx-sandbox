@@ -115,6 +115,22 @@ func main() {
 		}
 	})
 
+	// Initialize specialized audit service
+	auditService := services.NewAuditService(gormDB)
+	auditHandler := handlers.NewAuditHandler(auditService)
+
+	// API endpoint for generalized audit logs
+	mux.HandleFunc("/api/audit-logs", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			auditHandler.CreateAuditLog(w, r)
+		case http.MethodGet:
+			auditHandler.GetAuditLogs(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	// Start server
 	slog.Info("Audit Service starting",
 		"environment", *env,
