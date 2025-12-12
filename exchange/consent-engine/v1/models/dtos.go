@@ -14,9 +14,18 @@ type ConsentField struct {
 	Owner       OwnerType `json:"owner"`
 }
 
+// Equals checks if two ConsentField instances are equal
+func (a ConsentField) Equals(b ConsentField) bool {
+	return a.FieldName == b.FieldName &&
+		a.SchemaID == b.SchemaID &&
+		((a.DisplayName == nil && b.DisplayName == nil) || (a.DisplayName != nil && b.DisplayName != nil && *a.DisplayName == *b.DisplayName)) &&
+		((a.Description == nil && b.Description == nil) || (a.Description != nil && b.Description != nil && *a.Description == *b.Description)) &&
+		a.Owner == b.Owner
+}
+
 // ConsentRequirement represents a consent requirement for a specific owner
 type ConsentRequirement struct {
-	Owner      string         `json:"owner"`
+	Owner      OwnerType      `json:"owner"`
 	OwnerID    string         `json:"ownerId"`
 	OwnerEmail string         `json:"ownerEmail"`
 	Fields     []ConsentField `json:"fields"`
@@ -25,10 +34,11 @@ type ConsentRequirement struct {
 // CreateConsentRequest defines the structure for creating a consent record
 // GrantDuration is optional - nil means not provided and will use default value
 type CreateConsentRequest struct {
-	AppID               string               `json:"appId"`
-	AppName             *string              `json:"appName,omitempty"`
-	ConsentRequirements []ConsentRequirement `json:"consentRequirements"`
-	GrantDuration       *string              `json:"grantDuration,omitempty"`
+	AppID              string             `json:"appId"`
+	AppName            *string            `json:"appName,omitempty"`
+	ConsentRequirement ConsentRequirement `json:"consentRequirement"`
+	GrantDuration      *string            `json:"grantDuration,omitempty"`
+	ConsentType        *ConsentType       `json:"consentType,omitempty"`
 }
 
 // ConsentPortalActionRequest defines the structure for consent portal interactions
@@ -40,9 +50,10 @@ type ConsentPortalActionRequest struct {
 
 // ConsentResponseInternalView represents a simplified consent response structure for Internal API Responses
 type ConsentResponseInternalView struct {
-	ConsentID        string  `json:"consentId"`
-	Status           string  `json:"status"`
-	ConsentPortalURL *string `json:"consentPortalUrl,omitempty"` // Only present when status is pending
+	ConsentID        string          `json:"consentId"`
+	Status           string          `json:"status"`
+	ConsentPortalURL *string         `json:"consentPortalUrl,omitempty"` // Only present when status is pending
+	Fields           *[]ConsentField `json:"fields,omitempty"`           // Included for internal use if needed
 }
 
 // ConsentResponsePortalView represents the user-facing consent object for the UI.
@@ -59,29 +70,9 @@ type ConsentResponsePortalView struct {
 	Fields     []ConsentField `json:"fields"` // Rich field information with display names and descriptions
 }
 
-// ConsentCreateResponse represents the detailed consent object returned upon creation of a consent record
-// Not necessarily returned unless specifically requested
-type ConsentCreateResponse struct {
-	ConsentID        string         `json:"consentId"`
-	OwnerID          string         `json:"ownerId"`
-	OwnerEmail       string         `json:"ownerEmail"`
-	AppID            string         `json:"appId"`
-	AppName          *string        `json:"appName,omitempty"`
-	Status           string         `json:"status"`
-	Type             string         `json:"type"`
-	CreatedAt        time.Time      `json:"createdAt"`
-	UpdatedAt        time.Time      `json:"updatedAt"`
-	PendingExpiresAt *time.Time     `json:"pendingExpiresAt,omitempty"`
-	GrantExpiresAt   *time.Time     `json:"grantExpiresAt,omitempty"`
-	GrantDuration    string         `json:"grantDuration"`
-	Fields           []ConsentField `json:"fields"`
-	SessionID        *string        `json:"sessionId,omitempty"`
-	ConsentPortalURL string         `json:"consentPortalUrl"`
-	UpdatedBy        *string        `json:"updatedBy,omitempty"`
-}
-
 // ToConsentResponseInternalView converts a ConsentRecord to a simplified ConsentResponseInternalView.
 // Only includes consent_portal_url when status is pending and the URL is not empty
+// Includes fields only when status is pending or approved to support internal operations
 func (cr *ConsentRecord) ToConsentResponseInternalView() ConsentResponseInternalView {
 	response := ConsentResponseInternalView{
 		ConsentID: cr.ConsentID.String(),
@@ -92,6 +83,10 @@ func (cr *ConsentRecord) ToConsentResponseInternalView() ConsentResponseInternal
 	if cr.Status == string(StatusPending) && cr.ConsentPortalURL != "" {
 		portalURL := cr.ConsentPortalURL
 		response.ConsentPortalURL = &portalURL
+	}
+
+	if cr.Status == string(StatusPending) || cr.Status == string(StatusApproved) {
+		response.Fields = &cr.Fields
 	}
 
 	return response
@@ -110,27 +105,5 @@ func (cr *ConsentRecord) ToConsentResponsePortalView() ConsentResponsePortalView
 		CreatedAt:  cr.CreatedAt,
 		UpdatedAt:  cr.UpdatedAt,
 		Fields:     cr.Fields, // Now includes DisplayName, Description, and Owner for rich UI rendering
-	}
-}
-
-// ToConsentCreateResponse converts a ConsentRecord to a detailed ConsentCreateResponse
-func (cr *ConsentRecord) ToConsentCreateResponse() *ConsentCreateResponse {
-	return &ConsentCreateResponse{
-		ConsentID:        cr.ConsentID.String(),
-		OwnerID:          cr.OwnerID,
-		OwnerEmail:       cr.OwnerEmail,
-		AppID:            cr.AppID,
-		AppName:          cr.AppName,
-		Status:           cr.Status,
-		Type:             cr.Type,
-		CreatedAt:        cr.CreatedAt,
-		UpdatedAt:        cr.UpdatedAt,
-		PendingExpiresAt: cr.PendingExpiresAt,
-		GrantExpiresAt:   cr.GrantExpiresAt,
-		GrantDuration:    cr.GrantDuration,
-		Fields:           cr.Fields,
-		SessionID:        cr.SessionID,
-		ConsentPortalURL: cr.ConsentPortalURL,
-		UpdatedBy:        cr.UpdatedBy,
 	}
 }

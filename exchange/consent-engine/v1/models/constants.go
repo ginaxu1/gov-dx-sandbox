@@ -100,3 +100,11 @@ const (
 	OpCheckConsentExpiry    ConsentEngineOperation = "check consent expiry"
 	OpProcessPortalRequest  ConsentEngineOperation = "process consent portal"
 )
+
+// UpdateByMessage represents who updated the consent with specific message
+type UpdateByMessage string
+
+// UpdateByMessage constants
+const (
+	RevokedByNewConsentWithDifferentFields UpdateByMessage = "System: revoked due to new consent with different fields"
+)
