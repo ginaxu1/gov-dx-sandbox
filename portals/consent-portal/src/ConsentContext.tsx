@@ -5,7 +5,7 @@ import type {ConsentRecord} from "./types";
 
 interface ConsentContextType {
   consentRecord: ConsentRecord | null;
-  handleConsentFetch: () => Promise<void>;
+  handleConsentFetch: () => Promise<ConsentRecord | null | undefined>;
   error: string;
   isSubmitting: boolean;
   consentId: string | null;
@@ -18,7 +18,7 @@ const ConsentContext = createContext<ConsentContextType | undefined>(undefined);
 export const useConsent = () => {
   const context = useContext(ConsentContext);
   if (!context) {
-    throw new Error('useConsent must be used within ConsentProvider');
+    throw new Error("useConsent must be used within ConsentProvider Make sure to wrap your component tree with <ConsentProvider>.</ConsentProvider>");
   }
   return context;
 };
@@ -61,10 +61,10 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
     }
   }, [user]);
 
-  const fetchConsentData = useCallback(async (consentUuid: string) => {
+  const fetchConsentData = useCallback(async (consentUuid: string, signal?: AbortSignal) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`, {headers});
+      const response = await fetch(`${CONSENT_ENGINE_PATH}/consents/${consentUuid}`, {headers, signal});
 
       if (!response.ok) {
         let errorMessage = '';
@@ -87,6 +87,10 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
       setConsentRecord({...data, consent_id: consentUuid});
       return data;
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError("");
+        return null;
+      }
       setError(err instanceof Error ? err.message : 'Failed to load consent information. Please try again.');
       console.error(err);
       navigate('/error');
@@ -160,10 +164,10 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
   };
 
   useEffect(() => {
-    if (isSignedIn) {
+    if (isSignedIn && user) {
       fetchUserInfo();
     }
-  }, [fetchUserInfo, isSignedIn]);
+  }, [user, isSignedIn, fetchUserInfo]);
 
   return (
     <ConsentContext.Provider
