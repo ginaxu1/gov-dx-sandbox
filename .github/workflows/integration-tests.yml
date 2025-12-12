@@ -78,14 +78,16 @@ jobs:
 
       - name: Build Services
         run: |
+          mkdir -p tests/integration/bin
+          
           echo "🔨 Building Policy Decision Point..."
-          go build -o tests/integration/bin/policy-decision-point ./exchange/policy-decision-point
+          (cd exchange/policy-decision-point && go build -o ../../tests/integration/bin/policy-decision-point .)
           
           echo "🔨 Building Consent Engine..."
-          go build -o tests/integration/bin/consent-engine ./exchange/consent-engine
+          (cd exchange/consent-engine && go build -o ../../tests/integration/bin/consent-engine .)
           
           echo "🔨 Building Orchestration Engine..."
-          go build -o tests/integration/bin/orchestration-engine ./exchange/orchestration-engine
+          (cd exchange/orchestration-engine && go build -o ../../tests/integration/bin/orchestration-engine .)
 
       - name: Start Services
         working-directory: tests/integration
