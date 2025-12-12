@@ -1,8 +1,10 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import {StrictMode} from 'react'
+import {createRoot} from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { AuthProvider } from "@asgardeo/auth-react";
+import {AsgardeoProvider} from "@asgardeo/react";
+import {BrowserRouter} from 'react-router-dom';
+import {ConsentProvider} from "./ConsentContext.tsx";
 
 declare global {
   interface Window {
@@ -16,30 +18,22 @@ declare global {
     };
   }
 }
-const config = {
-     signInRedirectURL: window?.configs?.signInRedirectURL,
-     signOutRedirectURL: window?.configs?.signOutRedirectURL,
-     clientID: window?.configs?.VITE_CLIENT_ID,
-     baseUrl: window?.configs?.VITE_BASE_URL,
-     scope: window?.configs?.VITE_SCOPE ? window.configs.VITE_SCOPE.split(',') : ['openid', 'profile'],
-     endpoints: {
-         authorizationEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/authorize",
-         tokenEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/token",
-         userInfoEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/userinfo",
-         endSessionEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oidc/logout"
-     }
-};
-console.log("Auth config:", config);
-// console.log("Environment variables:", {
-//   VITE_ASGARDEO_CLIENT_ID: import.meta.env.VITE_ASGARDEO_CLIENT_ID,
-//   VITE_ASGARDEO_BASE_URL: import.meta.env.VITE_ASGARDEO_BASE_URL,
-//   VITE_ASGARDEO_SCOPE: import.meta.env.VITE_ASGARDEO_SCOPE
-// });
-console.log("Window configs:", window.configs);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider config={config}>
-      <App />
-    </AuthProvider>
+    <AsgardeoProvider
+      baseUrl={window?.configs?.VITE_BASE_URL}
+      clientId={window?.configs?.VITE_CLIENT_ID}
+      afterSignInUrl={window?.configs?.signInRedirectURL}
+      afterSignOutUrl={window?.configs?.signOutRedirectURL}
+      scopes={window?.configs?.VITE_SCOPE}
+      organizationHandle={"carbon.super"}
+    >
+      <BrowserRouter>
+        <ConsentProvider>
+          <App/>
+        </ConsentProvider>
+      </BrowserRouter>
+    </AsgardeoProvider>
   </StrictMode>,
 )
