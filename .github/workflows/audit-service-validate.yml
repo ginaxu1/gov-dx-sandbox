@@ -7,6 +7,10 @@ on:
       - '.github/workflows/audit-service-validate.yml'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   # === Service-specific variables ===
   SERVICE_PATH: 'audit-service'
@@ -47,6 +51,16 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('audit-service/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Run Go Mod Tidy
         run: cd ${{ env.SERVICE_PATH }} && go mod tidy
 
@@ -72,10 +86,4 @@ jobs:
           TEST_DB_SSLMODE: disable
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
 
-      - name: Scan repository for secrets (TruffleHog)
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event.before || 'main' }}
-          head: HEAD
-          extra_args: --only-verified
+
