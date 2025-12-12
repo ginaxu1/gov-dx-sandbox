@@ -5,7 +5,7 @@ import type {ConsentRecord} from "./types";
 
 interface ConsentContextType {
   consentRecord: ConsentRecord | null;
-  handleConsentFetch: () => Promise<ConsentRecord | null | undefined>;
+  handleConsentFetch: () => Promise<ConsentRecord | null>;
   error: string;
   isSubmitting: boolean;
   consentId: string | null;
