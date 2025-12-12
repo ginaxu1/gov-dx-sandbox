@@ -3,6 +3,7 @@ module github.com/gov-dx-sandbox/tests/integration
 go 1.24.6
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12

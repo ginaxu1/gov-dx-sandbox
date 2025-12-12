@@ -1,30 +1,17 @@
 services:
-  # PostgreSQL Database for Policy Decision Point
-  pdp-db:
+  # Shared PostgreSQL Database for All Services
+  # NOTE: These are TEST-ONLY credentials. In production, use secure secrets management.
+  # Credentials can be overridden via environment variables or .env file (gitignored).
+  shared-db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: policy_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
-      - "5433:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
-
-  # PostgreSQL Database for Consent Engine
-  ce-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: consent_db
-    ports:
-      - "5434:5432"
+      - "5432:5432"
+    volumes:
+      - ./init-stats.sh:/docker-entrypoint-initdb.d/init-stats.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -40,18 +27,18 @@ services:
       dockerfile: policy-decision-point/Dockerfile
     environment:
       PORT: 8082
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       DB_SSLMODE: disable
-      CHOREO_OPENDIF_DATABASE_HOSTNAME: pdp-db
-      CHOREO_OPENDIF_DATABASE_PORT: 5432
-      CHOREO_OPENDIF_DATABASE_USERNAME: postgres
-      CHOREO_OPENDIF_DATABASE_PASSWORD: password
+      CHOREO_OPENDIF_DATABASE_HOSTNAME: shared-db
+      CHOREO_OPENDIF_DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DATABASE_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_OPENDIF_DATABASE_DATABASENAME: policy_db
       RUN_MIGRATION: "true"
     ports:
       - "8082:8082"
     depends_on:
-      pdp-db:
+      shared-db:
         condition: service_healthy
     networks:
       - test-network
@@ -77,18 +64,18 @@ services:
       dockerfile: consent-engine/Dockerfile
     environment:
       PORT: 8081
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       # Legacy database env vars (for old database.go)
-      CHOREO_DB_CE_HOSTNAME: ce-db
-      CHOREO_DB_CE_PORT: 5432
-      CHOREO_DB_CE_USERNAME: postgres
-      CHOREO_DB_CE_PASSWORD: password
+      CHOREO_DB_CE_HOSTNAME: shared-db
+      CHOREO_DB_CE_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_DB_CE_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_DB_CE_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_DB_CE_DATABASENAME: consent_db
       # V1 database env vars (for v1/database/database.go)
-      CHOREO_OPENDIF_DATABASE_HOSTNAME: ce-db
-      CHOREO_OPENDIF_DATABASE_PORT: 5432
-      CHOREO_OPENDIF_DATABASE_USERNAME: postgres
-      CHOREO_OPENDIF_DATABASE_PASSWORD: password
+      CHOREO_OPENDIF_DATABASE_HOSTNAME: shared-db
+      CHOREO_OPENDIF_DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DATABASE_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
       CHOREO_OPENDIF_DATABASE_DATABASENAME: consent_db
       DB_SSLMODE: disable
       # JWT/Asgardeo configuration for V1 auth (using Google's public JWKS for testing)
@@ -99,7 +86,7 @@ services:
     ports:
       - "8081:8081"
     depends_on:
-      ce-db:
+      shared-db:
         condition: service_healthy
     networks:
       - test-network
@@ -118,6 +105,34 @@ services:
       retries: 5
       start_period: 10s
 
+  # Audit Service
+  audit-service:
+    build:
+      context: ../../audit-service
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      ENVIRONMENT: test
+      CHOREO_OPENDIF_DB_HOSTNAME: shared-db
+      CHOREO_OPENDIF_DB_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DB_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
+      CHOREO_OPENDIF_DB_DATABASENAME: audit_db
+      DB_SSLMODE: disable
+    ports:
+      - "3001:3001"
+    depends_on:
+      shared-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # Orchestration Engine Service
   orchestration-engine:
     build:
@@ -125,18 +140,22 @@ services:
       dockerfile: orchestration-engine/Dockerfile
     environment:
       PORT: 4000
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       PDP_URL: http://policy-decision-point:8082
       CONSENT_ENGINE_URL: http://consent-engine:8081
       CONFIG_PATH: /app/config/config.json
+      CHOREO_AUDIT_CONNECTION_SERVICEURL: http://audit-service:3001
     volumes:
       - ./config.json:/app/config/config.json:ro
+      - ./schema.graphql:/app/schema.graphql:ro
     ports:
       - "4000:4000"
     depends_on:
       policy-decision-point:
         condition: service_healthy
       consent-engine:
+        condition: service_healthy
+      audit-service:
         condition: service_healthy
     networks:
       - test-network
@@ -154,6 +173,56 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # Portal Backend Service
+  portal-backend:
+    build:
+      context: ../../portal-backend
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3000
+      ENVIRONMENT: test
+      # Asgardeo Config (Mocked for testing)
+      ASGARDEO_BASE_URL: "http://host.docker.internal:8090"
+      ASGARDEO_MEMBER_PORTAL_CLIENT_ID: "mock-client-id"
+      ASGARDEO_CLIENT_ID: "mock-client-id"
+      ASGARDEO_CLIENT_SECRET: "mock-client-secret"
+      ASGARDEO_ORG_NAME: "mock-org"
+      # PDP Config
+      CHOREO_PDP_CONNECTION_SERVICEURL: "http://policy-decision-point:8082"
+      CHOREO_PDP_CONNECTION_CHOREOAPIKEY: "mock-key"
+      # DB Config
+      CHOREO_OPENDIF_DB_HOSTNAME: shared-db
+      CHOREO_OPENDIF_DB_PORT: ${POSTGRES_PORT:-5432}
+      CHOREO_OPENDIF_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      CHOREO_OPENDIF_DB_PASSWORD: ${POSTGRES_PASSWORD:-test-password-change-in-production}
+      CHOREO_OPENDIF_DB_DATABASENAME: portal_db
+      DB_SSLMODE: disable
+      RUN_MIGRATION: "false"
+
+    ports:
+      - "3000:3000"
+    depends_on:
+      shared-db:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Mock Provider Service
+  mock-provider:
+    build:
+      context: ./mock-provider
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    networks:
+      - test-network
 
 networks:
   test-network:
