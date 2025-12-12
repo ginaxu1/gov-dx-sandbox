@@ -1,7 +1,10 @@
--- Migration: Create consent_records table with composite unique constraint
--- Date: 2025-12-11
+-- Migration: Create consent_records table with partial unique constraint for active consents
+-- Date: 2025-12-12
 -- Description: Creates the consent_records table with consent_id as primary key
---              and a composite unique constraint on (owner_id, owner_email, app_id, created_at)
+--              and a partial unique index on (owner_id, owner_email, app_id, status)
+--              that only applies when status is 'pending' or 'approved'.
+--              This ensures only one active consent exists per (owner_id, owner_email, app_id),
+--              while allowing multiple historical records (rejected, expired, revoked).
 
 -- Create the consent_records table if it doesn't exist
 CREATE TABLE IF NOT EXISTS consent_records (
@@ -20,11 +23,14 @@ CREATE TABLE IF NOT EXISTS consent_records (
     fields JSONB NOT NULL,
     session_id VARCHAR(255),
     consent_portal_url TEXT NOT NULL,
-    updated_by VARCHAR(255),
-    
-    -- Composite unique constraint
-    CONSTRAINT idx_consent_unique_tuple UNIQUE (owner_id, owner_email, app_id, created_at)
+    updated_by VARCHAR(255)
 );
+
+-- Create partial unique index for active consents (pending or approved)
+-- This enforces that only one active consent can exist per (owner_id, owner_email, app_id)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_consent_active_unique 
+    ON consent_records(owner_id, owner_email, app_id, status)
+    WHERE status IN ('pending', 'approved');
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_consent_records_owner_id ON consent_records(owner_id);
@@ -39,7 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_consent_records_grant_expires_at ON consent_recor
 CREATE INDEX IF NOT EXISTS idx_consent_records_owner_app ON consent_records(owner_id, app_id);
 
 -- Add comment to table
-COMMENT ON TABLE consent_records IS 'Stores consent records with unique constraint on (owner_id, owner_email, app_id, created_at)';
+COMMENT ON TABLE consent_records IS 'Stores consent records with partial unique constraint on active consents (pending/approved). Multiple historical records (rejected, expired, revoked) are allowed per (owner_id, owner_email, app_id).';
 
 -- To rollback this migration (DROP TABLE):
 -- DROP TABLE IF EXISTS consent_records CASCADE;

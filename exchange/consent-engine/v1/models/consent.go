@@ -7,27 +7,32 @@ import (
 )
 
 // ConsentRecord represents a consent record in the system
+// Business Rules:
+// - Only one record can exist with status 'pending' or 'approved' for a given (OwnerID, OwnerEmail, AppID) tuple
+// - Multiple records can exist with status 'revoked', 'expired', or 'rejected' for the same tuple
+// - The most recently created record should have status 'pending' or 'approved' (if active)
 type ConsentRecord struct {
 	// ConsentID is the unique identifier for the consent record
 	ConsentID uuid.UUID `gorm:"column:consent_id;type:uuid;primaryKey;default:gen_random_uuid()" json:"consent_id"`
 	// OwnerID is the unique identifier for the data owner
-	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
-	OwnerID string `gorm:"column:owner_id;type:varchar(255);not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;index:idx_consent_records_owner_id;index:idx_consent_records_owner_app,composite:owner_app" json:"owner_id"`
+	// Part of conditional unique constraint for active consents (pending/approved)
+	OwnerID string `gorm:"column:owner_id;type:varchar(255);not null;index:idx_consent_records_owner_id;index:idx_consent_records_owner_app,composite:owner_app;index:idx_consent_active_unique,composite:active_unique,where:status IN ('pending', 'approved')" json:"owner_id"`
 	// OwnerEmail is the email address of the data owner
-	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
-	OwnerEmail string `gorm:"column:owner_email;type:varchar(255);not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;index:idx_consent_records_owner_email" json:"owner_email"`
+	// Part of conditional unique constraint for active consents (pending/approved)
+	OwnerEmail string `gorm:"column:owner_email;type:varchar(255);not null;index:idx_consent_records_owner_email;index:idx_consent_active_unique,composite:active_unique,where:status IN ('pending', 'approved')" json:"owner_email"`
 	// AppID is the unique identifier for the consumer application
-	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
-	AppID string `gorm:"column:app_id;type:varchar(255);not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;index:idx_consent_records_app_id;index:idx_consent_records_owner_app,composite:owner_app" json:"app_id"`
+	// Part of conditional unique constraint for active consents (pending/approved)
+	AppID string `gorm:"column:app_id;type:varchar(255);not null;index:idx_consent_records_app_id;index:idx_consent_records_owner_app,composite:owner_app;index:idx_consent_active_unique,composite:active_unique,where:status IN ('pending', 'approved')" json:"app_id"`
 	// AppName is the name of the consumer application
 	AppName *string `gorm:"column:app_name;type:varchar(255);" json:"app_name,omitempty"`
 	// Status is the status of the consent record: pending, approved, rejected, expired, revoked
-	Status string `gorm:"column:status;type:varchar(50);not null;index:idx_consent_records_status" json:"status"`
+	// Part of conditional unique constraint for active consents (pending/approved)
+	Status string `gorm:"column:status;type:varchar(50);not null;index:idx_consent_records_status;index:idx_consent_active_unique,composite:active_unique,where:status IN ('pending', 'approved')" json:"status"`
 	// Type is the type of consent mechanism "realtime" or "offline"
 	Type string `gorm:"column:type;type:varchar(50);not null" json:"type"`
 	// CreatedAt is the timestamp when the consent record was created
-	// Part of composite unique key (OwnerID, OwnerEmail, AppID, CreatedAt)
-	CreatedAt time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;uniqueIndex:idx_consent_unique_tuple,composite:unique_tuple;default:CURRENT_TIMESTAMP;index:idx_consent_records_created_at" json:"created_at"`
+	// Used to determine the most recent active consent
+	CreatedAt time.Time `gorm:"column:created_at;type:timestamp with time zone;not null;default:CURRENT_TIMESTAMP;index:idx_consent_records_created_at" json:"created_at"`
 	// UpdatedAt is the timestamp when the consent record was last updated
 	UpdatedAt time.Time `gorm:"column:updated_at;type:timestamp with time zone;not null;default:CURRENT_TIMESTAMP" json:"updated_at"`
 	// PendingExpiresAt is the timestamp when a pending consent expires (timeout waiting for approval/denial)
