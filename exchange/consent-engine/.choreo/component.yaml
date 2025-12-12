@@ -18,7 +18,7 @@ endpoints:
       - Public
       - Organization
     # +optional Path to the schema definition file.
-    schemaFilePath: openapi.yaml
+    schemaFilePath: v1/openapi.yaml
 
 configurations:
   # +optional List of environment variables to be injected into the component.
