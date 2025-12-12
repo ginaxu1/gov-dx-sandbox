@@ -104,7 +104,7 @@ export const ConsentProvider: React.FC<{ children: ReactNode }> = ({children}) =
     if (!consentUuid) {
       setError('No consent ID provided.');
       navigate('/error');
-      return;
+      return null;
     }
     return fetchConsentData(consentUuid);
   };
