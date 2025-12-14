@@ -297,18 +297,15 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		// Continue without PDP check - this allows the system to work without PDP
 	} else {
 		pdpRequest := &policy.PdpRequest{
-			ConsumerId: consumerInfo.Subscriber,
-			AppId:      consumerInfo.ApplicationId,
-			RequestId:  "request_123",
+			AppId: consumerInfo.ApplicationId,
 		}
 
 		requiredFields := make([]policy.RequiredField, 0)
 
 		for _, field := range *schemaCollection.ProviderFieldMap {
 			requiredFields = append(requiredFields, policy.RequiredField{
-				ProviderKey: field.ServiceKey,
-				SchemaId:    field.SchemaId,
-				FieldName:   field.FieldPath,
+				SchemaId:  field.SchemaId,
+				FieldName: field.FieldPath,
 			})
 		}
 
@@ -316,18 +313,38 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		pdpResponse, err = pdpClient.MakePdpRequest(pdpRequest)
 		if err != nil {
-			logger.Log.Info("PDP request failed", "error", err)
-			return createErrorResponseWithCode("PDP request failed", errors.CodePDPError)
+			logger.Log.Error("PDP request failed", "error", err)
+			return createErrorResponseWithCode("Authorization check failed: "+err.Error(), errors.CodePDPError)
 		}
 
 		if pdpResponse == nil {
 			logger.Log.Error("Failed to get response from PDP")
-			return createErrorResponseWithCode("Failed to get response from PDP", errors.CodePDPNoResponse)
+			return createErrorResponseWithCode("No response from authorization service", errors.CodePDPNoResponse)
 		}
 
+		// Log PDP decision for audit trail
+		logger.Log.Info("PDP decision received",
+			"authorized", pdpResponse.AppAuthorized,
+			"consentRequired", pdpResponse.AppRequiresOwnerConsent,
+			"unauthorizedFieldsCount", len(pdpResponse.UnauthorizedFields),
+			"expiredFieldsCount", len(pdpResponse.ExpiredFields))
+
 		if !pdpResponse.AppAuthorized {
-			logger.Log.Info("Request not allowed by PDP")
-			return createErrorResponseWithCode("Request not allowed by PDP", errors.CodePDPNotAllowed)
+			logger.Log.Info("Request not authorized by PDP",
+				"unauthorizedFields", pdpResponse.UnauthorizedFields)
+			return createErrorResponse("Access denied", map[string]interface{}{
+				"code":               errors.CodePDPNotAllowed,
+				"unauthorizedFields": pdpResponse.UnauthorizedFields,
+			})
+		}
+
+		if pdpResponse.AppAccessExpired {
+			logger.Log.Info("Application access expired",
+				"expiredFields", pdpResponse.ExpiredFields)
+			return createErrorResponse("Access expired", map[string]interface{}{
+				"code":          errors.CodePDPNotAllowed,
+				"expiredFields": pdpResponse.ExpiredFields,
+			})
 		}
 	}
 
@@ -350,8 +367,16 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 	}
 
 	// Handle consent check if consent is required
-	if pdpResponse != nil && pdpResponse.ConsentRequired {
-		logger.Log.Info("Consent required for fields", "fields", pdpResponse.ConsentRequiredFields)
+	if pdpResponse != nil && pdpResponse.AppRequiresOwnerConsent {
+		logger.Log.Info("Consent required for fields",
+			"fieldsCount", len(pdpResponse.ConsentRequiredFields),
+			"fields", pdpResponse.ConsentRequiredFields)
+
+		// Validate PDP response
+		if len(pdpResponse.ConsentRequiredFields) == 0 {
+			logger.Log.Error("PDP indicates consent required but no fields specified")
+			return createErrorResponseWithCode("Invalid PDP response: consent required but no fields specified", errors.CodePDPError)
+		}
 
 		// Check if CE client is available
 		if ceClient == nil {
@@ -361,11 +386,20 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		ownerEmail := dataOwnerID // assuming dataOwnerID is ownerEmail for this example
 
+		// Map PDP response fields to Consent Engine request with all metadata
 		fields := make([]consent.ConsentField, len(pdpResponse.ConsentRequiredFields))
 		for i, f := range pdpResponse.ConsentRequiredFields {
 			fields[i].FieldName = f.FieldName
 			fields[i].SchemaID = f.SchemaID
-			fields[i].Owner = consent.OwnerCitizen
+			fields[i].DisplayName = f.DisplayName
+			fields[i].Description = f.Description
+
+			// Map Owner from PDP response, default to citizen if not provided
+			if f.Owner != nil {
+				fields[i].Owner = consent.OwnerType(*f.Owner)
+			} else {
+				fields[i].Owner = consent.OwnerCitizen
+			}
 		}
 
 		typeRealTime := consent.TypeRealtime
