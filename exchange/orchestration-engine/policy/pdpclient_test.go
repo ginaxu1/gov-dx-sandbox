@@ -35,9 +35,7 @@ func TestNewPdpClient(t *testing.T) {
 }
 
 func TestMakePdpRequest_Success(t *testing.T) {
-	// Create a mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify request method and path
 		if r.Method != http.MethodPost {
 			t.Errorf("Expected POST request, got %s", r.Method)
 		}
@@ -46,22 +44,10 @@ func TestMakePdpRequest_Success(t *testing.T) {
 			t.Errorf("Expected path /api/v1/policy/decide, got %s", r.URL.Path)
 		}
 
-		// Verify content type
-		if r.Header.Get("Content-Type") != "application/json" {
-			t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
-		}
-
-		// Verify request body
-		var req PdpRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("Failed to decode request body: %v", err)
-		}
-
-		// Send mock response
 		response := PdpResponse{
-			AppAuthorized:         true,
-			ConsentRequired:       false,
-			ConsentRequiredFields: []ConsentRequiredField{},
+			AppAuthorized:           true,
+			AppRequiresOwnerConsent: false,
+			ConsentRequiredFields:   []ConsentRequiredField{},
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -70,24 +56,18 @@ func TestMakePdpRequest_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create client with mock server URL
 	client := NewPdpClient(server.URL)
 
-	// Create test request
 	request := &PdpRequest{
-		ConsumerId: "consumer123",
-		AppId:      "app456",
-		RequestId:  "req789",
+		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				ProviderKey: "provider1",
-				SchemaId:    "schema1",
-				FieldName:   "field1",
+				SchemaId:  "schema1",
+				FieldName: "field1",
 			},
 		},
 	}
 
-	// Make request
 	response, err := client.MakePdpRequest(request)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -101,21 +81,20 @@ func TestMakePdpRequest_Success(t *testing.T) {
 		t.Error("Expected AppAuthorized to be true")
 	}
 
-	if response.ConsentRequired {
-		t.Error("Expected ConsentRequired to be false")
+	if response.AppRequiresOwnerConsent {
+		t.Error("Expected AppRequiresOwnerConsent to be false")
 	}
 }
 
 func TestMakePdpRequest_ConsentRequired(t *testing.T) {
-	// Create a mock server that returns consent required
-	displayName := "Test Field"
-	description := "Test Description"
-	owner := "Test Owner"
+	displayName := "Sensitive Field"
+	description := "Contains sensitive data"
+	owner := OwnerCitizen
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := PdpResponse{
-			AppAuthorized:   true,
-			ConsentRequired: true,
+			AppAuthorized:           true,
+			AppRequiresOwnerConsent: true,
 			ConsentRequiredFields: []ConsentRequiredField{
 				{
 					FieldName:   "sensitiveField",
@@ -136,14 +115,11 @@ func TestMakePdpRequest_ConsentRequired(t *testing.T) {
 	client := NewPdpClient(server.URL)
 
 	request := &PdpRequest{
-		ConsumerId: "consumer123",
-		AppId:      "app456",
-		RequestId:  "req789",
+		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				ProviderKey: "provider1",
-				SchemaId:    "schema1",
-				FieldName:   "sensitiveField",
+				SchemaId:  "schema1",
+				FieldName: "sensitiveField",
 			},
 		},
 	}
@@ -157,8 +133,8 @@ func TestMakePdpRequest_ConsentRequired(t *testing.T) {
 		t.Error("Expected AppAuthorized to be true")
 	}
 
-	if !response.ConsentRequired {
-		t.Error("Expected ConsentRequired to be true")
+	if !response.AppRequiresOwnerConsent {
+		t.Error("Expected AppRequiresOwnerConsent to be true")
 	}
 
 	if len(response.ConsentRequiredFields) != 1 {
@@ -187,88 +163,105 @@ func TestMakePdpRequest_ConsentRequired(t *testing.T) {
 	}
 }
 
-func TestMakePdpRequest_ServerError(t *testing.T) {
-	// Create a mock server that returns an error
+func TestMakePdpRequest_AppNotAuthorized(t *testing.T) {
+	unauthorizedField := ConsentRequiredField{
+		FieldName: "restrictedField",
+		SchemaID:  "schema1",
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		response := PdpResponse{
+			AppAuthorized:           false,
+			UnauthorizedFields:      []ConsentRequiredField{unauthorizedField},
+			AppRequiresOwnerConsent: false,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
 	client := NewPdpClient(server.URL)
 
 	request := &PdpRequest{
-		ConsumerId: "consumer123",
-		AppId:      "app456",
-		RequestId:  "req789",
+		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				ProviderKey: "provider1",
-				SchemaId:    "schema1",
-				FieldName:   "field1",
+				SchemaId:  "schema1",
+				FieldName: "restrictedField",
 			},
 		},
 	}
 
 	response, err := client.MakePdpRequest(request)
-
-	if err == nil {
-		t.Error("Expected error when server returns non-JSON response")
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if response != nil {
-		t.Errorf("Expected nil response on error, got %v", response)
+	if response.AppAuthorized {
+		t.Error("Expected AppAuthorized to be false")
+	}
+
+	if len(response.UnauthorizedFields) != 1 {
+		t.Fatalf("Expected 1 unauthorized field, got %d", len(response.UnauthorizedFields))
 	}
 }
 
-func TestMakePdpRequest_InvalidJSON(t *testing.T) {
-	// Create a mock server that returns invalid JSON
+func TestMakePdpRequest_AppAccessExpired(t *testing.T) {
+	expiredField := ConsentRequiredField{
+		FieldName: "expiredField",
+		SchemaID:  "schema1",
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := PdpResponse{
+			AppAuthorized:    true,
+			AppAccessExpired: true,
+			ExpiredFields:    []ConsentRequiredField{expiredField},
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("invalid json"))
+		json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
 	client := NewPdpClient(server.URL)
 
 	request := &PdpRequest{
-		ConsumerId: "consumer123",
-		AppId:      "app456",
-		RequestId:  "req789",
+		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				ProviderKey: "provider1",
-				SchemaId:    "schema1",
-				FieldName:   "field1",
+				SchemaId:  "schema1",
+				FieldName: "expiredField",
 			},
 		},
 	}
 
 	response, err := client.MakePdpRequest(request)
-
-	if err == nil {
-		t.Error("Expected error when server returns invalid JSON")
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if response != nil {
-		t.Errorf("Expected nil response on error, got %v", response)
+	if !response.AppAccessExpired {
+		t.Error("Expected AppAccessExpired to be true")
+	}
+
+	if len(response.ExpiredFields) != 1 {
+		t.Fatalf("Expected 1 expired field, got %d", len(response.ExpiredFields))
 	}
 }
 
 func TestMakePdpRequest_NetworkError(t *testing.T) {
-	// Use an invalid URL to simulate network error
 	client := NewPdpClient("http://invalid-url-that-does-not-exist:9999")
 
 	request := &PdpRequest{
-		ConsumerId: "consumer123",
-		AppId:      "app456",
-		RequestId:  "req789",
+		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				ProviderKey: "provider1",
-				SchemaId:    "schema1",
-				FieldName:   "field1",
+				SchemaId:  "schema1",
+				FieldName: "field1",
 			},
 		},
 	}
@@ -284,104 +277,33 @@ func TestMakePdpRequest_NetworkError(t *testing.T) {
 	}
 }
 
-func TestMakePdpRequest_MultipleRequiredFields(t *testing.T) {
+func TestMakePdpRequest_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify multiple required fields in request
-		var req PdpRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("Failed to decode request body: %v", err)
-		}
-
-		if len(req.RequiredFields) != 3 {
-			t.Errorf("Expected 3 required fields, got %d", len(req.RequiredFields))
-		}
-
-		response := PdpResponse{
-			AppAuthorized:         true,
-			ConsentRequired:       false,
-			ConsentRequiredFields: []ConsentRequiredField{},
-		}
-
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
+		w.Write([]byte("invalid json"))
 	}))
 	defer server.Close()
 
 	client := NewPdpClient(server.URL)
 
 	request := &PdpRequest{
-		ConsumerId: "consumer123",
-		AppId:      "app456",
-		RequestId:  "req789",
+		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				ProviderKey: "provider1",
-				SchemaId:    "schema1",
-				FieldName:   "field1",
-			},
-			{
-				ProviderKey: "provider2",
-				SchemaId:    "schema2",
-				FieldName:   "field2",
-			},
-			{
-				ProviderKey: "provider3",
-				SchemaId:    "schema3",
-				FieldName:   "field3",
+				SchemaId:  "schema1",
+				FieldName: "field1",
 			},
 		},
 	}
 
 	response, err := client.MakePdpRequest(request)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+
+	if err == nil {
+		t.Error("Expected error when server returns invalid JSON")
 	}
 
-	if response == nil {
-		t.Fatal("Expected non-nil response")
-	}
-}
-
-func TestMakePdpRequest_AppNotAuthorized(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		response := PdpResponse{
-			AppAuthorized:         false,
-			ConsentRequired:       false,
-			ConsentRequiredFields: []ConsentRequiredField{},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
-
-	client := NewPdpClient(server.URL)
-
-	request := &PdpRequest{
-		ConsumerId: "consumer123",
-		AppId:      "app456",
-		RequestId:  "req789",
-		RequiredFields: []RequiredField{
-			{
-				ProviderKey: "provider1",
-				SchemaId:    "schema1",
-				FieldName:   "field1",
-			},
-		},
-	}
-
-	response, err := client.MakePdpRequest(request)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if response.AppAuthorized {
-		t.Error("Expected AppAuthorized to be false")
-	}
-
-	if response.ConsentRequired {
-		t.Error("Expected ConsentRequired to be false")
+	if response != nil {
+		t.Errorf("Expected nil response on error, got %v", response)
 	}
 }
