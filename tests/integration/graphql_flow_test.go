@@ -84,30 +84,38 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 // checkDockerComposeServices checks if docker-compose services are running.
-// It validates the docker-compose file path and parses the output to ensure services are active.
-func checkDockerComposeServices(composeFile string) bool {
-	// Validate compose file exists
-	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
-		return false
+// It validates the docker-compose file paths and parses the output to ensure services are active.
+func checkDockerComposeServices(composeFiles ...string) bool {
+	var args []string
+	args = append(args, "compose")
+
+	for _, file := range composeFiles {
+		// Validate compose file exists
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			return false
+		}
+
+		// Sanitize file path to prevent command injection
+		// Only allow relative paths and ensure it's within the test directory
+		absPath, err := filepath.Abs(file)
+		if err != nil {
+			return false
+		}
+		testDir, err := os.Getwd()
+		if err != nil {
+			return false
+		}
+		// Ensure the compose file is within the test directory
+		if !strings.HasPrefix(absPath, testDir) {
+			return false
+		}
+		args = append(args, "-f", file)
 	}
 
-	// Sanitize file path to prevent command injection
-	// Only allow relative paths and ensure it's within the test directory
-	absPath, err := filepath.Abs(composeFile)
-	if err != nil {
-		return false
-	}
-	testDir, err := os.Getwd()
-	if err != nil {
-		return false
-	}
-	// Ensure the compose file is within the test directory
-	if !strings.HasPrefix(absPath, testDir) {
-		return false
-	}
+	args = append(args, "ps", "--format", "json")
 
 	// Check if docker-compose services are running
-	cmd := exec.Command("docker", "compose", "-f", composeFile, "ps", "--format", "json")
+	cmd := exec.Command("docker", args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return false
@@ -147,14 +155,14 @@ func TestMain(m *testing.M) {
 	}
 
 	// Define services to check via docker-compose
-	composeFile := "docker-compose.test.yml"
-	if checkDockerComposeServices(composeFile) {
+	composeFiles := []string{"docker-compose.db.yml", "docker-compose.test.yml"}
+	if checkDockerComposeServices(composeFiles...) {
 		fmt.Println("📦 Docker Compose services detected. Checking service health...")
 	} else {
 		fmt.Println("⚠️  Docker Compose services not detected.")
 		fmt.Println("💡 To start services, run:")
 		fmt.Println("   cd tests/integration")
-		fmt.Println("   docker compose -f docker-compose.test.yml up -d")
+		fmt.Printf("   docker compose -f %s up -d\n", strings.Join(composeFiles, " -f "))
 		fmt.Println("   Then wait for services to be healthy before running tests.")
 		fmt.Println()
 		fmt.Println("⏭️  Exiting tests. Please start services and try again.")
@@ -186,7 +194,7 @@ func TestMain(m *testing.M) {
 		fmt.Printf("\n⚠️  Some services are not available: %v\n", unavailableServices)
 		fmt.Println("💡 To start services, run:")
 		fmt.Println("   cd tests/integration")
-		fmt.Println("   docker compose -f docker-compose.test.yml up -d")
+		fmt.Printf("   docker compose -f %s up -d\n", strings.Join(composeFiles, " -f "))
 		fmt.Println()
 		fmt.Println("⏭️  Exiting tests. Please start services and try again.")
 		os.Exit(1)
@@ -691,14 +699,23 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 		t.Skipf("Skipping ServiceTimeout test: unable to get working directory: %v", err)
 		return
 	}
-	composeFile := filepath.Join(wd, "docker-compose.test.yml")
+	// Use both files for pause command too, to ensure correct project context
+	composeFiles := []string{"docker-compose.db.yml", "docker-compose.test.yml"}
 
-	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
-		t.Skipf("Skipping ServiceTimeout test: docker-compose.test.yml not found: %v", err)
-		return
+	for _, f := range composeFiles {
+		if _, err := os.Stat(filepath.Join(wd, f)); os.IsNotExist(err) {
+			t.Skipf("Skipping ServiceTimeout test: %s not found: %v", f, err)
+			return
+		}
 	}
 
-	cmd := exec.Command("docker", "compose", "-f", composeFile, "pause", "policy-decision-point")
+	args := []string{"compose"}
+	for _, f := range composeFiles {
+		args = append(args, "-f", filepath.Join(wd, f))
+	}
+	args = append(args, "pause", "policy-decision-point")
+
+	cmd := exec.Command("docker", args...)
 	err = cmd.Run()
 	if err != nil {
 		t.Skipf("Skipping ServiceTimeout test: unable to pause docker container: %v", err)
@@ -706,7 +723,13 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		unpauseCmd := exec.Command("docker", "compose", "-f", composeFile, "unpause", "policy-decision-point")
+		args := []string{"compose"}
+		for _, f := range composeFiles {
+			args = append(args, "-f", filepath.Join(wd, f))
+		}
+		args = append(args, "unpause", "policy-decision-point")
+
+		unpauseCmd := exec.Command("docker", args...)
 		if err := unpauseCmd.Run(); err != nil {
 			t.Logf("Failed to unpause PDP container during cleanup: %v", err)
 		}
