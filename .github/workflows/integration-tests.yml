@@ -88,6 +88,9 @@ jobs:
           
           echo "🔨 Building Orchestration Engine..."
           (cd exchange/orchestration-engine && go build -o ../../tests/integration/bin/orchestration-engine .)
+          
+          echo "🔨 Building Mock Provider..."
+          (cd tests/integration/mock-provider && go build -o ../bin/mock-provider .)
 
       - name: Start Services
         working-directory: tests/integration
@@ -144,8 +147,20 @@ jobs:
           CE_PID=$!
           echo "CE PID: $CE_PID"
           
-          echo "⏳ Waiting for PDP and CE to be ready..."
+          echo "🚀 Starting Mock Provider..."
+          PORT=8083 \
+          ./bin/mock-provider > logs/mock-provider.log 2>&1 &
+          MOCK_PID=$!
+          echo "Mock Provider PID: $MOCK_PID"
+          
+          echo "⏳ Waiting for PDP, CE, and Mock Provider to be ready..."
           sleep 5
+          
+          echo "📝 Updating config.json for CI mode (localhost URLs)..."
+          # Update config.json to use localhost instead of Docker service names
+          sed -i 's|http://consent-engine:8081|http://localhost:8081|g' config.json
+          sed -i 's|http://policy-decision-point:8082|http://localhost:8082|g' config.json
+          sed -i 's|http://mock-provider:8083|http://localhost:8083|g' config.json
           
           echo "🚀 Starting Orchestration Engine..."
           PORT=4000 \
@@ -161,6 +176,7 @@ jobs:
           sleep 10
 
       - name: Check Service Health
+        working-directory: tests/integration
         run: |
           check_health() {
             local service_name=$1
@@ -174,15 +190,24 @@ jobs:
             fi
           }
           
-          check_health "Policy Decision Point" "http://localhost:8082/health" || (cat tests/integration/logs/pdp.log && exit 1)
-          check_health "Consent Engine" "http://localhost:8081/health" || (cat tests/integration/logs/ce.log && exit 1)
-          check_health "Orchestration Engine" "http://localhost:4000/health" || (cat tests/integration/logs/oe.log && exit 1)
+          check_health "Policy Decision Point" "http://localhost:8082/health" || (cat logs/pdp.log && exit 1)
+          check_health "Consent Engine" "http://localhost:8081/health" || (cat logs/ce.log && exit 1)
+          # Mock Provider doesn't have /health endpoint, just check if it's listening
+          if curl -s -f "http://localhost:8083/graphql" > /dev/null 2>&1; then
+            echo "✅ Mock Provider is responding"
+          else
+            echo "❌ Mock Provider is NOT responding"
+            cat logs/mock-provider.log
+            exit 1
+          fi
+          check_health "Orchestration Engine" "http://localhost:4000/health" || (cat logs/oe.log && exit 1)
 
       - name: Run integration tests
         working-directory: tests/integration
         env:
           GO_ENV: test
           TEST_TIMEOUT: ${{ env.TEST_TIMEOUT }}
+          SKIP_DOCKER_COMPOSE_CHECK: "true"
         run: |
           echo "🧪 Running integration tests..."
           go test -v -race -timeout ${{ env.TEST_TIMEOUT }} ./...
@@ -194,6 +219,7 @@ jobs:
           echo "=== Service Logs ==="
           cat logs/pdp.log || echo "No PDP log"
           cat logs/ce.log || echo "No CE log"
+          cat logs/mock-provider.log || echo "No Mock Provider log"
           cat logs/oe.log || echo "No OE log"
           
           echo ""
@@ -207,6 +233,7 @@ jobs:
           echo "🧹 Cleaning up test infrastructure..."
           pkill -f policy-decision-point || true
           pkill -f consent-engine || true
+          pkill -f mock-provider || true
           pkill -f orchestration-engine || true
           docker compose -f docker-compose.db.yml down -v
           rm -rf bin logs
