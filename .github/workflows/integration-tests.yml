@@ -125,12 +125,8 @@ jobs:
           docker compose -f docker-compose.test.yml logs
           
           echo ""
-          echo "=== PDP Database Logs ==="
-          docker compose -f docker-compose.test.yml logs pdp-db
-          
-          echo ""
-          echo "=== CE Database Logs ==="
-          docker compose -f docker-compose.test.yml logs ce-db
+          echo "=== Shared Database Logs ==="
+          docker compose -f docker-compose.test.yml logs shared-db
 
       - name: Cleanup
         if: always()
