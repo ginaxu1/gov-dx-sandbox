@@ -403,15 +403,13 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		}
 
 		typeRealTime := consent.TypeRealtime
-
 		ceRequest := &consent.CreateConsentRequest{
 			AppID: consumerInfo.ApplicationId,
-			ConsentRequirements: []consent.ConsentRequirement{
-				{
-					Owner:   consent.OwnerCitizen,
-					OwnerID: ownerEmail,
-					Fields:  fields,
-				},
+			ConsentRequirement: consent.ConsentRequirement{
+				Owner:      consent.OwnerCitizen,
+				OwnerID:    ownerEmail,
+				OwnerEmail: ownerEmail,
+				Fields:     fields,
 			},
 			ConsentType: &typeRealTime,
 		}
