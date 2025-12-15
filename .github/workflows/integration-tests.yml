@@ -62,10 +62,10 @@ jobs:
         working-directory: tests/integration
         run: |
           echo "🚀 Starting Docker Compose services..."
-          docker compose -f docker-compose.test.yml up -d
+          docker compose -f docker-compose.db.yml -f docker-compose.test.yml up -d
           
           echo "📋 Checking service status..."
-          docker compose -f docker-compose.test.yml ps
+          docker compose -f docker-compose.db.yml -f docker-compose.test.yml ps
 
       - name: Wait for services to be healthy
         working-directory: tests/integration
@@ -90,7 +90,7 @@ jobs:
             
             echo "❌ $service_name failed to become healthy"
             echo "Service logs:"
-            docker compose -f docker-compose.test.yml logs $service_name
+            docker compose -f docker-compose.db.yml -f docker-compose.test.yml logs $service_name
             return 1
           }
           
@@ -101,6 +101,8 @@ jobs:
           check_health "policy-decision-point" "http://localhost:8082/health" || exit 1
           check_health "consent-engine" "http://localhost:8081/health" || exit 1
           check_health "orchestration-engine" "http://localhost:4000/health" || exit 1
+          check_health "audit-service" "http://localhost:3001/health" || exit 1
+          check_health "portal-backend" "http://localhost:3000/health" || exit 1
           
           echo "🎉 All services are healthy and ready!"
 
@@ -118,20 +120,20 @@ jobs:
         working-directory: tests/integration
         run: |
           echo "=== Docker Compose Services Status ==="
-          docker compose -f docker-compose.test.yml ps
+          docker compose -f docker-compose.db.yml -f docker-compose.test.yml ps
           
           echo ""
           echo "=== All Service Logs ==="
-          docker compose -f docker-compose.test.yml logs
+          docker compose -f docker-compose.db.yml -f docker-compose.test.yml logs
           
           echo ""
-          echo "=== Shared Database Logs ==="
-          docker compose -f docker-compose.test.yml logs shared-db
+          echo "=== Database Logs ==="
+          docker compose -f docker-compose.db.yml -f docker-compose.test.yml logs pdp-db ce-db audit-db portal-db
 
       - name: Cleanup
         if: always()
         working-directory: tests/integration
         run: |
           echo "🧹 Cleaning up test infrastructure..."
-          docker compose -f docker-compose.test.yml down -v
+          docker compose -f docker-compose.db.yml -f docker-compose.test.yml down -v
           echo "✅ Cleanup complete"
