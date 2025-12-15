@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database for Policy Decision Point
   pdp-db:
@@ -15,8 +13,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - test-network
 
   # PostgreSQL Database for Consent Engine
   ce-db:
@@ -32,39 +28,3 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    networks:
-      - test-network
-
-  # PostgreSQL Database for Audit Service
-  audit-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: audit_db
-    ports:
-      - "5435:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
-
-  # PostgreSQL Database for Portal Backend
-  portal-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: portal_db
-    ports:
-      - "5436:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
