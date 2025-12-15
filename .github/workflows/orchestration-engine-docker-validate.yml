@@ -1,11 +1,10 @@
 name: Validate Orchestration Engine Docker
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  pull_request:
+    paths:
+      - 'exchange/orchestration-engine/Dockerfile'
+      - '.github/workflows/orchestration-engine-docker-validate.yml'
   workflow_dispatch:
 
 env:

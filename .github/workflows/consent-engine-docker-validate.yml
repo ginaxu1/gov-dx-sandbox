@@ -1,11 +1,10 @@
 name: Validate Consent Engine Docker
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  pull_request:
+    paths:
+      - 'exchange/consent-engine/Dockerfile'
+      - '.github/workflows/consent-engine-docker-validate.yml'
   workflow_dispatch:
 
 env:

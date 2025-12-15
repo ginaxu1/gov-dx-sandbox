@@ -1,11 +1,10 @@
 name: Validate Portal Backend Docker
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  pull_request:
+    paths:
+      - 'portal-backend/Dockerfile'
+      - '.github/workflows/portal-backend-docker-validate.yml'
   workflow_dispatch:
 
 env:

@@ -1,11 +1,10 @@
 name: Validate Audit Service Docker
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  pull_request:
+    paths:
+      - 'audit-service/Dockerfile'
+      - '.github/workflows/audit-service-docker-validate.yml'
   workflow_dispatch:
 
 env:
