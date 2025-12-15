@@ -58,8 +58,8 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 	// 2. Mock PDP
 	pdpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := policy.PdpResponse{
-			AppAuthorized:   true,
-			ConsentRequired: false,
+			AppAuthorized:           true,
+			AppRequiresOwnerConsent: false,
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -183,6 +183,6 @@ func TestFederateQuery_PDPDeny(t *testing.T) {
 
 	require.NotEmpty(t, resp.Errors)
 	// Check for specific error message or code if possible
-	// The code returns: "Request not allowed by PDP"
-	assert.Contains(t, resp.Errors[0].(map[string]interface{})["message"], "Request not allowed by PDP")
+	// The code returns: "Access denied"
+	assert.Contains(t, resp.Errors[0].(map[string]interface{})["message"], "Access denied")
 }

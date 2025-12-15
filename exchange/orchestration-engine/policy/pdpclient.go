@@ -2,49 +2,22 @@ package policy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 )
 
-type PdpConfig struct {
-	ClientUrl string `json:"pdpUrl,omitempty"`
-}
-
-type RequiredField struct {
-	ProviderKey string `json:"providerKey"`
-	SchemaId    string `json:"schemaId"`
-	FieldName   string `json:"fieldName"`
-}
-
-type PdpRequest struct {
-	ConsumerId     string          `json:"consumerId"`
-	AppId          string          `json:"applicationId"`
-	RequestId      string          `json:"requestId"`
-	RequiredFields []RequiredField `json:"requiredFields"`
-}
-
-type ConsentRequiredField struct {
-	FieldName   string  `json:"fieldName"`
-	SchemaID    string  `json:"schemaId"`
-	DisplayName *string `json:"displayName,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Owner       *string `json:"owner,omitempty"`
-}
-
-type PdpResponse struct {
-	AppAuthorized         bool                   `json:"appAuthorized"`
-	ConsentRequired       bool                   `json:"appRequiresOwnerConsent"`
-	ConsentRequiredFields []ConsentRequiredField `json:"consentRequiredFields"`
-}
-
+// PdpClient represents a client to interact with the Policy Decision Point service
 type PdpClient struct {
 	httpClient *http.Client
 	baseUrl    string
 }
 
+// NewPdpClient creates a new instance of PdpClient
 func NewPdpClient(baseUrl string) *PdpClient {
 	return &PdpClient{
 		httpClient: &http.Client{
@@ -54,7 +27,8 @@ func NewPdpClient(baseUrl string) *PdpClient {
 	}
 }
 
-func (p *PdpClient) MakePdpRequest(request *PdpRequest) (*PdpResponse, error) {
+// MakePdpRequest sends a request to get a policy decision
+func (p *PdpClient) MakePdpRequest(ctx context.Context, request *PdpRequest) (*PdpResponse, error) {
 	// Implement the logic to make a PDP request using p.httpClient
 	requestBody, err := json.Marshal(request)
 	if err != nil {
@@ -66,13 +40,31 @@ func (p *PdpClient) MakePdpRequest(request *PdpRequest) (*PdpResponse, error) {
 	// log the json request body
 	logger.Log.Info("PDP Request Body", "body", string(requestBody))
 
-	response, err := p.httpClient.Post(p.baseUrl+"/api/v1/policy/decide", "application/json", bytes.NewReader(requestBody))
+	// Create request with context for cancellation and timeout support
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseUrl+policyDecisionEndpointPath, bytes.NewReader(requestBody))
+	if err != nil {
+		logger.Log.Error("Failed to create PDP request", "error", err)
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := p.httpClient.Do(req)
 	if err != nil {
 		// handle error
 		logger.Log.Error("Failed to make PDP request", "error", err)
 		return nil, err
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		var errorBody bytes.Buffer
+		if _, err := errorBody.ReadFrom(response.Body); err != nil {
+			logger.Log.Error("Failed to read error response body", "error", err)
+		}
+		errorMsg := errorBody.String()
+		logger.Log.Error("PDP request failed", "status", response.StatusCode, "response", errorMsg)
+		return nil, fmt.Errorf("PDP request failed, status code: %d, response: %s", response.StatusCode, errorMsg)
+	}
 
 	var pdpResponse PdpResponse
 	err = json.NewDecoder(response.Body).Decode(&pdpResponse)
