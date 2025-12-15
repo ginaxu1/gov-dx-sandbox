@@ -13,6 +13,10 @@ on:
   # Allow manual trigger
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   GO_VERSION: '1.24'
   TEST_TIMEOUT: 30m
@@ -37,7 +41,9 @@ jobs:
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
-          path: ~/go/pkg/mod
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('tests/integration/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
@@ -58,57 +64,150 @@ jobs:
           fi
           echo "Go mod files are clean."
 
-      - name: Start Docker Compose services
+      - name: Start Database Services
         working-directory: tests/integration
         run: |
-          echo "🚀 Starting Docker Compose services..."
-          docker compose -f docker-compose.test.yml up -d
+          echo "🚀 Starting Database services..."
+          docker compose -f docker-compose.db.yml up -d
           
-          echo "📋 Checking service status..."
-          docker compose -f docker-compose.test.yml ps
+          echo "⏳ Waiting for databases to be healthy..."
+          sleep 10
+          
+          # Basic check to ensure containers are running
+          docker compose -f docker-compose.db.yml ps
 
-      - name: Wait for services to be healthy
+      - name: Build Services
+        run: |
+          mkdir -p tests/integration/bin
+          
+          echo "🔨 Building Policy Decision Point..."
+          (cd exchange/policy-decision-point && go build -o ../../tests/integration/bin/policy-decision-point .)
+          
+          echo "🔨 Building Consent Engine..."
+          (cd exchange/consent-engine && go build -o ../../tests/integration/bin/consent-engine .)
+          
+          echo "🔨 Building Orchestration Engine..."
+          (cd exchange/orchestration-engine && go build -o ../../tests/integration/bin/orchestration-engine .)
+          
+          echo "🔨 Building Mock Provider..."
+          (cd tests/integration/mock-provider && go build -o ../bin/mock-provider .)
+
+      - name: Start Services
+        working-directory: tests/integration
+        env:
+          # PDP Config
+          PDP_PORT: 8082
+          PDP_DB_HOST: localhost
+          PDP_DB_PORT: 5433
+
+          # CE Config
+          CE_PORT: 8081
+          CE_DB_HOST: localhost
+          CE_DB_PORT: 5434
+
+          # OE Config
+          OE_PORT: 4000
+        run: |
+          mkdir -p logs
+          
+          echo "🚀 Starting Policy Decision Point..."
+          # Running with env vars mapping to what the code expects (based on docker-compose.test.yml analysis)
+          PORT=8082 \
+          LOG_LEVEL=debug \
+          DB_SSLMODE=disable \
+          CHOREO_OPENDIF_DATABASE_HOSTNAME=localhost \
+          CHOREO_OPENDIF_DATABASE_PORT=5433 \
+          CHOREO_OPENDIF_DATABASE_USERNAME=postgres \
+          CHOREO_OPENDIF_DATABASE_PASSWORD=password \
+          CHOREO_OPENDIF_DATABASE_DATABASENAME=policy_db \
+          RUN_MIGRATION=true \
+          ./bin/policy-decision-point > logs/pdp.log 2>&1 &
+          PDP_PID=$!
+          echo "PDP PID: $PDP_PID"
+          
+          echo "🚀 Starting Consent Engine..."
+          PORT=8081 \
+          LOG_LEVEL=debug \
+          CHOREO_DB_CE_HOSTNAME=localhost \
+          CHOREO_DB_CE_PORT=5434 \
+          CHOREO_DB_CE_USERNAME=postgres \
+          CHOREO_DB_CE_PASSWORD=password \
+          CHOREO_DB_CE_DATABASENAME=consent_db \
+          CHOREO_OPENDIF_DATABASE_HOSTNAME=localhost \
+          CHOREO_OPENDIF_DATABASE_PORT=5434 \
+          CHOREO_OPENDIF_DATABASE_USERNAME=postgres \
+          CHOREO_OPENDIF_DATABASE_PASSWORD=password \
+          CHOREO_OPENDIF_DATABASE_DATABASENAME=consent_db \
+          DB_SSLMODE=disable \
+          ASGARDEO_JWKS_URL="https://www.googleapis.com/oauth2/v3/certs" \
+          ASGARDEO_ISSUER="https://accounts.google.com" \
+          ASGARDEO_AUDIENCE="test-audience" \
+          ASGARDEO_ORG_NAME="test-org" \
+          ./bin/consent-engine > logs/ce.log 2>&1 &
+          CE_PID=$!
+          echo "CE PID: $CE_PID"
+          
+          echo "🚀 Starting Mock Provider..."
+          PORT=8083 \
+          ./bin/mock-provider > logs/mock-provider.log 2>&1 &
+          MOCK_PID=$!
+          echo "Mock Provider PID: $MOCK_PID"
+          
+          echo "⏳ Waiting for PDP, CE, and Mock Provider to be ready..."
+          sleep 5
+          
+          echo "📝 Updating config.json for CI mode (localhost URLs)..."
+          # Update config.json to use localhost instead of Docker service names
+          sed -i 's|http://consent-engine:8081|http://localhost:8081|g' config.json
+          sed -i 's|http://policy-decision-point:8082|http://localhost:8082|g' config.json
+          sed -i 's|http://mock-provider:8083|http://localhost:8083|g' config.json
+          
+          echo "🚀 Starting Orchestration Engine..."
+          PORT=4000 \
+          LOG_LEVEL=debug \
+          PDP_URL=http://localhost:8082 \
+          CONSENT_ENGINE_URL=http://localhost:8081 \
+          CONFIG_PATH=$(pwd)/config.json \
+          ./bin/orchestration-engine > logs/oe.log 2>&1 &
+          OE_PID=$!
+          echo "OE PID: $OE_PID"
+          
+          echo "⏳ Waiting for all services to initialize..."
+          sleep 10
+
+      - name: Check Service Health
         working-directory: tests/integration
         run: |
-          echo "⏳ Waiting for all services to be healthy..."
-          
           check_health() {
             local service_name=$1
             local health_url=$2
-            local max_attempts=30
-            local attempt=1
-            
-            while [ $attempt -le $max_attempts ]; do
-              if curl -f -s $health_url > /dev/null 2>&1; then
-                echo "✅ $service_name is healthy"
-                return 0
-              fi
-              echo "  Waiting for $service_name... (attempt $attempt/$max_attempts)"
-              sleep 2
-              attempt=$((attempt + 1))
-            done
-            
-            echo "❌ $service_name failed to become healthy"
-            echo "Service logs:"
-            docker compose -f docker-compose.test.yml logs $service_name
-            return 1
+            if curl -s -f "$health_url" > /dev/null; then
+              echo "✅ $service_name is healthy"
+              return 0
+            else
+              echo "❌ $service_name is NOT healthy"
+              return 1
+            fi
           }
           
-          # Wait for databases first
-          sleep 10
-          
-          # Check each service health endpoint
-          check_health "policy-decision-point" "http://localhost:8082/health" || exit 1
-          check_health "consent-engine" "http://localhost:8081/health" || exit 1
-          check_health "orchestration-engine" "http://localhost:4000/health" || exit 1
-          
-          echo "🎉 All services are healthy and ready!"
+          check_health "Policy Decision Point" "http://localhost:8082/health" || (cat logs/pdp.log && exit 1)
+          check_health "Consent Engine" "http://localhost:8081/health" || (cat logs/ce.log && exit 1)
+          # Mock Provider doesn't have /health endpoint, just check if it's listening
+          if curl -s -f "http://localhost:8083/graphql" > /dev/null 2>&1; then
+            echo "✅ Mock Provider is responding"
+          else
+            echo "❌ Mock Provider is NOT responding"
+            cat logs/mock-provider.log
+            exit 1
+          fi
+          check_health "Orchestration Engine" "http://localhost:4000/health" || (cat logs/oe.log && exit 1)
 
       - name: Run integration tests
         working-directory: tests/integration
         env:
           GO_ENV: test
           TEST_TIMEOUT: ${{ env.TEST_TIMEOUT }}
+          SKIP_DOCKER_COMPOSE_CHECK: "true"
         run: |
           echo "🧪 Running integration tests..."
           go test -v -race -timeout ${{ env.TEST_TIMEOUT }} ./...
@@ -117,25 +216,25 @@ jobs:
         if: failure()
         working-directory: tests/integration
         run: |
-          echo "=== Docker Compose Services Status ==="
-          docker compose -f docker-compose.test.yml ps
+          echo "=== Service Logs ==="
+          cat logs/pdp.log || echo "No PDP log"
+          cat logs/ce.log || echo "No CE log"
+          cat logs/mock-provider.log || echo "No Mock Provider log"
+          cat logs/oe.log || echo "No OE log"
           
           echo ""
-          echo "=== All Service Logs ==="
-          docker compose -f docker-compose.test.yml logs
-          
-          echo ""
-          echo "=== PDP Database Logs ==="
-          docker compose -f docker-compose.test.yml logs pdp-db
-          
-          echo ""
-          echo "=== CE Database Logs ==="
-          docker compose -f docker-compose.test.yml logs ce-db
+          echo "=== Database Logs ==="
+          docker compose -f docker-compose.db.yml logs
 
       - name: Cleanup
         if: always()
         working-directory: tests/integration
         run: |
           echo "🧹 Cleaning up test infrastructure..."
-          docker compose -f docker-compose.test.yml down -v
+          pkill -f policy-decision-point || true
+          pkill -f consent-engine || true
+          pkill -f mock-provider || true
+          pkill -f orchestration-engine || true
+          docker compose -f docker-compose.db.yml down -v
+          rm -rf bin logs
           echo "✅ Cleanup complete"
