@@ -1,38 +1,4 @@
 services:
-  # PostgreSQL Database for Policy Decision Point
-  pdp-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: policy_db
-    ports:
-      - "5433:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
-
-  # PostgreSQL Database for Consent Engine
-  ce-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: consent_db
-    ports:
-      - "5434:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - test-network
-
   # Policy Decision Point Service
   policy-decision-point:
     build:
@@ -40,7 +6,7 @@ services:
       dockerfile: policy-decision-point/Dockerfile
     environment:
       PORT: 8082
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       DB_SSLMODE: disable
       CHOREO_OPENDIF_DATABASE_HOSTNAME: pdp-db
       CHOREO_OPENDIF_DATABASE_PORT: 5432
@@ -53,8 +19,6 @@ services:
     depends_on:
       pdp-db:
         condition: service_healthy
-    networks:
-      - test-network
     healthcheck:
       test:
         [
@@ -77,7 +41,7 @@ services:
       dockerfile: consent-engine/Dockerfile
     environment:
       PORT: 8081
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       # Legacy database env vars (for old database.go)
       CHOREO_DB_CE_HOSTNAME: ce-db
       CHOREO_DB_CE_PORT: 5432
@@ -101,8 +65,6 @@ services:
     depends_on:
       ce-db:
         condition: service_healthy
-    networks:
-      - test-network
     healthcheck:
       test:
         [
@@ -125,12 +87,15 @@ services:
       dockerfile: orchestration-engine/Dockerfile
     environment:
       PORT: 4000
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       PDP_URL: http://policy-decision-point:8082
       CONSENT_ENGINE_URL: http://consent-engine:8081
       CONFIG_PATH: /app/config/config.json
+      # NOTE: Audit service URL removed/not needed for basic integration tests if not part of main's test scope
+      # CHOREO_AUDIT_CONNECTION_SERVICEURL: http://audit-service:3001
     volumes:
       - ./config.json:/app/config/config.json:ro
+      - ./schema.graphql:/app/schema.graphql:ro
     ports:
       - "4000:4000"
     depends_on:
@@ -138,8 +103,6 @@ services:
         condition: service_healthy
       consent-engine:
         condition: service_healthy
-    networks:
-      - test-network
     healthcheck:
       test:
         [
@@ -154,7 +117,3 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-
-networks:
-  test-network:
-    driver: bridge

@@ -1,7 +1,20 @@
 {
   "ceUrl": "http://consent-engine:8081",
   "pdpUrl": "http://policy-decision-point:8082",
-  "providers": [],
-  "argMappings": []
+  "providers": [
+    {
+      "providerKey": "mock-provider",
+      "providerUrl": "http://mock-provider:8083/graphql",
+      "schemaId": "test-schema-123"
+    }
+  ],
+  "argMappings": [
+    {
+      "providerKey": "mock-provider",
+      "schemaId": "test-schema-123",
+      "targetArgName": "nic",
+      "sourceArgPath": "personInfo-nic",
+      "targetArgPath": "person"
+    }
+  ]
 }
-
