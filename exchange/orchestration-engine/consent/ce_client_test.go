@@ -100,17 +100,18 @@ func TestCreateConsent_Success(t *testing.T) {
 	request := &CreateConsentRequest{
 		AppID:   "test-app-id",
 		AppName: &appName,
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields: []ConsentField{
-				{
-					FieldName:   "name",
-					SchemaID:    "schema-1",
-					DisplayName: stringPtr("Full Name"),
-					Description: stringPtr("User's full name"),
-					Owner:       OwnerCitizen,
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields: []ConsentField{
+					{
+						FieldName:   "name",
+						SchemaID:    "schema-1",
+						DisplayName: stringPtr("Full Name"),
+						Description: stringPtr("User's full name"),
+						Owner:       OwnerCitizen,
+					},
 				},
 			},
 		},
@@ -161,11 +162,12 @@ func TestCreateConsent_MarshalError(t *testing.T) {
 
 	request := &CreateConsentRequest{
 		AppID: "test-app-id",
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields:     []ConsentField{},
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields:  []ConsentField{},
+			},
 		},
 	}
 
@@ -186,11 +188,12 @@ func TestCreateConsent_HTTPRequestError(t *testing.T) {
 
 	request := &CreateConsentRequest{
 		AppID: "test-app-id",
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields:     []ConsentField{},
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields:  []ConsentField{},
+			},
 		},
 	}
 
@@ -215,11 +218,12 @@ func TestCreateConsent_NonCreatedStatusCode(t *testing.T) {
 
 	request := &CreateConsentRequest{
 		AppID: "test-app-id",
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields:     []ConsentField{},
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields:  []ConsentField{},
+			},
 		},
 	}
 
@@ -249,11 +253,12 @@ func TestCreateConsent_InvalidResponseBody(t *testing.T) {
 
 	request := &CreateConsentRequest{
 		AppID: "test-app-id",
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields:     []ConsentField{},
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields:  []ConsentField{},
+			},
 		},
 	}
 
@@ -281,11 +286,12 @@ func TestCreateConsent_ContextCancellation(t *testing.T) {
 
 	request := &CreateConsentRequest{
 		AppID: "test-app-id",
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields:     []ConsentField{},
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields:  []ConsentField{},
+			},
 		},
 	}
 
@@ -339,15 +345,16 @@ func TestCreateConsent_WithAllOptionalFields(t *testing.T) {
 		AppName:       &appName,
 		GrantDuration: &grantDuration,
 		ConsentType:   &consentType,
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields: []ConsentField{
-				{
-					FieldName: "name",
-					SchemaID:  "schema-1",
-					Owner:     OwnerCitizen,
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields: []ConsentField{
+					{
+						FieldName: "name",
+						SchemaID:  "schema-1",
+						Owner:     OwnerCitizen,
+					},
 				},
 			},
 		},
@@ -396,15 +403,16 @@ func TestCreateConsent_WithMinimalFields(t *testing.T) {
 
 	request := &CreateConsentRequest{
 		AppID: "test-app-id",
-		ConsentRequirement: ConsentRequirement{
-			Owner:      OwnerCitizen,
-			OwnerID:    "citizen-123",
-			OwnerEmail: "citizen@example.com",
-			Fields: []ConsentField{
-				{
-					FieldName: "name",
-					SchemaID:  "schema-1",
-					Owner:     OwnerCitizen,
+		ConsentRequirements: []ConsentRequirement{
+			{
+				Owner:   OwnerCitizen,
+				OwnerID: "citizen-123",
+				Fields: []ConsentField{
+					{
+						FieldName: "name",
+						SchemaID:  "schema-1",
+						Owner:     OwnerCitizen,
+					},
 				},
 			},
 		},
