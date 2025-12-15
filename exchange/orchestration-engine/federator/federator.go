@@ -304,17 +304,17 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		for _, field := range *schemaCollection.ProviderFieldMap {
 			requiredFields = append(requiredFields, policy.RequiredField{
-				SchemaId:  field.SchemaId,
+				SchemaID:  field.SchemaId,
 				FieldName: field.FieldPath,
 			})
 		}
 
 		pdpRequest.RequiredFields = requiredFields
 
-		pdpResponse, err = pdpClient.MakePdpRequest(pdpRequest)
+		pdpResponse, err = pdpClient.MakePdpRequest(ctx, pdpRequest)
 		if err != nil {
 			logger.Log.Error("PDP request failed", "error", err)
-			return createErrorResponseWithCode("Authorization check failed: "+err.Error(), errors.CodePDPError)
+			return createErrorResponseWithCode(fmt.Sprintf("Authorization check failed: %v", err), errors.CodePDPError)
 		}
 
 		if pdpResponse == nil {

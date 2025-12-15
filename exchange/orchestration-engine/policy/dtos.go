@@ -3,7 +3,7 @@ package policy
 // RequiredField represents a field that requires policy decision
 type RequiredField struct {
 	FieldName string `json:"fieldName"`
-	SchemaId  string `json:"schemaId"`
+	SchemaID  string `json:"schemaId"`
 }
 
 // PdpRequest represents a policy decision request

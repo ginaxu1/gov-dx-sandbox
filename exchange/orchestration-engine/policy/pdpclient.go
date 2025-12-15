@@ -2,7 +2,9 @@ package policy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -26,7 +28,7 @@ func NewPdpClient(baseUrl string) *PdpClient {
 }
 
 // MakePdpRequest sends a request to get a policy decision
-func (p *PdpClient) MakePdpRequest(request *PdpRequest) (*PdpResponse, error) {
+func (p *PdpClient) MakePdpRequest(ctx context.Context, request *PdpRequest) (*PdpResponse, error) {
 	// Implement the logic to make a PDP request using p.httpClient
 	requestBody, err := json.Marshal(request)
 	if err != nil {
@@ -38,13 +40,31 @@ func (p *PdpClient) MakePdpRequest(request *PdpRequest) (*PdpResponse, error) {
 	// log the json request body
 	logger.Log.Info("PDP Request Body", "body", string(requestBody))
 
-	response, err := p.httpClient.Post(p.baseUrl+policyDecisionEndpointPath, "application/json", bytes.NewReader(requestBody))
+	// Create request with context for cancellation and timeout support
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseUrl+policyDecisionEndpointPath, bytes.NewReader(requestBody))
+	if err != nil {
+		logger.Log.Error("Failed to create PDP request", "error", err)
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := p.httpClient.Do(req)
 	if err != nil {
 		// handle error
 		logger.Log.Error("Failed to make PDP request", "error", err)
 		return nil, err
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		var errorBody bytes.Buffer
+		if _, err := errorBody.ReadFrom(response.Body); err != nil {
+			logger.Log.Error("Failed to read error response body", "error", err)
+		}
+		errorMsg := errorBody.String()
+		logger.Log.Error("PDP request failed", "status", response.StatusCode, "response", errorMsg)
+		return nil, fmt.Errorf("PDP request failed, status code: %d, response: %s", response.StatusCode, errorMsg)
+	}
 
 	var pdpResponse PdpResponse
 	err = json.NewDecoder(response.Body).Decode(&pdpResponse)

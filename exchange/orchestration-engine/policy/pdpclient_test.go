@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -62,13 +63,13 @@ func TestMakePdpRequest_Success(t *testing.T) {
 		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				SchemaId:  "schema1",
+				SchemaID:  "schema1",
 				FieldName: "field1",
 			},
 		},
 	}
 
-	response, err := client.MakePdpRequest(request)
+	response, err := client.MakePdpRequest(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -118,13 +119,13 @@ func TestMakePdpRequest_ConsentRequired(t *testing.T) {
 		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				SchemaId:  "schema1",
+				SchemaID:  "schema1",
 				FieldName: "sensitiveField",
 			},
 		},
 	}
 
-	response, err := client.MakePdpRequest(request)
+	response, err := client.MakePdpRequest(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -188,13 +189,13 @@ func TestMakePdpRequest_AppNotAuthorized(t *testing.T) {
 		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				SchemaId:  "schema1",
+				SchemaID:  "schema1",
 				FieldName: "restrictedField",
 			},
 		},
 	}
 
-	response, err := client.MakePdpRequest(request)
+	response, err := client.MakePdpRequest(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -233,13 +234,13 @@ func TestMakePdpRequest_AppAccessExpired(t *testing.T) {
 		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				SchemaId:  "schema1",
+				SchemaID:  "schema1",
 				FieldName: "expiredField",
 			},
 		},
 	}
 
-	response, err := client.MakePdpRequest(request)
+	response, err := client.MakePdpRequest(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -260,13 +261,13 @@ func TestMakePdpRequest_NetworkError(t *testing.T) {
 		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				SchemaId:  "schema1",
+				SchemaID:  "schema1",
 				FieldName: "field1",
 			},
 		},
 	}
 
-	response, err := client.MakePdpRequest(request)
+	response, err := client.MakePdpRequest(context.Background(), request)
 
 	if err == nil {
 		t.Error("Expected error when network request fails")
@@ -291,16 +292,78 @@ func TestMakePdpRequest_InvalidJSON(t *testing.T) {
 		AppId: "app456",
 		RequiredFields: []RequiredField{
 			{
-				SchemaId:  "schema1",
+				SchemaID:  "schema1",
 				FieldName: "field1",
 			},
 		},
 	}
 
-	response, err := client.MakePdpRequest(request)
+	response, err := client.MakePdpRequest(context.Background(), request)
 
 	if err == nil {
 		t.Error("Expected error when server returns invalid JSON")
+	}
+
+	if response != nil {
+		t.Errorf("Expected nil response on error, got %v", response)
+	}
+}
+
+func TestMakePdpRequest_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "internal server error"}`))
+	}))
+	defer server.Close()
+
+	client := NewPdpClient(server.URL)
+
+	request := &PdpRequest{
+		AppId: "app456",
+		RequiredFields: []RequiredField{
+			{
+				SchemaID:  "schema1",
+				FieldName: "field1",
+			},
+		},
+	}
+
+	response, err := client.MakePdpRequest(context.Background(), request)
+
+	if err == nil {
+		t.Error("Expected error when server returns non-200 status code")
+	}
+
+	if response != nil {
+		t.Errorf("Expected nil response on error, got %v", response)
+	}
+}
+
+func TestMakePdpRequest_BadRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error": "invalid request parameters"}`))
+	}))
+	defer server.Close()
+
+	client := NewPdpClient(server.URL)
+
+	request := &PdpRequest{
+		AppId: "app456",
+		RequiredFields: []RequiredField{
+			{
+				SchemaID:  "schema1",
+				FieldName: "field1",
+			},
+		},
+	}
+
+	response, err := client.MakePdpRequest(context.Background(), request)
+
+	if err == nil {
+		t.Error("Expected error when server returns 400 status code")
 	}
 
 	if response != nil {
