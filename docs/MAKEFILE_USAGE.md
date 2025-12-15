@@ -7,10 +7,7 @@ This guide provides a quick reference for all available Makefile commands in the
 ## Quick Start
 
 ```bash
-# Check all services
-make quality-check-all
-
-# Check specific service
+# Check all services# Check specific service
 make quality-check portal-backend
 ```
 
@@ -294,11 +291,7 @@ If you have services in non-standard locations, you must manually update the ser
 ```bash
 # Only format and lint (skip security and tests)
 make format portal-backend && make lint portal-backend
-```
-
-### Coverage Analysis
-
-Coverage reports are automatically generated:
+```cally generated:
 
 ```
 <service>/coverage.html  # Detailed line-by-line coverage
