@@ -23,10 +23,13 @@ func DefaultCORSConfig() CORSConfig {
 	// Get allowed origins from environment variable, default to localhost:5173
 	allowedOrigins := []string{"http://localhost:5173"}
 	if envOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); envOrigins != "" {
-		allowedOrigins = strings.Split(envOrigins, ",")
-		// Trim whitespace from each origin
-		for i, origin := range allowedOrigins {
-			allowedOrigins[i] = strings.TrimSpace(origin)
+		envOriginsList := strings.Split(envOrigins, ",")
+		// Append environment origins to the default
+		for _, origin := range envOriginsList {
+			trimmed := strings.TrimSpace(origin)
+			if trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
 		}
 	}
 
