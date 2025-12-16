@@ -37,31 +37,11 @@ func (r *testCleanupRegistry) cleanup(t *testing.T) {
 		return
 	}
 
-	client := &http.Client{Timeout: cleanupHTTPTimeout}
-
 	// Cleanup consents (if Consent Engine supports deletion)
+	// Note: V1 API doesn't have a DELETE endpoint, so we skip cleanup
+	// Consents will remain in the database but won't affect subsequent tests
 	for _, consentID := range r.consentIDs {
-		req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/%s", consentEngineURL, consentID), nil)
-		if err != nil {
-			t.Logf("Cleanup warning: failed to create DELETE request for consent %s: %v", consentID, err)
-			continue
-		}
-
-		resp, err := client.Do(req)
-		if err != nil {
-			t.Logf("Cleanup warning: failed to delete consent %s: %v", consentID, err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		// Check response status for better error reporting
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-			bodyBytes, _ := io.ReadAll(resp.Body)
-			t.Logf("Cleanup warning: unexpected status %d when deleting consent %s: %s", resp.StatusCode, consentID, string(bodyBytes))
-			continue
-		}
-
-		t.Logf("Cleaned up consent: %s", consentID)
+		t.Logf("Skipping cleanup for consent %s (DELETE endpoint not available in V1 API)", consentID)
 	}
 }
 
@@ -90,7 +70,8 @@ var testHTTPClient = &http.Client{
 var (
 	orchestrationEngineURL = getEnvOrDefault("ORCHESTRATION_ENGINE_URL", "http://127.0.0.1:4000/public/graphql")
 	pdpURL                 = getEnvOrDefault("PDP_URL", "http://127.0.0.1:8082/api/v1/policy")
-	consentEngineURL       = getEnvOrDefault("CONSENT_ENGINE_URL", "http://127.0.0.1:8081/consents")
+	consentEngineURL       = getEnvOrDefault("CONSENT_ENGINE_URL", "http://127.0.0.1:8081/internal/api/v1/consents")
+	consentEngineBaseURL   = getEnvOrDefault("CONSENT_ENGINE_BASE_URL", "http://127.0.0.1:8081")
 	portalBackendURL       = getEnvOrDefault("PORTAL_BACKEND_URL", "http://127.0.0.1:3000")
 )
 
@@ -368,22 +349,25 @@ func updatePDPAllowlist(t *testing.T, appID, schemaID, fieldName string) {
 }
 
 // createConsent creates a consent record in the Consent Engine and returns the consent ID.
+// Uses V1 API format: POST /internal/api/v1/consents
 func createConsent(t *testing.T, appID, schemaID, fieldName, ownerID string) string {
+	// V1 API format: consentRequirement (singular) with owner, ownerId, ownerEmail, fields
+	// For testing, we use ownerID as both ownerId and ownerEmail (common pattern)
 	consentReq := map[string]interface{}{
-		"app_id": appID,
-		"consent_requirements": []map[string]interface{}{
-			{
-				"owner":    "CITIZEN",
-				"owner_id": ownerID,
-				"fields": []map[string]interface{}{
-					{
-						"fieldName": fieldName,
-						"schemaId":  schemaID,
-					},
+		"appId": appID,
+		"consentRequirement": map[string]interface{}{
+			"owner":      "citizen", // lowercase, matches OwnerType enum
+			"ownerId":    ownerID,
+			"ownerEmail": ownerID + "@test.example.com", // V1 API requires ownerEmail
+			"fields": []map[string]interface{}{
+				{
+					"fieldName": fieldName,
+					"schemaId":  schemaID,
+					"owner":     "citizen",
 				},
 			},
 		},
-		"grant_duration": "P30D",
+		"grantDuration": "P30D",
 	}
 	jsonData, err := json.Marshal(consentReq)
 	require.NoError(t, err)
@@ -410,43 +394,15 @@ func createConsent(t *testing.T, appID, schemaID, fieldName, ownerID string) str
 	require.NoError(t, err)
 	t.Logf("Consent created: %+v", result)
 
-	consentID, ok := result["consent_id"].(string)
+	// V1 API returns consentId (camelCase), not consent_id
+	consentID, ok := result["consentId"].(string)
+	if !ok {
+		// Fallback to consent_id for backward compatibility
+		consentID, ok = result["consent_id"].(string)
+	}
 	require.True(t, ok, "Consent ID should be present in response")
 	require.NotEmpty(t, consentID, "Consent ID should not be empty")
 	return consentID
-}
-
-// approveConsent approves a consent record using PATCH endpoint (no auth required for internal use).
-func approveConsent(t *testing.T, consentID string) {
-	patchReq := map[string]interface{}{
-		"status":     "approved",
-		"updated_by": "test-integration",
-		"reason":     "Approved by integration test",
-	}
-	jsonData, err := json.Marshal(patchReq)
-	require.NoError(t, err)
-
-	req, err := http.NewRequest("PATCH", fmt.Sprintf("%s/%s", consentEngineURL, consentID), bytes.NewBuffer(jsonData))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := testHTTPClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	var bodyStr string
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		bodyStr = string(bodyBytes)
-		if err != nil {
-			bodyStr = fmt.Sprintf("failed to read body: %v", err)
-			t.Logf("Failed to read consent approval response body: %v", err)
-		} else {
-			t.Logf("Consent approval response status: %d, body: %s", resp.StatusCode, bodyStr)
-		}
-	}
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Consent should be approved successfully: %s", bodyStr)
-	t.Logf("Consent %s approved", consentID)
 }
 
 // TestGraphQLFlow_SuccessPath tests the complete success path:
@@ -482,7 +438,6 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 	t.Run("Setup_Consent", func(t *testing.T) {
 		// Use testNIC as owner_id to match the GraphQL query variable
 		consentID := createConsent(t, appID, schemaID, fieldName, testNIC)
-		approveConsent(t, consentID)
 		cleanup.consentIDs = append(cleanup.consentIDs, consentID)
 	})
 
@@ -586,10 +541,9 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 	})
 
 	t.Run("Verify_ConsentEngine_Integration", func(t *testing.T) {
-		// Verify consent engine can retrieve consents by consumer
-		// Consent engine consumer endpoint is at base URL, not /consents
-		consentEngineBaseURL := getEnvOrDefault("CONSENT_ENGINE_BASE_URL", "http://127.0.0.1:8081")
-		checkURL := fmt.Sprintf("%s/consumer/%s", consentEngineBaseURL, appID)
+		// Verify consent engine can retrieve consents by ownerId and appId
+		// Use GET /internal/api/v1/consents?appId=X&ownerId=Y
+		checkURL := fmt.Sprintf("%s?appId=%s&ownerId=%s", consentEngineURL, appID, testNIC)
 		resp, err := testHTTPClient.Get(checkURL)
 		require.NoError(t, err)
 		defer func() {
@@ -604,7 +558,7 @@ func TestGraphQLFlow_SuccessPath(t *testing.T) {
 			err = json.NewDecoder(resp.Body).Decode(&result)
 			require.NoError(t, err, "Failed to decode consent engine response")
 			t.Logf("Consent check result: %+v", result)
-			assert.NotNil(t, result, "Consent engine should return consent list")
+			assert.NotNil(t, result, "Consent engine should return consent record")
 		} else {
 			bodyBytes, readErr := io.ReadAll(resp.Body)
 			if readErr != nil {

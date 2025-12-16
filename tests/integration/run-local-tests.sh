@@ -56,11 +56,11 @@ fi
 
 # Start Docker Compose services
 echo "🚀 Starting Docker Compose services..."
-docker compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.db.yml -f docker-compose.test.yml up -d
 echo ""
 
 echo "📋 Checking service status..."
-docker compose -f docker-compose.test.yml ps
+docker compose -f docker-compose.db.yml -f docker-compose.test.yml ps
 echo ""
 
 # Wait for services to be healthy
@@ -85,7 +85,7 @@ check_health() {
     
     echo -e "${RED}❌ $service_name failed to become healthy${NC}"
     echo "Service logs:"
-    docker compose -f docker-compose.test.yml logs $service_name
+    docker compose -f docker-compose.db.yml -f docker-compose.test.yml logs $service_name
     return 1
 }
 
@@ -122,20 +122,20 @@ else
     echo "========================================"
     echo ""
     echo "=== Docker Compose Services Status ==="
-    docker compose -f docker-compose.test.yml ps
+    docker compose -f docker-compose.db.yml -f docker-compose.test.yml ps
     echo ""
     echo "=== All Service Logs ==="
-    docker compose -f docker-compose.test.yml logs
+    docker compose -f docker-compose.db.yml -f docker-compose.test.yml logs
     echo ""
     echo "=== Shared Database Logs ==="
-    docker compose -f docker-compose.test.yml logs shared-db
+    docker compose -f docker-compose.db.yml -f docker-compose.test.yml logs shared-db
     TEST_RESULT=1
 fi
 
 # Cleanup
 echo ""
 echo "🧹 Cleaning up test infrastructure..."
-docker compose -f docker-compose.test.yml down -v
+docker compose -f docker-compose.db.yml -f docker-compose.test.yml down -v
 echo -e "${GREEN}✅ Cleanup complete${NC}"
 
 exit $TEST_RESULT
