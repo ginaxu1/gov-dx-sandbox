@@ -1,8 +1,10 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import { AuthProvider } from "@asgardeo/auth-react";
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { AuthProvider, type AuthProviderProps } from "react-oidc-context";
+import { BrowserRouter } from 'react-router-dom';
+import App from './App.tsx';
+import { ConsentProvider } from './contexts/ConsentContext';
+import './index.css';
 
 declare global {
   interface Window {
@@ -13,33 +15,42 @@ declare global {
       VITE_SCOPE: string;
       signInRedirectURL: string;
       signOutRedirectURL: string;
+      organizationHandle: string;
     };
   }
 }
-const config = {
-     signInRedirectURL: window?.configs?.signInRedirectURL,
-     signOutRedirectURL: window?.configs?.signOutRedirectURL,
-     clientID: window?.configs?.VITE_CLIENT_ID,
-     baseUrl: window?.configs?.VITE_BASE_URL,
-     scope: window?.configs?.VITE_SCOPE ? window.configs.VITE_SCOPE.split(',') : ['openid', 'profile'],
-     endpoints: {
-         authorizationEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/authorize",
-         tokenEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/token",
-         userInfoEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oauth2/userinfo",
-         endSessionEndpoint: "https://api.asgardeo.io/t/lankasoftwarefoundation/oidc/logout"
-     }
+
+const oidcConfig: AuthProviderProps = {
+  authority: window?.configs?.VITE_BASE_URL, // Used as base for validation, but metadata overrides endpoints
+  client_id: window?.configs?.VITE_CLIENT_ID,
+  redirect_uri: window?.configs?.signInRedirectURL,
+  post_logout_redirect_uri: window?.configs?.signOutRedirectURL,
+  scope: window?.configs?.VITE_SCOPE || 'openid profile email',
+  // Manually define endpoints to match previous Asgardeo config exactly
+  metadata: {
+    authorization_endpoint: `${window?.configs?.VITE_BASE_URL}/oauth2/authorize`,
+    token_endpoint: `${window?.configs?.VITE_BASE_URL}/oauth2/token`,
+    end_session_endpoint: `${window?.configs?.VITE_BASE_URL}/oidc/logout`,
+    jwks_uri: `${window?.configs?.VITE_BASE_URL}/oauth2/jwks`,
+    revocation_endpoint: `${window?.configs?.VITE_BASE_URL}/oauth2/revoke`,
+    check_session_iframe: `${window?.configs?.VITE_BASE_URL}/oidc/checksession`,
+    userinfo_endpoint: `${window?.configs?.VITE_BASE_URL}/oauth2/userinfo`,
+    issuer: `${window?.configs?.VITE_BASE_URL}/oauth2/token`,
+  },
+  onSigninCallback: () => {
+    // Remove query params (code, state) after successful login
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
 };
-console.log("Auth config:", config);
-// console.log("Environment variables:", {
-//   VITE_ASGARDEO_CLIENT_ID: import.meta.env.VITE_ASGARDEO_CLIENT_ID,
-//   VITE_ASGARDEO_BASE_URL: import.meta.env.VITE_ASGARDEO_BASE_URL,
-//   VITE_ASGARDEO_SCOPE: import.meta.env.VITE_ASGARDEO_SCOPE
-// });
-console.log("Window configs:", window.configs);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider config={config}>
-      <App />
+    <AuthProvider {...oidcConfig}>
+      <BrowserRouter>
+        <ConsentProvider>
+          <App />
+        </ConsentProvider>
+      </BrowserRouter>
     </AuthProvider>
   </StrictMode>,
 )
