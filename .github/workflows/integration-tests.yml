@@ -139,6 +139,7 @@ jobs:
           CHOREO_OPENDIF_DATABASE_PASSWORD=password \
           CHOREO_OPENDIF_DATABASE_DATABASENAME=consent_db \
           DB_SSLMODE=disable \
+          RUN_MIGRATION=true \
           ASGARDEO_JWKS_URL="https://www.googleapis.com/oauth2/v3/certs" \
           ASGARDEO_ISSUER="https://accounts.google.com" \
           ASGARDEO_AUDIENCE="test-audience" \

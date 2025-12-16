@@ -116,6 +116,9 @@ func main() {
 	v1Router.RegisterRoutes(mux)
 	slog.Info("V1 API routes registered successfully")
 
+	// Register legacy /health endpoint for compatibility with health checks
+	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+
 	// Create server configuration
 	serverConfig := &utils.ServerConfig{
 		Port:         cfg.Service.Port,
