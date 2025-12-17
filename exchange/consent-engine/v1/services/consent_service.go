@@ -32,6 +32,11 @@ func NewConsentService(db *gorm.DB, consentPortalBaseURL string) (*ConsentServic
 
 // CreateConsentRecord creates a new consent record in the database
 func (s *ConsentService) CreateConsentRecord(ctx context.Context, req models.CreateConsentRequest) (*models.ConsentResponseInternalView, error) {
+	// Validate input first
+	if err := validateCreateConsentRequest(req); err != nil {
+		return nil, fmt.Errorf("%w: %w", models.ErrConsentCreateFailed, err)
+	}
+
 	// First Check if a pending or approved consent already exists for the same (ownerID/ownerEmail, appID)
 	existingConsent, err := s.GetConsentInternalView(ctx, nil, &req.ConsentRequirement.OwnerID, &req.ConsentRequirement.OwnerEmail, &req.AppID)
 	if err == nil {
