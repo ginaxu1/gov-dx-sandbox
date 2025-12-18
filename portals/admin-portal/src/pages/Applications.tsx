@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Search, 
-    Download, 
-    RefreshCw, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    Search,
+    Download,
+    RefreshCw,
     Eye,
     Clock,
     CheckCircle,
@@ -20,7 +20,7 @@ import type { ApprovedApplication, ApplicationSubmission } from '../types/applic
 import { ApplicationService } from '../services/applicationService';
 
 interface FilterOptionsApproved {
-    searchByName?: string; 
+    searchByName?: string;
     searchByDescription?: string;
     searchByMemberId?: string;
     searchByVersion?: string;
@@ -32,10 +32,8 @@ interface FilterOptionsSubmissions {
     searchByMemberId?: string;
     searchByStatus?: string;
 }
-interface ApplicationsProps {
-}
 
-export const Applications: React.FC<ApplicationsProps> = () => {
+export const Applications: React.FC = () => {
     const [submissions, setSubmissions] = useState<ApplicationSubmission[]>([]);
     const [approved, setApproved] = useState<ApprovedApplication[]>([]);
     const [filteredSubmissions, setFilteredSubmissions] = useState<ApplicationSubmission[]>([]);
@@ -64,7 +62,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         searchByMemberId: '',
         searchByVersion: ''
     });
-    const updateSubmissionFilter = (key: keyof FilterOptionsSubmissions, value: string) => { 
+    const updateSubmissionFilter = (key: keyof FilterOptionsSubmissions, value: string) => {
         setSubmissionFilters(prev => ({ ...prev, [key]: value }));
     };
     const clearSubmissionFilters = () => {
@@ -87,14 +85,14 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         });
     };
 
-    const fetchApplications = async () => {
+    const fetchApplications = useCallback(async () => {
         setLoading(true);
         try {
             const [submissionsData, approvedData] = await Promise.all([
                 ApplicationService.getApplicationSubmissions(),
                 ApplicationService.getApprovedApplications()
             ]);
-            
+
             setSubmissions(submissionsData);
             setApproved(approvedData);
             setFilteredSubmissions(submissionsData);
@@ -108,13 +106,13 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchApplications().catch((error) => {
             console.error('Failed to fetch applications on component mount:', error);
         });
-    }, []);
+    }, [fetchApplications]);
 
     // Auto-refresh functionality
     useEffect(() => {
@@ -127,7 +125,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
 
             return () => clearInterval(interval);
         }
-    }, [autoRefresh]);
+    }, [autoRefresh, fetchApplications]);
 
     useEffect(() => {
         let filtered = submissions;
@@ -184,12 +182,12 @@ export const Applications: React.FC<ApplicationsProps> = () => {
     };
 
     // Helper function for application type icons (placeholder since we don't have applicationTypes)
-    const getApplicationTypeIcon = (_memberId: string) => {
+    const getApplicationTypeIcon = () => {
         return <FileText className="w-5 h-5 text-blue-500" />;
     };
 
     // Helper function for application type border colors (placeholder)
-    const getApplicationTypeBorderColor = (_memberId: string) => {
+    const getApplicationTypeBorderColor = () => {
         return 'border-l-blue-500 bg-blue-50';
     };
 
@@ -309,7 +307,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
         setSubmittingReview(true);
         try {
             await ApplicationService.addReviewToApplicationSubmission(reviewModal.application.submissionId, reviewComment, reviewAction);
-            
+
             // Close the modal
             handleCloseReview();
         } catch (error) {
@@ -330,7 +328,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
             selectedFields: application.selectedFields,
             fieldCount: application.selectedFields?.length || 0
         });
-        
+
         // In a real implementation, this would:
         // 1. Navigate to a dedicated edit page: navigate(`/applications/edit/${application.applicationId}`)
         // 2. Or open a modal with editable application details
@@ -426,22 +424,20 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                 <div className="flex gap-4 mb-4">
                                     <button
                                         onClick={() => setReviewAction('approved')}
-                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'approved'
-                                                ? 'bg-green-600 text-white'
-                                                : 'bg-green-100 text-green-700 hover:bg-green-200'
-                                        }`}
+                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${reviewAction === 'approved'
+                                            ? 'bg-green-600 text-white'
+                                            : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                            }`}
                                     >
                                         <ThumbsUp className="w-5 h-5" />
                                         <span>Approve</span>
                                     </button>
                                     <button
                                         onClick={() => setReviewAction('rejected')}
-                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'rejected'
-                                                ? 'bg-red-600 text-white'
-                                                : 'bg-red-100 text-red-700 hover:bg-red-200'
-                                        }`}
+                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${reviewAction === 'rejected'
+                                            ? 'bg-red-600 text-white'
+                                            : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                            }`}
                                     >
                                         <ThumbsDown className="w-5 h-5" />
                                         <span>Reject</span>
@@ -475,13 +471,12 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                 <button
                                     onClick={handleSubmitReview}
                                     disabled={!reviewAction || submittingReview}
-                                    className={`px-6 py-2 rounded-lg transition-colors ${
-                                        !reviewAction || submittingReview
-                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : reviewAction === 'approved'
+                                    className={`px-6 py-2 rounded-lg transition-colors ${!reviewAction || submittingReview
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : reviewAction === 'approved'
                                             ? 'bg-green-600 text-white hover:bg-green-700'
                                             : 'bg-red-600 text-white hover:bg-red-700'
-                                    }`}
+                                        }`}
                                 >
                                     {submittingReview ? 'Submitting...' : reviewAction === 'approved' ? 'Approve Application' : 'Reject Application'}
                                 </button>
@@ -513,11 +508,10 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             </button>
                             <button
                                 onClick={() => setAutoRefresh(!autoRefresh)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                                    autoRefresh 
-                                        ? 'bg-green-100 text-green-700 border border-green-300' 
-                                        : 'bg-white border border-gray-300 hover:bg-gray-50'
-                                }`}
+                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${autoRefresh
+                                    ? 'bg-green-100 text-green-700 border border-green-300'
+                                    : 'bg-white border border-gray-300 hover:bg-gray-50'
+                                    }`}
                             >
                                 <FileText className="w-4 h-4" />
                                 <span>Auto Refresh</span>
@@ -540,7 +534,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
@@ -553,7 +547,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
@@ -566,7 +560,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
@@ -592,7 +586,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                         Pending Submissions ({filteredSubmissions.length})
                                     </h2>
                                 </div>
-                                <button 
+                                <button
                                     onClick={handleExportSubmissions}
                                     className="flex items-center space-x-2 px-4 py-2 bg-orange-800 text-white rounded-lg hover:bg-orange-900 transition-colors"
                                 >
@@ -631,7 +625,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                         </select>
                                     </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <input
                                         type="text"
@@ -648,7 +642,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                 </div>
-                                
+
                                 <div className="flex justify-end">
                                     <button
                                         onClick={clearSubmissionFilters}
@@ -666,7 +660,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                     <p className="text-gray-500 text-lg">
                                         {submissionFilters.searchByName || submissionFilters.searchByDescription || submissionFilters.searchByMemberId || (submissionFilters.searchByStatus && submissionFilters.searchByStatus !== 'all')
-                                            ? 'No submissions match your filters' 
+                                            ? 'No submissions match your filters'
                                             : 'No submissions available'
                                         }
                                     </p>
@@ -674,10 +668,10 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                             ) : (
                                 <div className="divide-y divide-gray-200">
                                     {filteredSubmissions.map((application) => (
-                                        <div key={application.submissionId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor(application.memberId)}`}>
+                                        <div key={application.submissionId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor()}`}>
                                             <div className="flex items-start space-x-3">
                                                 <div className="flex-shrink-0 mt-1">
-                                                    {getApplicationTypeIcon(application.memberId)}
+                                                    {getApplicationTypeIcon()}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between mb-2">
@@ -689,37 +683,36 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                                             Consumer: {application.memberId}
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <p className="text-sm text-gray-600 mb-3">{application.applicationDescription || 'No description provided'}</p>
-                                                    
+
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                         <div className="flex items-center text-sm text-gray-600">
                                                             <User className="w-4 h-4 mr-2 text-gray-400" />
                                                             <span>Fields: {application.selectedFields?.length || 0}</span>
                                                         </div>
                                                         <div className="flex items-center text-sm text-gray-600">
-                                                            <span className="font-medium">Status:</span> 
+                                                            <span className="font-medium">Status:</span>
                                                             <span className="ml-1 capitalize">{application.status}</span>
                                                         </div>
                                                     </div>
 
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                                application.status === 'pending' 
-                                                                    ? 'bg-orange-100 text-orange-800' 
-                                                                    : application.status === 'approved'
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${application.status === 'pending'
+                                                                ? 'bg-orange-100 text-orange-800'
+                                                                : application.status === 'approved'
                                                                     ? 'bg-green-100 text-green-800'
                                                                     : 'bg-red-100 text-red-800'
-                                                            }`}>
+                                                                }`}>
                                                                 {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                                                             </span>
-                                                            
+
                                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                                                 Submission
                                                             </span>
                                                         </div>
-                                                        
+
                                                         <button
                                                             onClick={() => handleReview(application)}
                                                             className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -755,7 +748,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                     Approved Applications ({filteredApproved.length})
                                 </h2>
                             </div>
-                            <button 
+                            <button
                                 onClick={handleExportApproved}
                                 className="flex items-center space-x-2 px-4 py-2 bg-green-800 text-white rounded-lg hover:bg-green-900 transition-colors"
                             >
@@ -793,7 +786,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                     </select>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <input
                                     type="text"
@@ -810,7 +803,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 />
                             </div>
-                            
+
                             <div className="flex justify-end">
                                 <button
                                     onClick={clearApprovedFilters}
@@ -828,7 +821,7 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
                                     {approvedFilters.searchByName || approvedFilters.searchByDescription || approvedFilters.searchByMemberId || (approvedFilters.searchByVersion && approvedFilters.searchByVersion !== 'all')
-                                        ? 'No approved applications match your filters' 
+                                        ? 'No approved applications match your filters'
                                         : 'No approved applications available'
                                     }
                                 </p>
@@ -836,10 +829,10 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                         ) : (
                             <div className="divide-y divide-gray-200">
                                 {filteredApproved.map((application) => (
-                                    <div key={application.applicationId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor(application.memberId)}`}>
+                                    <div key={application.applicationId} className={`p-4 border-l-4 hover:bg-gray-50 transition-colors ${getApplicationTypeBorderColor()}`}>
                                         <div className="flex items-start space-x-3">
                                             <div className="flex-shrink-0 mt-1">
-                                                {getApplicationTypeIcon(application.memberId)}
+                                                {getApplicationTypeIcon()}
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between mb-2">
@@ -851,35 +844,34 @@ export const Applications: React.FC<ApplicationsProps> = () => {
                                                         Updated: {formatTimestamp(application.updatedAt)}
                                                     </div>
                                                 </div>
-                                                
+
                                                 <p className="text-sm text-gray-600 mb-3">{application.applicationDescription || 'No description provided'}</p>
-                                                
+
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <User className="w-4 h-4 mr-2 text-gray-400" />
                                                         <span>Consumer: {application.memberId}</span>
                                                     </div>
                                                     <div className="flex items-center text-sm text-gray-600">
-                                                        <span className="font-medium">Fields:</span> 
+                                                        <span className="font-medium">Fields:</span>
                                                         <span className="ml-1">{application.selectedFields?.length || 0}</span>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                            application.version === 'active' 
-                                                                ? 'bg-green-100 text-green-800' 
-                                                                : 'bg-gray-100 text-gray-800'
-                                                        }`}>
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${application.version === 'active'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-gray-100 text-gray-800'
+                                                            }`}>
                                                             {application.version.charAt(0).toUpperCase() + application.version.slice(1)}
                                                         </span>
-                                                        
+
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                                             Approved
                                                         </span>
                                                     </div>
-                                                    
+
                                                     <button
                                                         onClick={() => handleEdit(application)}
                                                         className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
