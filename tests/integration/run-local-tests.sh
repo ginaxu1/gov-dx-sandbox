@@ -56,7 +56,7 @@ fi
 
 # Start Docker Compose services
 echo "🚀 Starting Docker Compose services..."
-docker compose -f docker-compose.db.yml -f docker-compose.test.yml up -d
+docker compose -f docker-compose.db.yml -f docker-compose.test.yml up -d --build
 echo ""
 
 echo "📋 Checking service status..."
