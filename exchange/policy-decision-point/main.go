@@ -8,6 +8,7 @@ import (
 	"time"
 
 	v1 "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1"
+	v1middleware "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/middleware"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/joho/godotenv"
 )
@@ -46,6 +47,15 @@ func main() {
 	if err != nil {
 		slog.Error("Failed to connect to GORM database", "error", err)
 		os.Exit(1)
+	}
+
+	// Initialize audit middleware
+	auditServiceURL := os.Getenv("CHOREO_AUDIT_CONNECTION_SERVICEURL")
+	v1middleware.NewAuditMiddleware(auditServiceURL)
+	if auditServiceURL != "" {
+		slog.Info("Audit logging enabled", "auditServiceURL", auditServiceURL)
+	} else {
+		slog.Info("Audit logging disabled (CHOREO_AUDIT_CONNECTION_SERVICEURL not set)")
 	}
 
 	// Initialize V1 handlers
@@ -128,6 +138,9 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
+	// Apply trace ID middleware to all routes
+	handler := v1middleware.TraceIDMiddleware(mux)
+
 	// Create server using utils
 	port := getEnvOrDefault("PORT", "8082")
 	serverConfig := &utils.ServerConfig{
@@ -136,7 +149,7 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	server := utils.CreateServer(serverConfig, mux)
+	server := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
 	if err := utils.StartServerWithGracefulShutdown(server, "policy-decision-point"); err != nil {

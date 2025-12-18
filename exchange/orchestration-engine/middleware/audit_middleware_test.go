@@ -176,14 +176,14 @@ func TestLogGeneralizedAudit(t *testing.T) {
 
 func TestLogGeneralizedAudit_EmptyURL(t *testing.T) {
 	ResetGlobalAuditMiddleware()
-	
+
 	// Initialize with empty URL
 	middleware := NewAuditMiddleware("")
-	
+
 	req := &CreateAuditLogRequest{
 		TraceID: "trace-123",
 	}
-	
+
 	// Should not panic and return immediately
 	middleware.LogGeneralizedAudit(context.Background(), req)
 }
@@ -254,7 +254,7 @@ func TestLogGeneralizedAudit(t *testing.T) {
 	t.Run("ContextTraceID", func(t *testing.T) {
 		traceID := uuid.New().String()
 		ctx := context.WithValue(context.Background(), TraceIDKey{}, traceID)
-		
+
 		req := &CreateAuditLogRequest{
 			SourceService: "test-service",
 			EventType:     "TEST_EVENT_CTX",
@@ -280,7 +280,7 @@ func TestLogGeneralizedAudit(t *testing.T) {
 func TestGetTraceIDFromContext(t *testing.T) {
 	traceID := "test-trace-id"
 	ctx := context.WithValue(context.Background(), TraceIDKey{}, traceID)
-	
+
 	if got := GetTraceIDFromContext(ctx); got != traceID {
 		t.Errorf("GetTraceIDFromContext() = %v, want %v", got, traceID)
 	}
@@ -341,12 +341,12 @@ func TestLogAuditEventWhenGlobalMiddlewareNotInitialized(t *testing.T) {
 func TestLogGeneralizedAuditWhenNotConfigured(t *testing.T) {
 	ResetGlobalAuditMiddleware()
 	middleware := NewAuditMiddleware("")
-	
+
 	req := &CreateAuditLogRequest{
-		TraceID: "test",
+		TraceID:       "test",
 		SourceService: "test",
 	}
-	
+
 	middleware.LogGeneralizedAudit(context.Background(), req)
 	// Should not panic
 }

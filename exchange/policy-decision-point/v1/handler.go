@@ -2,9 +2,12 @@ package v1
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/middleware"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/services"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -103,17 +106,124 @@ func (h *Handler) UpdateAllowList(w http.ResponseWriter, r *http.Request) {
 
 // GetPolicyDecision handles getting a policy decision
 func (h *Handler) GetPolicyDecision(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	traceID := middleware.GetTraceIDFromContext(ctx)
+
+	// Read request body
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		errorMetadata, _ := json.Marshal(map[string]interface{}{
+			"error": err.Error(),
+		})
+		timestamp := time.Now().UTC().Format(time.RFC3339)
+		actorServiceName := "policy-decision-point"
+		middleware.LogGeneralizedAuditEvent(ctx, &middleware.CreateAuditLogRequest{
+			TraceID:          &traceID,
+			Timestamp:        &timestamp,
+			EventName:        "POLICY_CHECK",
+			EventType:        stringPtr("READ"),
+			Status:           "FAILURE",
+			ActorType:        "SERVICE",
+			ActorServiceName: &actorServiceName,
+			TargetType:       "SERVICE",
+			ResponseMetadata: errorMetadata,
+		})
+		utils.RespondWithError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+
+	// Log policy decision request
+	requestData, _ := json.Marshal(map[string]interface{}{
+		"requestBody": json.RawMessage(bodyBytes),
+	})
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	actorServiceName := "policy-decision-point"
+	middleware.LogGeneralizedAuditEvent(ctx, &middleware.CreateAuditLogRequest{
+		TraceID:          &traceID,
+		Timestamp:        &timestamp,
+		EventName:        "POLICY_CHECK",
+		EventType:        stringPtr("READ"),
+		Status:           "SUCCESS",
+		ActorType:        "SERVICE",
+		ActorServiceName: &actorServiceName,
+		TargetType:       "SERVICE",
+		RequestedData:    requestData,
+	})
+
 	var req models.PolicyDecisionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
+		// Log failure
+		errorMetadata, _ := json.Marshal(map[string]interface{}{
+			"error": err.Error(),
+		})
+		timestamp := time.Now().UTC().Format(time.RFC3339)
+		actorServiceName := "policy-decision-point"
+		middleware.LogGeneralizedAuditEvent(ctx, &middleware.CreateAuditLogRequest{
+			TraceID:          &traceID,
+			Timestamp:        &timestamp,
+			EventName:        "POLICY_CHECK",
+			EventType:        stringPtr("READ"),
+			Status:           "FAILURE",
+			ActorType:        "SERVICE",
+			ActorServiceName: &actorServiceName,
+			TargetType:       "SERVICE",
+			ResponseMetadata: errorMetadata,
+		})
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	resp, err := h.policyService.GetPolicyDecision(&req)
 	if err != nil {
+		// Log failure
+		errorMetadata, _ := json.Marshal(map[string]interface{}{
+			"error": err.Error(),
+		})
+		timestamp := time.Now().UTC().Format(time.RFC3339)
+		actorServiceName := "policy-decision-point"
+		middleware.LogGeneralizedAuditEvent(ctx, &middleware.CreateAuditLogRequest{
+			TraceID:          &traceID,
+			Timestamp:        &timestamp,
+			EventName:        "POLICY_CHECK",
+			EventType:        stringPtr("READ"),
+			Status:           "FAILURE",
+			ActorType:        "SERVICE",
+			ActorServiceName: &actorServiceName,
+			TargetType:       "SERVICE",
+			ResponseMetadata: errorMetadata,
+		})
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	// Log successful policy decision response
+	responseMetadata, _ := json.Marshal(map[string]interface{}{
+		"applicationId":              req.ApplicationID,
+		"appAuthorized":              resp.AppAuthorized,
+		"appAccessExpired":           resp.AppAccessExpired,
+		"appRequiresOwnerConsent":    resp.AppRequiresOwnerConsent,
+		"unauthorizedFieldsCount":    len(resp.UnauthorizedFields),
+		"expiredFieldsCount":         len(resp.ExpiredFields),
+		"consentRequiredFieldsCount": len(resp.ConsentRequiredFields),
+	})
+	timestamp = time.Now().UTC().Format(time.RFC3339)
+	actorServiceName = "policy-decision-point"
+	middleware.LogGeneralizedAuditEvent(ctx, &middleware.CreateAuditLogRequest{
+		TraceID:          &traceID,
+		Timestamp:        &timestamp,
+		EventName:        "POLICY_CHECK",
+		EventType:        stringPtr("READ"),
+		Status:           "SUCCESS",
+		ActorType:        "SERVICE",
+		ActorServiceName: &actorServiceName,
+		TargetType:       "SERVICE",
+		ResponseMetadata: responseMetadata,
+	})
+
 	utils.RespondWithSuccess(w, http.StatusOK, resp)
+}
+
+// stringPtr returns a pointer to the given string
+func stringPtr(s string) *string {
+	return &s
 }
