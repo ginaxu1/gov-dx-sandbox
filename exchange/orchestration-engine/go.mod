@@ -25,6 +25,8 @@ require (
 	gorm.io/gorm v1.31.1 // indirect
 )
 
+require github.com/google/uuid v1.6.0 // indirect
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0
