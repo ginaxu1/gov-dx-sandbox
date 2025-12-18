@@ -132,10 +132,8 @@ func (s *ConsentService) revokeAndCreateConsent(ctx context.Context, existingCon
 
 // buildConsentRecord builds a ConsentRecord from the request
 func (s *ConsentService) buildConsentRecord(req models.CreateConsentRequest) (*models.ConsentRecord, error) {
-	// Validate input
-	if err := validateCreateConsentRequest(req); err != nil {
-		return nil, err
-	}
+	// No need of Validate input
+	// Validation is already performed by callers (CreateConsentRecord)
 
 	consentID := uuid.New()
 	currentTime := time.Now().UTC()
