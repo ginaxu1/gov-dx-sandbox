@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Database, 
-    Search, 
-    Download, 
-    RefreshCw, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+    Database,
+    Search,
+    Download,
+    RefreshCw,
     Eye,
     Clock,
     CheckCircle,
@@ -18,7 +18,7 @@ import {
     MessageSquare
 } from 'lucide-react';
 
-import type { ApprovedSchema, SchemaSubmission  } from '../types/schema';
+import type { ApprovedSchema, SchemaSubmission } from '../types/schema';
 import { SchemaService } from '../services/schemaService';
 
 interface FilterOptionsApproved {
@@ -38,10 +38,8 @@ interface FilterOptionsSubmissions {
     searchByStatus: 'pending' | 'approved' | 'rejected' | 'all';
 }
 
-interface SchemasProps {
-}
 
-export const Schemas: React.FC<SchemasProps> = () => {
+export const Schemas: React.FC = () => {
     const [submissions, setSubmissions] = useState<SchemaSubmission[]>([]);
     const [approved, setApproved] = useState<ApprovedSchema[]>([]);
     const [filteredSubmissions, setFilteredSubmissions] = useState<SchemaSubmission[]>([]);
@@ -79,7 +77,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
         searchByMemberId: '',
         searchByVersion: 'all'
     });
-    
+
     const [loading, setLoading] = useState(true);
     const [autoRefresh, setAutoRefresh] = useState(false);
     const [reviewModal, setReviewModal] = useState<{
@@ -125,7 +123,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
     const fetchSubmissions = async () => {
         try {
-            const data : SchemaSubmission[] = await SchemaService.getSchemaSubmissions();
+            const data: SchemaSubmission[] = await SchemaService.getSchemaSubmissions();
             return data;
         } catch (error) {
             console.error('Error fetching schema submissions:', error);
@@ -135,7 +133,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
     const fetchApproved = async () => {
         try {
-            const data : ApprovedSchema[] = await SchemaService.getApprovedSchemas();
+            const data: ApprovedSchema[] = await SchemaService.getApprovedSchemas();
             return data;
         } catch (error) {
             console.error('Error fetching approved schemas:', error);
@@ -143,14 +141,14 @@ export const Schemas: React.FC<SchemasProps> = () => {
         }
     };
 
-    const fetchSchemas = async () => {
+    const fetchSchemas = useCallback(async () => {
         setLoading(true);
         try {
             const [submissionsData, approvedData] = await Promise.all([
                 fetchSubmissions(),
                 fetchApproved()
             ]);
-            
+
             setSubmissions(submissionsData);
             setApproved(approvedData);
             setFilteredSubmissions(submissionsData);
@@ -164,11 +162,11 @@ export const Schemas: React.FC<SchemasProps> = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchSchemas();
-    }, []);
+    }, [fetchSchemas]);
 
     // Auto-refresh functionality
     useEffect(() => {
@@ -179,12 +177,12 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
             return () => clearInterval(interval);
         }
-    }, [autoRefresh]);
+    }, [autoRefresh, fetchSchemas]);
 
     // Filter submissions
     useEffect(() => {
         let filtered = submissions;
-        
+
         if (submissionFilters.searchByName) {
             filtered = filtered.filter(schema =>
                 schema.schemaName.toLowerCase().includes(submissionFilters.searchByName!.toLowerCase())
@@ -355,7 +353,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
 
             // Refresh the data after review
             await fetchSchemas();
-            
+
             // Close the modal
             handleCloseReview();
         } catch (error) {
@@ -446,22 +444,20 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 <div className="flex gap-4 mb-4">
                                     <button
                                         onClick={() => setReviewAction('approved')}
-                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'approved'
+                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${reviewAction === 'approved'
                                                 ? 'bg-green-600 text-white'
                                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
-                                        }`}
+                                            }`}
                                     >
                                         <ThumbsUp className="w-5 h-5" />
                                         <span>Approve</span>
                                     </button>
                                     <button
                                         onClick={() => setReviewAction('rejected')}
-                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${
-                                            reviewAction === 'rejected'
+                                        className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors ${reviewAction === 'rejected'
                                                 ? 'bg-red-600 text-white'
                                                 : 'bg-red-100 text-red-700 hover:bg-red-200'
-                                        }`}
+                                            }`}
                                     >
                                         <ThumbsDown className="w-5 h-5" />
                                         <span>Reject</span>
@@ -495,13 +491,12 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 <button
                                     onClick={handleSubmitReview}
                                     disabled={!reviewAction || submittingReview}
-                                    className={`px-6 py-2 rounded-lg transition-colors ${
-                                        !reviewAction || submittingReview
+                                    className={`px-6 py-2 rounded-lg transition-colors ${!reviewAction || submittingReview
                                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                             : reviewAction === 'approved'
-                                            ? 'bg-green-600 text-white hover:bg-green-700'
-                                            : 'bg-red-600 text-white hover:bg-red-700'
-                                    }`}
+                                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                                : 'bg-red-600 text-white hover:bg-red-700'
+                                        }`}
                                 >
                                     {submittingReview ? 'Submitting...' : reviewAction === 'approved' ? 'Approve Schema' : 'Reject Schema'}
                                 </button>
@@ -533,11 +528,10 @@ export const Schemas: React.FC<SchemasProps> = () => {
                             </button>
                             <button
                                 onClick={() => setAutoRefresh(!autoRefresh)}
-                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                                    autoRefresh 
-                                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${autoRefresh
+                                        ? 'bg-green-100 text-green-700 border border-green-300'
                                         : 'bg-white border border-gray-300 hover:bg-gray-50'
-                                }`}
+                                    }`}
                             >
                                 <Database className="w-4 h-4" />
                                 <span>Auto Refresh</span>
@@ -560,7 +554,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
@@ -573,7 +567,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
@@ -586,7 +580,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
                         <div className="flex items-center justify-between">
                             <div>
@@ -612,7 +606,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                         Pending Schema Submissions ({filteredSubmissions.length})
                                     </h2>
                                 </div>
-                                <button 
+                                <button
                                     onClick={handleExportSubmissions}
                                     className="flex items-center space-x-2 px-4 py-2 bg-orange-800 text-white rounded-lg hover:bg-orange-900 transition-colors"
                                 >
@@ -653,7 +647,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                         </select>
                                     </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <input
                                         type="text"
@@ -670,7 +664,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                                     />
                                 </div>
-                                
+
                                 <div className="flex justify-end">
                                     <button
                                         onClick={clearSubmissionFilters}
@@ -681,7 +675,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         {/* Submission List */}
                         <div className="max-h-96 overflow-y-auto">
                             {filteredSubmissions.length === 0 ? (
@@ -689,7 +683,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                     <p className="text-gray-500 text-lg">
                                         {submissionFilters.searchByName || submissionFilters.searchByStatus !== 'all' || submissionFilters.searchByDescription || submissionFilters.searchByMemberId
-                                            ? 'No schema submissions match your filters' 
+                                            ? 'No schema submissions match your filters'
                                             : 'No schema submissions available'
                                         }
                                     </p>
@@ -712,33 +706,32 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                                             Submitted: {formatTimestamp(schema.createdAt)}
                                                         </div>
                                                     </div>
-                                                    
+
                                                     <p className="text-sm text-gray-600 mb-3">{schema.schemaDescription}</p>
-                                                    
+
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                         <div className="flex items-center text-sm text-gray-600">
                                                             <User className="w-4 h-4 mr-2 text-gray-400" />
                                                             <span>Provider: {schema.memberId}</span>
                                                         </div>
                                                         <div className="flex items-center text-sm text-gray-600">
-                                                            <span className="font-medium">Endpoint:</span> 
+                                                            <span className="font-medium">Endpoint:</span>
                                                             <span className="ml-1 text-xs truncate">{schema.schemaEndpoint}</span>
                                                         </div>
                                                     </div>
 
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                                schema.status === 'pending' 
-                                                                    ? 'bg-yellow-100 text-yellow-800' 
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${schema.status === 'pending'
+                                                                    ? 'bg-yellow-100 text-yellow-800'
                                                                     : schema.status === 'approved'
-                                                                    ? 'bg-green-100 text-green-800'
-                                                                    : 'bg-red-100 text-red-800'
-                                                            }`}>
+                                                                        ? 'bg-green-100 text-green-800'
+                                                                        : 'bg-red-100 text-red-800'
+                                                                }`}>
                                                                 {schema.status.charAt(0).toUpperCase() + schema.status.slice(1)}
                                                             </span>
                                                         </div>
-                                                        
+
                                                         <button
                                                             onClick={() => handleReview(schema)}
                                                             className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -771,7 +764,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     Approved Schemas ({filteredApproved.length})
                                 </h2>
                             </div>
-                            <button 
+                            <button
                                 onClick={handleExportApproved}
                                 className="flex items-center space-x-2 px-4 py-2 bg-green-800 text-white rounded-lg hover:bg-green-900 transition-colors"
                             >
@@ -812,7 +805,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     </select>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <input
                                     type="text"
@@ -829,7 +822,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                     className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 />
                             </div>
-                            
+
                             <div className="flex justify-end">
                                 <button
                                     onClick={clearApprovedFilters}
@@ -847,7 +840,7 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                 <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <p className="text-gray-500 text-lg">
                                     {approvedFilters.searchByName || approvedFilters.searchByVersion !== 'all' || approvedFilters.searchByDescription || approvedFilters.searchByMemberId
-                                        ? 'No approved schemas match your filters' 
+                                        ? 'No approved schemas match your filters'
                                         : 'No approved schemas available'
                                     }
                                 </p>
@@ -870,35 +863,34 @@ export const Schemas: React.FC<SchemasProps> = () => {
                                                         Updated: {formatTimestamp(schema.updatedAt)}
                                                     </div>
                                                 </div>
-                                                
+
                                                 <p className="text-sm text-gray-600 mb-3">{schema.schemaDescription || 'No description available'}</p>
-                                                
+
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                                                     <div className="flex items-center text-sm text-gray-600">
                                                         <User className="w-4 h-4 mr-2 text-gray-400" />
                                                         <span>Provider: {schema.memberId}</span>
                                                     </div>
                                                     <div className="flex items-center text-sm text-gray-600">
-                                                        <span className="font-medium">Endpoint:</span> 
+                                                        <span className="font-medium">Endpoint:</span>
                                                         <span className="ml-1 text-xs truncate">{schema.schemaEndpoint}</span>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                            schema.version === 'active' 
-                                                                ? 'bg-blue-100 text-blue-800' 
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${schema.version === 'active'
+                                                                ? 'bg-blue-100 text-blue-800'
                                                                 : 'bg-gray-100 text-gray-800'
-                                                        }`}>
+                                                            }`}>
                                                             {schema.version.charAt(0).toUpperCase() + schema.version.slice(1)}
                                                         </span>
-                                                        
+
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                             Approved
                                                         </span>
                                                     </div>
-                                                    
+
                                                     <button
                                                         onClick={() => console.log('View schema:', schema.schemaId)}
                                                         className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
