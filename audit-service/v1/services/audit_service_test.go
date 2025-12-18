@@ -6,24 +6,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gov-dx-sandbox/audit-service/models"
+	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/audit-service/services"
+	"github.com/gov-dx-sandbox/audit-service/v1/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewAuditService(t *testing.T) {
-	db := SetupSQLiteTestDB(t)
+	db := services.SetupSQLiteTestDB(t)
 	service := NewAuditService(db)
 	assert.NotNil(t, service)
 }
 
 func TestAuditService_CreateAuditLog(t *testing.T) {
-	db := SetupSQLiteTestDB(t)
+	db := services.SetupSQLiteTestDB(t)
 	service := NewAuditService(db)
 
 	t.Run("Create valid audit log", func(t *testing.T) {
+		traceID := uuid.New()
 		req := &models.AuditLog{
-			TraceID:       "trace-123",
+			TraceID:       traceID,
 			Timestamp:     time.Now().UTC(),
 			SourceService: "orchestration-engine",
 			TargetService: "pdp",
@@ -37,16 +40,16 @@ func TestAuditService_CreateAuditLog(t *testing.T) {
 		resp, err := service.CreateAuditLog(context.Background(), req)
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
-		assert.Equal(t, "trace-123", resp.TraceID)
-		assert.NotEmpty(t, resp.ID)
+		assert.Equal(t, traceID, resp.TraceID)
+		assert.NotEqual(t, uuid.Nil, resp.ID)
 	})
 }
 
 func TestAuditService_GetAuditLogs(t *testing.T) {
-	db := SetupSQLiteTestDB(t)
+	db := services.SetupSQLiteTestDB(t)
 	service := NewAuditService(db)
 
-	traceID := "trace-456"
+	traceID := uuid.New()
 	
 	// Create multiple logs for same trace
 	logs := []*models.AuditLog{
@@ -67,7 +70,7 @@ func TestAuditService_GetAuditLogs(t *testing.T) {
 			Status:        "SUCCESS",
 		},
 		{
-			TraceID:       "other-trace",
+			TraceID:       uuid.New(),
 			Timestamp:     time.Now().UTC(),
 			SourceService: "oe",
 			EventType:     "REQ_OTHER",
@@ -89,7 +92,7 @@ func TestAuditService_GetAuditLogs(t *testing.T) {
 	})
 
 	t.Run("Get logs for non-existent trace", func(t *testing.T) {
-		resp, err := service.GetAuditLogs(context.Background(), "non-existent")
+		resp, err := service.GetAuditLogs(context.Background(), uuid.New())
 		require.NoError(t, err)
 		assert.Empty(t, resp)
 	})
