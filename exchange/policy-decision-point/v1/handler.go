@@ -7,6 +7,7 @@ import (
 
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/services"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"gorm.io/gorm"
 )
@@ -113,6 +114,13 @@ func (h *Handler) GetPolicyDecision(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// Record business event based on decision
+	if resp.AppAuthorized {
+		monitoring.RecordBusinessEvent("policy_decision", "allow")
+	} else {
+		monitoring.RecordBusinessEvent("policy_decision", "deny")
 	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, resp)

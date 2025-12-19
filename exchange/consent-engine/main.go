@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/config"
 	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
@@ -39,6 +41,20 @@ func main() {
 
 	// Setup logging
 	utils.SetupLogging(cfg.Logging.Format, cfg.Logging.Level)
+
+	monitorCtx := context.Background()
+	shutdownMetrics, err := monitoring.Setup(monitorCtx, monitoring.Config{
+		ServiceName: "consent-engine",
+		ResourceAttrs: map[string]string{
+			"environment": cfg.Environment,
+			"version":     Version,
+		},
+	})
+	if err != nil {
+		slog.Error("Failed to initialize telemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownMetrics(context.Background()) }()
 
 	slog.Info("Starting consent engine",
 		"environment", cfg.Environment,
@@ -119,6 +135,7 @@ func main() {
 
 	// Register legacy /health endpoint for compatibility with health checks
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("consent-engine")))
+	mux.Handle("/metrics", monitoring.Handler())
 
 	// Create server configuration
 	serverConfig := &utils.ServerConfig{
