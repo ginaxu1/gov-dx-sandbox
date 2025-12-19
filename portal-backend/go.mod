@@ -1,4 +1,4 @@
-module github.com/gov-dx-sandbox/portal-backend
+module github.com/gov-dx-sandbox/api-server-go
 
 go 1.24.6
 
@@ -6,7 +6,9 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
-	github.com/gov-dx-sandbox/portal-backend/shared/utils v0.0.0
+	github.com/gov-dx-sandbox/api-server-go/models v0.0.0
+	github.com/gov-dx-sandbox/api-server-go/shared/utils v0.0.0
+	github.com/gov-dx-sandbox/exchange/pkg/monitoring v0.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.30
@@ -39,6 +41,8 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 )
 
-replace github.com/gov-dx-sandbox/portal-backend/models => ./models
+replace github.com/gov-dx-sandbox/api-server-go/models => ./models
 
-replace github.com/gov-dx-sandbox/portal-backend/shared/utils => ./shared/utils
+replace github.com/gov-dx-sandbox/api-server-go/shared/utils => ./shared/utils
+
+replace github.com/gov-dx-sandbox/exchange/pkg/monitoring => ../exchange/pkg/monitoring

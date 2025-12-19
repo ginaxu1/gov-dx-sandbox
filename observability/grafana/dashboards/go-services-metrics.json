@@ -16,7 +16,6 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "uid": "go-services-dashboard",
   "iteration": 1710643200000,
   "links": [],
   "panels": [
@@ -36,8 +35,8 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total[5m])) by (method, route)",
-          "legendFormat": "{{method}} {{route}}",
+          "expr": "sum(rate(http_requests_total[5m])) by (http_method, http_route)",
+          "legendFormat": "{{http_method}} {{http_route}}",
           "refId": "A"
         }
       ],
@@ -61,8 +60,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (route, le))",
-          "legendFormat": "{{route}}",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P95 latency",
           "refId": "A"
         }
       ],
@@ -145,37 +144,6 @@
       ],
       "title": "Business Events",
       "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
-      "id": 6,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal"
-      },
-      "targets": [
-        {
-          "expr": "up{job=~\"orchestration-engine|consent-engine|policy-decision-point|portal-backend|audit-service\"}",
-          "legendFormat": "{{job}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Service Health (1=up, 0=down)",
-      "type": "bargauge"
     }
   ],
   "refresh": "30s",

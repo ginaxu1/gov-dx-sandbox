@@ -3,7 +3,7 @@ package federator
 import (
 	"strings"
 
-	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
+	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/kinds"
 	"github.com/graphql-go/graphql/language/visitor"
@@ -83,7 +83,8 @@ func ExtractRequiredArguments(argMap []*graphql.ArgMapping, arguments []*ast.Arg
 }
 
 func PushArgumentsToProviderQueryAst(args []*ArgSource, queryAst *FederationServiceAST) {
-	path := make([]string, 0)
+
+	var path = make([]string, 0)
 
 	visitor.Visit(queryAst.QueryAst, &visitor.VisitorOptions{
 		Enter: func(p visitor.VisitFuncParams) (string, interface{}) {
@@ -92,7 +93,7 @@ func PushArgumentsToProviderQueryAst(args []*ArgSource, queryAst *FederationServ
 				path = append(path, field.Name.Value)
 
 				// now check whether the current path matches any argument's TargetArgPath
-				currentPath := strings.Join(path, ".")
+				var currentPath = strings.Join(path, ".")
 				for _, arg := range args {
 					if arg == nil || arg.ArgMapping == nil {
 						continue
