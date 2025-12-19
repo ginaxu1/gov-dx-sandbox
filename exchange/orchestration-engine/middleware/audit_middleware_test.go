@@ -1,12 +1,15 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func TestLogAuditEvent(t *testing.T) {
@@ -88,6 +91,123 @@ func TestLogAuditEvent(t *testing.T) {
 	}
 }
 
+func TestLogGeneralizedAudit(t *testing.T) {
+	// Reset global middleware before test
+	ResetGlobalAuditMiddleware()
+
+	// Create a test server to mock the audit service
+	var receivedRequest *CreateAuditLogRequest
+	var mu sync.Mutex
+	requestReceived := make(chan bool, 1)
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/audit-logs" {
+			t.Errorf("Expected path /api/audit-logs, got %s", r.URL.Path)
+		}
+
+		var auditReq CreateAuditLogRequest
+		if err := json.NewDecoder(r.Body).Decode(&auditReq); err != nil {
+			t.Fatalf("Failed to decode request body: %v", err)
+		}
+
+		mu.Lock()
+		receivedRequest = &auditReq
+		mu.Unlock()
+
+		w.WriteHeader(http.StatusCreated)
+		requestReceived <- true
+	}))
+	defer testServer.Close()
+
+	// Initialize audit middleware with test server URL
+	middleware := NewAuditMiddleware(testServer.URL)
+	if middleware == nil {
+		t.Fatal("Failed to create audit middleware")
+	}
+
+	// Test Case 1: TraceID provided in request
+	t.Run("ExplicitTraceID", func(t *testing.T) {
+		traceID := uuid.New().String()
+		actorServiceName := "test-service"
+		req := &CreateAuditLogRequest{
+			TraceID:          &traceID,
+			EventName:        "TEST_EVENT",
+			Status:           "SUCCESS",
+			ActorType:        "SERVICE",
+			ActorServiceName: &actorServiceName,
+			TargetType:       "SERVICE",
+		}
+
+		LogGeneralizedAuditEvent(context.Background(), req)
+
+		select {
+		case <-requestReceived:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for audit request")
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if receivedRequest.TraceID == nil || *receivedRequest.TraceID != traceID {
+			got := ""
+			if receivedRequest.TraceID != nil {
+				got = *receivedRequest.TraceID
+			}
+			t.Errorf("Expected TraceID %s, got %s", traceID, got)
+		}
+	})
+
+	// Test Case 2: TraceID from Context
+	t.Run("ContextTraceID", func(t *testing.T) {
+		traceID := uuid.New().String()
+		ctx := context.WithValue(context.Background(), TraceIDKey{}, traceID)
+		actorServiceName := "test-service"
+
+		req := &CreateAuditLogRequest{
+			EventName:        "TEST_EVENT_CTX",
+			Status:           "SUCCESS",
+			ActorType:        "SERVICE",
+			ActorServiceName: &actorServiceName,
+			TargetType:       "SERVICE",
+		}
+
+		LogGeneralizedAuditEvent(ctx, req)
+
+		select {
+		case <-requestReceived:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for audit request")
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if receivedRequest.TraceID == nil || *receivedRequest.TraceID != traceID {
+			got := ""
+			if receivedRequest.TraceID != nil {
+				got = *receivedRequest.TraceID
+			}
+			t.Errorf("Expected TraceID %s, got %s", traceID, got)
+		}
+	})
+}
+
+func TestGetTraceIDFromContext(t *testing.T) {
+	traceID := "test-trace-id"
+	ctx := context.WithValue(context.Background(), TraceIDKey{}, traceID)
+
+	if got := GetTraceIDFromContext(ctx); got != traceID {
+		t.Errorf("GetTraceIDFromContext() = %v, want %v", got, traceID)
+	}
+
+	emptyCtx := context.Background()
+	if got := GetTraceIDFromContext(emptyCtx); got != "" {
+		t.Errorf("GetTraceIDFromContext() = %v, want empty string", got)
+	}
+}
+
 func TestLogAuditEventWhenNotConfigured(t *testing.T) {
 	// Reset global middleware before test
 	ResetGlobalAuditMiddleware()
@@ -133,4 +253,23 @@ func TestLogAuditEventWhenGlobalMiddlewareNotInitialized(t *testing.T) {
 	LogAuditEvent(testRequest)
 
 	// Test passes if no panic occurs
+}
+
+func TestLogGeneralizedAuditWhenNotConfigured(t *testing.T) {
+	ResetGlobalAuditMiddleware()
+	middleware := NewAuditMiddleware("")
+
+	traceID := "test"
+	actorServiceName := "test"
+	req := &CreateAuditLogRequest{
+		TraceID:          &traceID,
+		EventName:        "TEST_EVENT",
+		Status:           "SUCCESS",
+		ActorType:        "SERVICE",
+		ActorServiceName: &actorServiceName,
+		TargetType:       "SERVICE",
+	}
+
+	middleware.LogGeneralizedAudit(context.Background(), req)
+	// Should not panic
 }
