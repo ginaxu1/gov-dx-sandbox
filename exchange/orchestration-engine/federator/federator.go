@@ -297,7 +297,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		// Continue without PDP check - this allows the system to work without PDP
 	} else {
 		pdpRequest := &policy.PdpRequest{
-			AppId: consumerInfo.ApplicationId,
+			AppId: consumerInfo.ClientId,
 		}
 
 		requiredFields := make([]policy.RequiredField, 0)
@@ -404,7 +404,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		typeRealTime := consent.TypeRealtime
 		ceRequest := &consent.CreateConsentRequest{
-			AppID: consumerInfo.ApplicationId,
+			AppID: consumerInfo.ClientId,
 			ConsentRequirement: consent.ConsentRequirement{
 				Owner:      consent.OwnerCitizen,
 				OwnerID:    ownerEmail,
@@ -463,7 +463,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// Inject audit metadata into context
 	auditMetadata := &AuditMetadata{
-		ConsumerAppID:    consumerInfo.ApplicationId,
+		ConsumerAppID:    consumerInfo.ClientId,
 		ProviderFieldMap: schemaCollection.ProviderFieldMap,
 	}
 	ctxWithAudit := NewContextWithAuditMetadata(ctx, auditMetadata)
