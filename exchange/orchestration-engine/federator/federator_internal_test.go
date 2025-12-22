@@ -116,8 +116,8 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 
 	ctx := context.Background()
 	resp := f.FederateQuery(ctx, req, &auth.ConsumerAssertion{
-		Subscriber:    "sub-123",
-		ApplicationId: "app-123",
+		Subscriber: "sub-123",
+		ClientId:   "app-123",
 	})
 
 	// 6. Assertions
@@ -175,8 +175,8 @@ func TestFederateQuery_PDPDeny(t *testing.T) {
 		Query: `query { personInfo(nic: "123") { fullName } }`,
 	}
 	consumerInfo := &auth.ConsumerAssertion{
-		Subscriber:    "sub-123",
-		ApplicationId: "app-123",
+		Subscriber: "sub-123",
+		ClientId:   "app-123",
 	}
 
 	resp := f.FederateQuery(context.Background(), req, consumerInfo)
