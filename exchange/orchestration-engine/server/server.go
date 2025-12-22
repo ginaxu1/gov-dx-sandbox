@@ -111,8 +111,8 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 			return
 		}
 
-		// decode the token
-		consumerAssertion, err := auth.GetConsumerJwtFromToken(f.Configs.Environment, r)
+		// decode the token using the cached TokenValidator
+		consumerAssertion, err := auth.GetConsumerJwtFromTokenWithValidator(f.Configs.Environment, &f.Configs.JWT, f.Configs.TrustUpstream, r, f.TokenValidator)
 		if err != nil {
 			logger.Log.Error("Failed to get consumer JWT from token", "error", err)
 			http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)

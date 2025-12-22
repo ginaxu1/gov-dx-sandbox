@@ -1,70 +1,417 @@
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/MicahParks/keyfunc/v3"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/configs"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type ConsumerAssertion struct {
-	ApplicationUuid string
-	Subscriber      string
-	ApplicationId   string
+// httpClient is a shared HTTP client with reasonable timeouts
+var httpClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	},
 }
 
-const (
-	WSO2ClaimPrefix = "http://wso2.org/claims/"
+// TokenValidator handles JWT token validation with cached JWKS
+type TokenValidator struct {
+	jwks    keyfunc.Keyfunc
+	jwksURL string
+}
 
-	ClaimSubscriber = WSO2ClaimPrefix + "subscriber"
-	ClaimAppUUID    = WSO2ClaimPrefix + "applicationUUId"
-	ClaimAppID      = WSO2ClaimPrefix + "applicationid"
-)
+// fetchAndFilterJWKS fetches JWKS from URL and removes keys with x5c certificates to avoid parsing errors
+func fetchAndFilterJWKS(jwksURL string) (json.RawMessage, error) {
+	resp, err := httpClient.Get(jwksURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+	}
+	defer resp.Body.Close()
 
-func GetConsumerJwtFromToken(env string, r *http.Request) (*ConsumerAssertion, error) {
-	if env == "local" {
-		// Return dummy values in local environment
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JWKS endpoint returned status %d", resp.StatusCode)
+	}
+
+	// Limit response size to prevent memory exhaustion attacks
+	limitedReader := io.LimitReader(resp.Body, 1<<20) // 1MB limit
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JWKS response: %w", err)
+	}
+
+	// Parse the JWKS to filter out problematic keys
+	var jwks map[string]interface{}
+	if err := json.Unmarshal(body, &jwks); err != nil {
+		return nil, fmt.Errorf("failed to parse JWKS JSON: %w", err)
+	}
+
+	keys, ok := jwks["keys"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("JWKS missing 'keys' array")
+	}
+
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("JWKS contains no keys")
+	}
+
+	// Filter out keys with x5c (X.509 certificate chain) to avoid certificate parsing errors
+	filteredKeys := make([]interface{}, 0, len(keys))
+	skippedCount := 0
+	for _, key := range keys {
+		keyMap, ok := key.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Validate that key has minimum required fields
+		kid, hasKid := keyMap["kid"].(string)
+		kty, hasKty := keyMap["kty"].(string)
+		if !hasKid || !hasKty || kid == "" || kty == "" {
+			log.Printf("Warning: Skipping key with missing kid or kty")
+			continue
+		}
+
+		// Remove x5c field if present (this causes the certificate parsing error)
+		if _, hasX5c := keyMap["x5c"]; hasX5c {
+			delete(keyMap, "x5c")
+			skippedCount++
+			log.Printf("Removed x5c certificate from key %s to avoid parsing errors", kid)
+		}
+		filteredKeys = append(filteredKeys, keyMap)
+	}
+
+	if len(filteredKeys) == 0 {
+		return nil, fmt.Errorf("no valid keys remaining after filtering")
+	}
+
+	if skippedCount > 0 {
+		log.Printf("Filtered %d key(s) with x5c certificates from JWKS", skippedCount)
+	}
+
+	jwks["keys"] = filteredKeys
+	return json.Marshal(jwks)
+}
+
+// NewTokenValidator creates a new TokenValidator instance with auto-refresh
+func NewTokenValidator(jwksURL string) (*TokenValidator, error) {
+	if jwksURL == "" {
+		return &TokenValidator{}, nil
+	}
+
+	// Fetch and filter the JWKS to remove problematic x5c certificates
+	jwksJSON, err := fetchAndFilterJWKS(jwksURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch and filter JWKS: %w", err)
+	}
+
+	// Create JWKS from filtered JSON
+	jwks, err := keyfunc.NewJWKSetJSON(jwksJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWKS from JSON: %w", err)
+	}
+
+	log.Printf("Successfully loaded JWKS from endpoint: %s", jwksURL)
+
+	return &TokenValidator{
+		jwks:    jwks,
+		jwksURL: jwksURL,
+	}, nil
+}
+
+// validateSignature validates the token signature using cached JWKS
+func (v *TokenValidator) validateSignature(tokenString string) (*jwt.Token, error) {
+	token, err := jwt.Parse(tokenString, v.jwks.Keyfunc)
+	if err != nil {
+		// Provide more specific error messages based on error content
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "signature") {
+			return nil, fmt.Errorf("token signature verification failed (JWKS URL: %s): %w", v.jwksURL, err)
+		}
+		if strings.Contains(errMsg, "malformed") || strings.Contains(errMsg, "invalid number of segments") {
+			return nil, fmt.Errorf("malformed token: %w", err)
+		}
+		if strings.Contains(errMsg, "key not found") || strings.Contains(errMsg, "keyfunc") {
+			return nil, fmt.Errorf("token key not found in JWKS (JWKS URL: %s): %w", v.jwksURL, err)
+		}
+		return nil, fmt.Errorf("failed to parse and verify token (JWKS URL: %s): %w", v.jwksURL, err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("token is invalid")
+	}
+
+	return token, nil
+}
+
+// isAudienceValid checks if at least one token audience matches valid audiences
+func isAudienceValid(tokenAudiences []string, validAudiences []string) bool {
+	validAudsSet := make(map[string]struct{}, len(validAudiences))
+	for _, aud := range validAudiences {
+		validAudsSet[aud] = struct{}{}
+	}
+
+	for _, tokenAud := range tokenAudiences {
+		if _, ok := validAudsSet[tokenAud]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// extractAudience extracts the audience claim which can be a string or array of strings
+func extractAudience(claims jwt.MapClaims) []string {
+	var aud []string
+	if audStr, ok := claims[ClaimAud].(string); ok {
+		aud = []string{audStr}
+	} else if audList, ok := claims[ClaimAud].([]interface{}); ok {
+		for _, a := range audList {
+			if s, ok := a.(string); ok {
+				aud = append(aud, s)
+			}
+		}
+	}
+	return aud
+}
+
+// extractTokenFromRequest extracts and validates the JWT token from the HTTP Authorization header
+func extractTokenFromRequest(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("missing Authorization header")
+	}
+
+	// Remove "Bearer " prefix if present
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == authHeader {
+		// No "Bearer " prefix found
+		return "", fmt.Errorf("authorization header must use Bearer scheme")
+	}
+
+	// Validate token length to prevent memory exhaustion attacks
+	// JWT tokens are typically < 8KB, but allow up to 16KB for safety
+	if len(tokenString) > 16*1024 {
+		return "", fmt.Errorf("token exceeds maximum allowed size (16KB)")
+	}
+
+	if len(tokenString) == 0 {
+		return "", fmt.Errorf("empty token")
+	}
+
+	return tokenString, nil
+}
+
+// validateTemporalClaims validates exp, nbf, and iat claims
+func validateTemporalClaims(claims jwt.MapClaims, now int64) (exp int64, iat int64, err error) {
+	// Validate exp claim - mandatory
+	expVal, exists := claims[ClaimExp]
+	if !exists {
+		return 0, 0, fmt.Errorf("missing exp claim")
+	}
+	expFloat, ok := expVal.(float64)
+	if !ok {
+		return 0, 0, fmt.Errorf("invalid exp claim type: expected number, got %T", expVal)
+	}
+	if expFloat < 0 {
+		return 0, 0, fmt.Errorf("invalid exp claim value: cannot be negative")
+	}
+
+	// nbf (not before) - validate before checking expiration
+	if nbfVal, exists := claims[ClaimNbf]; exists {
+		nbf, ok := nbfVal.(float64)
+		if !ok {
+			return 0, 0, fmt.Errorf("invalid nbf claim type: expected number, got %T", nbfVal)
+		}
+		if nbf < 0 {
+			return 0, 0, fmt.Errorf("invalid nbf claim value: cannot be negative")
+		}
+		if now < int64(nbf) {
+			return 0, 0, fmt.Errorf("token is not valid yet")
+		}
+	}
+
+	// Check expiration
+	if now > int64(expFloat) {
+		return 0, 0, fmt.Errorf("token has expired")
+	}
+
+	// Extract iat (issued at) - optional but validate type if present
+	var iatInt int64
+	if iatVal, exists := claims[ClaimIat]; exists {
+		iatFloat, ok := iatVal.(float64)
+		if !ok {
+			return 0, 0, fmt.Errorf("invalid iat claim type: expected number, got %T", iatVal)
+		}
+		if iatFloat < 0 {
+			return 0, 0, fmt.Errorf("invalid iat claim value: cannot be negative")
+		}
+		iatInt = int64(iatFloat)
+	}
+
+	return int64(expFloat), iatInt, nil
+}
+
+// validateRequiredClaims validates client_id and subscriber (sub or azp)
+func validateRequiredClaims(claims jwt.MapClaims) (clientID string, subscriber string, err error) {
+	// client_id is required
+	clientID, ok := claims[ClaimClientId].(string)
+	if !ok || clientID == "" {
+		return "", "", fmt.Errorf("missing or invalid client_id claim")
+	}
+
+	// sub or azp - at least one must be present
+	subscriber, ok = claims[ClaimSub].(string)
+	if !ok || subscriber == "" {
+		// fallback to azp if sub is missing
+		if azp, ok := claims[ClaimAzp].(string); ok && azp != "" {
+			subscriber = azp
+		}
+	}
+	if subscriber == "" {
+		return "", "", fmt.Errorf("missing subscriber claim: both 'sub' and 'azp' are missing or empty")
+	}
+
+	return clientID, subscriber, nil
+}
+
+// validateIssuerAndAudience validates issuer and audience claims against configuration
+func validateIssuerAndAudience(claims jwt.MapClaims, jwtConfig *configs.JWTConfig) (iss string, aud []string, err error) {
+	iss, _ = claims[ClaimIss].(string)
+
+	// Validate iss (issuer) if configured
+	if jwtConfig != nil && jwtConfig.ExpectedIssuer != "" {
+		if iss == "" {
+			return "", nil, fmt.Errorf("missing issuer claim")
+		}
+		if iss != jwtConfig.ExpectedIssuer {
+			return "", nil, fmt.Errorf("invalid issuer: expected %s, got %s", jwtConfig.ExpectedIssuer, iss)
+		}
+	}
+
+	// Extract audience claim (can be string or array of strings)
+	aud = extractAudience(claims)
+
+	// Validate aud (audience) if configured
+	if jwtConfig != nil && len(jwtConfig.ValidAudiences) > 0 {
+		if !isAudienceValid(aud, jwtConfig.ValidAudiences) {
+			return "", nil, fmt.Errorf("invalid audience: expected one of %v, got %v", jwtConfig.ValidAudiences, aud)
+		}
+	}
+
+	return iss, aud, nil
+}
+
+// parseAndValidateToken parses the token string and validates it (with or without signature verification)
+func parseAndValidateToken(tokenString string, trustUpstream bool, validator *TokenValidator, jwtConfig *configs.JWTConfig) (*jwt.Token, error) {
+	if trustUpstream {
+		// If we trust upstream, we assume the token has been validated already
+		token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse token: %w", err)
+		}
+		return token, nil
+	}
+
+	// If we do not trust upstream, we must validate the token signature
+	if validator == nil {
+		return nil, fmt.Errorf("TokenValidator required when trustUpstream is false")
+	}
+	if jwtConfig == nil || jwtConfig.JwksUrl == "" {
+		return nil, fmt.Errorf("missing JWKS URL for signature validation")
+	}
+	if validator.jwksURL != jwtConfig.JwksUrl {
+		return nil, fmt.Errorf("TokenValidator URL mismatch: expected %s, got %s", jwtConfig.JwksUrl, validator.jwksURL)
+	}
+
+	return validator.validateSignature(tokenString)
+}
+
+// GetConsumerJwtFromToken validates and parses JWT token from HTTP request
+func GetConsumerJwtFromToken(env string, jwtConfig *configs.JWTConfig, trustUpstream bool, r *http.Request) (*ConsumerAssertion, error) {
+	return GetConsumerJwtFromTokenWithValidator(env, jwtConfig, trustUpstream, r, nil)
+}
+
+// GetConsumerJwtFromTokenWithValidator validates and parses JWT token with optional cached validator
+func GetConsumerJwtFromTokenWithValidator(env string, jwtConfig *configs.JWTConfig, trustUpstream bool, r *http.Request, validator *TokenValidator) (*ConsumerAssertion, error) {
+	if env == "development" {
+		// Return dummy values in local environment / development for ease of testing
+		// Bypass all validation and parsing
+		// WARNING: This should NEVER be used in production
+		// TODO: Remove this bypass by implementing proper test token generation and validation
+		log.Printf("WARNING: Using development mode bypass for token validation")
 		return &ConsumerAssertion{
-			ApplicationUuid: "passport-app",
-			Subscriber:      "passport-app",
-			ApplicationId:   "passport-app",
+			ApplicationID: "passport-app",
+			ClientID:      "passport-app",
+			Subscriber:    "passport-app",
+			Iss:           "https://idp.example.com",
+			Aud:           []string{"https://api.example.com"},
+			Exp:           time.Now().Add(time.Hour).Unix(),
+			Iat:           time.Now().Unix(),
 		}, nil
 	}
 
-	// Check for token in X-JWT-Assertion header first, then Authorization header
-	tokenString := r.Header.Get("X-JWT-Assertion")
-	if tokenString == "" {
-		// Fallback to standard Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			return nil, fmt.Errorf("missing token")
-		}
-
-		// Remove "Bearer " prefix if present
-		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-			tokenString = authHeader[7:]
-		} else {
-			tokenString = authHeader
-		}
-	}
-
-	// Parse without validation (only safe if API gateway already validated it!)
-	token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
+	// Extract token from request
+	tokenString, err := extractTokenFromRequest(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
+		return nil, err
 	}
 
+	// Parse and validate token signature (if not trusting upstream)
+	token, err := parseAndValidateToken(tokenString, trustUpstream, validator, jwtConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract claims
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		return nil, fmt.Errorf("invalid claims format")
 	}
 
-	// Map claims into struct
-	ca := &ConsumerAssertion{
-		ApplicationUuid: fmt.Sprintf("%v", claims[ClaimAppUUID]),
-		Subscriber:      fmt.Sprintf("%v", claims[ClaimSubscriber]),
-		ApplicationId:   fmt.Sprintf("%v", claims[ClaimAppID]),
+	// Validate temporal claims (exp, nbf, iat)
+	now := time.Now().Unix()
+	exp, iat, err := validateTemporalClaims(claims, now)
+	if err != nil {
+		return nil, err
 	}
 
-	return ca, nil
+	// Validate required claims (client_id, subscriber)
+	clientID, subscriber, err := validateRequiredClaims(claims)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate issuer and audience
+	iss, aud, err := validateIssuerAndAudience(claims, jwtConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract application_id if present, otherwise use client_id as fallback
+	// TODO: In the future, ApplicationID should be fetched from an internal token service
+	// that maps client_id to application_id. For now, we use client_id as a fallback.
+	applicationID, ok := claims[ClaimApplicationId].(string)
+	if !ok || applicationID == "" {
+		applicationID = clientID // Use client_id when application_id is not present
+	}
+
+	// Build and return ConsumerAssertion
+	return &ConsumerAssertion{
+		ApplicationID: applicationID,
+		ClientID:      clientID,
+		Subscriber:    subscriber,
+		Iss:           iss,
+		Aud:           aud,
+		Exp:           exp,
+		Iat:           iat,
+	}, nil
 }

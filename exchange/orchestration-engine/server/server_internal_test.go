@@ -17,10 +17,14 @@ import (
 func TestSetupRouter_Health(t *testing.T) {
 	// Initialize a dummy federator
 	cfg := &configs.Config{
-		Environment: "test",
+		Environment:   "test",
+		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(cfg, providerHandler, nil)
+	if err != nil {
+		t.Fatalf("Failed to initialize federator: %v", err)
+	}
 
 	mux := SetupRouter(f)
 
@@ -35,10 +39,14 @@ func TestSetupRouter_Health(t *testing.T) {
 
 func TestSetupRouter_SDL_Endpoints(t *testing.T) {
 	cfg := &configs.Config{
-		Environment: "test",
+		Environment:   "test",
+		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(cfg, providerHandler, nil)
+	if err != nil {
+		t.Fatalf("Failed to initialize federator: %v", err)
+	}
 
 	mux := SetupRouter(f)
 
@@ -67,10 +75,14 @@ func TestSetupRouter_SDL_Endpoints(t *testing.T) {
 
 func TestSetupRouter_PublicGraphQL_BadRequest(t *testing.T) {
 	cfg := &configs.Config{
-		Environment: "test",
+		Environment:   "test",
+		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(cfg, providerHandler, nil)
+	if err != nil {
+		t.Fatalf("Failed to initialize federator: %v", err)
+	}
 
 	mux := SetupRouter(f)
 
@@ -85,10 +97,14 @@ func TestSetupRouter_PublicGraphQL_BadRequest(t *testing.T) {
 
 func TestSetupRouter_PublicGraphQL_Unauthorized(t *testing.T) {
 	cfg := &configs.Config{
-		Environment: "test",
+		Environment:   "test",
+		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(cfg, providerHandler, nil)
+	if err != nil {
+		t.Fatalf("Failed to initialize federator: %v", err)
+	}
 
 	mux := SetupRouter(f)
 

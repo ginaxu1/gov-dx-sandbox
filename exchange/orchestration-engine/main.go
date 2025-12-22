@@ -35,7 +35,10 @@ func main() {
 
 	providerHandler := provider.NewProviderHandler(config.GetProviders())
 
-	federationObject := federator.Initialize(config, providerHandler, nil)
+	federationObject, err := federator.Initialize(config, providerHandler, nil)
+	if err != nil {
+		log.Fatalf("Failed to initialize federator: %v", err)
+	}
 
 	server.RunServer(federationObject)
 }

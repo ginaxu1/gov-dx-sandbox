@@ -2,8 +2,8 @@ services:
   # Policy Decision Point Service
   policy-decision-point:
     build:
-      context: ../../exchange
-      dockerfile: policy-decision-point/Dockerfile
+      context: ../..
+      dockerfile: exchange/policy-decision-point/Dockerfile
     environment:
       PORT: 8082
       LOG_LEVEL: info
@@ -37,8 +37,8 @@ services:
   # Consent Engine Service
   consent-engine:
     build:
-      context: ../../exchange
-      dockerfile: consent-engine/Dockerfile
+      context: ../..
+      dockerfile: exchange/consent-engine/Dockerfile
     environment:
       PORT: 8081
       LOG_LEVEL: info
@@ -83,14 +83,15 @@ services:
   # Orchestration Engine Service
   orchestration-engine:
     build:
-      context: ../../exchange
-      dockerfile: orchestration-engine/Dockerfile
+      context: ../..
+      dockerfile: exchange/orchestration-engine/Dockerfile
     environment:
       PORT: 4000
       LOG_LEVEL: info
       PDP_URL: http://policy-decision-point:8082
       CONSENT_ENGINE_URL: http://consent-engine:8081
       CONFIG_PATH: /app/config/config.json
+      TRUST_UPSTREAM_AUTH: "true"
       # Audit service configuration for integration tests
       AUDIT_SERVICE_URL: http://audit-service:3001
       ENABLE_AUDIT: "true"

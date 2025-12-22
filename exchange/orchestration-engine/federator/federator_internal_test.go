@@ -67,7 +67,8 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 
 	// 3. Setup Config
 	cfg := &configs.Config{
-		Environment: "test",
+		Environment:   "test",
+		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 		Providers: []*configs.ProviderConfig{
 			{
 				ProviderKey: "drp",
@@ -103,7 +104,10 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 	`
 
 	mockService := &MockSchemaServiceWithSignature{SDL: schemaSDL}
-	f := Initialize(cfg, providerHandler, mockService)
+	f, err := Initialize(cfg, providerHandler, mockService)
+	if err != nil {
+		t.Fatalf("Failed to initialize federator: %v", err)
+	}
 
 	// 5. Execute Query
 	req := graphql.Request{
@@ -116,8 +120,8 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 
 	ctx := context.Background()
 	resp := f.FederateQuery(ctx, req, &auth.ConsumerAssertion{
-		Subscriber:    "sub-123",
-		ApplicationId: "app-123",
+		Subscriber: "sub-123",
+		ClientID:   "app-123",
 	})
 
 	// 6. Assertions
@@ -142,7 +146,8 @@ func TestFederateQuery_PDPDeny(t *testing.T) {
 	defer pdpServer.Close()
 
 	cfg := &configs.Config{
-		Environment: "test",
+		Environment:   "test",
+		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 		PdpConfig: configs.PdpConfig{
 			ClientURL: pdpServer.URL,
 		},
@@ -169,14 +174,17 @@ func TestFederateQuery_PDPDeny(t *testing.T) {
 		}
 	`
 	mockService := &MockSchemaServiceWithSignature{SDL: schemaSDL}
-	f := Initialize(cfg, providerHandler, mockService)
+	f, err := Initialize(cfg, providerHandler, mockService)
+	if err != nil {
+		t.Fatalf("Failed to initialize federator: %v", err)
+	}
 
 	req := graphql.Request{
 		Query: `query { personInfo(nic: "123") { fullName } }`,
 	}
 	consumerInfo := &auth.ConsumerAssertion{
-		Subscriber:    "sub-123",
-		ApplicationId: "app-123",
+		Subscriber: "sub-123",
+		ClientID:   "app-123",
 	}
 
 	resp := f.FederateQuery(context.Background(), req, consumerInfo)
@@ -185,4 +193,65 @@ func TestFederateQuery_PDPDeny(t *testing.T) {
 	// Check for specific error message or code if possible
 	// The code returns: "Access denied"
 	assert.Contains(t, resp.Errors[0].(map[string]interface{})["message"], "Access denied")
+}
+
+// TestInitialize_FailsWithInvalidConfig tests that Initialize fails fast when
+// trustUpstream is false but JWT configuration is invalid
+func TestInitialize_FailsWithInvalidConfig(t *testing.T) {
+	providerHandler := provider.NewProviderHandler(nil)
+
+	t.Run("fails when trustUpstream=false and JWKS URL is empty", func(t *testing.T) {
+		cfg := &configs.Config{
+			Environment:   "production",
+			TrustUpstream: false,
+			JWT: configs.JWTConfig{
+				JwksUrl: "", // Missing JWKS URL
+			},
+		}
+
+		_, err := Initialize(cfg, providerHandler, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "trustUpstream is false")
+		assert.Contains(t, err.Error(), "JwksUrl is not configured")
+	})
+
+	t.Run("fails when trustUpstream=false and JWKS URL is invalid", func(t *testing.T) {
+		cfg := &configs.Config{
+			Environment:   "production",
+			TrustUpstream: false,
+			JWT: configs.JWTConfig{
+				JwksUrl: "http://invalid-url:99999/jwks", // Invalid URL
+			},
+		}
+
+		_, err := Initialize(cfg, providerHandler, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to initialize TokenValidator")
+	})
+
+	t.Run("succeeds when trustUpstream=true even without JWKS URL", func(t *testing.T) {
+		cfg := &configs.Config{
+			Environment:   "production",
+			TrustUpstream: true,
+			JWT: configs.JWTConfig{
+				JwksUrl: "", // Missing JWKS URL is OK when trusting upstream
+			},
+		}
+
+		_, err := Initialize(cfg, providerHandler, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("succeeds when trustUpstream=true even with invalid JWKS URL", func(t *testing.T) {
+		cfg := &configs.Config{
+			Environment:   "production",
+			TrustUpstream: true,
+			JWT: configs.JWTConfig{
+				JwksUrl: "http://invalid-url:99999/jwks", // Invalid URL is logged but not fatal
+			},
+		}
+
+		_, err := Initialize(cfg, providerHandler, nil)
+		require.NoError(t, err) // Should not fail, just log warning
+	})
 }

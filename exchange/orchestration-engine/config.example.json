@@ -1,4 +1,6 @@
 {
+  "environment": "development",
+  "trustUpstream": false,
   "ceUrl": "http://localhost:8081",
   "pdpUrl": "http://localhost:8082",
   "auditConfig": {
@@ -57,5 +59,10 @@
       "sourceArgPath": "personInfo-nic",
       "targetArgPath": "dmt.vehicle.getVehicleInfos"
     }
-  ]
+  ],
+  "jwt": {
+    "expectedIssuer": "https://idp.example.com/oauth2/token",
+    "validAudiences": ["your-client-id"],
+    "jwksUrl": "https://idp.example.com/oauth2/jwks"
+  }
 }

@@ -166,7 +166,6 @@ func checkDockerComposeServices(composeFiles ...string) bool {
 }
 
 func TestMain(m *testing.M) {
-
 	// Check if Docker Desktop is running
 	if err := exec.Command("docker", "info").Run(); err != nil {
 		fmt.Println("❌ Docker is not running. Please start Docker Desktop.")
@@ -194,7 +193,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Wait for all services to be available with shorter timeout
-	// Note: Portal Backend is optional and may not be running in all test environments
+	// Note: Portal Backend is not part of docker-compose.test.yml and is optional
 	services := []struct {
 		name string
 		url  string
@@ -204,13 +203,9 @@ func TestMain(m *testing.M) {
 		{"Consent Engine", "http://127.0.0.1:8081/health"},
 	}
 
-	// Only check Portal Backend if not in CI mode (where it may not be started)
-	if !skipDockerComposeCheck {
-		services = append(services, struct {
-			name string
-			url  string
-		}{"Portal Backend", "http://127.0.0.1:3000/health"})
-	}
+	// Portal Backend is currently not part of the test infrastructure
+	// It may be added in the future or run separately
+	// Skipping Portal Backend health check for all test modes
 
 	var unavailableServices []string
 	for _, svc := range services {
@@ -255,15 +250,21 @@ func TestMain(m *testing.M) {
 // The Orchestration Engine's auth package accepts unsigned tokens when running
 // in "local" environment mode for testing purposes only.
 func createTestJWT(appID string) (string, error) {
+	now := time.Now().Unix()
 	claims := jwt.MapClaims{
-		"http://wso2.org/claims/subscriber":      appID,
-		"http://wso2.org/claims/applicationUUId": appID,
-		"http://wso2.org/claims/applicationid":   appID,
+		// Standard M2M token claims expected by ConsumerAssertion
+		"application_id": appID,
+		"client_id":      appID,
+		"sub":            appID, // Subscriber - can also be 'azp'
+		"iss":            "https://test-issuer.example.com",
+		"aud":            []string{"test-audience"},
+		"exp":            now + 3600, // Expires in 1 hour
+		"iat":            now,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodNone, claims)
 	tokenString, err := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to sign JWT token: %w", err)
 	}
 	return tokenString, nil
 }
@@ -280,7 +281,7 @@ func makeGraphQLRequest(t *testing.T, query string, variables map[string]interfa
 	req, err := http.NewRequest("POST", orchestrationEngineURL, bytes.NewBuffer(jsonData))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-JWT-Assertion", token)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	return testHTTPClient.Do(req)
 }
@@ -848,7 +849,6 @@ func TestGraphQLFlow_ServiceTimeout(t *testing.T) {
 			}
 		}
 	`, map[string]interface{}{"nic": testNIC}, token)
-
 	if err != nil {
 		t.Logf("Request failed as expected (timeout/connection error): %v", err)
 		assert.Error(t, err, "Request should fail when PDP is down")
