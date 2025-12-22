@@ -3,31 +3,21 @@ package auth
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-)
-
-type ConsumerAssertion struct {
-	ApplicationUuid string
-	Subscriber      string
-	ApplicationId   string
-}
-
-const (
-	WSO2ClaimPrefix = "http://wso2.org/claims/"
-
-	ClaimSubscriber = WSO2ClaimPrefix + "subscriber"
-	ClaimAppUUID    = WSO2ClaimPrefix + "applicationUUId"
-	ClaimAppID      = WSO2ClaimPrefix + "applicationid"
 )
 
 func GetConsumerJwtFromToken(env string, r *http.Request) (*ConsumerAssertion, error) {
 	if env == "local" {
 		// Return dummy values in local environment
 		return &ConsumerAssertion{
-			ApplicationUuid: "passport-app",
-			Subscriber:      "passport-app",
-			ApplicationId:   "passport-app",
+			ClientId:   "passport-app",
+			Subscriber: "passport-app",
+			Iss:        "https://idp.example.com",
+			Aud:        []string{"https://api.example.com"},
+			Exp:        time.Now().Add(time.Hour).Unix(),
+			Iat:        time.Now().Unix(),
 		}, nil
 	}
 
@@ -48,7 +38,10 @@ func GetConsumerJwtFromToken(env string, r *http.Request) (*ConsumerAssertion, e
 		}
 	}
 
-	// Parse without validation (only safe if API gateway already validated it!)
+	// Parse without verification (signature validation should be done by gateway or verified here if needed)
+	// IMPORTANT: In a real scenario, we MUST verify the signature.
+	// Assuming the gateway does it, or we need to configure keys for verification.
+	// For this task, we follow existing pattern but add claim validation.
 	token, _, err := jwt.NewParser().ParseUnverified(tokenString, jwt.MapClaims{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse token: %w", err)
@@ -59,11 +52,62 @@ func GetConsumerJwtFromToken(env string, r *http.Request) (*ConsumerAssertion, e
 		return nil, fmt.Errorf("invalid claims format")
 	}
 
-	// Map claims into struct
+	// Validate generic claims
+
+	// exp
+	if exp, ok := claims[ClaimExp].(float64); ok {
+		if time.Now().Unix() > int64(exp) {
+			return nil, fmt.Errorf("token has expired")
+		}
+	}
+
+	// nbf
+	if nbf, ok := claims[ClaimNbf].(float64); ok {
+		if time.Now().Unix() < int64(nbf) {
+			return nil, fmt.Errorf("token is not valid yet")
+		}
+	}
+
+	// client_id is required
+	clientId, ok := claims[ClaimClientId].(string)
+	if !ok || clientId == "" {
+		return nil, fmt.Errorf("missing or invalid client_id claim")
+	}
+
+	// sub or azp
+	subscriber, ok := claims[ClaimSub].(string)
+	if !ok || subscriber == "" {
+		// fallback to azp if sub is missing
+		if azp, ok := claims[ClaimAzp].(string); ok {
+			subscriber = azp
+		}
+	}
+
+	iss, _ := claims[ClaimIss].(string)
+
+	// aud can be string or array of strings
+	var aud []string
+	if audStr, ok := claims[ClaimAud].(string); ok {
+		aud = []string{audStr}
+	} else if audList, ok := claims[ClaimAud].([]interface{}); ok {
+		for _, a := range audList {
+			if s, ok := a.(string); ok {
+				aud = append(aud, s)
+			}
+		}
+	}
+
+	exp, _ := claims[ClaimExp].(float64)
+	iat, _ := claims[ClaimIat].(float64)
+
+	// Map claims into generic struct
 	ca := &ConsumerAssertion{
-		ApplicationUuid: fmt.Sprintf("%v", claims[ClaimAppUUID]),
-		Subscriber:      fmt.Sprintf("%v", claims[ClaimSubscriber]),
-		ApplicationId:   fmt.Sprintf("%v", claims[ClaimAppID]),
+		ClientId:   clientId,
+		Subscriber: subscriber,
+		Iss:        iss,
+		Aud:        aud,
+		Exp:        int64(exp),
+		Iat:        int64(iat),
 	}
 
 	return ca, nil
