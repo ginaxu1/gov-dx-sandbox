@@ -2,95 +2,99 @@ package services
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/gov-dx-sandbox/audit-service/v1/models"
-	"gorm.io/gorm"
+	"github.com/gov-dx-sandbox/audit-service/v1/database"
+	v1models "github.com/gov-dx-sandbox/audit-service/v1/models"
+	v1types "github.com/gov-dx-sandbox/audit-service/v1/types"
 )
 
-// AuditService interface defines methods for handling audit logs
-type AuditService interface {
-	CreateAuditLog(ctx context.Context, log *models.AuditLog) (*models.AuditLog, error)
-	GetAuditLogs(ctx context.Context, traceID uuid.UUID) ([]models.AuditLog, error)
+// AuditService handles generalized audit log operations
+type AuditService struct {
+	repo database.AuditRepository
 }
 
-// auditService implementation
-type auditService struct {
-	db *gorm.DB
+// NewAuditService creates a new audit service instance using the database repository
+func NewAuditService(repo database.AuditRepository) *AuditService {
+	return &AuditService{repo: repo}
 }
 
-// NewAuditService creates a new instance of AuditService
-func NewAuditService(db *gorm.DB) AuditService {
-	// Auto-migrate the table
-	if err := db.AutoMigrate(&models.AuditLog{}); err != nil {
-		// Log migration error but don't fail service creation
-		// This allows the service to start even if migration fails
-		// The actual database operation will fail later if schema is wrong
-		slog.Warn("Failed to auto-migrate audit_logs table", "error", err)
+// CreateAuditLog creates a new audit log entry from a request
+func (s *AuditService) CreateAuditLog(ctx context.Context, req *v1types.CreateAuditLogRequest) (*v1models.AuditLog, error) {
+	// Convert request to model
+	auditLog := &v1models.AuditLog{
+		EventName:            req.EventName,
+		Action:               req.Action,
+		Status:               req.Status,
+		ActorType:            req.ActorType,
+		ActorID:              req.ActorID,
+		Metadata:             req.Metadata,
+		Changes:              req.Changes,
+		SourceService:        req.SourceService,
+		TargetService:        req.TargetService,
+		ResourceType:         req.ResourceType,
+		IPAddress:            req.IPAddress,
+		UserAgent:            req.UserAgent,
+		RequestID:            req.RequestID,
+		SessionID:            req.SessionID,
+		MicroappID:           req.MicroappID,
+		Platform:             req.Platform,
+		ErrorMessage:         req.ErrorMessage,
+		ErrorCode:            req.ErrorCode,
+		AuthorizationGroups:  req.AuthorizationGroups,
+		AuthenticationMethod: req.AuthenticationMethod,
 	}
-	return &auditService{db: db}
+
+	// Handle timestamp
+	if req.Timestamp != nil && *req.Timestamp != "" {
+		if t, err := time.Parse(time.RFC3339, *req.Timestamp); err == nil {
+			auditLog.Timestamp = t.UTC()
+		}
+	}
+	// If timestamp is zero, BeforeCreate hook will set it
+
+	// Handle trace ID
+	if req.TraceID != nil && *req.TraceID != "" {
+		if traceUUID, err := uuid.Parse(*req.TraceID); err == nil {
+			auditLog.TraceID = &traceUUID
+		}
+	}
+
+	// Handle resource ID
+	if req.ResourceID != nil && *req.ResourceID != "" {
+		if resourceUUID, err := uuid.Parse(*req.ResourceID); err == nil {
+			auditLog.ResourceID = &resourceUUID
+		}
+	}
+
+	// Validate before creating
+	if err := auditLog.Validate(); err != nil {
+		return nil, err
+	}
+
+	// Create in database using repository
+	createdLog, err := s.repo.CreateAuditLog(ctx, auditLog)
+	if err != nil {
+		return nil, err
+	}
+
+	return createdLog, nil
 }
 
-// CreateAuditLog creates a new audit log entry
-func (s *auditService) CreateAuditLog(ctx context.Context, log *models.AuditLog) (*models.AuditLog, error) {
-	// Check if context is already cancelled
-	if ctx.Err() != nil {
-		return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
+// GetAuditLogs retrieves audit logs with optional filtering
+func (s *AuditService) GetAuditLogs(traceID *string, eventName *string, limit, offset int) ([]v1models.AuditLog, int64, error) {
+	filters := &database.AuditLogFilters{
+		TraceID:   traceID,
+		EventName: eventName,
+		Limit:     limit,
+		Offset:    offset,
 	}
 
-	// Validate required fields before database operation
-	if log.TraceID == uuid.Nil {
-		return nil, errors.New("traceId cannot be nil")
-	}
-	if log.SourceService == "" {
-		return nil, errors.New("sourceService is required")
-	}
-	if log.EventType == "" {
-		return nil, errors.New("eventType is required")
-	}
-	if log.Status != models.StatusSuccess && log.Status != models.StatusFailure {
-		return nil, fmt.Errorf("invalid status: %s (must be SUCCESS or FAILURE)", log.Status)
-	}
-
-	result := s.db.WithContext(ctx).Create(log)
-	if result.Error != nil {
-		return nil, fmt.Errorf("failed to create audit log: %w", result.Error)
-	}
-
-	return log, nil
+	return s.repo.GetAuditLogs(context.Background(), filters)
 }
 
-// GetAuditLogs retrieves audit logs by trace ID
-func (s *auditService) GetAuditLogs(ctx context.Context, traceID uuid.UUID) ([]models.AuditLog, error) {
-	// Check if context is already cancelled
-	if ctx.Err() != nil {
-		return nil, fmt.Errorf("context cancelled: %w", ctx.Err())
-	}
-
-	// Validate traceID
-	if traceID == uuid.Nil {
-		return nil, errors.New("traceId cannot be nil")
-	}
-
-	var logs []models.AuditLog
-	// Order by timestamp to show the flow chronologically
-	// GORM will map uuid.UUID to the UUID column correctly
-	result := s.db.WithContext(ctx).
-		Where("trace_id = ?", traceID).
-		Order("timestamp ASC").
-		Find(&logs)
-
-	if result.Error != nil {
-		return nil, fmt.Errorf("failed to retrieve audit logs: %w", result.Error)
-	}
-
-	// Return empty slice instead of nil if no logs found
-	if logs == nil {
-		logs = []models.AuditLog{}
-	}
-
-	return logs, nil
+// GetAuditLogsByTraceID retrieves audit logs by trace ID (convenience method)
+func (s *AuditService) GetAuditLogsByTraceID(traceID string) ([]v1models.AuditLog, error) {
+	return s.repo.GetAuditLogsByTraceID(context.Background(), traceID)
 }

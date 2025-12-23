@@ -2,227 +2,128 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
-	"io"
-	"log/slog"
 	"net/http"
-	"strings"
-	"time"
+	"strconv"
 
-	"github.com/google/uuid"
-	"github.com/gov-dx-sandbox/audit-service/v1/models"
 	"github.com/gov-dx-sandbox/audit-service/v1/services"
-)
-
-const (
-	// maxRequestSize limits the request body size to 1MB
-	maxRequestSize = 1 << 20 // 1MB
-	// maxServiceNameLength limits service name length
-	maxServiceNameLength = 50
-	// maxEventTypeLength limits event type length
-	maxEventTypeLength = 50
+	v1types "github.com/gov-dx-sandbox/audit-service/v1/types"
 )
 
 // AuditHandler handles HTTP requests for audit logs
 type AuditHandler struct {
-	service services.AuditService
+	service *services.AuditService
 }
 
-// NewAuditHandler creates a new instance of AuditHandler
-func NewAuditHandler(service services.AuditService) *AuditHandler {
+// NewAuditHandler creates a new audit handler
+func NewAuditHandler(service *services.AuditService) *AuditHandler {
 	return &AuditHandler{service: service}
 }
 
-// errorResponse represents a structured error response
-type errorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message,omitempty"`
-}
-
-// writeError writes a structured error response
-func writeError(w http.ResponseWriter, statusCode int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(errorResponse{
-		Error:   http.StatusText(statusCode),
-		Message: message,
-	})
-}
-
-// writeJSON writes a JSON response with proper error handling
-func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		slog.Error("Failed to encode JSON response", "error", err)
-	}
-}
-
-// CreateAuditLog handles the POST request to create a new audit log
+// CreateAuditLog handles POST /api/audit-logs
 func (h *AuditHandler) CreateAuditLog(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Limit request body size
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
-
-	var req models.CreateAuditLogRequest
+	var req v1types.CreateAuditLogRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var syntaxError *json.SyntaxError
-		var unmarshalTypeError *json.UnmarshalTypeError
-		switch {
-		case errors.As(err, &syntaxError):
-			writeError(w, http.StatusBadRequest, "Invalid JSON syntax")
-		case errors.As(err, &unmarshalTypeError):
-			writeError(w, http.StatusBadRequest, "Invalid JSON type")
-		case errors.Is(err, io.EOF):
-			writeError(w, http.StatusBadRequest, "Request body is empty")
-		case errors.Is(err, io.ErrUnexpectedEOF):
-			writeError(w, http.StatusBadRequest, "Request body contains invalid JSON")
-		default:
-			writeError(w, http.StatusBadRequest, "Invalid request body")
-		}
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Validate required fields
-	if err := validateCreateRequest(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if req.EventName == "" {
+		http.Error(w, "eventName is required", http.StatusBadRequest)
 		return
-	}
-
-	// Parse TraceID to UUID
-	traceUUID, err := uuid.Parse(req.TraceID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid traceId format (expected UUID)")
-		return
-	}
-
-	// Parse timestamp or use current time
-	timestamp := time.Now()
-	if req.Timestamp != "" {
-		parsedTime, err := time.Parse(time.RFC3339, req.Timestamp)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "Invalid timestamp format (expected RFC3339)")
-			return
-		}
-		timestamp = parsedTime
-	}
-
-	auditLog := &models.AuditLog{
-		TraceID:       traceUUID,
-		Timestamp:     timestamp,
-		SourceService: strings.TrimSpace(req.SourceService),
-		TargetService: strings.TrimSpace(req.TargetService),
-		EventType:     strings.TrimSpace(req.EventType),
-		Status:        req.Status,
-		ActorID:       req.ActorID,
-		Resources:     req.Resources,
-		Metadata:      req.Metadata,
-	}
-
-	createdLog, err := h.service.CreateAuditLog(r.Context(), auditLog)
-	if err != nil {
-		// Log the error with details for debugging
-		slog.Error("Failed to create audit log",
-			"error", err,
-			"traceId", req.TraceID,
-			"sourceService", req.SourceService,
-			"targetService", req.TargetService,
-			"eventType", req.EventType,
-			"status", req.Status)
-
-		writeError(w, http.StatusInternalServerError, "Failed to create audit log")
-		return
-	}
-
-	// Log successful creation for observability
-	slog.Info("Audit log created",
-		"traceId", createdLog.TraceID,
-		"sourceService", createdLog.SourceService,
-		"targetService", createdLog.TargetService,
-		"eventType", createdLog.EventType,
-		"status", createdLog.Status,
-		"id", createdLog.ID)
-
-	writeJSON(w, http.StatusCreated, createdLog)
-}
-
-// validateCreateRequest validates the create audit log request
-func validateCreateRequest(req *models.CreateAuditLogRequest) error {
-	if req.TraceID == "" {
-		return errors.New("traceId is required")
-	}
-	if req.SourceService == "" {
-		return errors.New("sourceService is required")
-	}
-	if req.EventType == "" {
-		return errors.New("eventType is required")
 	}
 	if req.Status == "" {
-		return errors.New("status is required")
+		http.Error(w, "status is required", http.StatusBadRequest)
+		return
+	}
+	if req.ActorType == "" {
+		http.Error(w, "actorType is required", http.StatusBadRequest)
+		return
 	}
 
-	// Validate Status value
-	if req.Status != models.StatusSuccess && req.Status != models.StatusFailure {
-		return errors.New("status must be either 'SUCCESS' or 'FAILURE'")
+	auditLog, err := h.service.CreateAuditLog(r.Context(), &req)
+	if err != nil {
+		http.Error(w, "Failed to create audit log: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	// Validate string lengths
-	if len(req.SourceService) > maxServiceNameLength {
-		return errors.New("sourceService exceeds maximum length")
-	}
-	if req.TargetService != "" && len(req.TargetService) > maxServiceNameLength {
-		return errors.New("targetService exceeds maximum length")
-	}
-	if len(req.EventType) > maxEventTypeLength {
-		return errors.New("eventType exceeds maximum length")
-	}
-
-	return nil
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(auditLog)
 }
 
-// GetAuditLogs handles the GET request to retrieve logs for a trace
+// GetAuditLogs handles GET /api/audit-logs
 func (h *AuditHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	traceIDStr := r.URL.Query().Get("traceId")
-	if traceIDStr == "" {
-		writeError(w, http.StatusBadRequest, "Missing traceId query parameter")
-		return
+	// Parse query parameters
+	traceID := r.URL.Query().Get("traceId")
+	eventName := r.URL.Query().Get("eventName")
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	limit := 100 // default
+	offset := 0  // default
+
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
+			limit = l
+		}
+	}
+	if offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
 	}
 
-	traceUUID, err := uuid.Parse(traceIDStr)
+	var traceIDPtr *string
+	if traceID != "" {
+		traceIDPtr = &traceID
+	}
+
+	var eventNamePtr *string
+	if eventName != "" {
+		eventNamePtr = &eventName
+	}
+
+	logs, total, err := h.service.GetAuditLogs(traceIDPtr, eventNamePtr, limit, offset)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid traceId format (expected UUID)")
+		http.Error(w, "Failed to retrieve audit logs: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	logs, err := h.service.GetAuditLogs(r.Context(), traceUUID)
-	if err != nil {
-		// Log the error with details for debugging
-		slog.Error("Failed to retrieve audit logs",
-			"error", err,
-			"traceId", traceIDStr)
-
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve audit logs")
-		return
+	response := v1types.GetAuditLogsResponse{
+		Logs:  make([]v1types.AuditLogResponse, len(logs)),
+		Total: int(total),
 	}
 
-	// Return empty array instead of null if no logs found
-	if logs == nil {
-		logs = []models.AuditLog{}
+	for i, log := range logs {
+		response.Logs[i] = v1types.AuditLogResponse{
+			ID:            log.ID,
+			Timestamp:     log.Timestamp,
+			TraceID:       log.TraceID,
+			EventName:     log.EventName,
+			Action:        log.Action,
+			Status:        log.Status,
+			ActorType:     log.ActorType,
+			ActorID:       log.ActorID,
+			ResourceType:  log.ResourceType,
+			ResourceID:    log.ResourceID,
+			SourceService: log.SourceService,
+			TargetService: log.TargetService,
+			CreatedAt:     log.CreatedAt,
+		}
 	}
 
-	// Log successful retrieval for observability
-	slog.Info("Audit logs retrieved",
-		"traceId", traceUUID,
-		"count", len(logs))
-
-	writeJSON(w, http.StatusOK, logs)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }

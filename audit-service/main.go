@@ -14,6 +14,7 @@ import (
 	"github.com/gov-dx-sandbox/audit-service/handlers"
 	"github.com/gov-dx-sandbox/audit-service/middleware"
 	"github.com/gov-dx-sandbox/audit-service/services"
+	v1database "github.com/gov-dx-sandbox/audit-service/v1/database"
 	v1handlers "github.com/gov-dx-sandbox/audit-service/v1/handlers"
 	v1services "github.com/gov-dx-sandbox/audit-service/v1/services"
 )
@@ -117,8 +118,9 @@ func main() {
 		}
 	})
 
-	// Initialize specialized audit service (V1)
-	v1AuditService := v1services.NewAuditService(gormDB)
+	// Initialize v1 API with database-agnostic repository
+	v1Repository := v1database.NewPostgresRepository(gormDB)
+	v1AuditService := v1services.NewAuditService(v1Repository)
 	v1AuditHandler := v1handlers.NewAuditHandler(v1AuditService)
 
 	// API endpoint for generalized audit logs (V1)
