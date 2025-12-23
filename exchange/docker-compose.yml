@@ -3,6 +3,46 @@
 #       docker compose --env-file .env.production up --build
 
 services:
+  pdp-db:
+    image: postgres:16-alpine
+    container_name: pdp-db-${ENVIRONMENT:-local}
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-testdb}
+    ports:
+      - "${PDP_DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opendif-network
+    volumes:
+      - ./pdp-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  ce-db:
+    image: postgres:16-alpine
+    container_name: ce-db-${ENVIRONMENT:-local}
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${CE_DB_NAME:-consent_db}
+    ports:
+      - "${CE_DB_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opendif-network
+    volumes:
+      - ./ce-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
   policy-decision-point:
     build:
       context: .
@@ -21,7 +61,19 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-text}
       - SERVICE_NAME=policy-decision-point
+      - ENABLE_OBSERVABILITY=${ENABLE_OBSERVABILITY:-true}
+      - OTEL_METRICS_ENABLED=${OTEL_METRICS_ENABLED:-true}
       - OTEL_METRICS_EXPORTER=${OTEL_METRICS_EXPORTER:-prometheus}
+      - CHOREO_OPENDIF_DATABASE_HOSTNAME=pdp-db
+      - CHOREO_OPENDIF_DATABASE_PORT=5432
+      - CHOREO_OPENDIF_DATABASE_USERNAME=${POSTGRES_USER:-postgres}
+      - CHOREO_OPENDIF_DATABASE_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - CHOREO_OPENDIF_DATABASE_DATABASENAME=${POSTGRES_DB:-testdb}
+      - DB_SSLMODE=disable
+      - RUN_MIGRATION=true
+    depends_on:
+      pdp-db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
       interval: 30s
@@ -49,12 +101,30 @@ services:
       - PORT=8081
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-text}
+      - SERVICE_NAME=consent-engine
+      - ENABLE_OBSERVABILITY=${ENABLE_OBSERVABILITY:-true}
+      - OTEL_METRICS_ENABLED=${OTEL_METRICS_ENABLED:-true}
+      - OTEL_METRICS_EXPORTER=${OTEL_METRICS_EXPORTER:-prometheus}
+      - CHOREO_OPENDIF_DATABASE_HOSTNAME=ce-db
+      - CHOREO_OPENDIF_DATABASE_PORT=5432
+      - CHOREO_OPENDIF_DATABASE_USERNAME=${POSTGRES_USER:-postgres}
+      - CHOREO_OPENDIF_DATABASE_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - CHOREO_OPENDIF_DATABASE_DATABASENAME=${CE_DB_NAME:-consent_db}
+      - DB_SSLMODE=disable
+      - RUN_MIGRATION=true
+      - ASGARDEO_JWKS_URL=${ASGARDEO_JWKS_URL:-https://www.googleapis.com/oauth2/v3/certs}
+      - ASGARDEO_ISSUER=${ASGARDEO_ISSUER:-https://accounts.google.com}
+      - ASGARDEO_AUDIENCE=${ASGARDEO_AUDIENCE:-test-audience}
+      - ASGARDEO_ORG_NAME=${ASGARDEO_ORG_NAME:-test-org}
+    depends_on:
+      ce-db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
     restart: unless-stopped
     networks:
       - opendif-network
@@ -77,7 +147,18 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-text}
       - SERVICE_NAME=orchestration-engine
+      - ENABLE_OBSERVABILITY=${ENABLE_OBSERVABILITY:-true}
+      - OTEL_METRICS_ENABLED=${OTEL_METRICS_ENABLED:-true}
       - OTEL_METRICS_EXPORTER=${OTEL_METRICS_EXPORTER:-prometheus}
+      - CONFIG_PATH=/app/config/config.json
+      - DB_HOST=${DB_HOST?DB_HOST is required}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD?DB_PASSWORD is required}
+      - DB_NAME=${DB_NAME:-orchestration_engine}
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
+    volumes:
+      - ./minimal-config.json:/app/config/config.json:ro
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/health"]
       interval: 30s

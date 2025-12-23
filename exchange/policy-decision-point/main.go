@@ -8,6 +8,7 @@ import (
 	"time"
 
 	v1 "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/joho/godotenv"
 )
@@ -25,6 +26,17 @@ func main() {
 
 	// Setup logging
 	utils.SetupLogging("json", getEnvOrDefault("LOG_LEVEL", "info"))
+
+	// Initialize monitoring/observability (optional - can be disabled via ENABLE_OBSERVABILITY=false)
+	// Services will continue to function normally even if observability is disabled
+	if monitoring.IsObservabilityEnabled() {
+		monitoringConfig := monitoring.DefaultConfig("policy-decision-point")
+		if err := monitoring.Initialize(monitoringConfig); err != nil {
+			slog.Warn("Failed to initialize monitoring (service will continue)", "error", err)
+		}
+	} else {
+		slog.Info("Observability disabled via environment variable")
+	}
 
 	slog.Info("Starting policy decision point (V1)",
 		"version", Version,
@@ -54,6 +66,9 @@ func main() {
 	// Setup routes
 	mux := http.NewServeMux()
 	v1Handler.SetupRoutes(mux) // V1 routes with /api/v1/policy/ prefix
+
+	// Metrics endpoint
+	mux.Handle("/metrics", monitoring.Handler())
 
 	// Health check endpoint
 	mux.Handle("/health", utils.PanicRecoveryMiddleware(utils.HealthHandler("policy-decision-point")))
@@ -128,6 +143,9 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
+	// Wrap with metrics middleware
+	handler := monitoring.HTTPMetricsMiddleware(mux)
+
 	// Create server using utils
 	port := getEnvOrDefault("PORT", "8082")
 	serverConfig := &utils.ServerConfig{
@@ -136,7 +154,7 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	server := utils.CreateServer(serverConfig, mux)
+	server := utils.CreateServer(serverConfig, handler)
 
 	// Start server with graceful shutdown
 	if err := utils.StartServerWithGracefulShutdown(server, "policy-decision-point"); err != nil {
