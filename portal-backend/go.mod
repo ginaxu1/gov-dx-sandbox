@@ -39,6 +39,4 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 )
 
-replace github.com/gov-dx-sandbox/portal-backend/models => ./models
-
 replace github.com/gov-dx-sandbox/portal-backend/shared/utils => ./shared/utils

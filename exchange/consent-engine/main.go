@@ -40,6 +40,15 @@ func main() {
 	// Setup logging
 	utils.SetupLogging(cfg.Logging.Format, cfg.Logging.Level)
 
+	// Initialize monitoring/observability
+	// Set SERVICE_NAME for proper metric labeling
+	os.Setenv("SERVICE_NAME", "consent-engine")
+	monitoringConfig := monitoring.DefaultConfig("consent-engine")
+	if err := monitoring.Initialize(monitoringConfig); err != nil {
+		slog.Error("Failed to initialize monitoring", "error", err)
+		// Don't exit - service can continue without metrics
+	}
+
 	slog.Info("Starting consent engine",
 		"environment", cfg.Environment,
 		"port", cfg.Service.Port,
