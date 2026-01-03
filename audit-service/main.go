@@ -14,8 +14,6 @@ import (
 	"github.com/gov-dx-sandbox/audit-service/handlers"
 	"github.com/gov-dx-sandbox/audit-service/middleware"
 	"github.com/gov-dx-sandbox/audit-service/services"
-	v1handlers "github.com/gov-dx-sandbox/audit-service/v1/handlers"
-	v1services "github.com/gov-dx-sandbox/audit-service/v1/services"
 )
 
 // Build information - set during build
@@ -55,12 +53,10 @@ func main() {
 	// Initialize services
 	dataExchangeEventService := services.NewDataExchangeEventService(gormDB)
 	managementEventService := services.NewManagementEventService(gormDB)
-	v1AuditService := v1services.NewAuditService(gormDB)
 
 	// Initialize handlers
 	dataExchangeEventHandler := handlers.NewDataExchangeEventHandler(dataExchangeEventService)
 	managementEventHandler := handlers.NewManagementEventHandler(managementEventService)
-	v1AuditHandler := v1handlers.NewAuditHandler(v1AuditService)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -114,18 +110,6 @@ func main() {
 			managementEventHandler.CreateManagementEvent(w, r)
 		case http.MethodGet:
 			managementEventHandler.GetManagementEvents(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-
-	// API endpoint for generalized audit logs (V1)
-	mux.HandleFunc("/api/audit-logs", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			v1AuditHandler.CreateAuditLog(w, r)
-		case http.MethodGet:
-			v1AuditHandler.GetAuditLogs(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}

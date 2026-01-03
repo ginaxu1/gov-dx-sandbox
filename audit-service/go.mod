@@ -3,7 +3,6 @@ module github.com/gov-dx-sandbox/audit-service
 go 1.24.6
 
 require (
-	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.8.1
 	gorm.io/driver/postgres v1.6.0

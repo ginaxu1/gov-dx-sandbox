@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/federator"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/graphql"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/federator"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/visitor"
 )
@@ -20,8 +20,8 @@ func AccumulateResponse(queryAST *ast.Document, federatedResponse *FederationRes
 // AccumulateResponseWithSchema uses schema for directive resolution
 func AccumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *FederationResponse, schema *ast.Document) graphql.Response {
 	responseData := make(map[string]interface{})
-	var path = make([]string, 0)
-	var isTopLevel = true
+	path := make([]string, 0)
+	isTopLevel := true
 
 	visitor.Visit(queryAST, &visitor.VisitorOptions{
 		Enter: func(p visitor.VisitFuncParams) (string, interface{}) {
@@ -71,9 +71,9 @@ func AccumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *Fed
 					}
 
 					if providerInfo != nil {
-						var response = federatedResponse.GetProviderResponse(providerInfo.ProviderKey)
+						response := federatedResponse.GetProviderResponse(providerInfo.ProviderKey)
 						if response != nil {
-							var value, err = GetValueAtPath(response.Response.Data, providerInfo.ProviderField)
+							value, err := GetValueAtPath(response.Response.Data, providerInfo.ProviderField)
 							if err == nil {
 								// Check if this is an array field by looking at the data type and schema
 								if isArrayFieldValue(fieldName, value) {
@@ -134,8 +134,8 @@ func AccumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *Fed
 // accumulateResponseSimple is the fallback simple accumulator
 func accumulateResponseSimple(queryAST *ast.Document, federatedResponse *FederationResponse) graphql.Response {
 	responseData := make(map[string]interface{})
-	var path = make([]string, 0)
-	var isTopLevel = true
+	path := make([]string, 0)
+	isTopLevel := true
 
 	visitor.Visit(queryAST, &visitor.VisitorOptions{
 		Enter: func(p visitor.VisitFuncParams) (string, interface{}) {
@@ -158,11 +158,11 @@ func accumulateResponseSimple(queryAST *ast.Document, federatedResponse *Federat
 						return visitor.ActionNoChange, p.Node
 					}
 
-					var providerInfo = federator.ExtractSourceInfoFromDirective(node)
+					providerInfo := federator.ExtractSourceInfoFromDirective(node)
 					if providerInfo != nil {
-						var response = federatedResponse.GetProviderResponse(providerInfo.ProviderKey)
+						response := federatedResponse.GetProviderResponse(providerInfo.ProviderKey)
 						if response != nil {
-							var value, err = GetValueAtPath(response.Response.Data, providerInfo.ProviderField)
+							value, err := GetValueAtPath(response.Response.Data, providerInfo.ProviderField)
 							if err == nil {
 								logger.Log.Debug("Processing field", "fieldName", fieldName, "path", path, "valueType", fmt.Sprintf("%T", value), "hasSelectionSet", node.SelectionSet != nil && len(node.SelectionSet.Selections) > 0)
 								// Check if this is an array field by looking at the selection set and data type
@@ -211,8 +211,8 @@ func accumulateResponseSimple(queryAST *ast.Document, federatedResponse *Federat
 // accumulateResponseWithSchema uses schema info to handle arrays properly
 func accumulateResponseWithSchema(queryAST *ast.Document, federatedResponse *FederationResponse, schemaInfoMap map[string]*SourceSchemaInfo) graphql.Response {
 	responseData := make(map[string]interface{})
-	var path = make([]string, 0)
-	var isTopLevel = true
+	path := make([]string, 0)
+	isTopLevel := true
 
 	visitor.Visit(queryAST, &visitor.VisitorOptions{
 		Enter: func(p visitor.VisitFuncParams) (string, interface{}) {

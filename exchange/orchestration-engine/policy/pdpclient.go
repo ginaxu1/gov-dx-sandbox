@@ -8,8 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 )
 
 // PdpClient represents a client to interact with the Policy Decision Point service
@@ -48,11 +47,6 @@ func (p *PdpClient) MakePdpRequest(ctx context.Context, request *PdpRequest) (*P
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
-	// Propagate trace ID to downstream service
-	if traceID := middleware.GetTraceIDFromContext(ctx); traceID != "" {
-		req.Header.Set(middleware.TraceIDHeader, traceID)
-	}
 
 	response, err := p.httpClient.Do(req)
 	if err != nil {

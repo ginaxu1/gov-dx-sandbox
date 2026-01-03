@@ -8,8 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 )
 
 // CEServiceClient represents a client to interact with the Consent Engine service
@@ -42,11 +41,6 @@ func (c *CEServiceClient) CreateConsent(ctx context.Context, request *CreateCons
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
-	// Propagate trace ID to downstream service
-	if traceID := middleware.GetTraceIDFromContext(ctx); traceID != "" {
-		req.Header.Set(middleware.TraceIDHeader, traceID)
-	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

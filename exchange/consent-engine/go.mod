@@ -6,7 +6,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
-	github.com/gov-dx-sandbox/exchange/shared/monitoring v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 )
 

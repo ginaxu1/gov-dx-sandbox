@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/logger"
-	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/middleware"
 	"github.com/gov-dx-sandbox/exchange/orchestration-engine-go/pkg/auth"
 	"github.com/gov-dx-sandbox/exchange/pkg/monitoring"
 	"golang.org/x/oauth2/clientcredentials"
@@ -58,11 +57,6 @@ func (p *Provider) PerformRequest(ctx context.Context, reqBody []byte) (*http.Re
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
-	// Propagate trace ID to downstream service
-	if traceID := middleware.GetTraceIDFromContext(ctx); traceID != "" {
-		req.Header.Set(middleware.TraceIDHeader, traceID)
-	}
 
 	start := time.Now()
 
