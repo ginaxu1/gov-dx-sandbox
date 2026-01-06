@@ -4,20 +4,9 @@ info:
   description: |
     Audit Service API for tracking and retrieving audit logs.
     
-    This service provides endpoints for two distinct audit logging cases:
-    
-    **CASE 1: Data Exchange Auditing**
-    - Creating data exchange audit logs (POST /api/data-exchange-events)
-    - Retrieving data exchange audit logs (GET /api/data-exchange-events)
-    - Logs data access requests from Consumer Apps to Provider Data Sources via Orchestration Engine
-    
-    **CASE 2: Management Portal Auditing**
-    - Creating management event logs (POST /api/management-events)
-    - Retrieving management event logs (GET /api/management-events)
-    - Logs administrative actions (Member/Admin operations on schemas, applications, members, etc.)
-    
-    The service maintains a comprehensive audit trail of all data access requests
-    and management operations with filtering and pagination support for admin and entity portals.
+    This service provides a generalized audit logging API suitable for distributed tracing
+    and various audit use cases. It supports creating and querying audit logs with
+    flexible filtering and pagination.
   version: 1.0.0
   contact:
     name: OpenDIF Team
@@ -101,92 +90,85 @@ paths:
                     type: string
                     example: "audit-service"
 
-  /api/data-exchange-events:
+  /api/audit-logs:
     post:
-      summary: Create Data Exchange Event
+      summary: Create Audit Log
       description: |
-        Create a data exchange audit log entry. This endpoint is called by the Orchestration Engine
-        after receiving a response from each data provider during a GraphQL query federation.
+        Create a generalized audit log entry suitable for distributed tracing.
+        This endpoint is used by various microservices (OE, PDP, CE, Provider) to log
+        key events in a request flow.
         
-        Each provider interaction is logged separately with:
-        - Which application requested the data (applicationId)
-        - Which member owns the consumer application (consumerId - optional)
-        - On behalf of whom (onBehalfOfOwnerId - the citizen/data owner)
-        - Which provider schema was accessed (schemaId)
-        - Which member owns the provider schema (providerId - optional)
-        - What data was requested (requestedData as JSON)
-        - Whether the request succeeded or failed (status)
-      operationId: createDataExchangeEvent
+        **Required Fields:**
+        - `status`: SUCCESS or FAILURE
+        - `actorType`: SERVICE, ADMIN, MEMBER, or SYSTEM
+        - `actorId`: Email, UUID, or service name
+        - `targetType`: SERVICE or RESOURCE
+        
+        **Optional Fields:**
+        - `traceId`: UUID for distributed tracing (nullable for standalone events)
+        - `timestamp`: ISO 8601 timestamp (required)
+        - `eventType`: User-defined event type (e.g., POLICY_CHECK, MANAGEMENT_EVENT)
+        - `eventAction`: CREATE, READ, UPDATE, DELETE
+        - `targetId`: Resource ID or service name
+        - `requestMetadata`: JSON object with request payload (without PII/sensitive data)
+        - `responseMetadata`: JSON object with response or error details
+        - `additionalMetadata`: JSON object with additional context-specific data
+      operationId: createAuditLog
       tags:
-        - Data Exchange
+        - Audit Logs
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateDataExchangeEventRequest'
+              $ref: '#/components/schemas/CreateAuditLogRequest'
             examples:
-              success_event:
-                summary: Successful Data Exchange
+              policy_check:
+                summary: Policy Check Event
                 value:
-                  timestamp: "2024-01-15T10:30:00Z"
-                  status: "success"
-                  applicationId: "passport-app"
-                  schemaId: "hospital-schema-v1"
-                  requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
-                  onBehalfOfOwnerId: "citizen-abc"
-                  consumerId: "member-consumer-123"
-                  providerId: "member-provider-456"
-                  additionalInfo: {"sourceIp": "192.168.1.1"}
-              failure_event:
-                summary: Failed Data Exchange
+                  traceId: "550e8400-e29b-41d4-a716-446655440000"
+                  timestamp: "2024-01-20T10:00:00Z"
+                  eventType: "POLICY_CHECK"
+                  eventAction: "READ"
+                  status: "SUCCESS"
+                  actorType: "SERVICE"
+                  actorId: "orchestration-engine"
+                  targetType: "SERVICE"
+                  targetId: "policy-decision-point"
+                  requestMetadata:
+                    schemaId: "schema-123"
+                    requestedFields: ["name", "address"]
+                  responseMetadata:
+                    decision: "ALLOWED"
+              management_event:
+                summary: Management Event
                 value:
-                  timestamp: "2024-01-15T10:35:00Z"
-                  status: "failure"
-                  applicationId: "passport-app"
-                  schemaId: "hospital-schema-v1"
-                  requestedData: {"fields": ["personInfo.name"]}
-                  onBehalfOfOwnerId: "citizen-abc"
-                  consumerId: "member-consumer-123"
-                  providerId: "member-provider-456"
+                  traceId: null
+                  timestamp: "2024-01-20T10:00:00Z"
+                  eventType: "MANAGEMENT_EVENT"
+                  eventAction: "CREATE"
+                  status: "SUCCESS"
+                  actorType: "ADMIN"
+                  actorId: "admin@example.com"
+                  targetType: "RESOURCE"
+                  targetId: "schema-456"
+                  requestMetadata:
+                    resourceType: "SCHEMA"
+                  additionalMetadata:
+                    ipAddress: "192.168.1.1"
       responses:
         '201':
-          description: Data exchange event logged successfully
+          description: Audit log created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DataExchangeEventResponse'
-              example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
-                timestamp: "2024-01-15T10:30:00Z"
-                status: "success"
-                applicationId: "passport-app"
-                schemaId: "hospital-schema-v1"
-                requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
-                onBehalfOfOwnerId: "citizen-abc"
-                consumerId: "member-consumer-123"
-                providerId: "member-provider-456"
-                additionalInfo: {"sourceIp": "192.168.1.1"}
-                createdAt: "2024-01-15T10:30:00Z"
+                $ref: '#/components/schemas/AuditLog'
         '400':
-          description: Bad request - invalid event data (missing required fields or invalid status)
+          description: Bad request - validation error (missing required fields or invalid enum values)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                missing_application_id:
-                  value:
-                    error: "Missing required field: applicationId"
-                missing_schema_id:
-                  value:
-                    error: "Missing required field: schemaId"
-                missing_timestamp:
-                  value:
-                    error: "Missing required field: timestamp"
-                invalid_status:
-                  value:
-                    error: "Invalid status. Must be 'success' or 'failure'"
         '500':
           description: Internal server error
           content:
@@ -195,342 +177,42 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
     get:
-      summary: Get Data Exchange Events
+      summary: Get Audit Logs
       description: |
-        Retrieve data exchange event logs with optional filtering. Supports filtering by applicationId, 
-        schemaId, consumerId, providerId, status, and date range.
-        
-        **For Admin Portal**: Call without parameters to get all events
-        **For Entity Portal (Consumer)**: Call with `?consumerId={consumerId}` to get events for a specific consumer
-        **For Entity Portal (Provider)**: Call with `?providerId={providerId}` to get events for a specific provider
-      operationId: getDataExchangeEvents
+        Retrieve audit logs with optional filtering. Supports filtering by trace ID and event type,
+        with pagination support.
+      operationId: getAuditLogs
       tags:
-        - Data Exchange
+        - Audit Logs
       parameters:
-        - name: applicationId
+        - name: traceId
           in: query
-          description: Filter by application ID
+          description: Filter by trace ID (UUID)
           required: false
           schema:
             type: string
-            example: "passport-app"
-        - name: schemaId
-          in: query
-          description: Filter by schema ID
-          required: false
-          schema:
-            type: string
-            example: "hospital-schema-v1"
-        - name: consumerId
-          in: query
-          description: Filter by consumer ID (member)
-          required: false
-          schema:
-            type: string
-            example: "member-consumer-123"
-        - name: providerId
-          in: query
-          description: Filter by provider ID (member)
-          required: false
-          schema:
-            type: string
-            example: "member-provider-456"
-        - name: status
-          in: query
-          description: Filter by status
-          required: false
-          schema:
-            type: string
-            enum: [success, failure]
-            example: "success"
-        - name: startDate
-          in: query
-          description: Filter events from this date (YYYY-MM-DD format)
-          required: false
-          schema:
-            type: string
-            format: date
-            example: "2024-01-01"
-        - name: endDate
-          in: query
-          description: Filter events until this date (YYYY-MM-DD format)
-          required: false
-          schema:
-            type: string
-            format: date
-            example: "2024-12-31"
-        - name: limit
-          in: query
-          description: Maximum number of events to return (default 50, max 1000)
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
-            default: 50
-          example: 100
-        - name: offset
-          in: query
-          description: Number of events to skip for pagination
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-          example: 0
-      responses:
-        '200':
-          description: Successfully retrieved data exchange events
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DataExchangeEventListResponse'
-              example:
-                total: 2
-                limit: 50
-                offset: 0
-                events:
-                  - id: "550e8400-e29b-41d4-a716-446655440000"
-                    timestamp: "2024-01-15T10:30:00Z"
-                    status: "success"
-                    applicationId: "passport-app"
-                    schemaId: "hospital-schema-v1"
-                    requestedData: {"fields": ["personInfo.name", "personInfo.address"]}
-                    onBehalfOfOwnerId: "citizen-abc"
-                    consumerId: "member-consumer-123"
-                    providerId: "member-provider-456"
-                    createdAt: "2024-01-15T10:30:00Z"
-                  - id: "550e8400-e29b-41d4-a716-446655440001"
-                    timestamp: "2024-01-15T10:25:00Z"
-                    status: "failure"
-                    applicationId: "passport-app"
-                    schemaId: "hospital-schema-v1"
-                    requestedData: {"fields": ["personInfo.name"]}
-                    consumerId: "member-consumer-123"
-                    providerId: "member-provider-456"
-                    createdAt: "2024-01-15T10:25:00Z"
-        '400':
-          description: Bad request - invalid query parameters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/management-events:
-    post:
-      summary: Create Management Event
-      description: |
-        Create a management event audit log entry. This endpoint is called by the Portal Backend
-        when a Member or Admin performs a CREATE, UPDATE, or DELETE operation on a resource
-        (schemas, applications, members, etc.), or when a service performs an operation.
-        
-        **Actor Types:**
-        - `USER`: Member or Admin performing an action (requires `actor.id` and `actor.role`)
-        - `SERVICE`: Service-to-service operation (e.g., Portal Backend calling PDP) (no `actor.id` or `actor.role`)
-        
-        **Event Types:**
-        - `CREATE`: Creating a new resource
-        - `UPDATE`: Updating an existing resource
-        - `DELETE`: Deleting a resource
-        - `READ`: Reading a resource (optional, may be skipped for performance)
-      operationId: createManagementEvent
-      tags:
-        - Management Events
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateManagementEventRequest'
-            examples:
-              user_create_schema:
-                summary: User Creates Schema
-                value:
-                  timestamp: "2024-01-15T10:30:00Z"
-                  eventType: "CREATE"
-                  status: "success"
-                  actor:
-                    type: "USER"
-                    id: "user-123"
-                    role: "ADMIN"
-                  target:
-                    resource: "SCHEMAS"
-                    resourceId: "schema-456"
-              user_update_application:
-                summary: User Updates Application
-                value:
-                  timestamp: "2024-01-15T10:30:00Z"  
-                  eventType: "UPDATE"
-                  status: "success"
-                  actor:
-                    type: "USER"
-                    id: "user-456"
-                    role: "MEMBER"
-                  target:
-                    resource: "APPLICATIONS"
-                    resourceId: "app-789"
-                  metadata:
-                    oldValue: "old-app-name"
-                    newValue: "new-app-name"
-              service_policy_update:
-                summary: Service Updates Policy Metadata
-                value:
-                  timestamp: "2024-01-15T10:30:00Z"
-                  eventType: "UPDATE"
-                  status: "success"
-                  actor:
-                    type: "SERVICE"
-                  target:
-                    resource: "POLICY-METADATA"
-                    resourceId: "schema-123"
-      responses:
-        '201':
-          description: Management event created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ManagementEvent'
-              example:
-                id: "550e8400-e29b-41d4-a716-446655440000"
-                eventType: "CREATE"
-                status: "success"
-                timestamp: "2024-01-15T10:30:00Z"
-                actorType: "USER"
-                actorId: "user-123"
-                actorRole: "ADMIN"
-                targetResource: "SCHEMAS"
-                targetResourceId: "schema-456"
-                metadata: null
-                createdAt: "2024-01-15T10:30:00Z"
-        '400':
-          description: Bad request - invalid event data (missing required fields, invalid enums)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                missing_event_type:
-                  value:
-                    error: "Missing required field: eventType"
-                missing_actor_role:
-                  value:
-                    error: "Missing required field: actor.role (required when actor.type is USER)"
-                invalid_event_type:
-                  value:
-                    error: "Invalid eventType. Must be CREATE, UPDATE, DELETE, or READ"
-                invalid_target_resource:
-                  value:
-                    error: "Invalid target.resource: INVALID-RESOURCE"
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    get:
-      summary: Get Management Events
-      description: |
-        Retrieve management event logs with optional filtering. Supports filtering by event type,
-        actor type, target resource, and date range.
-        
-        **Use Cases:**
-        - Admin Portal: View all management events across all users
-        - Member Portal: Filter by specific actor to see own actions
-        - Audit Reports: Filter by target resource to see all changes to a specific resource
-      operationId: getManagementEvents
-      tags:
-        - Management Events
-      parameters:
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
         - name: eventType
           in: query
-          description: Filter events by event type
+          description: Filter by event type
           required: false
           schema:
             type: string
-            enum: [CREATE, UPDATE, DELETE]
-            example: "CREATE"
-        - name: status
-          in: query
-          description: Filter events by status
-          required: false
-          schema:
-            type: string
-            enum: [success, failure]
-            example: "success"
-        - name: actorType
-          in: query
-          description: Filter events by actor type
-          required: false
-          schema:
-            type: string
-            enum: [USER, SERVICE]
-            example: "USER"
-        - name: actorId
-          in: query
-          description: Filter events by actor ID (user ID)
-          required: false
-          schema:
-            type: string
-            example: "user-123"
-        - name: actorRole
-          in: query
-          description: Filter events by actor role
-          required: false
-          schema:
-            type: string
-            enum: [MEMBER, ADMIN]
-            example: "ADMIN"
-        - name: targetResource
-          in: query
-          description: Filter events by target resource type
-          required: false
-          schema:
-            type: string
-            enum: [MEMBERS, SCHEMAS, SCHEMA-SUBMISSIONS, APPLICATIONS, APPLICATION-SUBMISSIONS, POLICY-METADATA]
-            example: "SCHEMAS"
-        - name: targetResourceId
-          in: query
-          description: Filter events by target resource ID
-          required: false
-          schema:
-            type: string
-            example: "schema-456"
-        - name: startDate
-          in: query
-          description: Filter events from this date (YYYY-MM-DD format)
-          required: false
-          schema:
-            type: string
-            format: date
-            example: "2024-01-01"
-        - name: endDate
-          in: query
-          description: Filter events until this date (YYYY-MM-DD format)
-          required: false
-          schema:
-            type: string
-            format: date
-            example: "2024-12-31"
+            example: "POLICY_CHECK"
         - name: limit
           in: query
-          description: Maximum number of events to return (default 50, max 1000)
+          description: Maximum number of logs to return (default 100, max 1000)
           required: false
           schema:
             type: integer
             minimum: 1
             maximum: 1000
-            default: 50
+            default: 100
           example: 100
         - name: offset
           in: query
-          description: Number of events to skip for pagination
+          description: Number of logs to skip for pagination
           required: false
           schema:
             type: integer
@@ -539,59 +221,11 @@ paths:
           example: 0
       responses:
         '200':
-          description: Successfully retrieved management events
+          description: Successfully retrieved audit logs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ManagementEventResponse'
-              examples:
-                all_events:
-                  summary: All Events
-                  value:
-                    events:
-                      - id: "550e8400-e29b-41d4-a716-446655440000"
-                        eventType: "CREATE"
-                        status: "success"
-                        timestamp: "2024-01-15T10:30:00Z"
-                        actorType: "USER"
-                        actorId: "user-123"
-                        actorRole: "ADMIN"
-                        targetResource: "SCHEMAS"
-                        targetResourceId: "schema-456"
-                        metadata: null
-                        createdAt: "2024-01-15T10:30:00Z"
-                      - id: "550e8400-e29b-41d4-a716-446655440002"
-                        eventType: "UPDATE"
-                        status: "success"
-                        timestamp: "2024-01-15T10:25:00Z"
-                        actorType: "SERVICE"
-                        actorId: null
-                        actorRole: null
-                        targetResource: "POLICY-METADATA"
-                        targetResourceId: "schema-789"
-                        metadata: null
-                        createdAt: "2024-01-15T10:25:00Z"
-                    total: 2
-                    limit: 50
-                    offset: 0
-                filtered_events:
-                  summary: Filtered by Event Type
-                  value:
-                    events:
-                      - id: "550e8400-e29b-41d4-a716-446655440000"
-                        eventType: "CREATE"
-                        status: "success"
-                        timestamp: "2024-01-15T10:30:00Z"
-                        actorType: "USER"
-                        actorId: "user-123"
-                        actorRole: "ADMIN"
-                        targetResource: "SCHEMAS"
-                        targetResourceId: "schema-456"
-                        metadata: null
-                        createdAt: "2024-01-15T10:30:00Z"
-                    total: 1
-                    limit: 50
-                    offset: 0
+                $ref: '#/components/schemas/GetAuditLogsResponse'
         '400':
           description: Bad request - invalid query parameters
           content:
@@ -625,342 +259,197 @@ components:
       required:
         - error
 
-    CreateDataExchangeEventRequest:
+    CreateAuditLogRequest:
       type: object
       description: |
-        Data exchange event request structure - sent by Orchestration Engine.
-        
-        **Required Fields:**
-        - `timestamp`: ISO 8601 timestamp when the event occurred
-        - `status`: Whether the request succeeded or failed ("success" or "failure") 
-        - `applicationId`: The consumer application that made the request
-        - `schemaId`: The provider schema that was accessed
-        - `requestedData`: JSON object containing the requested data/fields
-        
-        **Optional Fields:**
-        - `consumerId`: The member ID who owns the consumer application
-        - `providerId`: The member ID who owns the provider schema
-        - `onBehalfOfOwnerId`: Citizen ID (data owner) on whose behalf the data is requested
-        - `additionalInfo`: Additional context as JSON
+        Request payload for creating a generalized audit log entry.
+        This matches the unified actor/target approach used in the implementation.
       properties:
+        traceId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Global trace ID for distributed requests (nullable for standalone events)
+          example: "550e8400-e29b-41d4-a716-446655440000"
         timestamp:
           type: string
           format: date-time
-          description: ISO 8601 timestamp when the event occurred
-          example: "2024-01-15T10:30:00Z"
+          description: ISO 8601 timestamp when the event occurred (required)
+          example: "2024-01-20T10:00:00Z"
+        eventType:
+          type: string
+          nullable: true
+          description: User-defined event type (e.g., POLICY_CHECK, MANAGEMENT_EVENT)
+          example: "POLICY_CHECK"
+        eventAction:
+          type: string
+          nullable: true
+          description: Event action (CREATE, READ, UPDATE, DELETE)
+          enum: [CREATE, READ, UPDATE, DELETE]
+          example: "READ"
         status:
           type: string
-          enum: [success, failure]
-          description: Whether the data exchange request succeeded or failed
-          example: "success"
-        applicationId:
+          enum: [SUCCESS, FAILURE]
+          description: Outcome of the event
+          example: "SUCCESS"
+        actorType:
           type: string
-          description: Consumer application ID (e.g., "passport-app")
-          example: "passport-app"
-        schemaId:
+          enum: [SERVICE, ADMIN, MEMBER, SYSTEM]
+          description: Type of actor performing the action
+          example: "SERVICE"
+        actorId:
           type: string
-          description: Provider schema ID that was accessed
-          example: "hospital-schema-v1"
-        requestedData:
-          type: object
-          description: JSON object containing the requested data/fields
-          example:
-            fields: ["personInfo.name", "personInfo.address"]
-        onBehalfOfOwnerId:
+          description: Actor identifier (email, UUID, or service name)
+          example: "orchestration-engine"
+        targetType:
           type: string
-          nullable: true
-          description: Citizen ID (data owner) on whose behalf the data is requested
-          example: "citizen-abc"
-        consumerId:
+          enum: [SERVICE, RESOURCE]
+          description: Type of target being acted upon
+          example: "SERVICE"
+        targetId:
           type: string
           nullable: true
-          description: Member ID who owns the consumer application
-          example: "member-consumer-123"
-        providerId:
-          type: string
-          nullable: true
-          description: Member ID who owns the provider schema
-          example: "member-provider-456"
-        additionalInfo:
+          description: Target identifier (resource ID or service name)
+          example: "policy-decision-point"
+        requestMetadata:
           type: object
           nullable: true
-          description: Additional context as JSON
+          description: Request payload without PII/sensitive data (JSON object)
+          additionalProperties: true
           example:
-            sourceIp: "192.168.1.1"
+            schemaId: "schema-123"
+            requestedFields: ["name", "address"]
+        responseMetadata:
+          type: object
+          nullable: true
+          description: Response or error details (JSON object)
+          additionalProperties: true
+          example:
+            decision: "ALLOWED"
+            policyId: "policy-456"
+        additionalMetadata:
+          type: object
+          nullable: true
+          description: Additional context-specific data (JSON object)
+          additionalProperties: true
+          example:
+            ipAddress: "192.168.1.1"
+            userAgent: "Mozilla/5.0"
       required:
         - timestamp
         - status
-        - applicationId
-        - schemaId
-        - requestedData
+        - actorType
+        - actorId
+        - targetType
 
-    DataExchangeEventResponse:
+    AuditLog:
       type: object
-      description: Data exchange event response structure
+      description: Generalized audit log entry response
       properties:
         id:
           type: string
           format: uuid
           description: Unique database identifier
           example: "550e8400-e29b-41d4-a716-446655440000"
-        timestamp:
-          type: string
-          format: date-time
-          description: ISO 8601 timestamp when the event occurred
-          example: "2024-01-15T10:30:00Z"
-        status:
-          type: string
-          enum: [success, failure]
-          description: Whether the data exchange request succeeded or failed
-          example: "success"
-        applicationId:
-          type: string
-          description: Consumer application ID 
-          example: "passport-app"
-        schemaId:
-          type: string
-          description: Provider schema ID that was accessed
-          example: "hospital-schema-v1"
-        requestedData:
-          type: object
-          description: JSON object containing the requested data/fields
-          example:
-            fields: ["personInfo.name", "personInfo.address"]
-        onBehalfOfOwnerId:
-          type: string
-          nullable: true
-          description: Citizen ID (data owner) on whose behalf the data is requested
-          example: "citizen-abc"
-        consumerId:
-          type: string
-          nullable: true
-          description: Member ID who owns the consumer application
-          example: "member-consumer-123"
-        providerId:
-          type: string
-          nullable: true
-          description: Member ID who owns the provider schema
-          example: "member-provider-456"
-        additionalInfo:
-          type: object
-          nullable: true
-          description: Additional context as JSON
-          example:
-            sourceIp: "192.168.1.1"
-        createdAt:
-          type: string
-          format: date-time
-          description: When the record was created in the database
-          example: "2024-01-15T10:30:00Z"
-      required:
-        - id
-        - timestamp
-        - status
-        - applicationId
-        - schemaId
-        - requestedData
-        - createdAt
-
-    DataExchangeEventListResponse:
-      type: object
-      description: Paginated list response for data exchange events
-      properties:
-        total:
-          type: integer
-          format: int64
-          description: Total number of events matching the filter
-          example: 150
-        limit:
-          type: integer
-          description: Maximum number of events returned
-          example: 50
-        offset:
-          type: integer
-          description: Number of events skipped for pagination
-          example: 0
-        events:
-          type: array
-          items:
-            $ref: '#/components/schemas/DataExchangeEventResponse'
-      required:
-        - total
-        - limit
-        - offset
-        - events
-
-    CreateManagementEventRequest:
-      type: object
-      description: Management event request structure - sent by Portal Backend
-      properties:
-        timestamp:
-          type: string
-          format: date-time
-          description: ISO 8601 timestamp when the event occurred
-          example: "2024-01-15T10:30:00Z"
-        eventType:
-          type: string
-          enum: [CREATE, UPDATE, DELETE]
-          description: Type of event/operation performed
-          example: "CREATE"
-        status:
-          type: string
-          enum: [success, failure]
-          description: Whether the operation succeeded or failed
-          example: "success"
-        actor:
-          $ref: '#/components/schemas/Actor'
-        target:
-          $ref: '#/components/schemas/Target'
-        metadata:
-          type: object
-          nullable: true
-          description: Optional additional context (e.g., old values, new values for UPDATE operations)
-          additionalProperties: true
-          example:
-            oldValue: "old-schema-name"
-            newValue: "new-schema-name"
-      required:
-        - timestamp
-        - eventType
-        - status
-        - actor
-        - target
-
-    Actor:
-      type: object
-      description: Actor who performed the action
-      properties:
-        type:
-          type: string
-          enum: [USER, SERVICE]
-          description: Type of actor
-          example: "USER"
-        id:
-          type: string
-          nullable: true
-          description: User ID (required if type is USER, null if type is SERVICE)
-          example: "user-123"
-        role:
-          type: string
-          enum: [MEMBER, ADMIN]
-          nullable: true
-          description: User role (required if type is USER, null if type is SERVICE)
-          example: "ADMIN"
-      required:
-        - type
-
-    Target:
-      type: object
-      description: Resource that was acted upon
-      properties:
-        resource:
-          type: string
-          enum: [MEMBERS, SCHEMAS, SCHEMA-SUBMISSIONS, APPLICATIONS, APPLICATION-SUBMISSIONS, POLICY-METADATA]
-          description: Type of resource
-          example: "SCHEMAS"
-        resourceId:
-          type: string
-          nullable: true
-          description: ID of the resource (can be null for CREATE failures)
-          example: "schema-456"
-      required:
-        - resource
-
-    ManagementEvent:
-      type: object
-      description: Management event response structure
-      properties:
-        id:
+        traceId:
           type: string
           format: uuid
-          description: Primary key (database ID)
+          nullable: true
+          description: Global trace ID (nullable for standalone events)
           example: "550e8400-e29b-41d4-a716-446655440000"
-        eventType:
-          type: string
-          enum: [CREATE, UPDATE, DELETE]
-          description: Type of event/operation performed
-          example: "CREATE"
-        status:
-          type: string
-          enum: [success, failure]
-          description: Whether the operation succeeded or failed
-          example: "success"
         timestamp:
           type: string
           format: date-time
-          description: When the event occurred
-          example: "2024-01-15T10:30:00Z"
+          description: ISO 8601 timestamp when the event occurred
+          example: "2024-01-20T10:00:00Z"
+        eventType:
+          type: string
+          nullable: true
+          description: User-defined event type
+          example: "POLICY_CHECK"
+        eventAction:
+          type: string
+          nullable: true
+          description: Event action
+          enum: [CREATE, READ, UPDATE, DELETE]
+          example: "READ"
+        status:
+          type: string
+          enum: [SUCCESS, FAILURE]
+          description: Outcome of the event
+          example: "SUCCESS"
         actorType:
           type: string
-          enum: [USER, SERVICE]
-          description: Type of actor
-          example: "USER"
+          enum: [SERVICE, ADMIN, MEMBER, SYSTEM]
+          description: Type of actor performing the action
+          example: "SERVICE"
         actorId:
           type: string
-          nullable: true
-          description: User ID (null if SERVICE type)
-          example: "user-123"
-        actorRole:
+          description: Actor identifier
+          example: "orchestration-engine"
+        targetType:
           type: string
-          enum: [MEMBER, ADMIN]
-          nullable: true
-          description: User role (null if SERVICE type)
-          example: "ADMIN"
-        targetResource:
-          type: string
-          enum: [MEMBERS, SCHEMAS, SCHEMA-SUBMISSIONS, APPLICATIONS, APPLICATION-SUBMISSIONS, POLICY-METADATA]
-          description: Type of resource that was acted upon
-          example: "SCHEMAS"
-        targetResourceId:
+          enum: [SERVICE, RESOURCE]
+          description: Type of target being acted upon
+          example: "SERVICE"
+        targetId:
           type: string
           nullable: true
-          description: ID of the resource that was acted upon (can be null for CREATE failures)
-          example: "schema-456"
-        metadata:
+          description: Target identifier
+          example: "policy-decision-point"
+        requestMetadata:
           type: object
           nullable: true
-          description: Additional context stored as JSONB
+          description: Request payload without PII/sensitive data
           additionalProperties: true
-          example:
-            oldValue: "old-schema-name"
-            newValue: "new-schema-name"
+        responseMetadata:
+          type: object
+          nullable: true
+          description: Response or error details
+          additionalProperties: true
+        additionalMetadata:
+          type: object
+          nullable: true
+          description: Additional context-specific data
+          additionalProperties: true
         createdAt:
           type: string
           format: date-time
           description: When the record was created in the database
-          example: "2024-01-15T10:30:00Z"
+          example: "2024-01-20T10:00:00Z"
       required:
         - id
-        - eventType
-        - status
         - timestamp
+        - status
         - actorType
-        - targetResource
+        - actorId
+        - targetType
         - createdAt
 
-    ManagementEventResponse:
+    GetAuditLogsResponse:
       type: object
-      description: Response structure for GET /api/management-events
+      description: Paginated list response for audit logs
       properties:
-        events:
+        logs:
           type: array
           items:
-            $ref: '#/components/schemas/ManagementEvent'
+            $ref: '#/components/schemas/AuditLog'
+          description: List of audit log entries
         total:
           type: integer
           format: int64
-          description: Total number of events matching the filter
+          description: Total number of logs matching the filter
           example: 150
         limit:
           type: integer
-          description: Maximum number of events returned
-          example: 50
+          description: The number of logs returned in this response
+          example: 100
         offset:
           type: integer
-          description: Number of events skipped for pagination
+          description: The offset used for this response
           example: 0
       required:
-        - events
+        - logs
         - total
         - limit
         - offset
@@ -969,7 +458,6 @@ tags:
   - name: Health
     description: Health check endpoints
 
-  - name: Data Exchange
-    description: Data exchange audit logging - called by Orchestration Engine
-  - name: Management Events
-    description: Management portal audit logging - called by Portal Backend
+  - name: Audit Logs
+    description: General purpose distributed audit logging
+
