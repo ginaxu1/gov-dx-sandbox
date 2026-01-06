@@ -16,6 +16,7 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
+  "uid": "go-services-dashboard",
   "iteration": 1710643200000,
   "links": [],
   "panels": [
