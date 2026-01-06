@@ -52,8 +52,9 @@ func setupPostgresDB(t *testing.T, defaultPort, defaultUser, defaultDatabase str
 		password = os.Getenv("POSTGRES_PASSWORD")
 	}
 	if password == "" {
-		// For test environments, allow default password
+		// For test environments, allow default password but log a warning.
 		password = "password"
+		t.Logf("Warning: TEST_DB_PASSWORD is not set. Falling back to default password. This is not recommended for shared environments.")
 	}
 
 	database := getEnvOrDefault("TEST_DB_DATABASE", defaultDatabase)
