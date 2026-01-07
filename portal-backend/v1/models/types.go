@@ -70,7 +70,6 @@ func (sfr SelectedFieldRecords) GormValue(ctx context.Context, db *gorm.DB) clau
 		// GORM will handle JSON encoding automatically
 		sql = "?"
 	}
-
 	return clause.Expr{
 		SQL:  sql,
 		Vars: []interface{}{string(data)},

@@ -1,9 +1,7 @@
 package services
 
 import (
-	"bytes"
-	"io"
-	"net/http"
+
 	"testing"
 	"time"
 
@@ -293,6 +291,8 @@ func TestSchemaService_UpdateSchemaSubmission(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
+
+
 	t.Run("UpdateSchemaSubmission_NotFound", func(t *testing.T) {
 		db, mock, cleanup := SetupMockDB(t)
 		defer cleanup()
@@ -478,89 +478,6 @@ func TestSchemaService_GetSchemaSubmissions(t *testing.T) {
 	})
 }
 
-func TestSchemaService_CreateSchema_EdgeCases(t *testing.T) {
-	t.Run("CreateSchema_EmptySDL", func(t *testing.T) {
-		db, mock, cleanup := SetupMockDB(t)
-		defer cleanup()
-
-		// Mock PDP failure (empty SDL will fail validation or PDP call)
-		mockTransport := &MockRoundTripper{
-			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusBadRequest,
-					Body:       io.NopCloser(bytes.NewBufferString(`{"error": "invalid SDL"}`)),
-					Header:     make(http.Header),
-				}, nil
-			},
-		}
-		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
-
-		service := NewSchemaService(db, pdpService)
-
-		// Mock: Create schema (will succeed, then PDP fails)
-		mock.ExpectQuery(`INSERT INTO "schemas"`).
-			WillReturnRows(sqlmock.NewRows([]string{"schema_id"}).AddRow("sch_123"))
-
-		// Mock: Compensation - delete schema
-		mock.ExpectExec(`DELETE FROM "schemas"`).
-			WillReturnResult(sqlmock.NewResult(0, 1))
-
-		req := &models.CreateSchemaRequest{
-			SchemaName: "Test Schema",
-			SDL:        "",
-		}
-
-		_, err := service.CreateSchema(req)
-
-		// Should fail validation or PDP call
-		assert.Error(t, err)
-
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("CreateSchema_CompensationFailure", func(t *testing.T) {
-		db, mock, cleanup := SetupMockDB(t)
-		defer cleanup()
-
-		// Mock PDP failure
-		mockTransport := &MockRoundTripper{
-			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusInternalServerError,
-					Body:       io.NopCloser(bytes.NewBufferString(`{"error": "pdp error"}`)),
-					Header:     make(http.Header),
-				}, nil
-			},
-		}
-		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
-
-		service := NewSchemaService(db, pdpService)
-
-		// Mock: Create schema
-		mock.ExpectQuery(`INSERT INTO "schemas"`).
-			WillReturnRows(sqlmock.NewRows([]string{"schema_id"}).AddRow("sch_123"))
-
-		// Mock: Compensation - delete schema fails
-		mock.ExpectExec(`DELETE FROM "schemas"`).
-			WillReturnError(gorm.ErrRecordNotFound)
-
-		req := &models.CreateSchemaRequest{
-			SchemaName: "Test Schema",
-			SDL:        "type Query { test: String }",
-			Endpoint:   "http://example.com/graphql",
-			MemberID:   "member-123",
-		}
-
-		// This tests the compensation path when PDP fails
-		_, err := service.CreateSchema(req)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to compensate")
-
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-}
 
 func TestSchemaService_UpdateSchema_EdgeCases(t *testing.T) {
 	t.Run("UpdateSchema_PartialUpdate", func(t *testing.T) {
