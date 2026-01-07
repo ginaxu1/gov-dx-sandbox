@@ -5,34 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/config"
-	"github.com/gov-dx-sandbox/audit-service/v1/database"
 	v1models "github.com/gov-dx-sandbox/audit-service/v1/models"
+	v1testutil "github.com/gov-dx-sandbox/audit-service/v1/testutil"
 	"github.com/stretchr/testify/assert"
 )
-
-// mockRepository is a simple mock implementation for testing
-type mockRepository struct {
-	logs []*v1models.AuditLog
-}
-
-func (m *mockRepository) CreateAuditLog(ctx context.Context, log *v1models.AuditLog) (*v1models.AuditLog, error) {
-	// Simulate BeforeCreate hook behavior
-	if log.ID == uuid.Nil {
-		log.ID = uuid.New()
-	}
-	m.logs = append(m.logs, log)
-	return log, nil
-}
-
-func (m *mockRepository) GetAuditLogsByTraceID(ctx context.Context, traceID string) ([]v1models.AuditLog, error) {
-	return nil, nil
-}
-
-func (m *mockRepository) GetAuditLogs(ctx context.Context, filters *database.AuditLogFilters) ([]v1models.AuditLog, int64, error) {
-	return nil, 0, nil
-}
 
 func TestAuditService_CreateAuditLog_Validation(t *testing.T) {
 	// Set up enum configuration
@@ -45,7 +22,7 @@ func TestAuditService_CreateAuditLog_Validation(t *testing.T) {
 	enums.InitializeMaps()
 	v1models.SetEnumConfig(enums)
 
-	mockRepo := &mockRepository{}
+	mockRepo := v1testutil.NewMockRepository()
 	service := NewAuditService(mockRepo)
 
 	tests := []struct {
@@ -136,6 +113,54 @@ func TestAuditService_CreateAuditLog_Validation(t *testing.T) {
 				ActorID:    "service-1",
 				TargetType: "SERVICE",
 				TargetID:   stringPtr("service-1"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid target type",
+			req: &v1models.CreateAuditLogRequest{
+				Timestamp:  time.Now().UTC().Format(time.RFC3339),
+				Status:     v1models.StatusSuccess,
+				ActorType:  "SERVICE",
+				ActorID:    "service-1",
+				TargetType: "INVALID",
+				TargetID:   stringPtr("service-1"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid event action",
+			req: &v1models.CreateAuditLogRequest{
+				Timestamp:   time.Now().UTC().Format(time.RFC3339),
+				Status:      v1models.StatusSuccess,
+				ActorType:   "SERVICE",
+				ActorID:     "service-1",
+				TargetType:  "SERVICE",
+				TargetID:    stringPtr("service-1"),
+				EventAction: stringPtr("INVALID_ACTION"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid status",
+			req: &v1models.CreateAuditLogRequest{
+				Timestamp:  time.Now().UTC().Format(time.RFC3339),
+				Status:     "INVALID_STATUS",
+				ActorType:  "SERVICE",
+				ActorID:    "service-1",
+				TargetType: "SERVICE",
+				TargetID:   stringPtr("service-1"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing required fields - targetType",
+			req: &v1models.CreateAuditLogRequest{
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+				Status:    v1models.StatusSuccess,
+				ActorType: "SERVICE",
+				ActorID:   "service-1",
+				// Missing TargetType
 			},
 			wantErr: true,
 		},

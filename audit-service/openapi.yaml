@@ -15,10 +15,6 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: https://audit-service-dev.choreo.dev
-    description: Choreo Development Environment
-  - url: https://audit-service.choreo.dev
-    description: Choreo Production Environment
   - url: http://localhost:3001
     description: Local Development Environment
 
@@ -243,6 +239,7 @@ components:
   schemas:
     ErrorResponse:
       type: object
+      description: Error response format returned by the API
       properties:
         error:
           type: string
@@ -250,12 +247,12 @@ components:
           example: "Invalid request parameters"
         code:
           type: string
-          description: Error code
+          description: Error code (optional, currently not set by implementation)
           example: "INVALID_PARAMETERS"
         details:
-          type: object
-          description: Additional error details
-          additionalProperties: true
+          type: string
+          description: Additional error details containing the underlying error message
+          example: "invalid timestamp format, expected RFC3339"
       required:
         - error
 

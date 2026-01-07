@@ -173,3 +173,12 @@ func (e *AuditEnums) IsValidTargetType(targetType string) bool {
 	_, exists := e.targetTypesMap[targetType]
 	return exists
 }
+
+// GetEnvOrDefault returns the environment variable value or a default
+// This is a utility function for reading environment variables with defaults
+func GetEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
