@@ -187,7 +187,7 @@ func NewTestV1HandlerWithMockPDP(t *testing.T, db *gorm.DB) *V1Handler {
 	return &V1Handler{
 		memberService:      memberService,
 		schemaService:      services.NewSchemaService(db, mockPDP),
-		applicationService: services.NewApplicationService(db, mockPDP),
+		applicationService: services.NewApplicationService(db, mockPDP, mockIDPStore),
 	}
 }
 
