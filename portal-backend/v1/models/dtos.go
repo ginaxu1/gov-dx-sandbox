@@ -142,6 +142,8 @@ type ApplicationResponse struct {
 	SelectedFields         []SelectedFieldRecord `json:"selectedFields"`
 	MemberID               string                `json:"memberId"`
 	Version                string                `json:"version"`
+	IdpApplicationID       *string               `json:"idpApplicationId,omitempty"`
+	IdpClientID            *string               `json:"idpClientId,omitempty"`
 	CreatedAt              string                `json:"createdAt"`
 	UpdatedAt              string                `json:"updatedAt"`
 }

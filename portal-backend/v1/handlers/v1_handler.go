@@ -102,7 +102,7 @@ func NewV1Handler(db *gorm.DB) (*V1Handler, error) {
 	return &V1Handler{
 		memberService:      memberService,
 		schemaService:      services.NewSchemaService(db, pdpService),
-		applicationService: services.NewApplicationService(db, pdpService),
+		applicationService: services.NewApplicationService(db, pdpService, idpProvider),
 	}, nil
 }
 
@@ -117,6 +117,8 @@ func (h *V1Handler) SetupV1Routes(mux *http.ServeMux) {
 	mux.Handle("/api/v1/schema-submissions/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleSchemaSubmissions)))
 
 	// Application routes
+	mux.Handle("/internal/api/v1/applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleInternalApplications)))
+	mux.Handle("/internal/api/v1/applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleInternalApplications)))
 	mux.Handle("/api/v1/applications", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
 	mux.Handle("/api/v1/applications/", utils.PanicRecoveryMiddleware(http.HandlerFunc(h.handleApplications)))
 
@@ -250,6 +252,21 @@ func (h *V1Handler) handleSchemaSubmissions(w http.ResponseWriter, r *http.Reque
 	}
 
 	utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+}
+
+// handleInternalApplications handles internal application-related routes
+func (h *V1Handler) handleInternalApplications(w http.ResponseWriter, r *http.Request) {
+	// Only internal operation currently needed is getApplicationId by IdpClientId
+	if r.URL.Path != "/internal/api/v1/applications" && r.URL.Path != "/internal/api/v1/applications/" {
+		utils.RespondWithError(w, http.StatusNotFound, "Endpoint not found")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		h.getApplicationIdByClientId(w, r)
+	default:
+		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
 // handleApplications handles application-related routes
@@ -1056,7 +1073,7 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	submission, err := h.applicationService.UpdateApplicationSubmission(submissionId, &req)
+	submission, err := h.applicationService.UpdateApplicationSubmission(r.Context(), submissionId, &req)
 	if err != nil {
 		// Log audit event for failure
 		middleware.LogAuditEvent(r, string(models.ResourceTypeApplicationSubmissions), &existingSubmission.SubmissionID, string(models.AuditStatusFailure))
@@ -1098,7 +1115,7 @@ func (h *V1Handler) getAllApplications(w http.ResponseWriter, r *http.Request, m
 		return
 	}
 
-	applications, err := h.applicationService.GetApplications(filteredMemberId)
+	applications, err := h.applicationService.GetApplications(r.Context(), filteredMemberId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1125,7 +1142,7 @@ func (h *V1Handler) getApplication(w http.ResponseWriter, r *http.Request, appli
 		return
 	}
 
-	application, err := h.applicationService.GetApplication(applicationId)
+	application, err := h.applicationService.GetApplication(r.Context(), applicationId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -1148,6 +1165,21 @@ func (h *V1Handler) getApplication(w http.ResponseWriter, r *http.Request, appli
 	}
 
 	utils.RespondWithSuccess(w, http.StatusOK, application)
+}
+
+func (h *V1Handler) getApplicationIdByClientId(w http.ResponseWriter, r *http.Request) {
+	idpClientId := r.URL.Query().Get("idpClientId")
+	if idpClientId == "" {
+		utils.RespondWithError(w, http.StatusBadRequest, "idpClientId query parameter is required")
+		return
+	}
+
+	applicationId, err := h.applicationService.GetApplicationIdByIdpClientId(r.Context(), idpClientId)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	utils.RespondWithSuccess(w, http.StatusOK, applicationId)
 }
 
 func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
@@ -1183,7 +1215,7 @@ func (h *V1Handler) createApplication(w http.ResponseWriter, r *http.Request) {
 		req.MemberID = userMemberID
 	}
 
-	application, err := h.applicationService.CreateApplication(&req)
+	application, err := h.applicationService.CreateApplication(r.Context(), &req)
 	if err != nil {
 		// Log audit event for failure
 		middleware.LogAuditEvent(r, string(models.ResourceTypeApplications), nil, string(models.AuditStatusFailure))
@@ -1213,7 +1245,7 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 	}
 
 	// Get existing application to check ownership
-	existingApplication, err := h.applicationService.GetApplication(applicationId)
+	existingApplication, err := h.applicationService.GetApplication(r.Context(), applicationId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -1241,7 +1273,7 @@ func (h *V1Handler) updateApplication(w http.ResponseWriter, r *http.Request, ap
 		return
 	}
 
-	application, err := h.applicationService.UpdateApplication(applicationId, &req)
+	application, err := h.applicationService.UpdateApplication(r.Context(), applicationId, &req)
 	if err != nil {
 		// Log audit event for failure
 		middleware.LogAuditEvent(r, string(models.ResourceTypeApplications), &existingApplication.ApplicationID, string(models.AuditStatusFailure))
