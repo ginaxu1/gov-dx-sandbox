@@ -6,12 +6,12 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
+	github.com/gov-dx-sandbox/exchange/shared/monitoring v0.0.0-00010101000000-000000000000
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 )
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/gov-dx-sandbox/exchange/shared/monitoring v0.0.0
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
