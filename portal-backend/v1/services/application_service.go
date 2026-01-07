@@ -92,6 +92,14 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *models.
 			// Return both errors for visibility
 			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate: %w", err, deleteErr)
 		}
+		// Compensation: Delete the application in IDP as well
+		if idpDeleteErr := s.idp.DeleteApplication(ctx, *application.IdpApplicationID); idpDeleteErr != nil {
+			slog.Error("Failed to compensate application creation in IDP",
+				"applicationID", application.ApplicationID,
+				"originalError", err,
+				"compensationError", idpDeleteErr)
+			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate in IDP: %w", err, idpDeleteErr)
+		}
 		slog.Info("Successfully compensated application creation", "applicationID", application.ApplicationID)
 		return nil, fmt.Errorf("failed to update allow list: %w", err)
 	}
@@ -184,7 +192,7 @@ func (s *ApplicationService) GetApplication(ctx context.Context, applicationID s
 }
 
 // GetApplicationIdByIdpClientId retrives applicationId by idpClientId
-func (s *ApplicationService) GetApplicationIdByIdpClientId(ctx context.Context, idpClientId string) (*string, error) {
+func (s *ApplicationService) GetApplicationIdByIdpClientId(ctx context.Context, idpClientId string) (*models.ApplicationIDResponse, error) {
 	var application models.Application
 	err := s.db.WithContext(ctx).First(&application, "idp_client_id = ?", idpClientId).Error
 	if err != nil {
@@ -193,7 +201,9 @@ func (s *ApplicationService) GetApplicationIdByIdpClientId(ctx context.Context, 
 		}
 		return nil, fmt.Errorf("failed to retrieve application: %w", err)
 	}
-	return &application.ApplicationID, nil
+	return &models.ApplicationIDResponse{
+		ApplicationID: application.ApplicationID,
+	}, nil
 }
 
 // GetApplications retrieves all applications and filters by member ID if provided

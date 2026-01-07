@@ -841,7 +841,7 @@ func TestApplicationService_GetApplicationIdByIdpClientId(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, expectedAppID, *result)
+		assert.Equal(t, expectedAppID, result.ApplicationID)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 

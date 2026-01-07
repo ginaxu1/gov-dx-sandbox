@@ -241,6 +241,9 @@ func main() {
 	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware chain
 	topLevelMux.Handle("/api/v1/", protectedAPIHandler)
 
+	// Register internal API routes (no authentication required for internal services)
+	topLevelMux.Handle("/internal/api/v1/", http.StripPrefix("", apiMux))
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
