@@ -21,6 +21,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/provider"
+	"github.com/google/uuid"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -505,21 +506,21 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 		go func(req *federationServiceRequest, prov *provider.Provider) {
 			defer wg.Done()
 
-			logAudit := func(status string, err error) {
-				f.logAuditEvent(ctx, req.SchemaID, req, status, err)
+			logAudit := func(status string, err error, response *graphql.Response) {
+				f.logProviderFetch(ctx, req.SchemaID, req, response, err)
 			}
 
 			reqBody, err := json.Marshal(req.GraphQLRequest)
 			if err != nil {
 				logger.Log.Info("Failed to marshal request", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logAudit("failure", err, nil)
 				return
 			}
 
 			response, err := prov.PerformRequest(ctx, reqBody)
 			if err != nil {
 				logger.Log.Info("Request failed to the Provider", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logAudit("failure", err, nil)
 				return
 			}
 			defer response.Body.Close()
@@ -527,7 +528,7 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
 				logger.Log.Error("Failed to read response body", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logAudit("failure", err, nil)
 				return
 			}
 
@@ -535,18 +536,12 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 			err = json.Unmarshal(body, &bodyJson)
 			if err != nil {
 				logger.Log.Error("Failed to unmarshal response", "Provider Key", req.ServiceKey, "Error", err)
-				logAudit("failure", err)
+				logAudit("failure", err, nil)
 				return
 			}
 
-			// Determine status based on response
-			status := "success"
-			if len(bodyJson.Errors) > 0 || response.StatusCode >= 400 {
-				status = "failure"
-			}
-
-			// Log audit event
-			logAudit(status, nil)
+			// Log audit event with response
+			logAudit("success", nil, &bodyJson)
 
 			// Thread-safe append
 			mu.Lock()
@@ -562,8 +557,8 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 	return FederationResponse
 }
 
-// logAuditEvent logs a data exchange event to the audit service asynchronously
-func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, req *federationServiceRequest, status string, err error) {
+// logProviderFetch logs a provider fetch event to the audit service asynchronously
+func (f *Federator) logProviderFetch(ctx context.Context, providerSchemaID string, req *federationServiceRequest, response *graphql.Response, err error) {
 	// Retrieve metadata from context
 	metadata := AuditMetadataFromContext(ctx)
 	if metadata == nil {
@@ -581,44 +576,78 @@ func (f *Federator) logAuditEvent(ctx context.Context, providerSchemaID string, 
 		}
 	}
 
-	// Prepare requested data as JSON
-	requestedDataMap := map[string]interface{}{
-		"fields": requestedFields,
-		"query":  req.GraphQLRequest.Query,
+	// Create audit request using the new v1 API structure
+	traceID := middleware.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		// If no trace ID in context, generate one (fallback)
+		traceID = uuid.New().String()
 	}
-	requestedDataJSON, jsonErr := json.Marshal(requestedDataMap)
-	if jsonErr != nil {
-		logger.Log.Error("Failed to marshal requested data for audit", "error", jsonErr)
-		return
-	}
+	eventType := "PROVIDER_FETCH"
+	actorType := "SERVICE"
+	actorID := "orchestration-engine"
+	targetType := "SERVICE"
+	targetID := req.ServiceKey
 
-	// Prepare additional info for audit
-	additionalInfo := map[string]interface{}{
-		"serviceKey": req.ServiceKey,
+	// Combine requested data and additional info into response metadata
+	// (since we're logging after receiving the response)
+	responseMetadata := map[string]interface{}{
+		"applicationId":   metadata.ConsumerAppID,
+		"schemaId":        providerSchemaID,
+		"requestedFields": requestedFields,
+		"query":           req.GraphQLRequest.Query,
+		"serviceKey":      req.ServiceKey,
 	}
 	if err != nil {
-		additionalInfo["error"] = err.Error()
+		responseMetadata["error"] = err.Error()
 	}
-	additionalInfoJSON, jsonErr := json.Marshal(additionalInfo)
-	if jsonErr != nil {
-		logger.Log.Error("Failed to marshal additional info for audit", "error", jsonErr)
-		additionalInfoJSON = []byte("{}")
+	if response != nil {
+		responseMetadata["hasErrors"] = len(response.Errors) > 0
+		if len(response.Errors) > 0 {
+			responseMetadata["errorCount"] = len(response.Errors)
+			// Include first few errors (limit to avoid large payloads)
+			errorDetails := make([]interface{}, 0)
+			for i, err := range response.Errors {
+				if i >= 3 { // Limit to first 3 errors
+					break
+				}
+				errorDetails = append(errorDetails, err)
+			}
+			responseMetadata["errors"] = errorDetails
+		}
+		if response.Data != nil {
+			// Include data keys for reference (not full data to avoid large payloads)
+			dataKeys := make([]string, 0, len(response.Data))
+			for key := range response.Data {
+				dataKeys = append(dataKeys, key)
+			}
+			responseMetadata["dataKeys"] = dataKeys
+		}
+	}
+	responseMetadataJSON, err := json.Marshal(responseMetadata)
+	if err != nil {
+		logger.Log.Error("Failed to marshal response metadata for audit", "error", err)
+		responseMetadataJSON = []byte("{}")
 	}
 
-	// Create audit request for data exchange event
-	auditRequest := &middleware.DataExchangeEventAuditRequest{
-		Timestamp:     time.Now().UTC().Format(time.RFC3339),
-		Status:        status,
-		ApplicationID: metadata.ConsumerAppID,
-		SchemaID:      providerSchemaID,
-		RequestedData: json.RawMessage(requestedDataJSON),
-		// Note: OnBehalfOfOwnerID, ConsumerID, and ProviderID are not populated here
-		// to avoid expensive lookup calls. The audit service can handle missing member IDs.
-		AdditionalInfo: json.RawMessage(additionalInfoJSON),
+	auditStatus := middleware.AuditStatusSuccess
+	if err != nil || (response != nil && len(response.Errors) > 0) {
+		auditStatus = middleware.AuditStatusFailure
+	}
+
+	auditRequest := &middleware.AuditLogRequest{
+		TraceID:          &traceID,
+		Timestamp:        time.Now().UTC().Format(time.RFC3339),
+		EventType:        &eventType,
+		Status:           auditStatus,
+		ActorType:        actorType,
+		ActorID:          actorID,
+		TargetType:       targetType,
+		TargetID:         &targetID,
+		ResponseMetadata: json.RawMessage(responseMetadataJSON),
 	}
 
 	// Log the audit event asynchronously using the global middleware function
-	middleware.LogAuditEvent(auditRequest)
+	middleware.LogAuditEvent(ctx, auditRequest)
 }
 
 func (f *Federator) mergeResponses(responses []*ProviderResponse) graphql.Response {

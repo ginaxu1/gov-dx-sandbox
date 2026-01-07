@@ -1,90 +1,98 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 )
 
+// mockAuditClient implements AuditClient interface for testing
+type mockAuditClient struct {
+	enabled         bool
+	receivedEvents  []*AuditLogRequest
+	mu              sync.Mutex
+	requestReceived chan bool
+}
+
+func newMockAuditClient(enabled bool) *mockAuditClient {
+	return &mockAuditClient{
+		enabled:         enabled,
+		receivedEvents:  make([]*AuditLogRequest, 0),
+		requestReceived: make(chan bool, 1),
+	}
+}
+
+func (m *mockAuditClient) LogEvent(ctx context.Context, event *AuditLogRequest) {
+	m.mu.Lock()
+	m.receivedEvents = append(m.receivedEvents, event)
+	m.mu.Unlock()
+	select {
+	case m.requestReceived <- true:
+	default:
+	}
+}
+
+func (m *mockAuditClient) IsEnabled() bool {
+	return m.enabled
+}
+
 func TestLogAuditEvent(t *testing.T) {
 	// Reset global middleware before test
 	ResetGlobalAuditMiddleware()
 
-	// Create a test server to mock the audit service
-	var receivedRequest *DataExchangeEventAuditRequest
-	var mu sync.Mutex
-	requestReceived := make(chan bool, 1)
+	// Create a mock audit client
+	mockClient := newMockAuditClient(true)
 
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("Expected POST request, got %s", r.Method)
-		}
-		if r.URL.Path != "/data-exchange-events" {
-			t.Errorf("Expected path /data-exchange-events, got %s", r.URL.Path)
-		}
-
-		var auditReq DataExchangeEventAuditRequest
-		if err := json.NewDecoder(r.Body).Decode(&auditReq); err != nil {
-			t.Fatalf("Failed to decode request body: %v", err)
-		}
-
-		mu.Lock()
-		receivedRequest = &auditReq
-		mu.Unlock()
-
-		w.WriteHeader(http.StatusCreated)
-		requestReceived <- true
-	}))
-	defer testServer.Close()
-
-	// Initialize audit middleware with test server URL
-	middleware := NewAuditMiddleware(testServer.URL)
+	// Initialize audit middleware with mock client
+	middleware := NewAuditMiddleware(mockClient)
 	if middleware == nil {
 		t.Fatal("Failed to create audit middleware")
 	}
 
-	// Create test audit request
-	testRequest := &DataExchangeEventAuditRequest{
-		Timestamp:      time.Now().UTC().Format(time.RFC3339),
-		Status:         "success",
-		ApplicationID:  "test-app-123",
-		SchemaID:       "schema-456",
-		RequestedData:  json.RawMessage(`{"fields": ["field1", "field2"]}`),
-		AdditionalInfo: json.RawMessage(`{"serviceKey": "test-service"}`),
+	// Create test audit request using local DTO
+	traceID := "550e8400-e29b-41d4-a716-446655440000"
+	eventType := "POLICY_CHECK"
+	testRequest := &AuditLogRequest{
+		TraceID:         &traceID,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		EventType:       &eventType,
+		Status:          AuditStatusSuccess,
+		ActorType:       "SERVICE",
+		ActorID:         "orchestration-engine",
+		TargetType:      "SERVICE",
+		RequestMetadata: json.RawMessage(`{"appId": "test-app-123"}`),
 	}
 
 	// Call LogAuditEvent
-	LogAuditEvent(testRequest)
+	LogAuditEvent(context.Background(), testRequest)
 
 	// Wait for the async operation to complete with timeout
 	select {
-	case <-requestReceived:
+	case <-mockClient.requestReceived:
 		// Request received successfully
 	case <-time.After(5 * time.Second):
 		t.Fatal("Timeout waiting for audit request")
 	}
 
 	// Verify the request was received
-	mu.Lock()
-	defer mu.Unlock()
+	mockClient.mu.Lock()
+	defer mockClient.mu.Unlock()
 
-	if receivedRequest == nil {
-		t.Fatal("No request received by test server")
+	if len(mockClient.receivedEvents) == 0 {
+		t.Fatal("No request received by mock client")
 	}
 
-	if receivedRequest.ApplicationID != testRequest.ApplicationID {
-		t.Errorf("Expected ApplicationID %s, got %s", testRequest.ApplicationID, receivedRequest.ApplicationID)
+	receivedRequest := mockClient.receivedEvents[0]
+	expectedActorID := "orchestration-engine"
+	if receivedRequest.ActorID != expectedActorID {
+		t.Errorf("Expected ActorID %s, got %s", expectedActorID, receivedRequest.ActorID)
 	}
 
-	if receivedRequest.SchemaID != testRequest.SchemaID {
-		t.Errorf("Expected SchemaID %s, got %s", testRequest.SchemaID, receivedRequest.SchemaID)
-	}
-
-	if receivedRequest.Status != testRequest.Status {
-		t.Errorf("Expected Status %s, got %s", testRequest.Status, receivedRequest.Status)
+	expectedStatus := "SUCCESS"
+	if receivedRequest.Status != expectedStatus {
+		t.Errorf("Expected Status %s, got %s", expectedStatus, receivedRequest.Status)
 	}
 }
 
@@ -92,23 +100,28 @@ func TestLogAuditEventWhenNotConfigured(t *testing.T) {
 	// Reset global middleware before test
 	ResetGlobalAuditMiddleware()
 
-	// Initialize audit middleware without URL (disabled)
-	middleware := NewAuditMiddleware("")
+	// Initialize audit middleware with disabled mock client
+	mockClient := newMockAuditClient(false)
+	middleware := NewAuditMiddleware(mockClient)
 	if middleware == nil {
 		t.Fatal("Failed to create audit middleware")
 	}
 
-	// Create test audit request
-	testRequest := &DataExchangeEventAuditRequest{
-		Timestamp:     time.Now().UTC().Format(time.RFC3339),
-		Status:        "success",
-		ApplicationID: "test-app-123",
-		SchemaID:      "schema-456",
-		RequestedData: json.RawMessage(`{"fields": ["field1", "field2"]}`),
+	// Create test audit request using local DTO
+	traceID := "550e8400-e29b-41d4-a716-446655440000"
+	eventType := "POLICY_CHECK"
+	testRequest := &AuditLogRequest{
+		TraceID:    &traceID,
+		Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		EventType:  &eventType,
+		Status:     AuditStatusSuccess,
+		ActorType:  "SERVICE",
+		ActorID:    "orchestration-engine",
+		TargetType: "SERVICE",
 	}
 
 	// This should not panic or cause errors
-	LogAuditEvent(testRequest)
+	LogAuditEvent(context.Background(), testRequest)
 
 	// Give some time for any potential async operation
 	time.Sleep(50 * time.Millisecond)
@@ -120,17 +133,21 @@ func TestLogAuditEventWhenGlobalMiddlewareNotInitialized(t *testing.T) {
 	// Reset global middleware to simulate uninitialized state
 	ResetGlobalAuditMiddleware()
 
-	// Create test audit request
-	testRequest := &DataExchangeEventAuditRequest{
-		Timestamp:     time.Now().UTC().Format(time.RFC3339),
-		Status:        "success",
-		ApplicationID: "test-app-123",
-		SchemaID:      "schema-456",
-		RequestedData: json.RawMessage(`{"fields": ["field1", "field2"]}`),
+	// Create test audit request using local DTO
+	traceID := "550e8400-e29b-41d4-a716-446655440000"
+	eventType := "POLICY_CHECK"
+	testRequest := &AuditLogRequest{
+		TraceID:    &traceID,
+		Timestamp:  time.Now().UTC().Format(time.RFC3339),
+		EventType:  &eventType,
+		Status:     AuditStatusSuccess,
+		ActorType:  "SERVICE",
+		ActorID:    "orchestration-engine",
+		TargetType: "SERVICE",
 	}
 
 	// This should not panic or cause errors
-	LogAuditEvent(testRequest)
+	LogAuditEvent(context.Background(), testRequest)
 
 	// Test passes if no panic occurs
 }

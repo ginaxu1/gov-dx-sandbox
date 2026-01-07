@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,32 +10,94 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
+	auditclient "github.com/gov-dx-sandbox/shared/audit"
+	auditpkg "github.com/gov-dx-sandbox/shared/audit"
 )
+
+// mockAuditClient implements AuditClient interface for testing
+type mockAuditClient struct {
+	enabled         bool
+	receivedEvents  []*AuditLogRequest
+	mu              sync.Mutex
+	requestReceived chan bool
+}
+
+func newMockAuditClient(enabled bool) *mockAuditClient {
+	return &mockAuditClient{
+		enabled:         enabled,
+		receivedEvents:  make([]*AuditLogRequest, 0),
+		requestReceived: make(chan bool, 1),
+	}
+}
+
+func (m *mockAuditClient) LogEvent(ctx context.Context, event *AuditLogRequest) {
+	m.mu.Lock()
+	m.receivedEvents = append(m.receivedEvents, event)
+	m.mu.Unlock()
+	select {
+	case m.requestReceived <- true:
+	default:
+	}
+}
+
+func (m *mockAuditClient) IsEnabled() bool {
+	return m.enabled
+}
+
+// testAuditClientAdapter adapts shared/audit.Client to AuditClient interface for testing
+type testAuditClientAdapter struct {
+	client *auditclient.Client
+}
+
+func (a *testAuditClientAdapter) LogEvent(ctx context.Context, event *AuditLogRequest) {
+	auditRequest := &auditclient.AuditLogRequest{
+		TraceID:            event.TraceID,
+		Timestamp:          event.Timestamp,
+		EventType:          event.EventType,
+		EventAction:        event.EventAction,
+		Status:             event.Status,
+		ActorType:          event.ActorType,
+		ActorID:            event.ActorID,
+		TargetType:         event.TargetType,
+		TargetID:           event.TargetID,
+		RequestMetadata:    event.RequestMetadata,
+		ResponseMetadata:   event.ResponseMetadata,
+		AdditionalMetadata: event.AdditionalMetadata,
+	}
+	a.client.LogEvent(ctx, auditRequest)
+}
+
+func (a *testAuditClientAdapter) IsEnabled() bool {
+	return a.client.IsEnabled()
+}
 
 func TestAuditMiddleware_Initialization(t *testing.T) {
 	// Reset global state for this test
 	ResetGlobalAuditMiddleware()
 
 	// Test with audit enabled
-	auditMiddleware := NewAuditMiddleware("http://localhost:8080")
-	if auditMiddleware.auditServiceURL == "" {
-		t.Error("Expected audit middleware to have service URL when URL is provided")
+	mockClient1 := newMockAuditClient(true)
+	auditMiddleware := NewAuditMiddleware(mockClient1)
+	if auditMiddleware.Client() == nil {
+		t.Error("Expected audit middleware to have client when provided")
 	}
-	if auditMiddleware.httpClient == nil {
-		t.Error("Expected audit middleware to have HTTP client when URL is provided")
+	if !auditMiddleware.Client().IsEnabled() {
+		t.Error("Expected audit middleware to be enabled when client is enabled")
 	}
 
 	// Test with audit disabled (create new instance, but global should already be set)
-	auditMiddleware2 := NewAuditMiddleware("")
-	if auditMiddleware2.auditServiceURL != "" {
-		t.Error("Expected audit middleware to have empty service URL when URL is empty")
+	mockClient2 := newMockAuditClient(false)
+	auditMiddleware2 := NewAuditMiddleware(mockClient2)
+	if auditMiddleware2.Client() == nil {
+		t.Error("Expected audit middleware to have client instance even when disabled")
 	}
-	if auditMiddleware2.httpClient != nil {
-		t.Error("Expected audit middleware to have nil HTTP client when URL is empty")
+	if auditMiddleware2.Client().IsEnabled() {
+		t.Error("Expected audit middleware to be disabled when client is disabled")
 	}
 
 	// Global should still be the first instance (due to sync.Once)
-	if globalAuditMiddleware != auditMiddleware {
+	globalMiddleware := auditpkg.GetGlobalAuditMiddleware()
+	if globalMiddleware != auditMiddleware {
 		t.Error("Expected global instance to be the first initialized middleware")
 	}
 }
@@ -44,7 +107,8 @@ func TestLogAuditEvent_GlobalFunction(t *testing.T) {
 	ResetGlobalAuditMiddleware()
 
 	// Initialize global audit middleware
-	_ = NewAuditMiddleware("http://localhost:3001")
+	mockClient := newMockAuditClient(true)
+	_ = NewAuditMiddleware(mockClient)
 
 	// Test that LogAuditEvent doesn't panic when called
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
@@ -57,18 +121,20 @@ func TestLogAuditEvent_GlobalFunction(t *testing.T) {
 }
 
 func TestLogAudit_SkipsReadOperations(t *testing.T) {
-	auditMiddleware := NewAuditMiddleware("http://localhost:3001")
+	mockClient := newMockAuditClient(true)
+	auditMiddleware := NewAuditMiddleware(mockClient)
 
 	// GET request should be skipped
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	resourceID := "test-id"
-	auditMiddleware.LogAudit(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+	LogAudit(auditMiddleware.Client(), req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// This test passes if no panic occurs - we can't easily test HTTP calls without a mock server
 }
 
 func TestLogAudit_ProcessesWriteOperations(t *testing.T) {
-	auditMiddleware := NewAuditMiddleware("http://localhost:3001")
+	mockClient := newMockAuditClient(true)
+	auditMiddleware := NewAuditMiddleware(mockClient)
 
 	// POST request should be processed (though it may fail to send)
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
@@ -76,7 +142,7 @@ func TestLogAudit_ProcessesWriteOperations(t *testing.T) {
 	req.Header.Set("X-User-Role", "MEMBER")
 
 	resourceID := "test-id"
-	auditMiddleware.LogAudit(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+	LogAudit(auditMiddleware.Client(), req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// This test passes if no panic occurs - we can't easily test HTTP calls without a mock server
 }
@@ -101,7 +167,13 @@ func TestAuditMiddleware_ThreadSafety(t *testing.T) {
 				url = "" // Mix enabled and disabled instances
 			}
 
-			instance := NewAuditMiddleware(url)
+			var client AuditClient
+			if url != "" {
+				client = newMockAuditClient(true)
+			} else {
+				client = newMockAuditClient(false)
+			}
+			instance := NewAuditMiddleware(client)
 
 			mu.Lock()
 			instances = append(instances, instance)
@@ -117,7 +189,8 @@ func TestAuditMiddleware_ThreadSafety(t *testing.T) {
 	}
 
 	// Verify that the global instance was set (should be one of the instances)
-	if globalAuditMiddleware == nil {
+	globalMiddleware := auditpkg.GetGlobalAuditMiddleware()
+	if globalMiddleware == nil {
 		t.Error("Expected global audit middleware to be set")
 	}
 
@@ -161,7 +234,9 @@ func TestLogAudit_SendsRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
-	auditMiddleware := NewAuditMiddleware(server.URL)
+	// For this test, we need to use the real shared/audit client since we're testing HTTP
+	sharedClient := auditclient.NewClient(server.URL)
+	auditMiddleware := NewAuditMiddleware(&testAuditClientAdapter{client: sharedClient})
 
 	// Create request
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
@@ -169,7 +244,7 @@ func TestLogAudit_SendsRequest(t *testing.T) {
 	req.Header.Set("X-User-Role", "MEMBER")
 
 	resourceID := "test-resource-id"
-	auditMiddleware.LogAudit(req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+	LogAudit(auditMiddleware.Client(), req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// Wait for async log to complete
 	// Note: In real code, we can't easily wait for the goroutine.
@@ -194,8 +269,8 @@ func TestLogAudit_SendsRequest(t *testing.T) {
 	if receivedReq.Method != http.MethodPost {
 		t.Errorf("Expected POST request, got %s", receivedReq.Method)
 	}
-	if receivedReq.URL.Path != "/api/events" {
-		t.Errorf("Expected path /api/events, got %s", receivedReq.URL.Path)
+	if receivedReq.URL.Path != "/api/audit-logs" {
+		t.Errorf("Expected path /api/audit-logs, got %s", receivedReq.URL.Path)
 	}
 
 	// Verify body

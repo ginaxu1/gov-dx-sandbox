@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/v1/models"
 	"github.com/gov-dx-sandbox/audit-service/v1/services"
 	"github.com/gov-dx-sandbox/audit-service/v1/utils"
@@ -75,8 +76,14 @@ func (h *AuditHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Validate traceId format if provided
 	var traceIDPtr *string
 	if traceID != "" {
+		// Validate UUID format - return 400 for invalid format instead of 500
+		if _, err := uuid.Parse(traceID); err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid traceId format: expected UUID", err)
+			return
+		}
 		traceIDPtr = &traceID
 	}
 
@@ -87,6 +94,11 @@ func (h *AuditHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 
 	logs, total, err := h.service.GetAuditLogs(r.Context(), traceIDPtr, eventTypePtr, limit, offset)
 	if err != nil {
+		// Check if it's a validation error (e.g., invalid traceId format from service layer)
+		if services.IsValidationError(err) {
+			utils.RespondWithError(w, http.StatusBadRequest, "Invalid query parameters", err)
+			return
+		}
 		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to retrieve audit logs", err)
 		return
 	}

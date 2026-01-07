@@ -9,7 +9,6 @@ A comprehensive data exchange platform consisting of multiple microservices and 
 - **Orchestration Engine** - Data exchange workflow orchestration
 - **Policy Decision Point** - Policy enforcement
 - **Consent Engine** - User consent management and validation
-- **Audit Service** - Event logging and audit trail management
 - **Portal Backend** - Backend service for the `Admin Portal` and the `Member Portal`
 
 ### Frontend Portals (React/TypeScript)
@@ -17,6 +16,11 @@ A comprehensive data exchange platform consisting of multiple microservices and 
 - **Member Portal** - Management of `Data sources` or `Applications` by `OpenDIF Members`
 - **Admin Portal** - Administrative dashboard for the `OpenDIF Admins`
 - **Consent Portal** - Citizen-facing interface for data consent
+
+### Optional Components
+
+- **Observability Stack** (`observability/`) - Metrics collection and visualization (Prometheus, Grafana)
+- **Audit Service** (`audit-service/`) - Audit logging and event tracking (optional, services function normally without it)
 
 ## How to Deploy
 

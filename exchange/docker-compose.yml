@@ -1,6 +1,11 @@
 # Exchange Services - Environment-based Configuration
 # Usage: docker compose --env-file .env.local up --build
 #       docker compose --env-file .env.production up --build
+#
+# Note: Audit Service is optional and can be deployed separately.
+#       See audit-service/docker-compose.yml for standalone deployment.
+#       Services will function normally without audit-service when
+#       CHOREO_AUDIT_CONNECTION_SERVICEURL is not set or ENABLE_AUDIT=false.
 
 services:
   policy-decision-point:

@@ -15,8 +15,37 @@ import (
 	v1handlers "github.com/gov-dx-sandbox/portal-backend/v1/handlers"
 	v1middleware "github.com/gov-dx-sandbox/portal-backend/v1/middleware"
 	v1models "github.com/gov-dx-sandbox/portal-backend/v1/models"
+	auditclient "github.com/gov-dx-sandbox/shared/audit"
 	"github.com/joho/godotenv"
 )
+
+// auditClientAdapter adapts shared/audit.Client to v1middleware.AuditClient interface
+type auditClientAdapter struct {
+	client *auditclient.Client
+}
+
+func (a *auditClientAdapter) LogEvent(ctx context.Context, event *v1middleware.AuditLogRequest) {
+	// Convert middleware DTO to shared audit DTO
+	auditRequest := &auditclient.AuditLogRequest{
+		TraceID:            event.TraceID,
+		Timestamp:          event.Timestamp,
+		EventType:          event.EventType,
+		EventAction:        event.EventAction,
+		Status:             event.Status,
+		ActorType:          event.ActorType,
+		ActorID:            event.ActorID,
+		TargetType:         event.TargetType,
+		TargetID:           event.TargetID,
+		RequestMetadata:    event.RequestMetadata,
+		ResponseMetadata:   event.ResponseMetadata,
+		AdditionalMetadata: event.AdditionalMetadata,
+	}
+	a.client.LogEvent(ctx, auditRequest)
+}
+
+func (a *auditClientAdapter) IsEnabled() bool {
+	return a.client.IsEnabled()
+}
 
 func main() {
 	// Load .env file if it exists (optional - fails silently if not found)
@@ -112,7 +141,9 @@ func main() {
 
 	// Initialize Audit system (creates global instance for direct LogAuditEvent calls from handlers)
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
-	_ = v1middleware.NewAuditMiddleware(auditServiceURL)
+	sharedAuditClient := auditclient.NewClient(auditServiceURL)
+	auditClient := &auditClientAdapter{client: sharedAuditClient}
+	_ = v1middleware.NewAuditMiddleware(auditClient)
 
 	// Apply middleware chain (CORS -> JWT Auth -> Authorization) to the API mux ONLY
 	// Note: Audit logging is done directly in handlers via LogAuditEvent calls, not through middleware
