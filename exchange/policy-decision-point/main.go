@@ -8,6 +8,7 @@ import (
 	"time"
 
 	v1 "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/middleware"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/joho/godotenv"
 )
@@ -46,6 +47,15 @@ func main() {
 	if err != nil {
 		slog.Error("Failed to connect to GORM database", "error", err)
 		os.Exit(1)
+	}
+
+	// Initialize audit middleware (optional - can be disabled via ENABLE_AUDIT=false or empty URL)
+	auditServiceURL := getEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "")
+	middleware.NewAuditMiddleware(auditServiceURL)
+	if auditServiceURL != "" {
+		slog.Info("Audit logging enabled", "auditServiceURL", auditServiceURL)
+	} else {
+		slog.Info("Audit logging disabled (no audit service URL configured)")
 	}
 
 	// Initialize V1 handlers

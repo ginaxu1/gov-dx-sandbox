@@ -14,6 +14,7 @@ import (
 	v1auth "github.com/gov-dx-sandbox/exchange/consent-engine/v1/auth"
 	v1db "github.com/gov-dx-sandbox/exchange/consent-engine/v1/database"
 	v1handlers "github.com/gov-dx-sandbox/exchange/consent-engine/v1/handlers"
+	v1middleware "github.com/gov-dx-sandbox/exchange/consent-engine/v1/middleware"
 	v1router "github.com/gov-dx-sandbox/exchange/consent-engine/v1/router"
 	v1services "github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 )
@@ -80,6 +81,15 @@ func main() {
 	if err != nil {
 		slog.Error("Failed to initialize V1 consent service", "error", err)
 		os.Exit(1)
+	}
+
+	// Initialize audit middleware (optional - can be disabled via ENABLE_AUDIT=false or empty URL)
+	auditServiceURL := getEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "")
+	v1middleware.NewAuditMiddleware(auditServiceURL)
+	if auditServiceURL != "" {
+		slog.Info("Audit logging enabled", "auditServiceURL", auditServiceURL)
+	} else {
+		slog.Info("Audit logging disabled (no audit service URL configured)")
 	}
 
 	// Initialize V1 handlers

@@ -1,12 +1,16 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/middleware"
+	auditclient "github.com/gov-dx-sandbox/shared/audit"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/utils"
@@ -46,6 +50,9 @@ func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract trace ID from request and add to context
+	ctx := middleware.ExtractTraceIDFromRequest(r)
+
 	// Parse query parameters
 	ownerEmail := r.URL.Query().Get("ownerEmail")
 	ownerID := r.URL.Query().Get("ownerId")
@@ -67,15 +74,18 @@ func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if ownerEmail != "" {
-		consent, err = h.consentService.GetConsentInternalView(r.Context(), nil, nil, &ownerEmail, &appID)
+		consent, err = h.consentService.GetConsentInternalView(ctx, nil, nil, &ownerEmail, &appID)
 	} else {
-		consent, err = h.consentService.GetConsentInternalView(r.Context(), nil, &ownerID, nil, &appID)
+		consent, err = h.consentService.GetConsentInternalView(ctx, nil, &ownerID, nil, &appID)
 	}
+
+	// Log consent check result
+	h.logConsentCheck(ctx, appID, ownerEmail, ownerID, consent, err)
 
 	if err != nil {
 		// Check if error is due to context cancellation or timeout
-		if r.Context().Err() != nil {
-			slog.Warn("Request context cancelled during service call", "error", r.Context().Err())
+		if ctx.Err() != nil {
+			slog.Warn("Request context cancelled during service call", "error", ctx.Err())
 			utils.RespondWithError(w, http.StatusRequestTimeout, models.ErrorCodeInternalError, "Request timeout or cancelled")
 			return
 		}
@@ -89,6 +99,72 @@ func (h *InternalHandler) GetConsent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, http.StatusOK, consent)
+}
+
+// logConsentCheck logs a CONSENT_CHECK event from consent-engine's perspective
+func (h *InternalHandler) logConsentCheck(ctx context.Context, appID, ownerEmail, ownerID string, consent *models.ConsentResponseInternalView, err error) {
+	traceID := middleware.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		return
+	}
+
+	eventType := "CONSENT_CHECK"
+	actorType := "SERVICE"
+	actorID := "consent-engine"
+	targetType := "SERVICE"
+	targetID := "orchestration-engine"
+
+	status := auditclient.StatusSuccess
+	responseMetadata := make(map[string]interface{})
+
+	// Include request context in metadata
+	responseMetadata["applicationId"] = appID
+	if ownerEmail != "" {
+		responseMetadata["ownerEmail"] = ownerEmail
+	}
+	if ownerID != "" {
+		responseMetadata["ownerId"] = ownerID
+	}
+
+	if err != nil {
+		status = auditclient.StatusFailure
+		responseMetadata["error"] = err.Error()
+		if errors.Is(err, models.ErrConsentNotFound) {
+			responseMetadata["consentNotFound"] = true
+		}
+	} else if consent != nil {
+		responseMetadata["consentId"] = consent.ConsentID
+		responseMetadata["status"] = consent.Status
+		if consent.ConsentPortalURL != nil {
+			responseMetadata["consentPortalUrl"] = *consent.ConsentPortalURL
+		}
+		if consent.Fields != nil {
+			responseMetadata["fieldsCount"] = len(*consent.Fields)
+		}
+	}
+
+	var responseMetadataJSON []byte
+	responseMetadataBytes, jsonErr := json.Marshal(responseMetadata)
+	if jsonErr != nil {
+		slog.Error("Failed to marshal response metadata for audit", "error", jsonErr)
+		responseMetadataJSON = []byte("{}")
+	} else {
+		responseMetadataJSON = responseMetadataBytes
+	}
+
+	auditRequest := &auditclient.AuditLogRequest{
+		TraceID:          &traceID,
+		Timestamp:        time.Now().UTC().Format(time.RFC3339),
+		EventType:        &eventType,
+		Status:           status,
+		ActorType:        actorType,
+		ActorID:          actorID,
+		TargetType:       targetType,
+		TargetID:         &targetID,
+		ResponseMetadata: json.RawMessage(responseMetadataJSON),
+	}
+
+	middleware.LogGeneralizedAuditEvent(ctx, auditRequest)
 }
 
 // CreateConsent handles POST /internal/api/v1/consents

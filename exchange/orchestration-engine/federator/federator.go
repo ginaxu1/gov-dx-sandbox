@@ -28,6 +28,34 @@ import (
 	"golang.org/x/oauth2/clientcredentials"
 )
 
+// Context key for audit metadata
+type contextKey string
+
+const auditMetadataKey contextKey = "auditMetadata"
+
+// maxAuditErrorsToLog is the maximum number of errors to include in audit log metadata
+// This limit prevents audit logs from becoming too large when there are many errors
+const maxAuditErrorsToLog = 3
+
+// AuditMetadata holds metadata needed for audit logging
+type AuditMetadata struct {
+	ConsumerAppID    string
+	ProviderFieldMap *[]ProviderLevelFieldRecord
+}
+
+// NewContextWithAuditMetadata creates a new context with audit metadata
+func NewContextWithAuditMetadata(ctx context.Context, metadata *AuditMetadata) context.Context {
+	return context.WithValue(ctx, auditMetadataKey, metadata)
+}
+
+// AuditMetadataFromContext retrieves audit metadata from context
+func AuditMetadataFromContext(ctx context.Context) *AuditMetadata {
+	metadata, ok := ctx.Value(auditMetadataKey).(*AuditMetadata)
+	if !ok {
+		return nil
+	}
+	return metadata
+}
 // Federator struct that includes all the context needed for federation.
 type Federator struct {
 	Configs         *configs.Config
@@ -147,6 +175,16 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
+	// Ensure traceID is in context (should already be set by TraceIDMiddleware, but ensure it)
+	traceID := middleware.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = uuid.New().String()
+		ctx = middleware.WithTraceID(ctx, traceID)
+	}
+
+	// Log orchestration request received event
+	f.logOrchestrationRequestReceived(ctx, consumerInfo.ApplicationId, request.Query)
+
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
 		Body: []byte(request.Query),
@@ -288,6 +326,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		pdpRequest.RequiredFields = requiredFields
 
 		pdpResponse, err = pdpClient.MakePdpRequest(ctx, pdpRequest)
+
 		if err != nil {
 			logger.Log.Error("PDP request failed", "error", err)
 			return createErrorResponseWithCode(fmt.Sprintf("Authorization check failed: %v", err), errors.CodePDPError)
@@ -391,6 +430,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		}
 
 		ceResp, err := ceClient.CreateConsent(ctx, ceRequest)
+
 		if err != nil {
 			logger.Log.Info("CE request failed", "error", err)
 			return createErrorResponseWithCode("CE request failed", errors.CodeCEError)
@@ -537,6 +577,142 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 	return FederationResponse
 }
 
+// logOrchestrationRequestReceived logs an ORCHESTRATION_REQUEST_RECEIVED event
+func (f *Federator) logOrchestrationRequestReceived(ctx context.Context, consumerAppID string, query string) {
+	traceID := middleware.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = uuid.New().String()
+		ctx = middleware.WithTraceID(ctx, traceID)
+	}
+
+	eventType := "ORCHESTRATION_REQUEST_RECEIVED"
+	actorType := "SERVICE"
+	actorID := "orchestration-engine"
+	targetType := "SERVICE"
+
+	requestMetadata := map[string]interface{}{
+		"applicationId": consumerAppID,
+		"query":         query,
+	}
+	var requestMetadataJSON []byte
+	requestMetadataBytes, jsonErr := json.Marshal(requestMetadata)
+	if jsonErr != nil {
+		logger.Log.Error("Failed to marshal request metadata for audit", "error", jsonErr)
+		requestMetadataJSON = []byte("{}")
+	} else {
+		requestMetadataJSON = requestMetadataBytes
+	}
+
+	auditRequest := &middleware.AuditLogRequest{
+		TraceID:         &traceID,
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		EventType:       &eventType,
+		Status:          middleware.AuditStatusSuccess,
+		ActorType:       actorType,
+		ActorID:         actorID,
+		TargetType:      targetType,
+		RequestMetadata: json.RawMessage(requestMetadataJSON),
+	}
+
+	// Log the audit event asynchronously using the global middleware function
+	middleware.LogAuditEvent(ctx, auditRequest)
+}
+
+// logProviderFetch logs a provider fetch event to the audit service asynchronously
+func (f *Federator) logProviderFetch(ctx context.Context, providerSchemaID string, req *federationServiceRequest, response *graphql.Response, err error) {
+	// Retrieve metadata from context
+	metadata := AuditMetadataFromContext(ctx)
+	if metadata == nil {
+		logger.Log.Warn("Audit metadata missing from context, skipping audit log")
+		return
+	}
+
+	// Extract requested fields for this provider
+	requestedFields := make([]string, 0)
+	if metadata.ProviderFieldMap != nil {
+		for _, field := range *metadata.ProviderFieldMap {
+			if field.SchemaId == req.SchemaID && field.ServiceKey == req.ServiceKey {
+				requestedFields = append(requestedFields, field.FieldPath)
+			}
+		}
+	}
+
+	// Create audit request using the new v1 API structure
+	traceID := middleware.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		// If no trace ID in context, generate one (fallback)
+		traceID = uuid.New().String()
+	}
+	eventType := "PROVIDER_FETCH"
+	actorType := "SERVICE"
+	actorID := "orchestration-engine"
+	targetType := "SERVICE"
+	targetID := req.ServiceKey
+
+	// Combine requested data and additional info into response metadata
+	// (since we're logging after receiving the response)
+	responseMetadata := map[string]interface{}{
+		"applicationId":   metadata.ConsumerAppID,
+		"schemaId":        providerSchemaID,
+		"requestedFields": requestedFields,
+		"query":           req.GraphQLRequest.Query,
+		"serviceKey":      req.ServiceKey,
+	}
+	if err != nil {
+		responseMetadata["error"] = err.Error()
+	}
+	if response != nil {
+		responseMetadata["hasErrors"] = len(response.Errors) > 0
+		if len(response.Errors) > 0 {
+			responseMetadata["errorCount"] = len(response.Errors)
+			// Include first few errors (limit to avoid large payloads)
+			errorDetails := make([]interface{}, 0)
+			for i, err := range response.Errors {
+				if i >= maxAuditErrorsToLog {
+					break
+				}
+				errorDetails = append(errorDetails, err)
+			}
+			responseMetadata["errors"] = errorDetails
+		}
+		if response.Data != nil {
+			// Include data keys for reference (not full data to avoid large payloads)
+			dataKeys := make([]string, 0, len(response.Data))
+			for key := range response.Data {
+				dataKeys = append(dataKeys, key)
+			}
+			responseMetadata["dataKeys"] = dataKeys
+		}
+	}
+	var responseMetadataJSON []byte
+	responseMetadataBytes, jsonErr := json.Marshal(responseMetadata)
+	if jsonErr != nil {
+		logger.Log.Error("Failed to marshal response metadata for audit", "error", jsonErr)
+		responseMetadataJSON = []byte("{}")
+	} else {
+		responseMetadataJSON = responseMetadataBytes
+	}
+
+	auditStatus := middleware.AuditStatusSuccess
+	if err != nil || (response != nil && len(response.Errors) > 0) {
+		auditStatus = middleware.AuditStatusFailure
+	}
+
+	auditRequest := &middleware.AuditLogRequest{
+		TraceID:          &traceID,
+		Timestamp:        time.Now().UTC().Format(time.RFC3339),
+		EventType:        &eventType,
+		Status:           auditStatus,
+		ActorType:        actorType,
+		ActorID:          actorID,
+		TargetType:       targetType,
+		TargetID:         &targetID,
+		ResponseMetadata: json.RawMessage(responseMetadataJSON),
+	}
+
+	// Log the audit event asynchronously using the global middleware function
+	middleware.LogAuditEvent(ctx, auditRequest)
+}
 func (f *Federator) mergeResponses(responses []*ProviderResponse) graphql.Response {
 	merged := graphql.Response{
 		Data:   make(map[string]interface{}),
