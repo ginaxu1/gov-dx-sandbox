@@ -191,6 +191,118 @@ go test ./... -cover
 - **No authentication required**: Authentication is handled by upstream services (Orchestration Engine, Portal Backend)
 - **Database security**: Uses SSL connections in production (Choreo) with configurable SSL modes
 
+## Optional Deployment
+
+The Audit Service is **optional** and can be deployed separately from the main OpenDIF services. Services (Orchestration Engine, Portal Backend) will function normally without audit logging enabled.
+
+### Enabling/Disabling Audit Logging
+
+#### Option 1: Disable via Environment Variable
+Set `ENABLE_AUDIT=false` in your service configuration:
+```bash
+# In orchestration-engine/.env or portal-backend/.env
+ENABLE_AUDIT=false
+```
+
+#### Option 2: Omit Audit Service URL
+Leave `CHOREO_AUDIT_CONNECTION_SERVICEURL` unset or empty:
+```bash
+# Services will automatically disable audit logging if URL is not configured
+# CHOREO_AUDIT_CONNECTION_SERVICEURL=
+```
+
+#### Option 3: Enable Audit Logging
+Set the audit service URL:
+```bash
+# In orchestration-engine/.env or portal-backend/.env
+CHOREO_AUDIT_CONNECTION_SERVICEURL=http://localhost:3001
+ENABLE_AUDIT=true  # Optional, defaults to true if URL is provided
+```
+
+### Deployment Steps
+
+#### Step 1: Deploy Audit Service (Optional)
+
+**Using Docker Compose:**
+```bash
+cd audit-service
+docker compose up -d
+```
+
+**Using Docker:**
+```bash
+# Build image
+docker build -t audit-service .
+
+# Run container
+docker run -d \
+  -p 3001:3001 \
+  -e DB_PATH=/data/audit.db \
+  -v audit-data:/data \
+  --name audit-service \
+  audit-service
+```
+
+**Using Standalone Binary:**
+```bash
+cd audit-service
+go build -o audit-service
+./audit-service
+```
+
+#### Step 2: Configure Services to Use Audit Service
+
+**For Orchestration Engine:**
+```bash
+# In exchange/orchestration-engine/.env
+CHOREO_AUDIT_CONNECTION_SERVICEURL=http://localhost:3001
+ENABLE_AUDIT=true
+```
+
+**For Portal Backend:**
+```bash
+# In portal-backend/.env
+CHOREO_AUDIT_CONNECTION_SERVICEURL=http://localhost:3001
+ENABLE_AUDIT=true
+```
+
+#### Step 3: Verify Audit Logging
+
+1. Make a request to Orchestration Engine or Portal Backend
+2. Check audit service logs: `GET http://localhost:3001/api/audit-logs`
+3. Verify events are being logged with trace IDs
+
+### Docker Compose Usage
+
+The audit service has its own `docker-compose.yml` for standalone deployment:
+
+```bash
+# Deploy audit service separately
+cd audit-service
+docker compose up -d
+
+# Or include in your main docker-compose.yml (optional)
+# See audit-service/docker-compose.yml for reference
+```
+
+**Note:** The main `exchange/docker-compose.yml` does not include audit-service by default. Deploy it separately or add it manually if needed.
+
+### Environment Variables for Enabling/Disabling
+
+| Service | Environment Variable | Default | Description |
+|---------|---------------------|---------|------------|
+| Orchestration Engine | `CHOREO_AUDIT_CONNECTION_SERVICEURL` | Empty | Audit service base URL |
+| Orchestration Engine | `ENABLE_AUDIT` | `true` (if URL set) | Enable/disable audit logging |
+| Portal Backend | `CHOREO_AUDIT_CONNECTION_SERVICEURL` | Empty | Audit service base URL |
+| Portal Backend | `ENABLE_AUDIT` | `true` (if URL set) | Enable/disable audit logging |
+
+### Graceful Degradation
+
+- Services continue to function normally if audit service is unavailable
+- No errors are thrown when audit service URL is not configured
+- Audit operations are asynchronous (fire-and-forget) to avoid blocking requests
+- Services can be started before audit service is ready
+
 ## Docker
 
 ```bash

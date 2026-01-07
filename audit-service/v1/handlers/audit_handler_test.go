@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,33 +10,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gov-dx-sandbox/audit-service/config"
-	"github.com/gov-dx-sandbox/audit-service/v1/database"
 	v1models "github.com/gov-dx-sandbox/audit-service/v1/models"
 	v1services "github.com/gov-dx-sandbox/audit-service/v1/services"
+	v1testutil "github.com/gov-dx-sandbox/audit-service/v1/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// mockRepository for handler tests
-type mockRepository struct {
-	logs []*v1models.AuditLog
-}
-
-func (m *mockRepository) CreateAuditLog(ctx context.Context, log *v1models.AuditLog) (*v1models.AuditLog, error) {
-	if log.ID == uuid.Nil {
-		log.ID = uuid.New()
-	}
-	m.logs = append(m.logs, log)
-	return log, nil
-}
-
-func (m *mockRepository) GetAuditLogsByTraceID(ctx context.Context, traceID string) ([]v1models.AuditLog, error) {
-	return nil, nil
-}
-
-func (m *mockRepository) GetAuditLogs(ctx context.Context, filters *database.AuditLogFilters) ([]v1models.AuditLog, int64, error) {
-	return nil, 0, nil
-}
 
 func TestAuditHandler_CreateAuditLog(t *testing.T) {
 	// Set up enum configuration
@@ -50,7 +28,7 @@ func TestAuditHandler_CreateAuditLog(t *testing.T) {
 	enums.InitializeMaps()
 	v1models.SetEnumConfig(enums)
 
-	mockRepo := &mockRepository{}
+	mockRepo := v1testutil.NewMockRepository()
 	service := v1services.NewAuditService(mockRepo)
 	handler := NewAuditHandler(service)
 
@@ -166,4 +144,52 @@ func TestAuditHandler_CreateAuditLog(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuditHandler_GetAuditLogs(t *testing.T) {
+	mockRepo := v1testutil.NewMockRepository()
+	service := v1services.NewAuditService(mockRepo)
+	handler := NewAuditHandler(service)
+
+	t.Run("InvalidTraceID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?traceId=invalid", nil)
+		w := httptest.NewRecorder()
+
+		handler.GetAuditLogs(w, req)
+
+		// Invalid traceID format should return 400 Bad Request (not 500)
+		assert.Equal(t, http.StatusBadRequest, w.Code, "Expected 400 Bad Request for invalid traceId format")
+
+		var errorResp v1models.ErrorResponse
+		err := json.Unmarshal(w.Body.Bytes(), &errorResp)
+		assert.NoError(t, err)
+		assert.Contains(t, errorResp.Error, "Invalid traceId format")
+	})
+
+	t.Run("ValidTraceID", func(t *testing.T) {
+		traceID := uuid.New().String()
+		req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?traceId="+traceID, nil)
+		w := httptest.NewRecorder()
+
+		handler.GetAuditLogs(w, req)
+
+		// Should return 200 OK even if no logs found
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response v1models.GetAuditLogsResponse
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(0), response.Total)
+		assert.Empty(t, response.Logs)
+	})
+
+	t.Run("NoTraceID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/audit-logs", nil)
+		w := httptest.NewRecorder()
+
+		handler.GetAuditLogs(w, req)
+
+		// Should return 200 OK (traceId is optional)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }
