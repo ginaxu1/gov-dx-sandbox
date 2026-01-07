@@ -1,10 +1,12 @@
 # Audit Service
 
-A Go microservice for managing audit logs, providing both read and write operations for data exchange events and management events.
+A Go microservice for managing audit logs, providing both read and write operations for generalized audit events.
 
 ## Overview
 
-The Audit Service answers: "who made this request, what did they ask for, and did they get that data" by providing APIs for logging and querying audit events. It handles both data exchange events (from Orchestration Engine) and management events (from Portal Backend).
+The Audit Service answers: "who made this request, what did they ask for, and did they get that data" by providing APIs for logging and querying audit events. It provides a generalized, reusable audit logging solution that can be used across different services.
+
+**Note:** Audit service is **optional**. Services can function normally with or without audit logging enabled. See [AUDIT_SERVICE.md](../exchange/AUDIT_SERVICE.md) for configuration details.
 
 ## Features
 

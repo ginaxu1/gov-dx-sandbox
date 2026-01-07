@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,37 +12,29 @@ import (
 func TestNewDatabaseConfig(t *testing.T) {
 	config := NewDatabaseConfig()
 	assert.NotNil(t, config)
-	assert.NotEmpty(t, config.Host)
-	assert.NotEmpty(t, config.Port)
-	assert.NotEmpty(t, config.Username)
-	assert.NotEmpty(t, config.Password)
-	assert.NotEmpty(t, config.Database)
-	assert.Equal(t, 25, config.MaxOpenConns)
-	assert.Equal(t, 5, config.MaxIdleConns)
-	assert.Equal(t, time.Hour, config.ConnMaxLifetime)
-	assert.Equal(t, 30*time.Minute, config.ConnMaxIdleTime)
+	assert.NotEmpty(t, config.DatabasePath)
+	assert.Equal(t, "./data/audit.db", config.DatabasePath) // Default path
+	assert.Equal(t, 1, config.MaxOpenConns)                 // SQLite default: 1 to prevent lock contention
+	assert.Equal(t, 1, config.MaxIdleConns)                 // SQLite default: 1 (matches MaxOpenConns)
+	assert.Equal(t, time.Hour, config.ConnMaxLifetime)      // Default: 1 hour
+	assert.Equal(t, 15*time.Minute, config.ConnMaxIdleTime) // Default: 15 minutes
 }
 
 func TestNewDatabaseConfig_WithEnvVars(t *testing.T) {
-	os.Setenv("CHOREO_OPENDIF_DATABASE_HOSTNAME", "test-host")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_PORT", "5433")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_USERNAME", "test-user")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_PASSWORD", "test-pass")
-	os.Setenv("CHOREO_OPENDIF_DATABASE_DATABASENAME", "test-db")
+	testPath := "/tmp/test-audit.db"
+	os.Setenv("DB_PATH", testPath)
+	os.Setenv("DB_MAX_OPEN_CONNS", "50")
+	os.Setenv("DB_MAX_IDLE_CONNS", "10")
 	defer func() {
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_HOSTNAME")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_PORT")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_USERNAME")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_PASSWORD")
-		os.Unsetenv("CHOREO_OPENDIF_DATABASE_DATABASENAME")
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
 	}()
 
 	config := NewDatabaseConfig()
-	assert.Equal(t, "test-host", config.Host)
-	assert.Equal(t, "5433", config.Port)
-	assert.Equal(t, "test-user", config.Username)
-	assert.Equal(t, "test-pass", config.Password)
-	assert.Equal(t, "test-db", config.Database)
+	assert.Equal(t, testPath, config.DatabasePath)
+	assert.Equal(t, 50, config.MaxOpenConns)
+	assert.Equal(t, 10, config.MaxIdleConns)
 }
 
 func TestParseIntOrDefault(t *testing.T) {
@@ -78,7 +71,7 @@ func TestParseDurationOrDefault(t *testing.T) {
 		os.Setenv(key, "2h")
 		defer os.Unsetenv(key)
 
-		result := parseDurationOrDefault(key, "1h")
+		result := parseDurationOrDefault(key, time.Hour)
 		assert.Equal(t, 2*time.Hour, result)
 	})
 
@@ -86,17 +79,40 @@ func TestParseDurationOrDefault(t *testing.T) {
 		key := "TEST_DURATION_VAR_NONEXISTENT_12345"
 		os.Unsetenv(key)
 
-		result := parseDurationOrDefault(key, "1h")
-		assert.Equal(t, 1*time.Hour, result)
+		result := parseDurationOrDefault(key, 30*time.Minute)
+		assert.Equal(t, 30*time.Minute, result)
 	})
 
 	t.Run("Returns default when invalid", func(t *testing.T) {
 		key := "TEST_DURATION_VAR_INVALID_12345"
-		os.Setenv(key, "invalid-duration")
+		os.Setenv(key, "not-a-duration")
 		defer os.Unsetenv(key)
 
-		result := parseDurationOrDefault(key, "1h")
-		assert.Equal(t, 1*time.Hour, result)
+		result := parseDurationOrDefault(key, 15*time.Minute)
+		assert.Equal(t, 15*time.Minute, result)
+	})
+
+	t.Run("Handles various valid duration formats", func(t *testing.T) {
+		testCases := []struct {
+			value    string
+			expected time.Duration
+		}{
+			{"30m", 30 * time.Minute},
+			{"1h30m", 90 * time.Minute},
+			{"15s", 15 * time.Second},
+			{"2h", 2 * time.Hour},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.value, func(t *testing.T) {
+				key := "TEST_DURATION_VAR_FORMAT_12345"
+				os.Setenv(key, tc.value)
+				defer os.Unsetenv(key)
+
+				result := parseDurationOrDefault(key, time.Hour)
+				assert.Equal(t, tc.expected, result)
+			})
+		}
 	})
 }
 
@@ -128,19 +144,25 @@ func TestGetEnvOrDefault(t *testing.T) {
 	})
 }
 
-func TestConnectGORM_InvalidConnection(t *testing.T) {
+func TestConnectGORM_Success(t *testing.T) {
+	// Use a temporary database file for testing
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
 	config := &DatabaseConfig{
-		Host:          "invalid-host",
-		Port:          "5432",
-		Username:      "invalid-user",
-		Password:      "invalid-password",
-		Database:      "invalid-db",
-		SSLMode:       "disable",
-		RetryAttempts: 1, // Set to 1 to fail fast
-		RetryDelay:    100 * time.Millisecond,
+		DatabasePath:    dbPath,
+		MaxOpenConns:    1, // SQLite best practice: use 1 to prevent lock contention
+		MaxIdleConns:    1,
+		ConnMaxLifetime: time.Hour,
+		ConnMaxIdleTime: 15 * time.Minute,
 	}
 
-	_, err := ConnectGORM(config)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to open GORM database connection")
+	db, err := ConnectGORM(config)
+	assert.NoError(t, err)
+	assert.NotNil(t, db)
+
+	// Verify we can ping the database
+	sqlDB, err := db.DB()
+	assert.NoError(t, err)
+	assert.NoError(t, sqlDB.Ping())
 }
