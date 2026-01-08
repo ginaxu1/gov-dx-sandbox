@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
-	auditclient "github.com/gov-dx-sandbox/shared/audit"
+	"github.com/gov-dx-sandbox/portal-backend/v1/utils"
 	auditpkg "github.com/gov-dx-sandbox/shared/audit"
 )
 
-// mockAuditClient implements AuditClient interface for testing
+// mockAuditClient implements auditpkg.AuditClient interface for testing
 type mockAuditClient struct {
 	enabled         bool
-	receivedEvents  []*AuditLogRequest
+	receivedEvents  []*auditpkg.AuditLogRequest
 	mu              sync.Mutex
 	requestReceived chan bool
 }
@@ -25,12 +25,12 @@ type mockAuditClient struct {
 func newMockAuditClient(enabled bool) *mockAuditClient {
 	return &mockAuditClient{
 		enabled:         enabled,
-		receivedEvents:  make([]*AuditLogRequest, 0),
+		receivedEvents:  make([]*auditpkg.AuditLogRequest, 0),
 		requestReceived: make(chan bool, 1),
 	}
 }
 
-func (m *mockAuditClient) LogEvent(ctx context.Context, event *AuditLogRequest) {
+func (m *mockAuditClient) LogEvent(ctx context.Context, event *auditpkg.AuditLogRequest) {
 	m.mu.Lock()
 	m.receivedEvents = append(m.receivedEvents, event)
 	m.mu.Unlock()
@@ -44,40 +44,14 @@ func (m *mockAuditClient) IsEnabled() bool {
 	return m.enabled
 }
 
-// testAuditClientAdapter adapts shared/audit.Client to AuditClient interface for testing
-type testAuditClientAdapter struct {
-	client *auditclient.Client
-}
-
-func (a *testAuditClientAdapter) LogEvent(ctx context.Context, event *AuditLogRequest) {
-	auditRequest := &auditclient.AuditLogRequest{
-		TraceID:            event.TraceID,
-		Timestamp:          event.Timestamp,
-		EventType:          event.EventType,
-		EventAction:        event.EventAction,
-		Status:             event.Status,
-		ActorType:          event.ActorType,
-		ActorID:            event.ActorID,
-		TargetType:         event.TargetType,
-		TargetID:           event.TargetID,
-		RequestMetadata:    event.RequestMetadata,
-		ResponseMetadata:   event.ResponseMetadata,
-		AdditionalMetadata: event.AdditionalMetadata,
-	}
-	a.client.LogEvent(ctx, auditRequest)
-}
-
-func (a *testAuditClientAdapter) IsEnabled() bool {
-	return a.client.IsEnabled()
-}
-
 func TestAuditMiddleware_Initialization(t *testing.T) {
 	// Reset global state for this test
-	ResetGlobalAuditMiddleware()
+	auditpkg.ResetGlobalAuditMiddleware()
 
 	// Test with audit enabled
 	mockClient1 := newMockAuditClient(true)
-	auditMiddleware := NewAuditMiddleware(mockClient1)
+	auditpkg.InitializeGlobalAudit(mockClient1)
+	auditMiddleware := auditpkg.GetGlobalAuditMiddleware()
 	if auditMiddleware.Client() == nil {
 		t.Error("Expected audit middleware to have client when provided")
 	}
@@ -86,29 +60,25 @@ func TestAuditMiddleware_Initialization(t *testing.T) {
 	}
 
 	// Test with audit disabled (create new instance, but global should already be set)
+	auditpkg.ResetGlobalAuditMiddleware()
 	mockClient2 := newMockAuditClient(false)
-	auditMiddleware2 := NewAuditMiddleware(mockClient2)
+	auditpkg.InitializeGlobalAudit(mockClient2)
+	auditMiddleware2 := auditpkg.GetGlobalAuditMiddleware()
 	if auditMiddleware2.Client() == nil {
 		t.Error("Expected audit middleware to have client instance even when disabled")
 	}
 	if auditMiddleware2.Client().IsEnabled() {
 		t.Error("Expected audit middleware to be disabled when client is disabled")
 	}
-
-	// Global should still be the first instance (due to sync.Once)
-	globalMiddleware := auditpkg.GetGlobalAuditMiddleware()
-	if globalMiddleware != auditMiddleware {
-		t.Error("Expected global instance to be the first initialized middleware")
-	}
 }
 
 func TestLogAuditEvent_GlobalFunction(t *testing.T) {
 	// Reset global state for this test
-	ResetGlobalAuditMiddleware()
+	auditpkg.ResetGlobalAuditMiddleware()
 
 	// Initialize global audit middleware
 	mockClient := newMockAuditClient(true)
-	_ = NewAuditMiddleware(mockClient)
+	auditpkg.InitializeGlobalAudit(mockClient)
 
 	// Test that LogAuditEvent doesn't panic when called
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
@@ -122,19 +92,17 @@ func TestLogAuditEvent_GlobalFunction(t *testing.T) {
 
 func TestLogAudit_SkipsReadOperations(t *testing.T) {
 	mockClient := newMockAuditClient(true)
-	auditMiddleware := NewAuditMiddleware(mockClient)
 
 	// GET request should be skipped
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	resourceID := "test-id"
-	LogAudit(auditMiddleware.Client(), req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+	LogAudit(mockClient, req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// This test passes if no panic occurs - we can't easily test HTTP calls without a mock server
 }
 
 func TestLogAudit_ProcessesWriteOperations(t *testing.T) {
 	mockClient := newMockAuditClient(true)
-	auditMiddleware := NewAuditMiddleware(mockClient)
 
 	// POST request should be processed (though it may fail to send)
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
@@ -142,19 +110,17 @@ func TestLogAudit_ProcessesWriteOperations(t *testing.T) {
 	req.Header.Set("X-User-Role", "MEMBER")
 
 	resourceID := "test-id"
-	LogAudit(auditMiddleware.Client(), req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+	LogAudit(mockClient, req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// This test passes if no panic occurs - we can't easily test HTTP calls without a mock server
 }
 
 func TestAuditMiddleware_ThreadSafety(t *testing.T) {
 	// Reset global state for this test
-	ResetGlobalAuditMiddleware()
+	auditpkg.ResetGlobalAuditMiddleware()
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup
-	var instances []*AuditMiddleware
-	var mu sync.Mutex
 
 	// Start multiple goroutines trying to initialize audit middleware concurrently
 	for i := 0; i < numGoroutines; i++ {
@@ -167,28 +133,19 @@ func TestAuditMiddleware_ThreadSafety(t *testing.T) {
 				url = "" // Mix enabled and disabled instances
 			}
 
-			var client AuditClient
+			var client auditpkg.AuditClient
 			if url != "" {
 				client = newMockAuditClient(true)
 			} else {
 				client = newMockAuditClient(false)
 			}
-			instance := NewAuditMiddleware(client)
-
-			mu.Lock()
-			instances = append(instances, instance)
-			mu.Unlock()
+			auditpkg.InitializeGlobalAudit(client)
 		}(i)
 	}
 
 	wg.Wait()
 
-	// Verify we have the expected number of instances
-	if len(instances) != numGoroutines {
-		t.Errorf("Expected %d instances, got %d", numGoroutines, len(instances))
-	}
-
-	// Verify that the global instance was set (should be one of the instances)
+	// Verify that the global instance was set
 	globalMiddleware := auditpkg.GetGlobalAuditMiddleware()
 	if globalMiddleware == nil {
 		t.Error("Expected global audit middleware to be set")
@@ -206,7 +163,7 @@ func TestAuditMiddleware_ThreadSafety(t *testing.T) {
 
 func TestLogAuditEvent_WithoutInitialization(t *testing.T) {
 	// Reset global state to ensure no global instance
-	ResetGlobalAuditMiddleware()
+	auditpkg.ResetGlobalAuditMiddleware()
 
 	// Test LogAuditEvent when global middleware is not initialized
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
@@ -235,16 +192,32 @@ func TestLogAudit_SendsRequest(t *testing.T) {
 	defer server.Close()
 
 	// For this test, we need to use the real shared/audit client since we're testing HTTP
-	sharedClient := auditclient.NewClient(server.URL)
-	auditMiddleware := NewAuditMiddleware(&testAuditClientAdapter{client: sharedClient})
+	sharedClient := auditpkg.NewClient(server.URL)
 
-	// Create request
+	// Create request with authenticated user in context
 	req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
-	req.Header.Set("X-User-ID", "test-user")
-	req.Header.Set("X-User-Role", "MEMBER")
+
+	// Create an authenticated user to put in context
+	now := time.Now().Unix()
+	claims := &models.UserClaims{
+		IdpUserID: "test-user-id",
+		Email:     "test@example.com",
+		Roles:     models.FlexibleStringSlice([]string{"OpenDIF_Member"}),
+		IssuedAt:  now,
+		ExpiresAt: now + 3600,
+	}
+
+	user, err := models.NewAuthenticatedUser(claims)
+	if err != nil {
+		t.Fatalf("Failed to create authenticated user: %v", err)
+	}
+
+	// Set user in request context using the proper utility function
+	ctx := utils.SetAuthenticatedUser(req.Context(), user)
+	req = req.WithContext(ctx)
 
 	resourceID := "test-resource-id"
-	LogAudit(auditMiddleware.Client(), req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
+	LogAudit(sharedClient, req, "TEST_RESOURCE", &resourceID, string(models.AuditStatusSuccess))
 
 	// Wait for async log to complete
 	// Note: In real code, we can't easily wait for the goroutine.
