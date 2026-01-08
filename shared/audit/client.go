@@ -129,11 +129,13 @@ func (c *Client) logEvent(ctx context.Context, event *AuditLogRequest) {
 		return
 	}
 
-	slog.Debug("Audit event logged successfully",
+	slog.Info("Audit event logged successfully",
 		"eventType", event.EventType,
+		"actorType", event.ActorType,
 		"actorId", event.ActorID,
-		"targetId", event.TargetID,
-		"status", event.Status)
+		"targetType", event.TargetType,
+		"status", event.Status,
+		"additionalMetadata", string(event.AdditionalMetadata))
 }
 
 // isAuditEnabled checks if audit logging is enabled via environment variable
