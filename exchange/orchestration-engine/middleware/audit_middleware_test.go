@@ -6,12 +6,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	auditpkg "github.com/gov-dx-sandbox/shared/audit"
 )
 
-// mockAuditClient implements AuditClient interface for testing
+// mockAuditClient implements auditpkg.AuditClient interface for testing
 type mockAuditClient struct {
 	enabled         bool
-	receivedEvents  []*AuditLogRequest
+	receivedEvents  []*auditpkg.AuditLogRequest
 	mu              sync.Mutex
 	requestReceived chan bool
 }
@@ -19,12 +21,12 @@ type mockAuditClient struct {
 func newMockAuditClient(enabled bool) *mockAuditClient {
 	return &mockAuditClient{
 		enabled:         enabled,
-		receivedEvents:  make([]*AuditLogRequest, 0),
+		receivedEvents:  make([]*auditpkg.AuditLogRequest, 0),
 		requestReceived: make(chan bool, 1),
 	}
 }
 
-func (m *mockAuditClient) LogEvent(ctx context.Context, event *AuditLogRequest) {
+func (m *mockAuditClient) LogEvent(ctx context.Context, event *auditpkg.AuditLogRequest) {
 	m.mu.Lock()
 	m.receivedEvents = append(m.receivedEvents, event)
 	m.mu.Unlock()
@@ -40,33 +42,30 @@ func (m *mockAuditClient) IsEnabled() bool {
 
 func TestLogAuditEvent(t *testing.T) {
 	// Reset global middleware before test
-	ResetGlobalAuditMiddleware()
+	auditpkg.ResetGlobalAuditMiddleware()
 
 	// Create a mock audit client
 	mockClient := newMockAuditClient(true)
 
 	// Initialize audit middleware with mock client
-	middleware := NewAuditMiddleware(mockClient)
-	if middleware == nil {
-		t.Fatal("Failed to create audit middleware")
-	}
+	auditpkg.InitializeGlobalAudit(mockClient)
 
-	// Create test audit request using local DTO
+	// Create test audit request using shared audit DTO
 	traceID := "550e8400-e29b-41d4-a716-446655440000"
 	eventType := "POLICY_CHECK"
-	testRequest := &AuditLogRequest{
+	testRequest := &auditpkg.AuditLogRequest{
 		TraceID:         &traceID,
 		Timestamp:       time.Now().UTC().Format(time.RFC3339),
 		EventType:       &eventType,
-		Status:          AuditStatusSuccess,
+		Status:          auditpkg.StatusSuccess,
 		ActorType:       "SERVICE",
 		ActorID:         "orchestration-engine",
 		TargetType:      "SERVICE",
 		RequestMetadata: json.RawMessage(`{"appId": "test-app-123"}`),
 	}
 
-	// Call LogAuditEvent
-	LogAuditEvent(context.Background(), testRequest)
+	// Call LogAuditEvent from shared package
+	auditpkg.LogAuditEvent(context.Background(), testRequest)
 
 	// Wait for the async operation to complete with timeout
 	select {
@@ -90,7 +89,7 @@ func TestLogAuditEvent(t *testing.T) {
 		t.Errorf("Expected ActorID %s, got %s", expectedActorID, receivedRequest.ActorID)
 	}
 
-	expectedStatus := "SUCCESS"
+	expectedStatus := auditpkg.StatusSuccess
 	if receivedRequest.Status != expectedStatus {
 		t.Errorf("Expected Status %s, got %s", expectedStatus, receivedRequest.Status)
 	}
@@ -98,30 +97,27 @@ func TestLogAuditEvent(t *testing.T) {
 
 func TestLogAuditEventWhenNotConfigured(t *testing.T) {
 	// Reset global middleware before test
-	ResetGlobalAuditMiddleware()
+	auditpkg.ResetGlobalAuditMiddleware()
 
 	// Initialize audit middleware with disabled mock client
 	mockClient := newMockAuditClient(false)
-	middleware := NewAuditMiddleware(mockClient)
-	if middleware == nil {
-		t.Fatal("Failed to create audit middleware")
-	}
+	auditpkg.InitializeGlobalAudit(mockClient)
 
-	// Create test audit request using local DTO
+	// Create test audit request using shared audit DTO
 	traceID := "550e8400-e29b-41d4-a716-446655440000"
 	eventType := "POLICY_CHECK"
-	testRequest := &AuditLogRequest{
+	testRequest := &auditpkg.AuditLogRequest{
 		TraceID:    &traceID,
 		Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		EventType:  &eventType,
-		Status:     AuditStatusSuccess,
+		Status:     auditpkg.StatusSuccess,
 		ActorType:  "SERVICE",
 		ActorID:    "orchestration-engine",
 		TargetType: "SERVICE",
 	}
 
 	// This should not panic or cause errors
-	LogAuditEvent(context.Background(), testRequest)
+	auditpkg.LogAuditEvent(context.Background(), testRequest)
 
 	// Give some time for any potential async operation
 	time.Sleep(50 * time.Millisecond)
@@ -131,23 +127,23 @@ func TestLogAuditEventWhenNotConfigured(t *testing.T) {
 
 func TestLogAuditEventWhenGlobalMiddlewareNotInitialized(t *testing.T) {
 	// Reset global middleware to simulate uninitialized state
-	ResetGlobalAuditMiddleware()
+	auditpkg.ResetGlobalAuditMiddleware()
 
-	// Create test audit request using local DTO
+	// Create test audit request using shared audit DTO
 	traceID := "550e8400-e29b-41d4-a716-446655440000"
 	eventType := "POLICY_CHECK"
-	testRequest := &AuditLogRequest{
+	testRequest := &auditpkg.AuditLogRequest{
 		TraceID:    &traceID,
 		Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		EventType:  &eventType,
-		Status:     AuditStatusSuccess,
+		Status:     auditpkg.StatusSuccess,
 		ActorType:  "SERVICE",
 		ActorID:    "orchestration-engine",
 		TargetType: "SERVICE",
 	}
 
 	// This should not panic or cause errors
-	LogAuditEvent(context.Background(), testRequest)
+	auditpkg.LogAuditEvent(context.Background(), testRequest)
 
 	// Test passes if no panic occurs
 }
