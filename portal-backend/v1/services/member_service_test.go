@@ -96,16 +96,37 @@ func (m *MockIDP) AddMemberToGroup(ctx context.Context, groupID string, memberIn
 }
 
 func (m *MockIDP) CreateApplication(ctx context.Context, app *idp.Application) (*string, error) {
-	return nil, nil
+	if m.CreateApplicationFunc != nil {
+		return m.CreateApplicationFunc(ctx, app)
+	}
+	appID := "mock-idp-app-id"
+	return &appID, nil
 }
-func (m *MockIDP) DeleteApplication(ctx context.Context, applicationID string) error { return nil }
-func (m *MockIDP) DeleteGroup(ctx context.Context, groupID string) error             { return nil }
+
+func (m *MockIDP) DeleteApplication(ctx context.Context, applicationID string) error {
+	if m.DeleteApplicationFunc != nil {
+		return m.DeleteApplicationFunc(ctx, applicationID)
+	}
+	return nil
+}
+
+func (m *MockIDP) DeleteGroup(ctx context.Context, groupID string) error { return nil }
+
 func (m *MockIDP) GetApplicationInfo(ctx context.Context, applicationID string) (*idp.ApplicationInfo, error) {
+	if m.GetApplicationInfoFunc != nil {
+		return m.GetApplicationInfoFunc(ctx, applicationID)
+	}
 	return nil, nil
 }
 
 func (m *MockIDP) GetApplicationOIDC(ctx context.Context, applicationID string) (*idp.ApplicationOIDCInfo, error) {
-	return nil, nil
+	if m.GetApplicationOIDCFunc != nil {
+		return m.GetApplicationOIDCFunc(ctx, applicationID)
+	}
+	return &idp.ApplicationOIDCInfo{
+		ClientId:     "mock-client-id",
+		ClientSecret: "mock-client-secret",
+	}, nil
 }
 
 // setupMemberMockDB creates a mock database for testing

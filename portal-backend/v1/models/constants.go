@@ -52,3 +52,8 @@ const (
 	MaxPhoneLength       = 15  // E.164 format
 	MaxEndpointLength    = 2048
 )
+
+// IDP Application Constants
+const (
+	TemplateIDM2M = "m2m-application"
+)
