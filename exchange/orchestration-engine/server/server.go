@@ -15,6 +15,7 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
 	"github.com/go-chi/chi/v5"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 )
 
 type Response struct {
@@ -54,6 +55,7 @@ func RunServer(f *federator.Federator) {
 // SetupRouter initializes the router and registers all endpoints
 func SetupRouter(f *federator.Federator) *chi.Mux {
 	mux := chi.NewRouter()
+	mux.Use(monitoring.HTTPMetricsMiddleware)
 
 	// Initialize database connection
 	dbConnectionString := getDatabaseConnectionString()
@@ -92,6 +94,9 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 		}
 	})
 
+	// Metrics endpoint
+	mux.Method("GET", "/metrics", monitoring.Handler())
+
 	// Schema management routes
 	mux.Get("/sdl", schemaHandler.GetActiveSchema)
 	mux.Post("/sdl", schemaHandler.CreateSchema)
@@ -104,6 +109,7 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 
 	// Publicly accessible Endpoints
 	mux.Post("/public/graphql", func(w http.ResponseWriter, r *http.Request) {
+
 		// Parse request body
 		var req graphql.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -148,6 +154,12 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 			logger.Log.Error("Failed to write response", "error", err)
 			return
 		}
+
+		outcome := "success"
+		if len(response.Errors) > 0 {
+			outcome = "failure"
+		}
+		monitoring.RecordBusinessEvent("graphql_request", outcome)
 	})
 
 	return mux
