@@ -241,6 +241,13 @@ func main() {
 	// All traffic to /api/v1/ (and its sub-paths) will pass through the middleware chain
 	topLevelMux.Handle("/api/v1/", protectedAPIHandler)
 
+	// Register internal API routes (no authentication required for internal services)
+	// SECURITY WARNING: These endpoints are exposed WITHOUT authentication!
+	// MUST be protected at network level (VPC, firewall, service mesh, etc.)
+	// See README.md "Deployment Security" section for required security measures.
+	// DO NOT expose this service directly to public internet without proper network isolation.
+	topLevelMux.Handle("/internal/api/v1/", http.StripPrefix("", apiMux))
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -604,6 +604,69 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /internal/api/v1/applications:
+    get:
+      summary: Get application ID by IDP Client ID (Internal)
+      description: |
+        **Internal endpoint for service-to-service communication.**
+        
+        Retrieves the application ID using the Identity Provider (IDP) Client ID.
+        This endpoint is used by internal services (e.g., Orchestration Engine) to 
+        identify which application is making a request by decoding the app token 
+        and extracting the IDP Client ID.
+        
+        **Authentication:** No authentication required (internal use only)
+        
+        **Use Case:** When the Orchestration Engine receives a data access request,
+        it decodes the M2M app token to extract the `client_id` (IDP Client ID),
+        then calls this endpoint to determine which application in the system
+        corresponds to that client ID.
+      operationId: getApplicationIdByIdpClientId
+      tags:
+        - Internal - Applications
+      parameters:
+        - name: idpClientId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The IDP Client ID from the M2M application token
+          example: "a1b2c3d4e5f6g7h8i9j0"
+      responses:
+        '200':
+          description: Application ID retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applicationId:
+                    type: string
+                    description: The application ID corresponding to the IDP Client ID
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+        '400':
+          description: Bad Request - Missing or invalid idpClientId parameter
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "idpClientId query parameter is required"
+        '404':
+          description: Not Found - No application found for the given IDP Client ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "application not found for idpClientId: a1b2c3d4e5f6g7h8i9j0"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /api/v1/application-submissions:
     get:
       summary: List all application submissions
@@ -886,10 +949,29 @@ components:
               type: string
               nullable: true
               description: Description of the application
+            selectedFields:
+              type: array
+              items:
+                $ref: '#/components/schemas/SelectedFieldRecord'
+              description: Selected fields for data access
             status:
               type: string
               enum: [pending, approved, rejected]
               description: Application status
+            version:
+              type: string
+              enum: [active, deprecated]
+              description: Version status of the application
+            idpApplicationId:
+              type: string
+              nullable: true
+              description: Identity Provider application ID for M2M authentication
+              example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            idpClientId:
+              type: string
+              nullable: true
+              description: Identity Provider Client ID used for M2M token authentication
+              example: "a1b2c3d4e5f6g7h8i9j0"
             memberId:
               type: string
               description: Reference to the owning member

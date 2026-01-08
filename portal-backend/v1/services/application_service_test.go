@@ -2,9 +2,12 @@ package services
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
@@ -30,7 +33,8 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
 		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
 
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		desc := "Test Description"
 		req := &models.CreateApplicationRequest{
@@ -53,7 +57,7 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 		// Let's check CreateApplication implementation.
 		// It returns *models.ApplicationResponse, error.
 
-		resp, err := service.CreateApplication(req)
+		resp, err := service.CreateApplication(context.Background(), req)
 
 		// Assert
 		assert.NoError(t, err)
@@ -83,7 +87,8 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
 		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
 
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		desc := "Test Description"
 		req := &models.CreateApplicationRequest{
@@ -105,7 +110,7 @@ func TestApplicationService_CreateApplication(t *testing.T) {
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
 		// Act
-		resp, err := service.CreateApplication(req)
+		resp, err := service.CreateApplication(context.Background(), req)
 
 		// Assert
 		assert.Error(t, err)
@@ -122,7 +127,8 @@ func TestApplicationService_UpdateApplication(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		// 1. First find the application
@@ -141,7 +147,7 @@ func TestApplicationService_UpdateApplication(t *testing.T) {
 			ApplicationDescription: &newDesc,
 		}
 
-		result, err := service.UpdateApplication("app_123", req)
+		result, err := service.UpdateApplication(context.Background(), "app_123", req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -160,7 +166,8 @@ func TestApplicationService_UpdateApplication(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations - return no rows
 		mock.ExpectQuery(`SELECT .*`).
@@ -171,7 +178,7 @@ func TestApplicationService_UpdateApplication(t *testing.T) {
 			ApplicationName: &newName,
 		}
 
-		result, err := service.UpdateApplication("non-existent-id", req)
+		result, err := service.UpdateApplication(context.Background(), "non-existent-id", req)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -187,7 +194,8 @@ func TestApplicationService_GetApplication(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .*`).
@@ -200,7 +208,7 @@ func TestApplicationService_GetApplication(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"member_id", "name"}).
 				AddRow("member-123", "Test Member"))
 
-		result, err := service.GetApplication("app_123")
+		result, err := service.GetApplication(context.Background(), "app_123")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -217,13 +225,14 @@ func TestApplicationService_GetApplication(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .*`).
 			WillReturnError(gorm.ErrRecordNotFound)
 
-		result, err := service.GetApplication("non-existent-id")
+		result, err := service.GetApplication(context.Background(), "non-existent-id")
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -239,7 +248,8 @@ func TestApplicationService_GetApplications(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .* FROM "applications" ORDER BY created_at DESC`).
@@ -256,7 +266,7 @@ func TestApplicationService_GetApplications(t *testing.T) {
 				AddRow("member-1", "Member 1").
 				AddRow("member-2", "Member 2"))
 
-		result, err := service.GetApplications(nil)
+		result, err := service.GetApplications(context.Background(), nil)
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
@@ -269,7 +279,8 @@ func TestApplicationService_GetApplications(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		memberID := "member-123"
 
@@ -285,7 +296,7 @@ func TestApplicationService_GetApplications(t *testing.T) {
 			WillReturnRows(sqlmock.NewRows([]string{"member_id", "name"}).
 				AddRow(memberID, "Member 1"))
 
-		result, err := service.GetApplications(&memberID)
+		result, err := service.GetApplications(context.Background(), &memberID)
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
@@ -301,7 +312,8 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		// 1. Validate member
@@ -322,7 +334,7 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 			MemberID: "member-123",
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -339,7 +351,8 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .*`).
@@ -355,7 +368,7 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 			MemberID: "non-existent-member",
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -371,7 +384,8 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		// 1. Find submission
@@ -388,7 +402,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 			ApplicationName: &newName,
 		}
 
-		result, err := service.UpdateApplicationSubmission("sub_123", req)
+		result, err := service.UpdateApplicationSubmission(context.Background(), "sub_123", req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -404,7 +418,8 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .*`).
@@ -412,7 +427,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 
 		updatedName := "Updated"
 		req := &models.UpdateApplicationSubmissionRequest{ApplicationName: &updatedName}
-		result, err := service.UpdateApplicationSubmission("non-existent", req)
+		result, err := service.UpdateApplicationSubmission(context.Background(), "non-existent", req)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -438,7 +453,8 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
 		pdpService.HTTPClient = &http.Client{Transport: mockTransport}
 
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		// 1. Find submission
@@ -467,7 +483,7 @@ func TestApplicationService_UpdateApplicationSubmission(t *testing.T) {
 			Status: &status,
 		}
 
-		result, err := service.UpdateApplicationSubmission("sub_123", req)
+		result, err := service.UpdateApplicationSubmission(context.Background(), "sub_123", req)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -483,7 +499,8 @@ func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .*`).
@@ -500,7 +517,7 @@ func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 		// But if it does, we should expect it. Let's see.
 		// If PreviousApplicationID is null, GORM usually skips.
 
-		result, err := service.GetApplicationSubmission("sub_123")
+		result, err := service.GetApplicationSubmission(context.Background(), "sub_123")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -517,13 +534,14 @@ func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .*`).
 			WillReturnError(gorm.ErrRecordNotFound)
 
-		result, err := service.GetApplicationSubmission("non-existent")
+		result, err := service.GetApplicationSubmission(context.Background(), "non-existent")
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -539,7 +557,8 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		mock.ExpectQuery(`SELECT .*`).
@@ -553,7 +572,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 
 		// Preload PreviousApplication (none)
 
-		result, err := service.GetApplicationSubmissions(nil, nil)
+		result, err := service.GetApplicationSubmissions(context.Background(), nil, nil)
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
@@ -566,7 +585,8 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		memberID := "member-123"
 
@@ -581,7 +601,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 			WithArgs(memberID).
 			WillReturnRows(sqlmock.NewRows([]string{"member_id", "name"}).AddRow(memberID, "Test Member"))
 
-		result, err := service.GetApplicationSubmissions(&memberID, nil)
+		result, err := service.GetApplicationSubmissions(context.Background(), &memberID, nil)
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
@@ -595,7 +615,8 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		statusFilter := []string{string(models.StatusApproved)}
 
@@ -610,10 +631,10 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 			WithArgs("member-123").
 			WillReturnRows(sqlmock.NewRows([]string{"member_id", "name"}).AddRow("member-123", "Test Member"))
 
-		result, err := service.GetApplicationSubmissions(nil, &statusFilter)
+		result, err := service.GetApplicationSubmissions(context.Background(), nil, &statusFilter)
 
 		assert.NoError(t, err)
-		if result != nil && len(result) > 0 {
+		if len(result) > 0 {
 			assert.Equal(t, string(models.StatusApproved), result[0].Status)
 		}
 
@@ -627,7 +648,8 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		req := &models.CreateApplicationRequest{
 			ApplicationName: "Test Application",
@@ -663,7 +685,7 @@ func TestApplicationService_CreateApplication_EdgeCases(t *testing.T) {
 		mock.ExpectExec(`DELETE FROM "applications"`).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
-		_, err := service.CreateApplication(req)
+		_, err := service.CreateApplication(context.Background(), req)
 		assert.Error(t, err)
 
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -676,7 +698,8 @@ func TestApplicationService_UpdateApplication_EdgeCases(t *testing.T) {
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		// 1. Find application
@@ -693,7 +716,7 @@ func TestApplicationService_UpdateApplication_EdgeCases(t *testing.T) {
 			ApplicationName: &newName,
 		}
 
-		result, err := service.UpdateApplication("app_123", req)
+		result, err := service.UpdateApplication(context.Background(), "app_123", req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -716,7 +739,8 @@ func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) 
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		// 1. Validate previous application
@@ -743,7 +767,7 @@ func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) 
 			PreviousApplicationID: &prevAppID,
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -759,7 +783,8 @@ func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) 
 		defer cleanup()
 
 		pdpService := NewPDPService("http://mock-pdp", "mock-key")
-		service := NewApplicationService(db, pdpService)
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
 
 		// Mock DB expectations
 		// 1. Validate previous application
@@ -774,12 +799,123 @@ func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) 
 			PreviousApplicationID: &invalidAppID,
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
 		assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestApplicationService_GetApplicationIdByIdpClientId(t *testing.T) {
+	t.Run("Success_ValidClientId", func(t *testing.T) {
+		db, mock, cleanup := SetupMockDB(t)
+		defer cleanup()
+
+		pdpService := NewPDPService("http://mock-pdp", "mock-key")
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
+
+		expectedAppID := "app-123"
+		clientID := "client-456"
+
+		// Mock DB expectations
+		mock.ExpectQuery(`SELECT \* FROM "applications" WHERE idp_client_id`).
+			WithArgs(clientID, 1).
+			WillReturnRows(sqlmock.NewRows([]string{
+				"application_id", "application_name", "application_description",
+				"selected_fields", "member_id", "version", "idp_application_id",
+				"idp_client_id", "created_at", "updated_at",
+			}).AddRow(
+				expectedAppID, "Test App", "Description",
+				`[{"fieldName":"field1","schemaId":"schema-123"}]`, "member-123",
+				"active", "idp-app-123", clientID,
+				time.Now(), time.Now(),
+			))
+
+		// Act
+		result, err := service.GetApplicationIdByIdpClientId(context.Background(), clientID)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, expectedAppID, result.ApplicationID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error_ClientIdNotFound", func(t *testing.T) {
+		db, mock, cleanup := SetupMockDB(t)
+		defer cleanup()
+
+		pdpService := NewPDPService("http://mock-pdp", "mock-key")
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
+
+		clientID := "non-existent-client"
+
+		// Mock DB expectations - return no rows
+		mock.ExpectQuery(`SELECT \* FROM "applications" WHERE idp_client_id`).
+			WithArgs(clientID, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		// Act
+		result, err := service.GetApplicationIdByIdpClientId(context.Background(), clientID)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "application not found for idpClientId")
+		assert.Contains(t, err.Error(), clientID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error_DatabaseError", func(t *testing.T) {
+		db, mock, cleanup := SetupMockDB(t)
+		defer cleanup()
+
+		pdpService := NewPDPService("http://mock-pdp", "mock-key")
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
+
+		clientID := "client-789"
+		dbError := fmt.Errorf("database connection error")
+
+		// Mock DB expectations - return database error
+		mock.ExpectQuery(`SELECT \* FROM "applications" WHERE idp_client_id`).
+			WithArgs(clientID, 1).
+			WillReturnError(dbError)
+
+		// Act
+		result, err := service.GetApplicationIdByIdpClientId(context.Background(), clientID)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "failed to retrieve application")
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Error_EmptyClientId", func(t *testing.T) {
+		db, mock, cleanup := SetupMockDB(t)
+		defer cleanup()
+
+		pdpService := NewPDPService("http://mock-pdp", "mock-key")
+		mockIDP := &MockIDP{}
+		service := NewApplicationService(db, pdpService, mockIDP)
+
+		// Mock DB expectations
+		mock.ExpectQuery(`SELECT \* FROM "applications" WHERE idp_client_id`).
+			WithArgs("", 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		// Act
+		result, err := service.GetApplicationIdByIdpClientId(context.Background(), "")
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, result)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
