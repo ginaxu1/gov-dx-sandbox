@@ -1,12 +1,8 @@
 #!/bin/sh
 set -e
 
-# Ensure the public directory exists
-mkdir -p /usr/share/nginx/html/public
-
 # Generate config.js from environment variables at runtime
-# Note: Consent portal expects config.js at ./public/config.js (different from other portals)
-cat > /usr/share/nginx/html/public/config.js << EOF
+cat > /usr/share/nginx/html/config.js << EOF
 window.configs = {
   apiUrl: '${VITE_API_URL:-}',
   VITE_CLIENT_ID: '${VITE_CLIENT_ID:-}',
