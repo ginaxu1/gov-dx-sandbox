@@ -30,6 +30,7 @@ type Config struct {
 	Schema      *string               `json:"schema,omitempty"`
 	Sdl         *string               `json:"sdl,omitempty"`
 	ArgMapping  []*graphql.ArgMapping `json:"argMapping,omitempty"`
+	JWT         JWTConfig             `json:"jwt,omitempty"`
 }
 
 // ProviderConfig represents a provider configuration
@@ -63,6 +64,13 @@ type PdpConfig struct {
 // CeConfig holds Consent Engine configuration
 type CeConfig struct {
 	ClientURL string `json:"clientUrl"`
+}
+
+// JWTConfig holds JWT validation configuration
+type JWTConfig struct {
+	ExpectedIssuer string   `json:"expectedIssuer,omitempty"`
+	ValidAudiences []string `json:"validAudiences,omitempty"`
+	JwksUrl        string   `json:"jwksUrl,omitempty"`
 }
 
 // LoadConfigFromBytes unmarshals JSON into config (pure function, testable)
