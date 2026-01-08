@@ -334,7 +334,7 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 			MemberID: "member-123",
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -368,7 +368,7 @@ func TestApplicationService_CreateApplicationSubmission(t *testing.T) {
 			MemberID: "non-existent-member",
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -517,7 +517,7 @@ func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 		// But if it does, we should expect it. Let's see.
 		// If PreviousApplicationID is null, GORM usually skips.
 
-		result, err := service.GetApplicationSubmission("sub_123")
+		result, err := service.GetApplicationSubmission(context.Background(), "sub_123")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -541,7 +541,7 @@ func TestApplicationService_GetApplicationSubmission(t *testing.T) {
 		mock.ExpectQuery(`SELECT .*`).
 			WillReturnError(gorm.ErrRecordNotFound)
 
-		result, err := service.GetApplicationSubmission("non-existent")
+		result, err := service.GetApplicationSubmission(context.Background(), "non-existent")
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -572,7 +572,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 
 		// Preload PreviousApplication (none)
 
-		result, err := service.GetApplicationSubmissions(nil, nil)
+		result, err := service.GetApplicationSubmissions(context.Background(), nil, nil)
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
@@ -601,7 +601,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 			WithArgs(memberID).
 			WillReturnRows(sqlmock.NewRows([]string{"member_id", "name"}).AddRow(memberID, "Test Member"))
 
-		result, err := service.GetApplicationSubmissions(&memberID, nil)
+		result, err := service.GetApplicationSubmissions(context.Background(), &memberID, nil)
 
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
@@ -631,7 +631,7 @@ func TestApplicationService_GetApplicationSubmissions(t *testing.T) {
 			WithArgs("member-123").
 			WillReturnRows(sqlmock.NewRows([]string{"member_id", "name"}).AddRow("member-123", "Test Member"))
 
-		result, err := service.GetApplicationSubmissions(nil, &statusFilter)
+		result, err := service.GetApplicationSubmissions(context.Background(), nil, &statusFilter)
 
 		assert.NoError(t, err)
 		if len(result) > 0 {
@@ -767,7 +767,7 @@ func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) 
 			PreviousApplicationID: &prevAppID,
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -799,7 +799,7 @@ func TestApplicationService_CreateApplicationSubmission_EdgeCases(t *testing.T) 
 			PreviousApplicationID: &invalidAppID,
 		}
 
-		result, err := service.CreateApplicationSubmission(req)
+		result, err := service.CreateApplicationSubmission(context.Background(), req)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)

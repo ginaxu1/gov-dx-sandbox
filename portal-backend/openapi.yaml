@@ -638,9 +638,12 @@ paths:
           content:
             application/json:
               schema:
-                type: string
-                description: The application ID corresponding to the IDP Client ID
-                example: "550e8400-e29b-41d4-a716-446655440000"
+                type: object
+                properties:
+                  applicationId:
+                    type: string
+                    description: The application ID corresponding to the IDP Client ID
+                    example: "550e8400-e29b-41d4-a716-446655440000"
         '400':
           description: Bad Request - Missing or invalid idpClientId parameter
           content:

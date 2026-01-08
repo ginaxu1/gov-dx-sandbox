@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -82,24 +83,38 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *models.
 
 	_, err = s.policyService.UpdateAllowList(policyReq)
 	if err != nil {
-		// Compensation: Delete the application we just created
-		if deleteErr := s.db.Delete(&application).Error; deleteErr != nil {
-			// Log the compensation failure - this needs monitoring
-			slog.Error("Failed to compensate application creation",
+		// Compensation: Attempt both cleanup operations regardless of individual failures
+		// This ensures we don't leave orphaned resources in either system
+		var dbDeleteErr, idpDeleteErr error
+
+		// Attempt to delete from database
+		dbDeleteErr = s.db.Delete(&application).Error
+		if dbDeleteErr != nil {
+			slog.Error("Failed to delete application from database during compensation",
 				"applicationID", application.ApplicationID,
 				"originalError", err,
-				"compensationError", deleteErr)
-			// Return both errors for visibility
-			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate: %w", err, deleteErr)
+				"compensationError", dbDeleteErr)
 		}
-		// Compensation: Delete the application in IDP as well
-		if idpDeleteErr := s.idp.DeleteApplication(ctx, *application.IdpApplicationID); idpDeleteErr != nil {
-			slog.Error("Failed to compensate application creation in IDP",
+
+		// Attempt to delete from IDP regardless of database deletion result
+		idpDeleteErr = s.idp.DeleteApplication(ctx, *application.IdpApplicationID)
+		if idpDeleteErr != nil {
+			slog.Error("Failed to delete application from IDP during compensation",
 				"applicationID", application.ApplicationID,
+				"idpApplicationID", *application.IdpApplicationID,
 				"originalError", err,
 				"compensationError", idpDeleteErr)
-			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate in IDP: %w", err, idpDeleteErr)
 		}
+
+		// Determine the appropriate error response based on what failed
+		if dbDeleteErr != nil && idpDeleteErr != nil {
+			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate (DB error: %v, IDP error: %v)", err, dbDeleteErr, idpDeleteErr)
+		} else if dbDeleteErr != nil {
+			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate database deletion: %w", err, dbDeleteErr)
+		} else if idpDeleteErr != nil {
+			return nil, fmt.Errorf("failed to update allow list: %w, and failed to compensate IDP deletion: %w", err, idpDeleteErr)
+		}
+
 		slog.Info("Successfully compensated application creation", "applicationID", application.ApplicationID)
 		return nil, fmt.Errorf("failed to update allow list: %w", err)
 	}
@@ -123,7 +138,7 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *models.
 // UpdateApplication updates an existing application
 func (s *ApplicationService) UpdateApplication(ctx context.Context, applicationID string, req *models.UpdateApplicationRequest) (*models.ApplicationResponse, error) {
 	var application models.Application
-	err := s.db.First(&application, "application_id = ?", applicationID).Error
+	err := s.db.WithContext(ctx).First(&application, "application_id = ?", applicationID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -191,12 +206,12 @@ func (s *ApplicationService) GetApplication(ctx context.Context, applicationID s
 	return response, nil
 }
 
-// GetApplicationIdByIdpClientId retrives applicationId by idpClientId
+// GetApplicationIdByIdpClientId retrieves applicationId by idpClientId
 func (s *ApplicationService) GetApplicationIdByIdpClientId(ctx context.Context, idpClientId string) (*models.ApplicationIDResponse, error) {
 	var application models.Application
 	err := s.db.WithContext(ctx).First(&application, "idp_client_id = ?", idpClientId).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("application not found for idpClientId: %s", idpClientId)
 		}
 		return nil, fmt.Errorf("failed to retrieve application: %w", err)
@@ -246,11 +261,11 @@ func (s *ApplicationService) GetApplications(ctx context.Context, MemberID *stri
 }
 
 // CreateApplicationSubmission creates a new application submission
-func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateApplicationSubmissionRequest) (*models.ApplicationSubmissionResponse, error) {
+func (s *ApplicationService) CreateApplicationSubmission(ctx context.Context, req *models.CreateApplicationSubmissionRequest) (*models.ApplicationSubmissionResponse, error) {
 	// Validate previous application ID if provided
 	if req.PreviousApplicationID != nil {
 		var prevApp models.Application
-		err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error
+		err := s.db.WithContext(ctx).First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +273,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 
 	// Validate member ID
 	var member models.Member
-	err := s.db.First(&member, "member_id = ?", req.MemberID).Error
+	err := s.db.WithContext(ctx).First(&member, "member_id = ?", req.MemberID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +288,7 @@ func (s *ApplicationService) CreateApplicationSubmission(req *models.CreateAppli
 		Status:                 string(models.StatusPending),
 		MemberID:               req.MemberID,
 	}
-	if err := s.db.Create(&submission).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&submission).Error; err != nil {
 		return nil, err
 	}
 
@@ -297,7 +312,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(ctx context.Context, su
 	var submission models.ApplicationSubmission
 
 	// Find the submission
-	if err := s.db.First(&submission, "submission_id = ?", submissionID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&submission, "submission_id = ?", submissionID).Error; err != nil {
 		return nil, fmt.Errorf("application submission not found: %w", err)
 	}
 
@@ -305,7 +320,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(ctx context.Context, su
 	if req.PreviousApplicationID != nil {
 		// Validate previous application ID
 		var prevApp models.Application
-		if err := s.db.First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
+		if err := s.db.WithContext(ctx).First(&prevApp, "application_id = ?", *req.PreviousApplicationID).Error; err != nil {
 			return nil, fmt.Errorf("previous application not found: %w", err)
 		}
 	}
@@ -340,7 +355,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(ctx context.Context, su
 	}
 
 	// Save the updated submission
-	if err := s.db.Save(&submission).Error; err != nil {
+	if err := s.db.WithContext(ctx).Save(&submission).Error; err != nil {
 		return nil, fmt.Errorf("failed to update application submission: %w", err)
 	}
 
@@ -356,7 +371,7 @@ func (s *ApplicationService) UpdateApplicationSubmission(ctx context.Context, su
 		if err != nil {
 			// Compensation: Update submission status back to pending
 			submission.Status = string(models.StatusPending)
-			if updateErr := s.db.Save(&submission).Error; updateErr != nil {
+			if updateErr := s.db.WithContext(ctx).Save(&submission).Error; updateErr != nil {
 				slog.Error("Failed to compensate submission status after application creation failure",
 					"submissionID", submission.SubmissionID,
 					"originalError", err,
@@ -385,9 +400,9 @@ func (s *ApplicationService) UpdateApplicationSubmission(ctx context.Context, su
 }
 
 // GetApplicationSubmission retrieves an application submission by ID
-func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*models.ApplicationSubmissionResponse, error) {
+func (s *ApplicationService) GetApplicationSubmission(ctx context.Context, submissionID string) (*models.ApplicationSubmissionResponse, error) {
 	var submission models.ApplicationSubmission
-	err := s.db.Preload("Member").Preload("PreviousApplication").First(&submission, "submission_id = ?", submissionID).Error
+	err := s.db.WithContext(ctx).Preload("Member").Preload("PreviousApplication").First(&submission, "submission_id = ?", submissionID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -409,9 +424,9 @@ func (s *ApplicationService) GetApplicationSubmission(submissionID string) (*mod
 }
 
 // GetApplicationSubmissions retrieves all application submissions and filters by member ID if provided
-func (s *ApplicationService) GetApplicationSubmissions(MemberID *string, statusFilter *[]string) ([]models.ApplicationSubmissionResponse, error) {
+func (s *ApplicationService) GetApplicationSubmissions(ctx context.Context, MemberID *string, statusFilter *[]string) ([]models.ApplicationSubmissionResponse, error) {
 	var submissions []models.ApplicationSubmission
-	query := s.db.Preload("Member").Preload("PreviousApplication")
+	query := s.db.WithContext(ctx).Preload("Member").Preload("PreviousApplication")
 	if MemberID != nil && *MemberID != "" {
 		query = query.Where("member_id = ?", *MemberID)
 	}

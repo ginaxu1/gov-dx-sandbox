@@ -916,7 +916,7 @@ func (h *V1Handler) getAllApplicationSubmissions(w http.ResponseWriter, r *http.
 		finalMemberId = &userMemberID
 	}
 
-	submissions, err := h.applicationService.GetApplicationSubmissions(finalMemberId, statusFilter)
+	submissions, err := h.applicationService.GetApplicationSubmissions(r.Context(), finalMemberId, statusFilter)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -943,7 +943,7 @@ func (h *V1Handler) getApplicationSubmission(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	submission, err := h.applicationService.GetApplicationSubmission(submissionId)
+	submission, err := h.applicationService.GetApplicationSubmission(r.Context(), submissionId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, err.Error())
 		return
@@ -1015,7 +1015,7 @@ func (h *V1Handler) createApplicationSubmission(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	submission, err := h.applicationService.CreateApplicationSubmission(&req)
+	submission, err := h.applicationService.CreateApplicationSubmission(r.Context(), &req)
 	if err != nil {
 		// Log audit event for failure
 		middleware.LogAuditEvent(r, string(models.ResourceTypeApplicationSubmissions), nil, string(models.AuditStatusFailure))
@@ -1045,7 +1045,7 @@ func (h *V1Handler) updateApplicationSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	// Get existing submission to check ownership
-	existingSubmission, err := h.applicationService.GetApplicationSubmission(submissionId)
+	existingSubmission, err := h.applicationService.GetApplicationSubmission(r.Context(), submissionId)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, "Application submission not found")
 		return
