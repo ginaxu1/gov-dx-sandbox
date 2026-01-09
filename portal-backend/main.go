@@ -15,6 +15,7 @@ import (
 	v1handlers "github.com/gov-dx-sandbox/portal-backend/v1/handlers"
 	v1middleware "github.com/gov-dx-sandbox/portal-backend/v1/middleware"
 	v1models "github.com/gov-dx-sandbox/portal-backend/v1/models"
+	auditclient "github.com/gov-dx-sandbox/shared/audit"
 	"github.com/joho/godotenv"
 )
 
@@ -110,12 +111,14 @@ func main() {
 
 	authorizationMiddleware := v1middleware.NewAuthorizationMiddlewareWithConfig(authConfig)
 
-	// Initialize Audit system (creates global instance for direct LogAuditEvent calls from handlers)
+	// Initialize Audit system
+	// Services will work without auditing - gracefully degrades if disabled via ENABLE_AUDIT=false
+	// or if CHOREO_AUDIT_CONNECTION_SERVICEURL is not provided
 	auditServiceURL := utils.GetEnvOrDefault("CHOREO_AUDIT_CONNECTION_SERVICEURL", "http://localhost:3001")
-	_ = v1middleware.NewAuditMiddleware(auditServiceURL)
+	auditClient := auditclient.NewClient(auditServiceURL)
+	auditclient.InitializeGlobalAudit(auditClient)
 
 	// Apply middleware chain (CORS -> JWT Auth -> Authorization) to the API mux ONLY
-	// Note: Audit logging is done directly in handlers via LogAuditEvent calls, not through middleware
 	protectedAPIHandler := corsMiddleware(
 		jwtAuthMiddleware.AuthenticateJWT(
 			authorizationMiddleware.AuthorizeRequest(apiMux),
