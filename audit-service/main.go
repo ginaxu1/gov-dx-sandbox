@@ -43,9 +43,8 @@ func main() {
 	configPath := getEnvOrDefault("AUDIT_ENUMS_CONFIG", "config/enums.yaml")
 	enums, err := config.LoadEnums(configPath)
 	if err != nil {
-		slog.Warn("Failed to load enum configuration, using defaults", "error", err, "path", configPath)
-		defaultEnums := config.DefaultEnums
-		enums = &defaultEnums
+		slog.Error("Failed to load enum configuration", "error", err, "path", configPath)
+		return
 	} else {
 		slog.Info("Loaded enum configuration", "path", configPath,
 			"eventTypes", len(enums.EventTypes),

@@ -40,7 +40,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 
 	// Ensure directory exists
 	dbDir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
+	if err := os.MkdirAll(dbDir, 0o755); err != nil {
 		slog.Warn("Failed to create database directory", "path", dbDir, "error", err)
 	}
 
