@@ -10,10 +10,10 @@ The Audit Service answers: "who made this request, what did they ask for, and di
 
 ## Features
 
-- **Read and write operations** for audit logs
-- **Data exchange event logging** - Create and query data exchange events
-- **Management event logging** - Create and query management events
-- **Advanced filtering** by date, consumer, provider, and status
+- **Read and write operations** for generalized audit logs
+- **Distributed tracing support** - Track requests across services using trace IDs
+- **Flexible event classification** - Support for custom event types and actions
+- **Advanced filtering** by trace ID, event type, and status
 - **Pagination support** for large datasets
 - **CORS enabled** for cross-origin requests
 
@@ -105,13 +105,9 @@ Simply change `DB_TYPE` environment variable:
 
 ## API Endpoints
 
-### Data Exchange Events
-- `GET /api/data-exchange-events` - Retrieve data exchange event logs with filtering
-- `POST /api/data-exchange-events` - Create a new data exchange event (used by Orchestration Engine)
-
-### Management Events
-- `GET /api/management-events` - Retrieve management event logs with filtering
-- `POST /api/management-events` - Create a new management event (used by Portal Backend)
+### Audit Logs
+- `GET /api/audit-logs` - Retrieve audit logs with filtering and pagination
+- `POST /api/audit-logs` - Create a new audit log entry
 
 ### System Endpoints
 - `GET /health` - Service health check
@@ -119,81 +115,91 @@ Simply change `DB_TYPE` environment variable:
 
 ### Query Parameters
 
-**Data Exchange Events** (`GET /api/data-exchange-events`) supports:
-- `status` - Filter by status (success/failure)
-- `startDate` - Start date filter (YYYY-MM-DD)
-- `endDate` - End date filter (YYYY-MM-DD)
-- `applicationId` - Filter by application ID
-- `schemaId` - Filter by schema ID
-- `consumerId` - Filter by consumer ID
-- `providerId` - Filter by provider ID
-- `limit` - Results per page (default: 50, max: 1000)
-- `offset` - Pagination offset
+**Get Audit Logs** (`GET /api/audit-logs`) supports:
+- `traceId` - Filter by trace ID (UUID format)
+- `eventType` - Filter by event type (e.g., `POLICY_CHECK`, `MANAGEMENT_EVENT`)
+- `limit` - Maximum number of logs to return (default: 100, max: 1000)
+- `offset` - Number of logs to skip for pagination (default: 0)
 
-**Management Events** (`GET /api/management-events`) supports:
-- `eventType` - Filter by event type
-- `status` - Filter by status
-- `actorType` - Filter by actor type
-- `actorId` - Filter by actor ID
-- `actorRole` - Filter by actor role
-- `targetResource` - Filter by target resource type
-- `targetResourceId` - Filter by target resource ID
-- `startDate` - Start date filter (YYYY-MM-DD)
-- `endDate` - End date filter (YYYY-MM-DD)
-- `limit` - Results per page (default: 50, max: 1000)
-- `offset` - Pagination offset
+### Request Format
+
+**Create Audit Log** (`POST /api/audit-logs`):
+
+**Required Fields:**
+- `timestamp` - ISO 8601 timestamp (e.g., `2024-01-20T10:00:00Z`)
+- `status` - Event status: `SUCCESS` or `FAILURE`
+- `actorType` - Actor type: `SERVICE`, `ADMIN`, `MEMBER`, or `SYSTEM`
+- `actorId` - Actor identifier (email, UUID, or service name)
+- `targetType` - Target type: `SERVICE` or `RESOURCE`
+
+**Optional Fields:**
+- `traceId` - UUID for distributed tracing (nullable for standalone events)
+- `eventType` - User-defined event type (e.g., `POLICY_CHECK`, `MANAGEMENT_EVENT`)
+- `eventAction` - Event action: `CREATE`, `READ`, `UPDATE`, `DELETE`
+- `targetId` - Target identifier (resource ID or service name)
+- `requestMetadata` - JSON object with request payload (without PII/sensitive data)
+- `responseMetadata` - JSON object with response or error details
+- `additionalMetadata` - JSON object with additional context-specific data
+
+**Example Request:**
+```json
+{
+  "traceId": "550e8400-e29b-41d4-a716-446655440000",
+  "timestamp": "2024-01-20T10:00:00Z",
+  "eventType": "POLICY_CHECK",
+  "eventAction": "READ",
+  "status": "SUCCESS",
+  "actorType": "SERVICE",
+  "actorId": "orchestration-engine",
+  "targetType": "SERVICE",
+  "targetId": "policy-decision-point",
+  "requestMetadata": {
+    "schemaId": "schema-123",
+    "requestedFields": ["name", "address"]
+  },
+  "responseMetadata": {
+    "decision": "ALLOWED"
+  }
+}
+```
 
 ### Response Format
 
-**Data Exchange Events Response:**
+**Get Audit Logs Response:**
 ```json
 {
+  "logs": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "timestamp": "2024-01-20T10:00:00Z",
+      "traceId": "550e8400-e29b-41d4-a716-446655440000",
+      "eventType": "POLICY_CHECK",
+      "eventAction": "READ",
+      "status": "SUCCESS",
+      "actorType": "SERVICE",
+      "actorId": "orchestration-engine",
+      "targetType": "SERVICE",
+      "targetId": "policy-decision-point",
+      "requestMetadata": {
+        "schemaId": "schema-123"
+      },
+      "responseMetadata": {
+        "decision": "ALLOWED"
+      },
+      "additionalMetadata": null,
+      "createdAt": "2024-01-20T10:00:00Z"
+    }
+  ],
   "total": 100,
-  "limit": 50,
-  "offset": 0,
-  "events": [
-    {
-      "id": "uuid",
-      "timestamp": "2024-01-01T12:00:00Z",
-      "status": "success",
-      "applicationId": "app-123",
-      "schemaId": "schema-456",
-      "consumerId": "consumer-123",
-      "providerId": "provider-456",
-      "onBehalfOfOwnerId": "owner-789",
-      "requestedData": {...},
-      "additionalInfo": {...},
-      "createdAt": "2024-01-01T12:00:00Z"
-    }
-  ]
+  "limit": 100,
+  "offset": 0
 }
 ```
 
-**Management Events Response:**
-```json
-{
-  "total": 50,
-  "limit": 50,
-  "offset": 0,
-  "events": [
-    {
-      "id": "uuid",
-      "eventType": "CREATE",
-      "status": "success",
-      "timestamp": "2024-01-01T12:00:00Z",
-      "actorType": "USER",
-      "actorId": "member-123",
-      "actorRole": "MEMBER",
-      "targetResource": "SCHEMAS",
-      "targetResourceId": "schema-456",
-      "metadata": null,
-      "createdAt": "2024-01-01T12:00:00Z"
-    }
-  ]
-}
-```
+**Create Audit Log Response:**
+Returns the created audit log entry in the same format as above.
 
-**Note**: `eventType` values are: `CREATE`, `UPDATE`, `DELETE`. `targetResource` values include: `MEMBERS`, `SCHEMAS`, `SCHEMA-SUBMISSIONS`, `APPLICATIONS`, `APPLICATION-SUBMISSIONS`, `POLICY-METADATA`.
+For complete API documentation, see [openapi.yaml](./openapi.yaml).
 
 ## Testing
 
@@ -224,63 +230,11 @@ go test ./... -cover
 - **No authentication required**: Authentication is handled by upstream services (Orchestration Engine, Portal Backend)
 - **Database security**: Uses configurable SSL modes for database connections
 
-## Optional Deployment
+## Deployment
 
 The Audit Service is **optional** and can be deployed separately from the main OpenDIF services. Services (Orchestration Engine, Portal Backend) will function normally without audit logging enabled.
 
-### Enabling/Disabling Audit Logging in Other Services
-
-To enable or disable audit logging in services that use the audit-service (e.g., Orchestration Engine, Portal Backend), configure the following environment variables:
-
-#### Enable Audit Logging
-
-Set the audit service URL and optionally enable audit:
-
-```bash
-# Required: Set the audit service URL
-AUDIT_CONNECTION_SERVICEURL=http://localhost:3001
-
-# Optional: Explicitly enable audit (defaults to true if URL is set)
-ENABLE_AUDIT=true
-```
-
-**Example for Orchestration Engine:**
-```bash
-# In exchange/orchestration-engine/.env or environment
-export AUDIT_CONNECTION_SERVICEURL=http://localhost:3001
-export ENABLE_AUDIT=true
-```
-
-**Example for Portal Backend:**
-```bash
-# In portal-backend/.env or environment
-export AUDIT_CONNECTION_SERVICEURL=http://localhost:3001
-export ENABLE_AUDIT=true
-```
-
-#### Disable Audit Logging
-
-You can disable audit logging in two ways:
-
-**Option 1: Set ENABLE_AUDIT=false**
-```bash
-# In your service's .env or environment
-ENABLE_AUDIT=false
-# AUDIT_CONNECTION_SERVICEURL can be set or unset (ignored when ENABLE_AUDIT=false)
-```
-
-**Option 2: Omit or Empty AUDIT_CONNECTION_SERVICEURL**
-```bash
-# Leave AUDIT_CONNECTION_SERVICEURL unset or empty
-# Services will automatically disable audit logging if URL is not configured
-# AUDIT_CONNECTION_SERVICEURL=
-```
-
-**Note:** When audit logging is disabled, services continue to function normally. Audit operations are asynchronous (fire-and-forget) and will not block requests even if the audit service is unavailable.
-
 ### Deployment Steps
-
-#### Step 1: Deploy Audit Service (Optional)
 
 **Using Docker Compose:**
 ```bash
@@ -309,34 +263,14 @@ go build -o audit-service
 ./audit-service
 ```
 
-#### Step 2: Configure Services to Use Audit Service
+### Verify Deployment
 
-See the [Enabling/Disabling Audit Logging](#enablingdisabling-audit-logging-in-other-services) section above for detailed instructions on configuring other services to use the audit-service.
-
-#### Step 3: Verify Audit Logging
-
-1. Make a request to Orchestration Engine or Portal Backend
-2. Check audit service logs: `GET http://localhost:3001/api/audit-logs`
-3. Verify events are being logged with trace IDs
-
-### Docker Compose Usage
-
-The audit service has its own `docker-compose.yml` for standalone deployment:
-
-```bash
-# Deploy audit service separately
-cd audit-service
-docker compose up -d
-
-# Or include in your main docker-compose.yml (optional)
-# See audit-service/docker-compose.yml for reference
-```
-
-**Note:** The main `exchange/docker-compose.yml` does not include audit-service by default. Deploy it separately or add it manually if needed.
+1. Check service health: `GET http://localhost:3001/health`
+2. Check service version: `GET http://localhost:3001/version`
+3. Query audit logs: `GET http://localhost:3001/api/audit-logs`
 
 ### Environment Variables Summary
 
-**For Audit Service (this service):**
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DB_TYPE` | `sqlite` | Database type: `sqlite` or `postgres` |
@@ -356,28 +290,11 @@ docker compose up -d
 | `AUDIT_ENUMS_CONFIG` | `config/enums.yaml` | Enum configuration file path |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
 
-**For Services Using Audit Service (Orchestration Engine, Portal Backend, etc.):**
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUDIT_CONNECTION_SERVICEURL` | Empty | Audit service base URL (e.g., `http://localhost:3001`) |
-| `ENABLE_AUDIT` | `true` (if URL set) | Enable/disable audit logging (`true`/`false`) |
+**Note:** For information on enabling/disabling audit logging in other services (Orchestration Engine, Portal Backend), refer to the deployment documentation of those respective services.
 
-**How it works:**
-- If `AUDIT_CONNECTION_SERVICEURL` is empty or unset → Audit logging is **disabled**
-- If `AUDIT_CONNECTION_SERVICEURL` is set and `ENABLE_AUDIT` is not `false` → Audit logging is **enabled**
-- If `ENABLE_AUDIT=false` → Audit logging is **disabled** (regardless of URL)
+### Docker Examples
 
-### Graceful Degradation
-
-- Services continue to function normally if audit service is unavailable
-- No errors are thrown when audit service URL is not configured
-- Audit operations are asynchronous (fire-and-forget) to avoid blocking requests
-- Services can be started before audit service is ready
-
-## Docker
-
-### Using SQLite (Default)
-
+**Using SQLite (Default):**
 ```bash
 # Build image
 docker build -t audit-service .
@@ -391,10 +308,7 @@ docker run -d \
   audit-service
 ```
 
-### Using PostgreSQL
-
-To use PostgreSQL instead of SQLite, set `DB_TYPE=postgres` and provide PostgreSQL connection details:
-
+**Using PostgreSQL:**
 ```bash
 # Run container with PostgreSQL
 docker run -d \
@@ -409,4 +323,6 @@ docker run -d \
   --name audit-service \
   audit-service
 ```
+
+**Note:** The audit service has its own `docker-compose.yml` for standalone deployment. The main `exchange/docker-compose.yml` does not include audit-service by default. Deploy it separately or add it manually if needed.
 

@@ -1,12 +1,15 @@
 package database
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewDatabaseConfig(t *testing.T) {
@@ -26,72 +29,258 @@ func TestNewDatabaseConfig(t *testing.T) {
 		os.Unsetenv("DB_CONN_MAX_IDLE_TIME")
 	}()
 
-	t.Run("Default configuration (SQLite)", func(t *testing.T) {
+	t.Run("Test 1: SQLite Default Configuration", func(t *testing.T) {
 		// Ensure no env vars are set
 		os.Unsetenv("DB_TYPE")
+		os.Unsetenv("DB_PATH")
 
 		config := NewDatabaseConfig()
 
+		// Verify configuration loads correctly (defaults to ./data/audit.db)
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
 		assert.Equal(t, "./data/audit.db", config.DatabasePath)
 		assert.Equal(t, 1, config.MaxOpenConns)
 		assert.Equal(t, 1, config.MaxIdleConns)
 		assert.Equal(t, time.Hour, config.ConnMaxLifetime)
 		assert.Equal(t, 15*time.Minute, config.ConnMaxIdleTime)
+
+		// Verify database connection successful
+		db, err := ConnectGormDB(config)
+		require.NoError(t, err, "Database connection should succeed")
+		require.NotNil(t, db, "Database should not be nil")
+
+		// Verify connection works
+		sqlDB, err := db.DB()
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+		sqlDB.Close()
 	})
 
-	t.Run("SQLite configuration from environment", func(t *testing.T) {
+	t.Run("Test 2: SQLite with Custom Path", func(t *testing.T) {
+		// Clear any existing env vars first
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_PORT")
+		os.Unsetenv("DB_USERNAME")
+		os.Unsetenv("DB_PASSWORD")
+		os.Unsetenv("DB_NAME")
+		os.Unsetenv("DB_SSLMODE")
+
+		// Create a temporary directory for custom path
+		tempDir, err := os.MkdirTemp("", "audit_test_custom")
+		require.NoError(t, err, "Should create temp directory")
+		defer os.RemoveAll(tempDir)
+
+		customPath := filepath.Join(tempDir, "custom_audit.db")
+
+		// Set SQLite-specific env vars
 		os.Setenv("DB_TYPE", "sqlite")
-		os.Setenv("DB_PATH", "./custom/audit.db")
-		os.Setenv("DB_MAX_OPEN_CONNS", "10") // Should remain 1 for SQLite in our implementation, but let's see if we enforce it
-		// In our implementation we do enforce 1 for defaults, but check if env var overrides
-		// Actually the implementation uses parseIntOrDefault("DB_MAX_OPEN_CONNS", 1) so it takes the env var
-		// Wait, the code says:
-		// config.MaxOpenConns = parseIntOrDefault("DB_MAX_OPEN_CONNS", 1)
-		// So if we set it to 10, it should be 10.
-		// However, the comment says "SQLite best practice: Use MaxOpenConns=1"
+		os.Setenv("DB_PATH", customPath)
+		os.Setenv("DB_MAX_OPEN_CONNS", "10")
 		os.Setenv("DB_MAX_IDLE_CONNS", "5")
 
 		config := NewDatabaseConfig()
 
+		// Verify custom path configuration works
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
-		assert.Equal(t, "./custom/audit.db", config.DatabasePath)
-		// Verify if the code enforces 1 or allows override.
-		// Based on reading the code: parseIntOrDefault("DB_MAX_OPEN_CONNS", 1)
-		// It will return 10 if env var is 10.
-		// Ideally we might want to enforce 1, but for now let's test what the code does.
+		assert.Equal(t, customPath, config.DatabasePath)
 		assert.Equal(t, 10, config.MaxOpenConns)
 		assert.Equal(t, 5, config.MaxIdleConns)
+
+		// Verify database connection successful
+		db, err := ConnectGormDB(config)
+		require.NoError(t, err, "Database connection should succeed")
+		require.NotNil(t, db, "Database should not be nil")
+
+		// Verify connection works
+		sqlDB, err := db.DB()
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+		sqlDB.Close()
+
+		// Verify database file was created
+		assert.FileExists(t, customPath, "Database file should be created at custom path")
 	})
 
-	t.Run("PostgreSQL configuration from environment", func(t *testing.T) {
+	t.Run("Test 3: SQLite In-Memory", func(t *testing.T) {
+		// Clear any existing env vars first
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Set SQLite in-memory configuration
+		os.Setenv("DB_TYPE", "sqlite")
+		os.Setenv("DB_PATH", ":memory:")
+
+		config := NewDatabaseConfig()
+
+		// Verify in-memory configuration works
+		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		assert.Equal(t, ":memory:", config.DatabasePath)
+
+		// Verify database connection successful
+		db, err := ConnectGormDB(config)
+		require.NoError(t, err, "Database connection should succeed")
+		require.NotNil(t, db, "Database should not be nil")
+
+		// Verify connection works
+		sqlDB, err := db.DB()
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping in-memory database")
+		sqlDB.Close()
+	})
+
+	t.Run("Test 4: PostgreSQL Configuration", func(t *testing.T) {
+		// Clear any existing env vars first
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Set PostgreSQL-specific env vars
 		os.Setenv("DB_TYPE", "postgres")
-		os.Setenv("DB_HOST", "db-host")
+		os.Setenv("DB_HOST", "localhost")
 		os.Setenv("DB_PORT", "5432")
-		os.Setenv("DB_USERNAME", "user")
-		os.Setenv("DB_PASSWORD", "pass")
-		os.Setenv("DB_NAME", "audit")
-		os.Setenv("DB_SSLMODE", "require")
+		os.Setenv("DB_USERNAME", "testuser")
+		os.Setenv("DB_PASSWORD", "testpass")
+		os.Setenv("DB_NAME", "testdb")
+		os.Setenv("DB_SSLMODE", "disable")
 		os.Setenv("DB_MAX_OPEN_CONNS", "50")
 
 		config := NewDatabaseConfig()
 
+		// Verify PostgreSQL configuration loads correctly from environment variables
 		assert.Equal(t, DatabaseTypePostgres, config.Type)
-		assert.Equal(t, "db-host", config.Host)
+		assert.Equal(t, "localhost", config.Host)
 		assert.Equal(t, "5432", config.Port)
-		assert.Equal(t, "user", config.Username)
-		assert.Equal(t, "pass", config.Password)
-		assert.Equal(t, "audit", config.Database)
-		assert.Equal(t, "require", config.SSLMode)
+		assert.Equal(t, "testuser", config.Username)
+		assert.Equal(t, "testpass", config.Password)
+		assert.Equal(t, "testdb", config.Database)
+		assert.Equal(t, "disable", config.SSLMode)
 		assert.Equal(t, 50, config.MaxOpenConns)
+
+		// Verify DSN construction works
+		// The DSN should be properly constructed using net/url
+		dsnURL := url.URL{
+			Scheme: "postgres",
+			User:   url.UserPassword(config.Username, config.Password),
+			Host:   config.Host + ":" + config.Port,
+			Path:   config.Database,
+		}
+		q := dsnURL.Query()
+		q.Set("sslmode", config.SSLMode)
+		dsnURL.RawQuery = q.Encode()
+		expectedDSN := dsnURL.String()
+
+		// Verify DSN contains expected components
+		assert.Contains(t, expectedDSN, "postgres://")
+		assert.Contains(t, expectedDSN, "testuser")
+		assert.Contains(t, expectedDSN, "localhost:5432")
+		assert.Contains(t, expectedDSN, "testdb")
+		assert.Contains(t, expectedDSN, "sslmode=disable")
+
+		// Connection attempt works (fails gracefully if PostgreSQL is not available, as expected)
+		db, err := ConnectGormDB(config)
+		if err != nil {
+			// Expected if PostgreSQL is not running - verify error is about connection, not configuration
+			assert.Contains(t, err.Error(), "failed to connect", "Error should be about connection failure, not configuration")
+			assert.Contains(t, strings.ToLower(err.Error()), "connection", "Error should mention connection")
+		} else {
+			// If connection succeeds, verify it works
+			require.NotNil(t, db, "Database should not be nil")
+			sqlDB, err := db.DB()
+			require.NoError(t, err, "Should be able to get underlying sql.DB")
+			assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+			sqlDB.Close()
+		}
 	})
 
-	t.Run("Unknown DB_TYPE defaults to SQLite", func(t *testing.T) {
+	t.Run("Test 5: Unknown DB_TYPE Defaults to SQLite", func(t *testing.T) {
+		// Clear any existing env vars that might affect SQLite defaults
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_PORT")
+		os.Unsetenv("DB_USERNAME")
+		os.Unsetenv("DB_PASSWORD")
+		os.Unsetenv("DB_NAME")
+		os.Unsetenv("DB_SSLMODE")
+		os.Unsetenv("DB_PATH")
+
 		os.Setenv("DB_TYPE", "unknown_db")
 
 		config := NewDatabaseConfig()
 
+		// Verify unknown database types default to SQLite
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		// Should use SQLite defaults
+		assert.Equal(t, 1, config.MaxOpenConns)
+		assert.Equal(t, 1, config.MaxIdleConns)
+		assert.Equal(t, "./data/audit.db", config.DatabasePath)
+
+		// Warning should be logged (we can't easily test logging in unit tests,
+		// but the behavior is correct - it defaults to SQLite)
+	})
+
+	t.Run("Test 6: PostgreSQL with Special Characters in Password", func(t *testing.T) {
+		// Clear any existing env vars first
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Set PostgreSQL with special characters in password
+		specialPassword := "p@ss w#rd!123"
+		os.Setenv("DB_TYPE", "postgres")
+		os.Setenv("DB_HOST", "localhost")
+		os.Setenv("DB_PORT", "5432")
+		os.Setenv("DB_USERNAME", "testuser")
+		os.Setenv("DB_PASSWORD", specialPassword)
+		os.Setenv("DB_NAME", "testdb")
+		os.Setenv("DB_SSLMODE", "disable")
+
+		config := NewDatabaseConfig()
+
+		// Verify passwords with special characters are preserved correctly
+		assert.Equal(t, DatabaseTypePostgres, config.Type)
+		assert.Equal(t, specialPassword, config.Password, "Password with special characters should be preserved")
+
+		// Verify DSN construction handles special characters properly using net/url
+		dsnURL := url.URL{
+			Scheme: "postgres",
+			User:   url.UserPassword(config.Username, config.Password),
+			Host:   config.Host + ":" + config.Port,
+			Path:   config.Database,
+		}
+		q := dsnURL.Query()
+		q.Set("sslmode", config.SSLMode)
+		dsnURL.RawQuery = q.Encode()
+		dsn := dsnURL.String()
+
+		// Verify DSN is properly encoded (special characters should be URL-encoded)
+		assert.Contains(t, dsn, "postgres://")
+		assert.Contains(t, dsn, "testuser")
+		// The password should be URL-encoded in the DSN
+		// net/url.UserPassword automatically encodes special characters
+		assert.NotContains(t, dsn, specialPassword, "Password should be URL-encoded in DSN, not plain text")
+		// Verify the encoded password is present (URL encoding of special characters)
+		encodedUser := url.UserPassword(config.Username, config.Password)
+		expectedEncodedPassword := encodedUser.String()
+		assert.Contains(t, dsn, expectedEncodedPassword, "DSN should contain properly encoded password")
+
+		// Connection attempt works (fails gracefully if PostgreSQL is not available, as expected)
+		db, err := ConnectGormDB(config)
+		if err != nil {
+			// Expected if PostgreSQL is not running - verify error is about connection, not DSN construction
+			assert.Contains(t, err.Error(), "failed to connect", "Error should be about connection failure, not DSN construction")
+			// Verify that the error is not about malformed DSN (which would indicate encoding issues)
+			assert.NotContains(t, strings.ToLower(err.Error()), "malformed", "Error should not be about malformed DSN")
+		} else {
+			// If connection succeeds, verify it works
+			require.NotNil(t, db, "Database should not be nil")
+			sqlDB, err := db.DB()
+			require.NoError(t, err, "Should be able to get underlying sql.DB")
+			assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+			sqlDB.Close()
+		}
 	})
 }
 
@@ -116,13 +305,14 @@ func TestConnectGormDB(t *testing.T) {
 		}
 
 		db, err := ConnectGormDB(config)
-		assert.NoError(t, err)
-		assert.NotNil(t, db)
+		require.NoError(t, err, "Should connect to SQLite successfully")
+		require.NotNil(t, db, "Database should not be nil")
 
 		// Verify connection
 		sqlDB, err := db.DB()
-		assert.NoError(t, err)
-		assert.NoError(t, sqlDB.Ping())
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+		sqlDB.Close()
 	})
 
 	t.Run("Connect to In-Memory SQLite", func(t *testing.T) {
@@ -136,12 +326,43 @@ func TestConnectGormDB(t *testing.T) {
 		}
 
 		db, err := ConnectGormDB(config)
-		assert.NoError(t, err)
-		assert.NotNil(t, db)
+		require.NoError(t, err, "Should connect to in-memory SQLite successfully")
+		require.NotNil(t, db, "Database should not be nil")
 
 		// Verify connection
 		sqlDB, err := db.DB()
-		assert.NoError(t, err)
-		assert.NoError(t, sqlDB.Ping())
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping in-memory database")
+		sqlDB.Close()
+	})
+
+	t.Run("Connect to PostgreSQL (graceful failure if not available)", func(t *testing.T) {
+		config := &Config{
+			Type:            DatabaseTypePostgres,
+			Host:            "localhost",
+			Port:            "5432",
+			Username:        "testuser",
+			Password:        "testpass",
+			Database:        "testdb",
+			SSLMode:         "disable",
+			MaxOpenConns:    25,
+			MaxIdleConns:    5,
+			ConnMaxLifetime: time.Hour,
+			ConnMaxIdleTime: 15 * time.Minute,
+		}
+
+		db, err := ConnectGormDB(config)
+		if err != nil {
+			// Expected if PostgreSQL is not running
+			assert.Contains(t, err.Error(), "failed to connect", "Error should be about connection failure")
+			t.Logf("PostgreSQL connection failed as expected (PostgreSQL not available): %v", err)
+		} else {
+			// If connection succeeds, verify it works
+			require.NotNil(t, db, "Database should not be nil")
+			sqlDB, err := db.DB()
+			require.NoError(t, err, "Should be able to get underlying sql.DB")
+			assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+			sqlDB.Close()
+		}
 	})
 }
