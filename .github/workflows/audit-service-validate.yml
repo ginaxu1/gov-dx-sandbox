@@ -3,8 +3,9 @@ name: Validate Audit Service
 on:
   pull_request:
     paths:
-      - 'audit-service/**'
-      - '.github/workflows/audit-service-validate.yml'
+      - "audit-service/**"
+      - "shared/**"
+      - ".github/workflows/audit-service-validate.yml"
   workflow_dispatch:
 
 concurrency:
@@ -13,11 +14,11 @@ concurrency:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'audit-service'
+  SERVICE_PATH: "audit-service"
   TEST_DB_NAME: audit_service_test
   # ================================
   REGISTRY: ghcr.io
-  GO_VERSION: '1.24'
+  GO_VERSION: "1.24"
   TEST_DB_USER: postgres
   TEST_DB_PASS: password
 
@@ -25,7 +26,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     permissions:
-      contents: read       # To check out the code
+      contents: read # To check out the code
 
     services:
       postgres:
@@ -85,5 +86,3 @@ jobs:
           TEST_DB_DATABASE: ${{ env.TEST_DB_NAME }}
           TEST_DB_SSLMODE: disable
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
-
-

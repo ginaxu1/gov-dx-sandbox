@@ -51,7 +51,7 @@ func TestLoadEnums_ValidYAML(t *testing.T) {
     - RESOURCE
 `
 
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 

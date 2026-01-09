@@ -5,10 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'portals/**'
-      - '.github/workflows/frontends-publish.yml'
+      - "portals/**"
+      - ".github/workflows/frontends-publish.yml"
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 env:

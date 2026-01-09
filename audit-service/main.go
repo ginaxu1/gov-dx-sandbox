@@ -44,15 +44,13 @@ func main() {
 	enums, err := config.LoadEnums(configPath)
 	if err != nil {
 		slog.Warn("Failed to load enum configuration, using defaults", "error", err, "path", configPath)
-		defaultEnums := config.DefaultEnums
-		enums = &defaultEnums
-	} else {
-		slog.Info("Loaded enum configuration", "path", configPath,
-			"eventTypes", len(enums.EventTypes),
-			"eventActions", len(enums.EventActions),
-			"actorTypes", len(enums.ActorTypes),
-			"targetTypes", len(enums.TargetTypes))
+		enums = config.GetDefaultEnums()
 	}
+	slog.Info("Loaded enum configuration", "path", configPath,
+		"eventTypes", len(enums.EventTypes),
+		"eventActions", len(enums.EventActions),
+		"actorTypes", len(enums.ActorTypes),
+		"targetTypes", len(enums.TargetTypes))
 
 	// Initialize enum configuration in models package
 	// Pass the AuditEnums instance to leverage O(1) validation methods

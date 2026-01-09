@@ -32,34 +32,32 @@ type Config struct {
 	Enums AuditEnums `yaml:"enums"`
 }
 
-var (
-	// DefaultEnums provides default enum values if config file is not found
-	DefaultEnums = AuditEnums{
-		EventTypes: []string{
-			"POLICY_CHECK",
-			"MANAGEMENT_EVENT",
-			"USER_MANAGEMENT",
-			"DATA_FETCH",
-			"CONSENT_CHECK",
-		},
-		EventActions: []string{
-			"CREATE",
-			"READ",
-			"UPDATE",
-			"DELETE",
-		},
-		ActorTypes: []string{
-			"SERVICE",
-			"ADMIN",
-			"MEMBER",
-			"SYSTEM",
-		},
-		TargetTypes: []string{
-			"SERVICE",
-			"RESOURCE",
-		},
-	}
-)
+// DefaultEnums provides default enum values if config file is not found
+var DefaultEnums = AuditEnums{
+	EventTypes: []string{
+		"POLICY_CHECK",
+		"MANAGEMENT_EVENT",
+		"USER_MANAGEMENT",
+		"DATA_FETCH",
+		"CONSENT_CHECK",
+	},
+	EventActions: []string{
+		"CREATE",
+		"READ",
+		"UPDATE",
+		"DELETE",
+	},
+	ActorTypes: []string{
+		"SERVICE",
+		"ADMIN",
+		"MEMBER",
+		"SYSTEM",
+	},
+	TargetTypes: []string{
+		"SERVICE",
+		"RESOURCE",
+	},
+}
 
 // LoadEnums loads enum configuration from YAML file
 // If the file is not found or cannot be read, returns default enums
@@ -74,9 +72,7 @@ func LoadEnums(configPath string) (*AuditEnums, error) {
 	if err != nil {
 		// If file doesn't exist, return defaults
 		if os.IsNotExist(err) {
-			defaults := DefaultEnums
-			defaults.InitializeMaps()
-			return &defaults, nil
+			return GetDefaultEnums(), nil
 		}
 		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 	}
@@ -84,13 +80,11 @@ func LoadEnums(configPath string) (*AuditEnums, error) {
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		slog.Warn("Failed to parse config file, using defaults", "path", configPath, "error", err)
-		defaults := DefaultEnums
-		defaults.InitializeMaps()
-		return &defaults, nil
+		return GetDefaultEnums(), nil
 	}
 
 	// Use defaults for any missing enum arrays
-	enums := config.Enums
+	enums := &config.Enums
 	if len(enums.EventTypes) == 0 {
 		enums.EventTypes = DefaultEnums.EventTypes
 	}
@@ -107,7 +101,20 @@ func LoadEnums(configPath string) (*AuditEnums, error) {
 	// Initialize maps for O(1) validation lookups
 	enums.InitializeMaps()
 
-	return &enums, nil
+	return enums, nil
+}
+
+// GetDefaultEnums creates a new AuditEnums instance with default values
+// Slices are copied to avoid sharing references with the global DefaultEnums
+func GetDefaultEnums() *AuditEnums {
+	enums := &AuditEnums{
+		EventTypes:   append([]string(nil), DefaultEnums.EventTypes...),
+		EventActions: append([]string(nil), DefaultEnums.EventActions...),
+		ActorTypes:   append([]string(nil), DefaultEnums.ActorTypes...),
+		TargetTypes:  append([]string(nil), DefaultEnums.TargetTypes...),
+	}
+	enums.InitializeMaps()
+	return enums
 }
 
 // InitializeMaps converts slices to maps for O(1) validation lookups

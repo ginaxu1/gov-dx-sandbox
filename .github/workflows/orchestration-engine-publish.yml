@@ -5,16 +5,18 @@ on:
     branches:
       - main
     paths:
-      - 'exchange/orchestration-engine/**'
-      - '.github/workflows/orchestration-engine-publish.yml'
+      - "exchange/orchestration-engine/**"
+      - "exchange/shared/**"
+      - "shared/**"
+      - ".github/workflows/orchestration-engine-publish.yml"
     tags:
-      - 'orchestration-engine-v*'
-      - 'v*'
+      - "orchestration-engine-v*"
+      - "v*"
   workflow_dispatch:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'exchange/orchestration-engine'
+  SERVICE_PATH: "exchange/orchestration-engine"
   IMAGE_NAME: ${{ github.repository }}/orchestration-engine
   # ================================
   REGISTRY: ghcr.io
@@ -23,8 +25,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read       # To check out the code
-      packages: write      # To push images to GHCR
+      contents: read # To check out the code
+      packages: write # To push images to GHCR
 
     steps:
       - name: Checkout repository
@@ -61,7 +63,7 @@ jobs:
         id: build-push
         uses: docker/build-push-action@v5
         with:
-          context: exchange
+          context: .
           file: ${{ env.SERVICE_PATH }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
