@@ -11,8 +11,11 @@ WORKDIR /app
 COPY exchange/orchestration-engine/go.mod exchange/orchestration-engine/go.sum ./
 COPY exchange/orchestration-engine/ .
 
-# Copy shared packages
-COPY shared/ /shared/
+# Copy shared packages from exchange/shared (monitoring, config, utils, constants)
+COPY exchange/shared/ ../shared/
+
+# Copy root shared packages (audit)
+COPY shared/ ../../shared/
 
 # Download dependencies
 RUN go mod download
