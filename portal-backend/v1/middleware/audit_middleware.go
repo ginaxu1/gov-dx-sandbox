@@ -11,20 +11,8 @@ import (
 	auditpkg "github.com/gov-dx-sandbox/shared/audit"
 )
 
-// Re-export types and functions from shared/audit for convenience
-type (
-	AuditClient     = auditpkg.AuditClient
-	AuditMiddleware = auditpkg.AuditMiddleware
-	AuditLogRequest = auditpkg.AuditLogRequest
-)
-
-var (
-	NewAuditMiddleware         = auditpkg.NewAuditMiddleware
-	ResetGlobalAuditMiddleware = auditpkg.ResetGlobalAuditMiddleware
-)
-
 // LogAudit logs an audit event for portal-backend operations by extracting request info and creating an audit log
-func LogAudit(client AuditClient, r *http.Request, resource string, resourceID *string, status string) {
+func LogAudit(client auditpkg.AuditClient, r *http.Request, resource string, resourceID *string, status string) {
 	// Skip if audit client is not enabled
 	if client == nil || !client.IsEnabled() {
 		return
@@ -56,16 +44,13 @@ func LogAudit(client AuditClient, r *http.Request, resource string, resourceID *
 
 	// Set target type and ID
 	targetType := "RESOURCE"
-	var targetID *string
-	if resourceID != nil {
-		targetID = resourceID
-	}
 
-	// Create audit event using local DTO
+	// Create audit event using shared/audit DTO
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	additionalMetadata := func() json.RawMessage {
 		meta := map[string]interface{}{
-			"resource": resource,
+			"resource":   resource,
+			"resourceId": resourceID,
 		}
 		if bytes, err := json.Marshal(meta); err == nil {
 			return bytes
@@ -73,7 +58,7 @@ func LogAudit(client AuditClient, r *http.Request, resource string, resourceID *
 		return nil
 	}()
 
-	auditRequest := &AuditLogRequest{
+	auditRequest := &auditpkg.AuditLogRequest{
 		TraceID:            nil, // No trace ID for standalone management events
 		Timestamp:          timestamp,
 		EventType:          eventType,
@@ -82,7 +67,6 @@ func LogAudit(client AuditClient, r *http.Request, resource string, resourceID *
 		ActorType:          actorType,
 		ActorID:            actorID,
 		TargetType:         targetType,
-		TargetID:           targetID,
 		AdditionalMetadata: additionalMetadata,
 	}
 
@@ -96,45 +80,30 @@ func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *st
 	// Try to get authenticated user first
 	user, err := GetUserFromRequest(r)
 	if err == nil && user != nil {
-		actorType = "USER"
 		userID := user.IdpUserID
 		actorID = &userID
 
-		// Get user role (simplified)
-		role := "MEMBER" // Default role
-		if user.HasPermission(models.PermissionCreateMember) {
-			role = "ADMIN"
+		// Map user's primary role to actor type
+		primaryRole := user.GetPrimaryRole()
+		var actorTypeConst models.ActorType
+
+		switch primaryRole {
+		case models.RoleAdmin:
+			actorTypeConst = models.ActorTypeAdmin
+		case models.RoleMember:
+			actorTypeConst = models.ActorTypeMember
+		case models.RoleSystem:
+			actorTypeConst = models.ActorTypeSystem
+		default:
+			// Safe fallback for unknown roles
+			actorTypeConst = models.ActorTypeMember
 		}
-		actorRole = &role
-		return
-	}
 
-	// Fallback to headers
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		userID = r.Header.Get("X-Auth-User-ID")
+		// Convert to string for both actorType and actorRole
+		roleStr := string(actorTypeConst)
+		actorType = roleStr
+		actorRole = &roleStr
 	}
-
-	role := r.Header.Get("X-User-Role")
-	if role == "" {
-		role = r.Header.Get("X-Auth-Role")
-	}
-
-	if userID != "" {
-		actorType = "USER"
-		actorID = &userID
-		if role != "" && (role == "MEMBER" || role == "ADMIN") {
-			actorRole = &role
-		} else {
-			defaultRole := "MEMBER"
-			actorRole = &defaultRole
-		}
-	} else {
-		actorType = "SERVICE"
-		actorID = nil
-		actorRole = nil
-	}
-
 	return
 }
 
