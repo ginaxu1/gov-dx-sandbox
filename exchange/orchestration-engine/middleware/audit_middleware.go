@@ -16,6 +16,9 @@ type contextKey string
 
 const auditMetadataKey contextKey = "auditMetadata"
 
+// Context key for trace ID
+type traceIDKey struct{}
+
 // Metadata holds metadata needed for audit logging in orchestration-engine
 type Metadata struct {
 	ConsumerAppID    string
@@ -47,7 +50,6 @@ func MetadataFromContext(ctx context.Context) *Metadata {
 // GetTraceIDFromContext retrieves the trace ID from the context
 // Returns empty string if trace ID is not found in context
 func GetTraceIDFromContext(ctx context.Context) string {
-	type traceIDKey struct{}
 	if traceID, ok := ctx.Value(traceIDKey{}).(string); ok {
 		return traceID
 	}
