@@ -112,11 +112,11 @@ func LogProviderFetch(ctx context.Context, providerSchemaID string, req *Federat
 			responseMetadata["errorCount"] = len(response.Errors)
 			// Include first few errors (limit to avoid large payloads)
 			errorDetails := make([]interface{}, 0)
-			for i, err := range response.Errors {
+			for i, gqlErr := range response.Errors {
 				if i >= 3 { // Limit to first 3 errors
 					break
 				}
-				errorDetails = append(errorDetails, err)
+				errorDetails = append(errorDetails, gqlErr)
 			}
 			responseMetadata["errors"] = errorDetails
 		}
