@@ -3,8 +3,10 @@ name: Validate Orchestration Engine
 on:
   pull_request:
     paths:
-      - 'exchange/orchestration-engine/**'
-      - '.github/workflows/orchestration-engine-validate.yml'
+      - "exchange/orchestration-engine/**"
+      - "exchange/shared/**"
+      - "shared/**"
+      - ".github/workflows/orchestration-engine-validate.yml"
   workflow_dispatch:
 
 concurrency:
@@ -13,16 +15,16 @@ concurrency:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'exchange/orchestration-engine'
+  SERVICE_PATH: "exchange/orchestration-engine"
   # ================================
   REGISTRY: ghcr.io
-  GO_VERSION: '1.24'
+  GO_VERSION: "1.24"
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     permissions:
-      contents: read       # To check out the code
+      contents: read # To check out the code
 
     steps:
       - name: Checkout repository
@@ -60,5 +62,3 @@ jobs:
 
       - name: Run unit & integration tests
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
-
-

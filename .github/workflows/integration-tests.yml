@@ -4,12 +4,13 @@ on:
   # Run on pull requests only (validation before merge)
   pull_request:
     paths:
-      - 'tests/integration/**'
-      - 'exchange/orchestration-engine/**'
-      - 'exchange/policy-decision-point/**'
-      - 'exchange/consent-engine/**'
-      - 'exchange/shared/**'
-      - '.github/workflows/integration-tests.yml'
+      - "tests/integration/**"
+      - "exchange/orchestration-engine/**"
+      - "exchange/policy-decision-point/**"
+      - "exchange/consent-engine/**"
+      - "exchange/shared/**"
+      - "shared/**"
+      - ".github/workflows/integration-tests.yml"
   # Allow manual trigger
   workflow_dispatch:
 
@@ -18,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: "1.24"
   TEST_TIMEOUT: 30m
 
 jobs:
@@ -69,26 +70,26 @@ jobs:
         run: |
           echo "🚀 Starting Database services..."
           docker compose -f docker-compose.db.yml up -d
-          
+
           echo "⏳ Waiting for databases to be healthy..."
           sleep 10
-          
+
           # Basic check to ensure containers are running
           docker compose -f docker-compose.db.yml ps
 
       - name: Build Services
         run: |
           mkdir -p tests/integration/bin
-          
+
           echo "🔨 Building Policy Decision Point..."
           (cd exchange/policy-decision-point && go build -o ../../tests/integration/bin/policy-decision-point .)
-          
+
           echo "🔨 Building Consent Engine..."
           (cd exchange/consent-engine && go build -o ../../tests/integration/bin/consent-engine .)
-          
+
           echo "🔨 Building Orchestration Engine..."
           (cd exchange/orchestration-engine && go build -o ../../tests/integration/bin/orchestration-engine .)
-          
+
           echo "🔨 Building Mock Provider..."
           (cd tests/integration/mock-provider && go build -o ../bin/mock-provider .)
 
@@ -109,7 +110,7 @@ jobs:
           OE_PORT: 4000
         run: |
           mkdir -p logs
-          
+
           echo "🚀 Starting Policy Decision Point..."
           # Running with env vars mapping to what the code expects (based on docker-compose.test.yml analysis)
           PORT=8082 \
@@ -124,7 +125,7 @@ jobs:
           ./bin/policy-decision-point > logs/pdp.log 2>&1 &
           PDP_PID=$!
           echo "PDP PID: $PDP_PID"
-          
+
           echo "🚀 Starting Consent Engine..."
           PORT=8081 \
           LOG_LEVEL=debug \
@@ -147,22 +148,22 @@ jobs:
           ./bin/consent-engine > logs/ce.log 2>&1 &
           CE_PID=$!
           echo "CE PID: $CE_PID"
-          
+
           echo "🚀 Starting Mock Provider..."
           PORT=8083 \
           ./bin/mock-provider > logs/mock-provider.log 2>&1 &
           MOCK_PID=$!
           echo "Mock Provider PID: $MOCK_PID"
-          
+
           echo "⏳ Waiting for PDP, CE, and Mock Provider to be ready..."
           sleep 5
-          
+
           echo "📝 Updating config.json for CI mode (localhost URLs)..."
           # Update config.json to use localhost instead of Docker service names
           sed -i 's|http://consent-engine:8081|http://localhost:8081|g' config.json
           sed -i 's|http://policy-decision-point:8082|http://localhost:8082|g' config.json
           sed -i 's|http://mock-provider:8083|http://localhost:8083|g' config.json
-          
+
           echo "🚀 Starting Orchestration Engine..."
           PORT=4000 \
           LOG_LEVEL=debug \
@@ -172,7 +173,7 @@ jobs:
           ./bin/orchestration-engine > logs/oe.log 2>&1 &
           OE_PID=$!
           echo "OE PID: $OE_PID"
-          
+
           echo "⏳ Waiting for all services to initialize..."
           sleep 10
 
@@ -190,7 +191,7 @@ jobs:
               return 1
             fi
           }
-          
+
           check_health "Policy Decision Point" "http://localhost:8082/health" || (cat logs/pdp.log && exit 1)
           check_health "Consent Engine" "http://localhost:8081/health" || (cat logs/ce.log && exit 1)
           # Mock Provider doesn't have /health endpoint, just check if it's listening
@@ -222,7 +223,7 @@ jobs:
           cat logs/ce.log || echo "No CE log"
           cat logs/mock-provider.log || echo "No Mock Provider log"
           cat logs/oe.log || echo "No OE log"
-          
+
           echo ""
           echo "=== Database Logs ==="
           docker compose -f docker-compose.db.yml logs
