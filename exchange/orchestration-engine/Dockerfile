@@ -8,11 +8,13 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
 # Copy go mod files and source code
-COPY orchestration-engine/go.mod orchestration-engine/go.sum ./
-COPY orchestration-engine/ .
+COPY exchange/orchestration-engine/go.mod exchange/orchestration-engine/go.sum ./
+COPY exchange/orchestration-engine/ .
 
-# Copy shared packages
-COPY shared/ /shared/
+# Copy shared packages (preserve directory structure)
+# Build context is root (.), so shared/ is accessible
+# This ensures shared/audit/go.mod is available at /shared/audit/go.mod
+COPY shared /shared
 
 # Download dependencies
 RUN go mod download

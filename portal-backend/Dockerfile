@@ -13,8 +13,13 @@ ARG GIT_COMMIT
 RUN apk add --no-cache git ca-certificates tzdata
 
 # Copy go mod files and source code
-COPY go.mod go.sum ./
-COPY . ./
+# Build context is root (.), so use portal-backend/ paths
+COPY portal-backend/go.mod portal-backend/go.sum ./
+COPY portal-backend/ .
+
+# Copy shared packages (preserve directory structure)
+# This ensures shared/audit/go.mod is available at ../shared/audit/go.mod (relative to portal-backend)
+COPY shared /shared
 
 # Download dependencies
 RUN go mod download

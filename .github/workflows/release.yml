@@ -55,7 +55,8 @@ jobs:
       - name: Build and push Portal Backend
         uses: docker/build-push-action@v5
         with:
-          context: ./portal-backend
+          context: .
+          file: ./portal-backend/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}
