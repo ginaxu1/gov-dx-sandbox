@@ -13,8 +13,8 @@ ARG GIT_COMMIT
 RUN apk add --no-cache git ca-certificates tzdata
 
 # Copy go mod files and source code
-COPY consent-engine/go.mod consent-engine/go.sum ./
-COPY consent-engine/ .
+COPY exchange/consent-engine/go.mod exchange/consent-engine/go.sum ./
+COPY exchange/consent-engine/ .
 
 # Copy shared packages
 COPY shared/ /shared/
