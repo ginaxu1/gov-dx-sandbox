@@ -34,13 +34,13 @@ type Config struct {
 
 var (
 	// DefaultEnums provides default enum values if config file is not found
+	// Note: OpenDIF-specific event types (ORCHESTRATION_REQUEST_RECEIVED, POLICY_CHECK, etc.)
+	// should be added to config/enums.yaml for project-specific configurations
 	DefaultEnums = AuditEnums{
 		EventTypes: []string{
-			"POLICY_CHECK",
 			"MANAGEMENT_EVENT",
 			"USER_MANAGEMENT",
 			"DATA_FETCH",
-			"CONSENT_CHECK",
 		},
 		EventActions: []string{
 			"CREATE",

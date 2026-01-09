@@ -6,12 +6,14 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
+	github.com/gov-dx-sandbox/exchange/shared/middleware v0.0.0
+	github.com/gov-dx-sandbox/exchange/shared/monitoring v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
+	github.com/gov-dx-sandbox/shared/audit v0.0.0
 )
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/gov-dx-sandbox/exchange/shared/monitoring v0.0.0
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
@@ -38,7 +40,6 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.60.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.opentelemetry.io/otel v1.32.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.32.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.54.0 // indirect
@@ -59,9 +60,13 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
+replace github.com/gov-dx-sandbox/shared/audit => ../../shared/audit
+
 replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
 
 replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constants
+
+replace github.com/gov-dx-sandbox/exchange/shared/middleware => ../shared/middleware
 
 replace github.com/gov-dx-sandbox/exchange/shared/monitoring => ../shared/monitoring
 
