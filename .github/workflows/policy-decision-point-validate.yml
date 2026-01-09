@@ -3,9 +3,10 @@ name: Validate Policy Decision Point
 on:
   pull_request:
     paths:
-      - 'exchange/policy-decision-point/**'
-      - 'exchange/shared/**'
-      - '.github/workflows/policy-decision-point-validate.yml'
+      - "exchange/policy-decision-point/**"
+      - "exchange/shared/**"
+      - "shared/**"
+      - ".github/workflows/policy-decision-point-validate.yml"
   workflow_dispatch:
 
 concurrency:
@@ -14,11 +15,11 @@ concurrency:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'exchange/policy-decision-point'
+  SERVICE_PATH: "exchange/policy-decision-point"
   TEST_DB_NAME: pdp_test
   # ================================
   REGISTRY: ghcr.io
-  GO_VERSION: '1.24'
+  GO_VERSION: "1.24"
   TEST_DB_USER: postgres
   TEST_DB_PASS: password
 
@@ -26,7 +27,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     permissions:
-      contents: read       # To check out the code
+      contents: read # To check out the code
 
     services:
       postgres:
@@ -86,5 +87,3 @@ jobs:
           TEST_DB_DATABASE: ${{ env.TEST_DB_NAME }}
           TEST_DB_SSLMODE: disable
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
-
-

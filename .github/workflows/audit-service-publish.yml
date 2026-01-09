@@ -5,16 +5,17 @@ on:
     branches:
       - main
     paths:
-      - 'audit-service/**'
-      - '.github/workflows/audit-service-publish.yml'
+      - "audit-service/**"
+      - "shared/**"
+      - ".github/workflows/audit-service-publish.yml"
     tags:
-      - 'audit-service-v*'
-      - 'v*'
+      - "audit-service-v*"
+      - "v*"
   workflow_dispatch:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'audit-service'
+  SERVICE_PATH: "audit-service"
   IMAGE_NAME: ${{ github.repository }}/audit-service
   # ================================
   REGISTRY: ghcr.io
@@ -23,8 +24,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read       # To check out the code
-      packages: write      # To push images to GHCR
+      contents: read # To check out the code
+      packages: write # To push images to GHCR
 
     steps:
       - name: Checkout repository
@@ -61,7 +62,8 @@ jobs:
         id: build-push
         uses: docker/build-push-action@v5
         with:
-          context: ${{ env.SERVICE_PATH }}
+          context: .
+          file: ${{ env.SERVICE_PATH }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

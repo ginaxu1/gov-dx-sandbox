@@ -3,13 +3,15 @@ name: Validate Policy Decision Point Docker
 on:
   pull_request:
     paths:
-      - 'exchange/policy-decision-point/Dockerfile'
-      - '.github/workflows/policy-decision-point-docker-validate.yml'
+      - "exchange/policy-decision-point/**"
+      - "exchange/shared/**"
+      - "shared/**"
+      - ".github/workflows/policy-decision-point-docker-validate.yml"
   workflow_dispatch:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'exchange/policy-decision-point'
+  SERVICE_PATH: "exchange/policy-decision-point"
   # ================================
   REGISTRY: ghcr.io
 
@@ -17,7 +19,7 @@ jobs:
   docker-validate:
     runs-on: ubuntu-latest
     permissions:
-      contents: read         # To check out the code
+      contents: read # To check out the code
       security-events: write # To upload Trivy SARIF results
 
     steps:
@@ -34,10 +36,10 @@ jobs:
       - name: Build Docker image (validation only)
         uses: docker/build-push-action@v5
         with:
-          context: exchange
+          context: .
           file: ${{ env.SERVICE_PATH }}/Dockerfile
-          push: false  # Don't push, just validate build
-          load: true   # Load image locally for security scanning
+          push: false # Don't push, just validate build
+          load: true # Load image locally for security scanning
           tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/policy-decision-point:pr-${{ github.event.pull_request.number || 'manual' }}
           build-args: |
             SERVICE_PATH=${{ env.SERVICE_PATH }}
@@ -51,11 +53,11 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/policy-decision-point:pr-${{ github.event.pull_request.number || 'manual' }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          format: "sarif"
+          output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"

@@ -5,17 +5,18 @@ on:
     branches:
       - main
     paths:
-      - 'exchange/policy-decision-point/**'
-      - 'exchange/shared/**'
-      - '.github/workflows/policy-decision-point-publish.yml'
+      - "exchange/policy-decision-point/**"
+      - "exchange/shared/**"
+      - "shared/**"
+      - ".github/workflows/policy-decision-point-publish.yml"
     tags:
-      - 'policy-decision-point-v*'
-      - 'v*'
+      - "policy-decision-point-v*"
+      - "v*"
   workflow_dispatch:
 
 env:
   # === Service-specific variables ===
-  SERVICE_PATH: 'exchange/policy-decision-point'
+  SERVICE_PATH: "exchange/policy-decision-point"
   IMAGE_NAME: ${{ github.repository }}/policy-decision-point
   # ================================
   REGISTRY: ghcr.io
@@ -24,8 +25,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read       # To check out the code
-      packages: write      # To push images to GHCR
+      contents: read # To check out the code
+      packages: write # To push images to GHCR
 
     steps:
       - name: Checkout repository
@@ -62,7 +63,7 @@ jobs:
         id: build-push
         uses: docker/build-push-action@v5
         with:
-          context: exchange
+          context: .
           file: ${{ env.SERVICE_PATH }}/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
