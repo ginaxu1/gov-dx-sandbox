@@ -17,7 +17,7 @@ COPY exchange/policy-decision-point/go.mod exchange/policy-decision-point/go.sum
 COPY exchange/policy-decision-point/ .
 
 # Copy shared packages from exchange/shared
-COPY exchange/shared/ ../shared/
+COPY exchange/shared/ /shared/
 
 # Download dependencies
 RUN go mod download

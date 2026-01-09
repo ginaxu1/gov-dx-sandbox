@@ -72,7 +72,7 @@ func LoadEnums(configPath string) (*AuditEnums, error) {
 	if err != nil {
 		// If file doesn't exist, return defaults
 		if os.IsNotExist(err) {
-			return getDefaultEnums(), nil
+			return GetDefaultEnums(), nil
 		}
 		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 	}
@@ -80,7 +80,7 @@ func LoadEnums(configPath string) (*AuditEnums, error) {
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		slog.Warn("Failed to parse config file, using defaults", "path", configPath, "error", err)
-		return getDefaultEnums(), nil
+		return GetDefaultEnums(), nil
 	}
 
 	// Use defaults for any missing enum arrays
@@ -104,13 +104,14 @@ func LoadEnums(configPath string) (*AuditEnums, error) {
 	return enums, nil
 }
 
-// getDefaultEnums creates a new AuditEnums instance with default values
-func getDefaultEnums() *AuditEnums {
+// GetDefaultEnums creates a new AuditEnums instance with default values
+// Slices are copied to avoid sharing references with the global DefaultEnums
+func GetDefaultEnums() *AuditEnums {
 	enums := &AuditEnums{
-		EventTypes:   DefaultEnums.EventTypes,
-		EventActions: DefaultEnums.EventActions,
-		ActorTypes:   DefaultEnums.ActorTypes,
-		TargetTypes:  DefaultEnums.TargetTypes,
+		EventTypes:   append([]string(nil), DefaultEnums.EventTypes...),
+		EventActions: append([]string(nil), DefaultEnums.EventActions...),
+		ActorTypes:   append([]string(nil), DefaultEnums.ActorTypes...),
+		TargetTypes:  append([]string(nil), DefaultEnums.TargetTypes...),
 	}
 	enums.InitializeMaps()
 	return enums

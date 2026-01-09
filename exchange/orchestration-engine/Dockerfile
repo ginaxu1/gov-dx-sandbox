@@ -12,10 +12,10 @@ COPY exchange/orchestration-engine/go.mod exchange/orchestration-engine/go.sum .
 COPY exchange/orchestration-engine/ .
 
 # Copy shared packages from exchange/shared (monitoring, config, utils, constants)
-COPY exchange/shared/ ../shared/
+COPY exchange/shared/ /shared/
 
-# Copy root shared packages (audit)
-COPY shared/ ../../shared/
+# Copy root shared packages (audit) - no overlap with exchange/shared
+COPY shared/ /shared/
 
 # Download dependencies
 RUN go mod download
