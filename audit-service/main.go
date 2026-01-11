@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/audit-service/config"
+	"github.com/gov-dx-sandbox/audit-service/database"
 	"github.com/gov-dx-sandbox/audit-service/middleware"
 	v1database "github.com/gov-dx-sandbox/audit-service/v1/database"
 	v1handlers "github.com/gov-dx-sandbox/audit-service/v1/handlers"
@@ -26,13 +27,11 @@ var (
 	GitCommit = "unknown"
 )
 
-// Database-related functions are now in database.go
-
 func main() {
 	// Parse command line flags
 	var (
-		env  = flag.String("env", getEnvOrDefault("ENVIRONMENT", "production"), "Environment (development, production)")
-		port = flag.String("port", getEnvOrDefault("PORT", "3001"), "Port to listen on")
+		env  = flag.String("env", config.GetEnvOrDefault("ENVIRONMENT", "production"), "Environment (development, production)")
+		port = flag.String("port", config.GetEnvOrDefault("PORT", "3001"), "Port to listen on")
 	)
 	flag.Parse()
 
@@ -40,7 +39,7 @@ func main() {
 	serverPort := *port
 
 	// Load enum configuration from YAML file
-	configPath := getEnvOrDefault("AUDIT_ENUMS_CONFIG", "config/enums.yaml")
+	configPath := config.GetEnvOrDefault("AUDIT_ENUMS_CONFIG", "config/enums.yaml")
 	enums, err := config.LoadEnums(configPath)
 	if err != nil {
 		slog.Warn("Failed to load enum configuration, using defaults", "error", err, "path", configPath)
@@ -57,12 +56,20 @@ func main() {
 	v1models.SetEnumConfig(enums)
 
 	// Initialize database connection
-	dbConfig := NewDatabaseConfig()
-	slog.Info("Connecting to database",
-		"database_path", dbConfig.DatabasePath)
+	dbConfig := database.NewDatabaseConfig()
+	if dbConfig.Type == database.DatabaseTypeSQLite {
+		slog.Info("Connecting to database",
+			"type", "SQLite",
+			"database_path", dbConfig.DatabasePath)
+	} else {
+		slog.Info("Connecting to database",
+			"type", "PostgreSQL",
+			"host", dbConfig.Host,
+			"database", dbConfig.Database)
+	}
 
 	// Initialize GORM connection
-	gormDB, err := ConnectGORM(dbConfig)
+	gormDB, err := database.ConnectGormDB(dbConfig)
 	if err != nil {
 		slog.Error("Failed to connect to database via GORM", "error", err)
 		os.Exit(1)
