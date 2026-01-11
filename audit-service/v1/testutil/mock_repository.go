@@ -49,4 +49,3 @@ func (m *MockRepository) GetLogs() []*v1models.AuditLog {
 func (m *MockRepository) ClearLogs() {
 	m.logs = make([]*v1models.AuditLog, 0)
 }
-
