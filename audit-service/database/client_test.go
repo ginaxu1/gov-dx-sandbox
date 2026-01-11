@@ -1,6 +1,8 @@
 package database
 
 import (
+	"bytes"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -298,6 +300,12 @@ func TestNewDatabaseConfig(t *testing.T) {
 		// Set DB_HOST but NOT DB_TYPE=postgres
 		os.Setenv("DB_HOST", "localhost")
 
+		// Capture log output to verify warning is logged
+		var logBuffer bytes.Buffer
+		originalLogger := slog.Default()
+		defer slog.SetDefault(originalLogger) // Restore original logger
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logBuffer, nil)))
+
 		config := NewDatabaseConfig()
 
 		// Verify that DB_HOST alone (without DB_TYPE=postgres) does NOT trigger file-based SQLite
@@ -305,7 +313,10 @@ func TestNewDatabaseConfig(t *testing.T) {
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
 		assert.Equal(t, ":memory:", config.DatabasePath, "DB_HOST without DB_TYPE=postgres should use in-memory SQLite, not file-based")
 
-		// Warning should be logged about DB_HOST being ignored (we can't easily test logging in unit tests)
+		// Verify warning is logged about DB_HOST being ignored
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "DB_HOST will be ignored", "Warning should be logged when DB_HOST is set without DB_TYPE=postgres")
+		assert.Contains(t, logOutput, "DB_TYPE is not 'postgres'", "Warning should mention that DB_TYPE is not postgres")
 	})
 
 	t.Run("Test 5b: DB_HOST Set With DB_TYPE=sqlite - Should Use File-Based SQLite", func(t *testing.T) {
@@ -318,13 +329,22 @@ func TestNewDatabaseConfig(t *testing.T) {
 		os.Setenv("DB_TYPE", "sqlite")
 		os.Setenv("DB_HOST", "localhost")
 
+		// Capture log output to verify warning is logged
+		var logBuffer bytes.Buffer
+		originalLogger := slog.Default()
+		defer slog.SetDefault(originalLogger) // Restore original logger
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logBuffer, nil)))
+
 		config := NewDatabaseConfig()
 
 		// Verify that DB_TYPE=sqlite triggers file-based SQLite (DB_HOST is ignored)
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
 		assert.Equal(t, "./data/audit.db", config.DatabasePath, "DB_TYPE=sqlite should use file-based SQLite, DB_HOST is ignored")
 
-		// Warning should be logged about DB_HOST being ignored
+		// Verify warning is logged about DB_HOST being ignored
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "DB_HOST will be ignored", "Warning should be logged when DB_HOST is set with DB_TYPE=sqlite")
+		assert.Contains(t, logOutput, "DB_TYPE is not 'postgres'", "Warning should mention that DB_TYPE is not postgres")
 	})
 
 	t.Run("Test 6: PostgreSQL with Special Characters in Password", func(t *testing.T) {
