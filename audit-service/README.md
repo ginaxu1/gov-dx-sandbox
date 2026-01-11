@@ -72,7 +72,7 @@ The service supports three database modes:
 | Mode                  | Configuration                    | Use Case                     |
 | --------------------- | -------------------------------- | ---------------------------- |
 | **In-Memory SQLite**  | No config needed                 | Development, testing         |
-| **File-Based SQLite** | `DB_TYPE=sqlite`                 | Single-server deployments    |
+| **File-Based SQLite** | `DB_TYPE=sqlite` OR `DB_PATH` set | Single-server deployments    |
 | **PostgreSQL**        | `DB_TYPE=postgres` + credentials | Production, high concurrency |
 
 **Examples:**
@@ -81,8 +81,12 @@ The service supports three database modes:
 # In-memory (default - no configuration)
 go run .
 
-# File-based SQLite
+# File-based SQLite (option 1: explicit DB_TYPE)
 export DB_TYPE=sqlite
+export DB_PATH=./data/audit.db
+go run .
+
+# File-based SQLite (option 2: DB_PATH alone)
 export DB_PATH=./data/audit.db
 go run .
 
@@ -104,8 +108,8 @@ Copy `.env.example` to `.env` and configure:
 | Variable               | Default                 | Description                                 |
 | ---------------------- | ----------------------- | ------------------------------------------- |
 | `PORT`                 | `3001`                  | Service port                                |
-| `DB_TYPE`              | -                       | Database type: `sqlite` or `postgres`       |
-| `DB_PATH`              | `./data/audit.db`       | SQLite database path                        |
+| `DB_TYPE`              | -                       | Database type: `sqlite` or `postgres`. If not set, uses in-memory SQLite |
+| `DB_PATH`              | `./data/audit.db`       | SQLite database path (only used when `DB_TYPE=sqlite` or `DB_PATH` is explicitly set) |
 | `LOG_LEVEL`            | `info`                  | Log level: `debug`, `info`, `warn`, `error` |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Allowed CORS origins                        |
 

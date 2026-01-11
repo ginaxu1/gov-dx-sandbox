@@ -20,17 +20,20 @@ The service determines which database to use based on the following priority:
 
    - Uses `DB_PATH` value if specified
    - Defaults to `./data/audit.db` if not specified
+   - **Note:** `DB_HOST` is only relevant for PostgreSQL. Setting `DB_HOST` without `DB_TYPE=postgres` will result in a warning and SQLite will be used.
 
 3. **If NO database configuration** → Use in-memory SQLite (`:memory:`)
    - No `DB_TYPE` set
    - No `DB_PATH` set
-   - No `DB_HOST` set
+   
+   **Note:** If `DB_TYPE` is set to an unknown value (not `postgres` or `sqlite`), it defaults to **file-based SQLite** with a warning, not in-memory.
 
 **Why this design?**
 
 - ✅ Setting `DB_PATH` alone implies you want file-based SQLite (no need to also set `DB_TYPE=sqlite`)
 - ✅ No configuration at all means quick testing with in-memory database
 - ✅ Explicit `DB_TYPE=sqlite` with no `DB_PATH` uses sensible default path
+- ✅ `DB_HOST` only affects configuration when `DB_TYPE=postgres` (prevents confusion)
 
 ## Configuration Modes
 
