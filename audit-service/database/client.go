@@ -68,7 +68,7 @@ func NewDatabaseConfig() *Config {
 
 	// For SQLite: only DB_TYPE=sqlite or DB_PATH count as configuration
 	// DB_HOST is only relevant when DB_TYPE=postgres
-	hasSQLiteConfig := dbPathSet || (dbTypeSet && dbTypeStr != "postgres" && dbTypeStr != "postgresql")
+useFileBasedSQLite := dbPathSet || (dbTypeSet && dbTypeStr != "postgres" && dbTypeStr != "postgresql")
 
 	switch dbTypeStr {
 	case "postgres", "postgresql":
