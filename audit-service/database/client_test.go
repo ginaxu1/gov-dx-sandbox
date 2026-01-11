@@ -29,16 +29,17 @@ func TestNewDatabaseConfig(t *testing.T) {
 		os.Unsetenv("DB_CONN_MAX_IDLE_TIME")
 	}()
 
-	t.Run("Test 1: SQLite Default Configuration", func(t *testing.T) {
+	t.Run("Test 1: No Configuration - In-Memory SQLite", func(t *testing.T) {
 		// Ensure no env vars are set
 		os.Unsetenv("DB_TYPE")
 		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_HOST")
 
 		config := NewDatabaseConfig()
 
-		// Verify configuration loads correctly (defaults to ./data/audit.db)
+		// Verify configuration uses in-memory database when no config provided
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
-		assert.Equal(t, "./data/audit.db", config.DatabasePath)
+		assert.Equal(t, ":memory:", config.DatabasePath)
 		assert.Equal(t, 1, config.MaxOpenConns)
 		assert.Equal(t, 1, config.MaxIdleConns)
 		assert.Equal(t, time.Hour, config.ConnMaxLifetime)
@@ -101,6 +102,72 @@ func TestNewDatabaseConfig(t *testing.T) {
 
 		// Verify database file was created
 		assert.FileExists(t, customPath, "Database file should be created at custom path")
+	})
+
+	t.Run("Test 2a: DB_PATH Alone (No DB_TYPE) - Should Use File-Based SQLite", func(t *testing.T) {
+		// Clear all database env vars
+		os.Unsetenv("DB_TYPE")
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Create a temporary directory for custom path
+		tempDir, err := os.MkdirTemp("", "audit_test_dbpath_only")
+		require.NoError(t, err, "Should create temp directory")
+		defer os.RemoveAll(tempDir)
+
+		customPath := filepath.Join(tempDir, "dbpath_only.db")
+
+		// Set ONLY DB_PATH (no DB_TYPE)
+		os.Setenv("DB_PATH", customPath)
+
+		config := NewDatabaseConfig()
+
+		// Verify that setting DB_PATH alone implies file-based SQLite
+		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		assert.Equal(t, customPath, config.DatabasePath, "Should use DB_PATH value even without DB_TYPE")
+
+		// Verify database connection successful
+		db, err := ConnectGormDB(config)
+		require.NoError(t, err, "Database connection should succeed")
+		require.NotNil(t, db, "Database should not be nil")
+
+		// Verify connection works
+		sqlDB, err := db.DB()
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+		sqlDB.Close()
+
+		// Verify database file was created
+		assert.FileExists(t, customPath, "Database file should be created")
+	})
+
+	t.Run("Test 2b: DB_TYPE=sqlite Without DB_PATH - Should Use Default Path", func(t *testing.T) {
+		// Clear all env vars
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Set ONLY DB_TYPE=sqlite (no DB_PATH)
+		os.Setenv("DB_TYPE", "sqlite")
+
+		config := NewDatabaseConfig()
+
+		// Verify configuration uses default path
+		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		assert.Equal(t, "./data/audit.db", config.DatabasePath, "Should use default path when DB_TYPE=sqlite without DB_PATH")
+
+		// Verify database connection successful
+		db, err := ConnectGormDB(config)
+		require.NoError(t, err, "Database connection should succeed")
+		require.NotNil(t, db, "Database should not be nil")
+
+		// Verify connection works
+		sqlDB, err := db.DB()
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+		sqlDB.Close()
 	})
 
 	t.Run("Test 3: SQLite In-Memory", func(t *testing.T) {
