@@ -2,10 +2,8 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/gov-dx-sandbox/portal-backend/v1/models"
 	auditpkg "github.com/gov-dx-sandbox/shared/audit"
@@ -46,17 +44,12 @@ func LogAudit(client auditpkg.AuditClient, r *http.Request, resource string, res
 	targetType := "RESOURCE"
 
 	// Create audit event using shared/audit DTO
-	timestamp := time.Now().UTC().Format(time.RFC3339)
-	additionalMetadata := func() json.RawMessage {
-		meta := map[string]interface{}{
-			"resource":   resource,
-			"resourceId": resourceID,
-		}
-		if bytes, err := json.Marshal(meta); err == nil {
-			return bytes
-		}
-		return nil
-	}()
+	// Use shared utilities for timestamp and metadata marshaling
+	timestamp := auditpkg.CurrentTimestamp()
+	additionalMetadata := auditpkg.MarshalMetadata(map[string]interface{}{
+		"resource":   resource,
+		"resourceId": resourceID,
+	})
 
 	auditRequest := &auditpkg.AuditLogRequest{
 		TraceID:            nil, // No trace ID for standalone management events
@@ -76,34 +69,54 @@ func LogAudit(client auditpkg.AuditClient, r *http.Request, resource string, res
 }
 
 // extractActorInfoFromRequest extracts actor information from the request
+// Returns actorType, actorID, and actorRole for audit logging
+// Security: Uses SYSTEM as default for unauthenticated/unknown roles to prevent privilege escalation
 func extractActorInfoFromRequest(r *http.Request) (actorType string, actorID *string, actorRole *string) {
 	// Try to get authenticated user first
 	user, err := GetUserFromRequest(r)
-	if err == nil && user != nil {
-		userID := user.IdpUserID
-		actorID = &userID
-
-		// Map user's primary role to actor type
-		primaryRole := user.GetPrimaryRole()
-		var actorTypeConst models.ActorType
-
-		switch primaryRole {
-		case models.RoleAdmin:
-			actorTypeConst = models.ActorTypeAdmin
-		case models.RoleMember:
-			actorTypeConst = models.ActorTypeMember
-		case models.RoleSystem:
-			actorTypeConst = models.ActorTypeSystem
-		default:
-			// Safe fallback for unknown roles
-			actorTypeConst = models.ActorTypeMember
-		}
-
-		// Convert to string for both actorType and actorRole
-		roleStr := string(actorTypeConst)
-		actorType = roleStr
-		actorRole = &roleStr
+	if err != nil || user == nil {
+		// Unauthenticated request: use SYSTEM actor type with request identifier
+		// This prevents misclassification and ensures unauthenticated actions are clearly marked
+		systemActorID := "unauthenticated-request"
+		systemActorType := string(models.ActorTypeSystem)
+		slog.Warn("Audit log for unauthenticated request - using SYSTEM actor type",
+			"path", r.URL.Path,
+			"method", r.Method,
+			"remote_addr", r.RemoteAddr)
+		return systemActorType, &systemActorID, &systemActorType
 	}
+
+	// Authenticated user found - extract actor information
+	userID := user.IdpUserID
+	actorID = &userID
+
+	// Map user's primary role to actor type
+	primaryRole := user.GetPrimaryRole()
+	var actorTypeConst models.ActorType
+
+	switch primaryRole {
+	case models.RoleAdmin:
+		actorTypeConst = models.ActorTypeAdmin
+	case models.RoleMember:
+		actorTypeConst = models.ActorTypeMember
+	case models.RoleSystem:
+		actorTypeConst = models.ActorTypeSystem
+	default:
+		// Security: Use SYSTEM for unknown roles instead of MEMBER to prevent privilege escalation
+		// Unknown roles should be investigated and properly mapped
+		actorTypeConst = models.ActorTypeSystem
+		slog.Warn("Unknown role encountered in audit log - using SYSTEM actor type as safe default",
+			"user_id", userID,
+			"primary_role", primaryRole,
+			"all_roles", user.Roles,
+			"path", r.URL.Path,
+			"method", r.Method)
+	}
+
+	// Convert to string for both actorType and actorRole
+	roleStr := string(actorTypeConst)
+	actorType = roleStr
+	actorRole = &roleStr
 	return
 }
 

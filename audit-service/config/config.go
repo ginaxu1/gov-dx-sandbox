@@ -32,32 +32,34 @@ type Config struct {
 	Enums AuditEnums `yaml:"enums"`
 }
 
-// DefaultEnums provides default enum values if config file is not found
-var DefaultEnums = AuditEnums{
-	EventTypes: []string{
-		"POLICY_CHECK",
-		"MANAGEMENT_EVENT",
-		"USER_MANAGEMENT",
-		"DATA_FETCH",
-		"CONSENT_CHECK",
-	},
-	EventActions: []string{
-		"CREATE",
-		"READ",
-		"UPDATE",
-		"DELETE",
-	},
-	ActorTypes: []string{
-		"SERVICE",
-		"ADMIN",
-		"MEMBER",
-		"SYSTEM",
-	},
-	TargetTypes: []string{
-		"SERVICE",
-		"RESOURCE",
-	},
-}
+var (
+	// DefaultEnums provides default enum values if config file is not found
+	// Note: OpenDIF-specific event types (ORCHESTRATION_REQUEST_RECEIVED, POLICY_CHECK, CONSENT_CHECK, PROVIDER_FETCH)
+	// should be added to config/enums.yaml for project-specific configurations
+	DefaultEnums = AuditEnums{
+		EventTypes: []string{
+			"MANAGEMENT_EVENT",
+			"USER_MANAGEMENT",
+			"DATA_FETCH",
+		},
+		EventActions: []string{
+			"CREATE",
+			"READ",
+			"UPDATE",
+			"DELETE",
+		},
+		ActorTypes: []string{
+			"SERVICE",
+			"ADMIN",
+			"MEMBER",
+			"SYSTEM",
+		},
+		TargetTypes: []string{
+			"SERVICE",
+			"RESOURCE",
+		},
+	}
+)
 
 // LoadEnums loads enum configuration from YAML file
 // If the file is not found or cannot be read, returns default enums

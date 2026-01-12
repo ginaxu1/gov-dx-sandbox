@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 )
 
 // PdpClient represents a client to interact with the Policy Decision Point service
@@ -47,6 +48,12 @@ func (p *PdpClient) MakePdpRequest(ctx context.Context, request *PdpRequest) (*P
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	// Propagate traceID from context to header for audit correlation
+	traceID := monitoring.GetTraceIDFromContext(ctx)
+	if traceID != "" {
+		req.Header.Set("X-Trace-ID", traceID)
+	}
 
 	response, err := p.httpClient.Do(req)
 	if err != nil {

@@ -2,22 +2,72 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
-	"time"
+	"sync"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	auditpkg "github.com/gov-dx-sandbox/shared/audit"
 )
+
+// auditConfig holds the audit configuration values
+var (
+	auditConfig struct {
+		actorType  string
+		actorID    string
+		targetType string
+	}
+	auditConfigOnce sync.Once
+)
+
+// InitializeAuditConfig initializes the audit configuration from config values
+// This should be called once during application startup from main.go
+// Values are read from config.json via config.AuditConfig
+func InitializeAuditConfig(actorType, actorID, targetType string) {
+	auditConfigOnce.Do(func() {
+		// Set values with defaults if not provided (defensive programming)
+		if actorType == "" {
+			actorType = "SERVICE"
+		}
+		if actorID == "" {
+			actorID = "orchestration-engine"
+		}
+		if targetType == "" {
+			targetType = "SERVICE"
+		}
+		auditConfig.actorType = actorType
+		auditConfig.actorID = actorID
+		auditConfig.targetType = targetType
+	})
+}
+
+// getAuditActorType returns the configured actor type
+// InitializeAuditConfig guarantees this is always set (with default if needed)
+func getAuditActorType() string {
+	return auditConfig.actorType
+}
+
+// getAuditActorID returns the configured actor ID
+// InitializeAuditConfig guarantees this is always set (with default if needed)
+func getAuditActorID() string {
+	return auditConfig.actorID
+}
+
+// getAuditTargetType returns the configured target type
+// InitializeAuditConfig guarantees this is always set (with default if needed)
+func getAuditTargetType() string {
+	return auditConfig.targetType
+}
+
+// maxAuditErrorsToLog is the maximum number of errors to include in audit log metadata
+// This limit prevents audit logs from becoming too large when there are many errors
+const maxAuditErrorsToLog = 3
 
 // Context key for audit metadata
 type contextKey string
 
 const auditMetadataKey contextKey = "auditMetadata"
-
-// Context key for trace ID
-type traceIDKey struct{}
 
 // Metadata holds metadata needed for audit logging in orchestration-engine
 type Metadata struct {
@@ -47,13 +97,49 @@ func MetadataFromContext(ctx context.Context) *Metadata {
 	return metadata
 }
 
-// GetTraceIDFromContext retrieves the trace ID from the context
-// Returns empty string if trace ID is not found in context
-func GetTraceIDFromContext(ctx context.Context) string {
-	if traceID, ok := ctx.Value(traceIDKey{}).(string); ok {
-		return traceID
+// LogAuditEvent is a shared helper function that handles common audit logging logic:
+// - Gets/ensures traceID in context
+// - Marshals metadata (request or response)
+// - Creates AuditLogRequest struct
+// - Logs the event asynchronously
+// Returns the updated context with traceID (if one was generated) to ensure trace correlation
+func LogAuditEvent(ctx context.Context, eventType string, targetID *string, requestMetadata map[string]interface{}, responseMetadata map[string]interface{}, status string) context.Context {
+	// Get or generate traceID
+	traceID := monitoring.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = uuid.New().String()
+		ctx = monitoring.WithTraceID(ctx, traceID)
 	}
-	return ""
+
+	// Use configured audit fields from config.json (with fallback defaults for safety)
+	// These are initialized in main.go via InitializeAuditConfig() from config.AuditConfig
+	actorType := getAuditActorType()
+	actorID := getAuditActorID()
+	targetType := getAuditTargetType()
+
+	// Marshal metadata using shared utility
+	requestMetadataJSON := auditpkg.MarshalMetadata(requestMetadata)
+	responseMetadataJSON := auditpkg.MarshalMetadata(responseMetadata)
+
+	// Create audit request
+	auditRequest := &auditpkg.AuditLogRequest{
+		TraceID:          &traceID,
+		Timestamp:        auditpkg.CurrentTimestamp(),
+		EventType:        &eventType,
+		Status:           status,
+		ActorType:        actorType,
+		ActorID:          actorID,
+		TargetType:       targetType,
+		TargetID:         targetID,
+		RequestMetadata:  requestMetadataJSON,
+		ResponseMetadata: responseMetadataJSON,
+	}
+
+	// Log the audit event asynchronously using the global audit package
+	auditpkg.LogAuditEvent(ctx, auditRequest)
+
+	// Return the updated context to ensure traceID correlation across the request flow
+	return ctx
 }
 
 // FederationServiceRequest represents a service request for audit logging
@@ -82,18 +168,6 @@ func LogProviderFetch(ctx context.Context, providerSchemaID string, req *Federat
 		}
 	}
 
-	// Create audit request using the new v1 API structure
-	traceID := GetTraceIDFromContext(ctx)
-	if traceID == "" {
-		// If no trace ID in context, generate one (fallback)
-		traceID = uuid.New().String()
-	}
-	eventType := "PROVIDER_FETCH"
-	actorType := "SERVICE"
-	actorID := "orchestration-engine"
-	targetType := "SERVICE"
-	targetID := req.ServiceKey
-
 	// Combine requested data and additional info into response metadata
 	// (since we're logging after receiving the response)
 	responseMetadata := map[string]interface{}{
@@ -113,7 +187,7 @@ func LogProviderFetch(ctx context.Context, providerSchemaID string, req *Federat
 			// Include first few errors (limit to avoid large payloads)
 			errorDetails := make([]interface{}, 0)
 			for i, gqlErr := range response.Errors {
-				if i >= 3 { // Limit to first 3 errors
+				if i >= maxAuditErrorsToLog {
 					break
 				}
 				errorDetails = append(errorDetails, gqlErr)
@@ -129,29 +203,13 @@ func LogProviderFetch(ctx context.Context, providerSchemaID string, req *Federat
 			responseMetadata["dataKeys"] = dataKeys
 		}
 	}
-	responseMetadataJSON, jsonErr := json.Marshal(responseMetadata)
-	if jsonErr != nil {
-		logger.Log.Error("Failed to marshal response metadata for audit", "error", jsonErr)
-		responseMetadataJSON = []byte("{}")
-	}
 
 	auditStatus := auditpkg.StatusSuccess
 	if err != nil || (response != nil && len(response.Errors) > 0) {
 		auditStatus = auditpkg.StatusFailure
 	}
 
-	auditRequest := &auditpkg.AuditLogRequest{
-		TraceID:          &traceID,
-		Timestamp:        time.Now().UTC().Format(time.RFC3339),
-		EventType:        &eventType,
-		Status:           auditStatus,
-		ActorType:        actorType,
-		ActorID:          actorID,
-		TargetType:       targetType,
-		TargetID:         &targetID,
-		ResponseMetadata: json.RawMessage(responseMetadataJSON),
-	}
-
-	// Log the audit event asynchronously using the global audit package
-	auditpkg.LogAuditEvent(ctx, auditRequest)
+	// Use shared helper function to log audit event
+	// Update context with traceID if one was generated
+	ctx = LogAuditEvent(ctx, "PROVIDER_FETCH", &req.ServiceKey, nil, responseMetadata, auditStatus)
 }

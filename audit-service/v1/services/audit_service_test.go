@@ -6,10 +6,33 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/audit-service/config"
+	"github.com/gov-dx-sandbox/audit-service/v1/database"
 	v1models "github.com/gov-dx-sandbox/audit-service/v1/models"
-	v1testutil "github.com/gov-dx-sandbox/audit-service/v1/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
+
+// setupSQLiteTestDB creates an in-memory SQLite database for testing
+func setupSQLiteTestDB(t *testing.T) *gorm.DB {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err, "Failed to open SQLite test database")
+
+	// Auto-migrate the audit_logs table
+	err = db.AutoMigrate(&v1models.AuditLog{})
+	require.NoError(t, err, "Failed to migrate audit_logs table")
+
+	return db
+}
+
+// setupTestService creates an audit service with SQLite test database
+func setupTestService(t *testing.T) (*AuditService, *gorm.DB) {
+	db := setupSQLiteTestDB(t)
+	repo := database.NewGormRepository(db)
+	service := NewAuditService(repo)
+	return service, db
+}
 
 func TestAuditService_CreateAuditLog_Validation(t *testing.T) {
 	// Set up enum configuration
@@ -22,8 +45,7 @@ func TestAuditService_CreateAuditLog_Validation(t *testing.T) {
 	enums.InitializeMaps()
 	v1models.SetEnumConfig(enums)
 
-	mockRepo := v1testutil.NewMockRepository()
-	service := NewAuditService(mockRepo)
+	service, _ := setupTestService(t)
 
 	tests := []struct {
 		name    string

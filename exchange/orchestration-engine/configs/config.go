@@ -27,6 +27,7 @@ type Config struct {
 	Services    ServicesConfig        `json:"services,omitempty"`
 	PdpConfig   PdpConfig             `json:"pdpConfig,omitempty"`
 	CeConfig    CeConfig              `json:"ceConfig,omitempty"`
+	AuditConfig AuditConfig           `json:"auditConfig,omitempty"`
 	Schema      *string               `json:"schema,omitempty"`
 	Sdl         *string               `json:"sdl,omitempty"`
 	ArgMapping  []*graphql.ArgMapping `json:"argMapping,omitempty"`
@@ -65,6 +66,14 @@ type CeConfig struct {
 	ClientURL string `json:"clientUrl"`
 }
 
+// AuditConfig holds Audit Service configuration
+type AuditConfig struct {
+	ServiceURL string `json:"serviceUrl,omitempty"`
+	ActorType  string `json:"actorType,omitempty"`  // Default: "SERVICE"
+	ActorID    string `json:"actorId,omitempty"`    // Default: "orchestration-engine"
+	TargetType string `json:"targetType,omitempty"` // Default: "SERVICE"
+}
+
 // LoadConfigFromBytes unmarshals JSON into config (pure function, testable)
 func LoadConfigFromBytes(data []byte) (*Config, error) {
 	var config Config
@@ -81,6 +90,17 @@ func LoadConfigFromBytes(data []byte) (*Config, error) {
 	}
 	if config.ArgMapping == nil {
 		config.ArgMapping = config.ArgMappings
+	}
+
+	// Set default audit config values if not provided
+	if config.AuditConfig.ActorType == "" {
+		config.AuditConfig.ActorType = "SERVICE"
+	}
+	if config.AuditConfig.ActorID == "" {
+		config.AuditConfig.ActorID = "orchestration-engine"
+	}
+	if config.AuditConfig.TargetType == "" {
+		config.AuditConfig.TargetType = "SERVICE"
 	}
 
 	return &config, nil

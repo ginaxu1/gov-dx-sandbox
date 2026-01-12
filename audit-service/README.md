@@ -1,6 +1,6 @@
 # Audit Service
 
-A Go microservice for centralized audit logging across OpenDIF services, providing distributed tracing and comprehensive event tracking.
+A generic Go microservice for centralized audit logging across distributed services, providing distributed tracing and comprehensive event tracking.
 
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](../LICENSE)
@@ -115,6 +115,31 @@ Copy `.env.example` to `.env` and configure:
 
 For PostgreSQL configuration and advanced settings, see [.env.example](.env.example).
 
+### Event Type Configuration
+
+Event types are configurable via `config/enums.yaml`. This allows you to customize the audit service for your specific use case. The service comes with generic default event types, but you can add project-specific ones.
+
+**Default Event Types:**
+- `MANAGEMENT_EVENT` - Administrative operations
+- `USER_MANAGEMENT` - User-related operations
+- `DATA_FETCH` - Data retrieval operations
+
+**Customizing Event Types:**
+
+Edit `config/enums.yaml` to add your own event types:
+
+```yaml
+enums:
+  eventTypes:
+    - MANAGEMENT_EVENT
+    - USER_MANAGEMENT
+    - DATA_FETCH
+    - YOUR_CUSTOM_EVENT_TYPE
+    - ANOTHER_EVENT_TYPE
+```
+
+See [config/README.md](config/README.md) for detailed configuration options.
+
 ## API Endpoints
 
 ### Core Endpoints
@@ -136,13 +161,13 @@ curl -X POST http://localhost:3001/api/audit-logs \
   -d '{
     "traceId": "550e8400-e29b-41d4-a716-446655440000",
     "timestamp": "2024-01-20T10:00:00Z",
-    "eventType": "POLICY_CHECK",
+    "eventType": "MANAGEMENT_EVENT",
     "eventAction": "READ",
     "status": "SUCCESS",
     "actorType": "SERVICE",
-    "actorId": "orchestration-engine",
+    "actorId": "my-service",
     "targetType": "SERVICE",
-    "targetId": "policy-decision-point"
+    "targetId": "target-service"
   }'
 ```
 
@@ -156,17 +181,8 @@ curl http://localhost:3001/api/audit-logs
 curl http://localhost:3001/api/audit-logs?traceId=550e8400-e29b-41d4-a716-446655440000
 
 # Filter by event type
-curl http://localhost:3001/api/audit-logs?eventType=POLICY_CHECK&status=SUCCESS
+curl http://localhost:3001/api/audit-logs?eventType=MANAGEMENT_EVENT&status=SUCCESS
 ```
-
-See [docs/API.md](docs/API.md) for complete API documentation.
-
-## Documentation
-
-- **[API Documentation](docs/API.md)** - Complete API reference with examples
-- **[Database Configuration](docs/DATABASE_CONFIGURATION.md)** - Database setup and configuration guide
-- **[Architecture](docs/ARCHITECTURE.md)** - Project structure and design patterns
-- **[OpenAPI Spec](openapi.yaml)** - OpenAPI 3.0 specification
 
 ## Development
 
@@ -186,8 +202,6 @@ audit-service/
 ├── docs/            # Documentation
 └── main.go          # Entry point
 ```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
 
 ### Running Tests
 
@@ -221,6 +235,49 @@ go build -o audit-service
 go build -ldflags="-X main.Version=1.0.0 -X main.GitCommit=$(git rev-parse HEAD)" -o audit-service
 ```
 
+## Integration
+
+The Audit Service is designed to be integrated into any microservices architecture. It provides a simple REST API that can be called from any service.
+
+### Integration Pattern
+
+1. **Configure your service** to point to the audit service URL
+2. **Send audit events** via HTTP POST to `/api/audit-logs`
+3. **Query audit logs** via HTTP GET from `/api/audit-logs`
+
+### Client Libraries
+
+You can integrate the audit service using:
+
+- **HTTP Client**: Direct HTTP calls to the REST API
+- **Shared Client Package**: Use the `shared/audit` package (if available in your project)
+- **Custom Wrapper**: Create your own client library
+
+### Example Integration
+
+```go
+// Example: Log an audit event from your service
+auditRequest := map[string]interface{}{
+    "traceId":    traceID,
+    "timestamp":  time.Now().UTC().Format(time.RFC3339),
+    "eventType":  "YOUR_EVENT_TYPE",
+    "status":     "SUCCESS",
+    "actorType":  "SERVICE",
+    "actorId":    "your-service-name",
+    "targetType": "RESOURCE",
+    "targetId":   "resource-id",
+}
+
+// POST to http://audit-service:3001/api/audit-logs
+```
+
+### Graceful Degradation
+
+- Services continue to function normally if audit service is unavailable
+- No errors are thrown when audit service URL is not configured
+- Audit operations should be asynchronous (fire-and-forget) to avoid blocking requests
+- Services can be started before audit service is ready
+
 ## Deployment
 
 ### Docker
@@ -243,13 +300,17 @@ docker run -d \
   -e DB_TYPE=postgres \
   -e DB_HOST=postgres \
   -e DB_PASSWORD=your_password \
+  -e DB_NAME=audit_db \
   audit-service
 ```
 
 ### Docker Compose
 
+The audit service includes a `docker-compose.yml` for standalone deployment:
+
 ```bash
-# Start service
+# Deploy audit service
+cd audit-service
 docker compose up -d
 
 # View logs
@@ -266,30 +327,8 @@ docker compose down
 3. **CORS**: Configure `CORS_ALLOWED_ORIGINS` appropriately
 4. **Monitoring**: Monitor service health via `/health` endpoint
 5. **Backup**: Implement database backup strategy
-
-## Integration with OpenDIF Services
-
-The Audit Service integrates with:
-
-- **Orchestration Engine** - Tracks data exchange operations
-- **Portal Backend** - Logs administrative actions
-- **Consent Engine** - Records consent changes
-
-Audit logging is **optional** - services function normally without it.
-
-### Configuration in Other Services
-
-```bash
-# Enable audit logging in orchestration-engine
-export AUDIT_SERVICE_ENABLED=true
-export AUDIT_SERVICE_URL=http://audit-service:3001
-
-# Enable audit logging in portal-backend
-export AUDIT_SERVICE_ENABLED=true
-export AUDIT_SERVICE_URL=http://audit-service:3001
-```
-
-See [../exchange/AUDIT_SERVICE.md](../exchange/AUDIT_SERVICE.md) for integration documentation.
+6. **High Availability**: Consider deploying multiple instances behind a load balancer
+7. **Security**: Implement authentication/authorization if exposing the service publicly
 
 ## Troubleshooting
 
@@ -312,6 +351,12 @@ See [../exchange/AUDIT_SERVICE.md](../exchange/AUDIT_SERVICE.md) for integration
 - Check credentials and SSL settings
 - Verify network connectivity
 
+**Event type validation errors:**
+
+- Check that your event types are defined in `config/enums.yaml`
+- Verify the enum configuration file is being loaded correctly
+- Check service logs for validation error details
+
 See [docs/DATABASE_CONFIGURATION.md](docs/DATABASE_CONFIGURATION.md) for detailed troubleshooting.
 
 ## Contributing
@@ -328,12 +373,4 @@ This project is licensed under the Apache License 2.0 - see [LICENSE](../LICENSE
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/OpenDIF/opendif-core/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/OpenDIF/opendif-core/discussions)
-- **Documentation**: [OpenDIF Documentation](https://github.com/OpenDIF/opendif-core/tree/main/docs)
-
-## Related Services
-
-- [Orchestration Engine](../exchange/orchestration-engine/) - Data exchange orchestration
-- [Portal Backend](../portal-backend/) - Admin portal backend
-- [Consent Engine](../exchange/consent-engine/) - Consent management
+For issues, questions, or contributions, please use the project's issue tracker and discussion forums.

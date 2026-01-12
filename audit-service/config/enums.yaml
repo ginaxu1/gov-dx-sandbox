@@ -10,7 +10,6 @@ enums:
     - MANAGEMENT_EVENT
     - USER_MANAGEMENT
     - DATA_FETCH
-    - CONSENT_CHECK
 
   # Event Action: CRUD operations
   eventActions:

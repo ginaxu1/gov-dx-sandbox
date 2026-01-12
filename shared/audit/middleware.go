@@ -6,15 +6,9 @@ import (
 	"sync"
 )
 
-// AuditClient is an interface for sending audit events
-type AuditClient interface {
-	LogEvent(ctx context.Context, event *AuditLogRequest)
-	IsEnabled() bool
-}
-
 // AuditMiddleware handles audit logging operations
 type AuditMiddleware struct {
-	client AuditClient
+	client Auditor
 }
 
 // Global audit middleware instance for easy access from handlers
@@ -27,10 +21,10 @@ var (
 // This function should typically only be called once during application startup.
 // Subsequent calls will return a new instance but won't update the global instance.
 //
-// The client parameter should be an implementation of AuditClient interface.
+// The client parameter should be an implementation of Auditor interface.
 // When client is nil or IsEnabled() returns false, the middleware will skip all audit logging operations
 // but services will continue to function normally.
-func NewAuditMiddleware(client AuditClient) *AuditMiddleware {
+func NewAuditMiddleware(client Auditor) *AuditMiddleware {
 	middleware := &AuditMiddleware{client: client}
 
 	globalAuditOnce.Do(func() {
@@ -42,7 +36,7 @@ func NewAuditMiddleware(client AuditClient) *AuditMiddleware {
 
 // Client returns the audit client instance
 // This allows service-specific wrappers to access the client
-func (m *AuditMiddleware) Client() AuditClient {
+func (m *AuditMiddleware) Client() Auditor {
 	return m.client
 }
 
