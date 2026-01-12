@@ -51,19 +51,24 @@ type Config struct {
 // NewDatabaseConfig creates a new database configuration from environment variables
 // Supports both SQLite (default) and PostgreSQL databases
 // Configuration priority:
-// 1. If DB_TYPE=postgres → PostgreSQL
-// 2. If DB_TYPE=sqlite OR DB_PATH is set → File-based SQLite (default: ./data/audit.db)
-// 3. If no database configuration → In-memory SQLite (:memory:)
+//  1. If DB_TYPE=postgres → PostgreSQL (DB_HOST, DB_PASSWORD, etc. required)
+//  2. If DB_TYPE=sqlite OR DB_PATH is set → File-based SQLite (default: ./data/audit.db)
+//     Note: Unknown DB_TYPE values also default to file-based SQLite
+//  3. If no database configuration (no DB_TYPE, no DB_PATH) → In-memory SQLite (:memory:)
+//     Note: DB_HOST is only relevant for PostgreSQL and does not count as "database configuration"
 func NewDatabaseConfig() *Config {
 	// Determine database type from environment variable
 	dbTypeStr := strings.ToLower(configpkg.GetEnvOrDefault("DB_TYPE", ""))
 	var dbType DatabaseType
 
-	// Check if ANY database configuration is provided
+	// Check SQLite-specific configuration (DB_HOST is only relevant for PostgreSQL)
 	dbTypeSet := os.Getenv("DB_TYPE") != ""
 	dbPathSet := os.Getenv("DB_PATH") != ""
 	dbHostSet := os.Getenv("DB_HOST") != ""
-	hasAnyDBConfig := dbTypeSet || dbPathSet || dbHostSet
+
+	// For SQLite: only DB_TYPE=sqlite or DB_PATH count as configuration
+	// DB_HOST is only relevant when DB_TYPE=postgres
+useFileBasedSQLite := dbPathSet || (dbTypeSet && dbTypeStr != "postgres" && dbTypeStr != "postgresql")
 
 	switch dbTypeStr {
 	case "postgres", "postgresql":
@@ -76,6 +81,13 @@ func NewDatabaseConfig() *Config {
 	default:
 		slog.Warn("Unknown DB_TYPE, defaulting to sqlite", "db_type", dbTypeStr)
 		dbType = DatabaseTypeSQLite
+	}
+
+	// Warn if DB_HOST is set but not using PostgreSQL
+	if dbHostSet && dbType != DatabaseTypePostgres {
+		slog.Warn("DB_HOST is set but DB_TYPE is not 'postgres'. DB_HOST will be ignored. Use DB_TYPE=postgres to connect to PostgreSQL.",
+			"db_type", dbTypeStr,
+			"db_host", os.Getenv("DB_HOST"))
 	}
 
 	config := &Config{
@@ -91,12 +103,12 @@ func NewDatabaseConfig() *Config {
 		config.MaxIdleConns = parseIntOrDefault("DB_MAX_IDLE_CONNS", 1)
 
 		// Determine database path based on configuration
-		if !hasAnyDBConfig {
-			// No configuration at all → in-memory database for quick testing
+if !useFileBasedSQLite {
+			// No SQLite configuration at all → in-memory database for quick testing
 			config.DatabasePath = ":memory:"
 			slog.Info("No database configuration found, using in-memory SQLite")
 		} else {
-			// Some configuration provided → file-based SQLite
+			// SQLite configuration provided → file-based SQLite
 			config.DatabasePath = configpkg.GetEnvOrDefault("DB_PATH", "./data/audit.db")
 		}
 
