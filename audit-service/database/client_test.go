@@ -1,6 +1,8 @@
 package database
 
 import (
+	"bytes"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -29,16 +31,17 @@ func TestNewDatabaseConfig(t *testing.T) {
 		os.Unsetenv("DB_CONN_MAX_IDLE_TIME")
 	}()
 
-	t.Run("Test 1: SQLite Default Configuration", func(t *testing.T) {
+	t.Run("Test 1: No Configuration - In-Memory SQLite", func(t *testing.T) {
 		// Ensure no env vars are set
 		os.Unsetenv("DB_TYPE")
 		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_HOST")
 
 		config := NewDatabaseConfig()
 
-		// Verify configuration loads correctly (defaults to ./data/audit.db)
+		// Verify configuration uses in-memory database when no config provided
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
-		assert.Equal(t, "./data/audit.db", config.DatabasePath)
+		assert.Equal(t, ":memory:", config.DatabasePath)
 		assert.Equal(t, 1, config.MaxOpenConns)
 		assert.Equal(t, 1, config.MaxIdleConns)
 		assert.Equal(t, time.Hour, config.ConnMaxLifetime)
@@ -101,6 +104,72 @@ func TestNewDatabaseConfig(t *testing.T) {
 
 		// Verify database file was created
 		assert.FileExists(t, customPath, "Database file should be created at custom path")
+	})
+
+	t.Run("Test 2a: DB_PATH Alone (No DB_TYPE) - Should Use File-Based SQLite", func(t *testing.T) {
+		// Clear all database env vars
+		os.Unsetenv("DB_TYPE")
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Create a temporary directory for custom path
+		tempDir, err := os.MkdirTemp("", "audit_test_dbpath_only")
+		require.NoError(t, err, "Should create temp directory")
+		defer os.RemoveAll(tempDir)
+
+		customPath := filepath.Join(tempDir, "dbpath_only.db")
+
+		// Set ONLY DB_PATH (no DB_TYPE)
+		os.Setenv("DB_PATH", customPath)
+
+		config := NewDatabaseConfig()
+
+		// Verify that setting DB_PATH alone implies file-based SQLite
+		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		assert.Equal(t, customPath, config.DatabasePath, "Should use DB_PATH value even without DB_TYPE")
+
+		// Verify database connection successful
+		db, err := ConnectGormDB(config)
+		require.NoError(t, err, "Database connection should succeed")
+		require.NotNil(t, db, "Database should not be nil")
+
+		// Verify connection works
+		sqlDB, err := db.DB()
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+		sqlDB.Close()
+
+		// Verify database file was created
+		assert.FileExists(t, customPath, "Database file should be created")
+	})
+
+	t.Run("Test 2b: DB_TYPE=sqlite Without DB_PATH - Should Use Default Path", func(t *testing.T) {
+		// Clear all env vars
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_HOST")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Set ONLY DB_TYPE=sqlite (no DB_PATH)
+		os.Setenv("DB_TYPE", "sqlite")
+
+		config := NewDatabaseConfig()
+
+		// Verify configuration uses default path
+		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		assert.Equal(t, "./data/audit.db", config.DatabasePath, "Should use default path when DB_TYPE=sqlite without DB_PATH")
+
+		// Verify database connection successful
+		db, err := ConnectGormDB(config)
+		require.NoError(t, err, "Database connection should succeed")
+		require.NotNil(t, db, "Database should not be nil")
+
+		// Verify connection works
+		sqlDB, err := db.DB()
+		require.NoError(t, err, "Should be able to get underlying sql.DB")
+		assert.NoError(t, sqlDB.Ping(), "Should be able to ping database")
+		sqlDB.Close()
 	})
 
 	t.Run("Test 3: SQLite In-Memory", func(t *testing.T) {
@@ -194,7 +263,7 @@ func TestNewDatabaseConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("Test 5: Unknown DB_TYPE Defaults to SQLite", func(t *testing.T) {
+	t.Run("Test 5: Unknown DB_TYPE Defaults to File-Based SQLite", func(t *testing.T) {
 		// Clear any existing env vars that might affect SQLite defaults
 		os.Unsetenv("DB_MAX_OPEN_CONNS")
 		os.Unsetenv("DB_MAX_IDLE_CONNS")
@@ -210,15 +279,72 @@ func TestNewDatabaseConfig(t *testing.T) {
 
 		config := NewDatabaseConfig()
 
-		// Verify unknown database types default to SQLite
+		// Verify unknown database types default to file-based SQLite
 		assert.Equal(t, DatabaseTypeSQLite, config.Type)
 		// Should use SQLite defaults
 		assert.Equal(t, 1, config.MaxOpenConns)
 		assert.Equal(t, 1, config.MaxIdleConns)
-		assert.Equal(t, "./data/audit.db", config.DatabasePath)
+		assert.Equal(t, "./data/audit.db", config.DatabasePath, "Unknown DB_TYPE should default to file-based SQLite, not in-memory")
 
 		// Warning should be logged (we can't easily test logging in unit tests,
-		// but the behavior is correct - it defaults to SQLite)
+		// but the behavior is correct - it defaults to file-based SQLite)
+	})
+
+	t.Run("Test 5a: DB_HOST Set Without DB_TYPE=postgres - Should Use In-Memory SQLite", func(t *testing.T) {
+		// Clear all env vars
+		os.Unsetenv("DB_TYPE")
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Set DB_HOST but NOT DB_TYPE=postgres
+		os.Setenv("DB_HOST", "localhost")
+
+		// Capture log output to verify warning is logged
+		var logBuffer bytes.Buffer
+		originalLogger := slog.Default()
+		defer slog.SetDefault(originalLogger) // Restore original logger
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logBuffer, nil)))
+
+		config := NewDatabaseConfig()
+
+		// Verify that DB_HOST alone (without DB_TYPE=postgres) does NOT trigger file-based SQLite
+		// It should use in-memory SQLite because DB_HOST is only relevant for PostgreSQL
+		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		assert.Equal(t, ":memory:", config.DatabasePath, "DB_HOST without DB_TYPE=postgres should use in-memory SQLite, not file-based")
+
+		// Verify warning is logged about DB_HOST being ignored
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "DB_HOST will be ignored", "Warning should be logged when DB_HOST is set without DB_TYPE=postgres")
+		assert.Contains(t, logOutput, "DB_TYPE is not 'postgres'", "Warning should mention that DB_TYPE is not postgres")
+	})
+
+	t.Run("Test 5b: DB_HOST Set With DB_TYPE=sqlite - Should Use File-Based SQLite", func(t *testing.T) {
+		// Clear all env vars
+		os.Unsetenv("DB_PATH")
+		os.Unsetenv("DB_MAX_OPEN_CONNS")
+		os.Unsetenv("DB_MAX_IDLE_CONNS")
+
+		// Set DB_TYPE=sqlite and DB_HOST (DB_HOST should be ignored/warned)
+		os.Setenv("DB_TYPE", "sqlite")
+		os.Setenv("DB_HOST", "localhost")
+
+		// Capture log output to verify warning is logged
+		var logBuffer bytes.Buffer
+		originalLogger := slog.Default()
+		defer slog.SetDefault(originalLogger) // Restore original logger
+		slog.SetDefault(slog.New(slog.NewTextHandler(&logBuffer, nil)))
+
+		config := NewDatabaseConfig()
+
+		// Verify that DB_TYPE=sqlite triggers file-based SQLite (DB_HOST is ignored)
+		assert.Equal(t, DatabaseTypeSQLite, config.Type)
+		assert.Equal(t, "./data/audit.db", config.DatabasePath, "DB_TYPE=sqlite should use file-based SQLite, DB_HOST is ignored")
+
+		// Verify warning is logged about DB_HOST being ignored
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "DB_HOST will be ignored", "Warning should be logged when DB_HOST is set with DB_TYPE=sqlite")
+		assert.Contains(t, logOutput, "DB_TYPE is not 'postgres'", "Warning should mention that DB_TYPE is not postgres")
 	})
 
 	t.Run("Test 6: PostgreSQL with Special Characters in Password", func(t *testing.T) {

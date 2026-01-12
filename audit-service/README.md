@@ -1,213 +1,195 @@
 # Audit Service
 
-A Go microservice for managing audit logs, providing both read and write operations for generalized audit events.
+A Go microservice for centralized audit logging across OpenDIF services, providing distributed tracing and comprehensive event tracking.
+
+[![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue)](https://golang.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](../LICENSE)
 
 ## Overview
 
-The Audit Service answers: "who made this request, what did they ask for, and did they get that data" by providing APIs for logging and querying audit events. It provides a generalized, reusable audit logging solution that can be used across different services.
+The Audit Service tracks "who did what, when, and with what result" by providing APIs for logging and querying audit events across distributed services. It supports flexible database backends and distributed tracing with trace IDs.
 
-**Note:** Audit service is **optional**. Services can function normally with or without audit logging enabled. See [AUDIT_SERVICE.md](../exchange/AUDIT_SERVICE.md) for configuration details.
+**Key Features:**
 
-## Features
-
-- **Read and write operations** for generalized audit logs
-- **Distributed tracing support** - Track requests across services using trace IDs
-- **Flexible event classification** - Support for custom event types and actions
-- **Advanced filtering** by trace ID, event type, and status
-- **Pagination support** for large datasets
-- **CORS enabled** for cross-origin requests
+- 📝 Create and retrieve audit logs via REST API
+- 🔍 Filter by trace ID, event type, status, and more
+- 🗄️ Multiple database backends (SQLite, PostgreSQL)
+- 🚀 Zero configuration - works out of the box with in-memory database
+- 📊 Distributed tracing support
+- 🔌 CORS-enabled for cross-origin requests
 
 ## Quick Start
 
 ### Prerequisites
 
-- Go 1.21+
-- No database setup required (uses SQLite by default)
+- Go 1.21 or higher
+- (Optional) PostgreSQL for production deployments
 
-### Run the Service
+### Installation & Running
 
 ```bash
+# Clone the repository (if not already cloned)
+git clone https://github.com/OpenDIF/opendif-core.git
+cd opendif-core/audit-service
+
 # Install dependencies
 go mod tidy
 
-# Run the service (uses SQLite database at ./data/audit.db by default)
-go run main.go
-
-# Or build and run
-go build -o audit-service
-./audit-service
+# Run with in-memory database (no configuration needed)
+go run .
 ```
 
-The service runs on port 3001 by default and automatically creates a SQLite database at `./data/audit.db` if it doesn't exist.
+Service starts on `http://localhost:3001`
+
+### Test the API
+
+```bash
+# Health check
+curl http://localhost:3001/health
+
+# Create an audit log
+curl -X POST http://localhost:3001/api/audit-logs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timestamp": "2024-01-20T10:00:00Z",
+    "status": "SUCCESS",
+    "actorType": "SERVICE",
+    "actorId": "test-service",
+    "targetType": "RESOURCE",
+    "eventType": "TEST_EVENT"
+  }'
+
+# Get audit logs
+curl http://localhost:3001/api/audit-logs
+```
 
 ## Configuration
 
-### Database Configuration
+### Database Options
 
-The audit-service supports two database options:
+The service supports three database modes:
 
-#### SQLite (Default)
-
-SQLite works out of the box with no external setup. Supports both file-based and in-memory databases.
-
-**Environment Variables:**
-- `DB_TYPE` - Set to `sqlite` (default, can be omitted)
-- `DB_PATH` - Path to SQLite database file (default: `./data/audit.db`)
-  - Use `:memory:` for in-memory database (data lost on restart)
+| Mode                  | Configuration                    | Use Case                     |
+| --------------------- | -------------------------------- | ---------------------------- |
+| **In-Memory SQLite**  | No config needed                 | Development, testing         |
+| **File-Based SQLite** | `DB_TYPE=sqlite` OR `DB_PATH` set | Single-server deployments    |
+| **PostgreSQL**        | `DB_TYPE=postgres` + credentials | Production, high concurrency |
 
 **Examples:**
+
 ```bash
-# File-based SQLite (default)
-go run main.go
+# In-memory (default - no configuration)
+go run .
 
-# In-memory SQLite (for testing)
-DB_PATH=:memory: go run main.go
+# File-based SQLite (option 1: explicit DB_TYPE)
+export DB_TYPE=sqlite
+export DB_PATH=./data/audit.db
+go run .
 
-# Custom file path
-DB_PATH=/var/lib/audit/audit.db go run main.go
+# File-based SQLite (option 2: DB_PATH alone)
+export DB_PATH=./data/audit.db
+go run .
+
+# PostgreSQL
+export DB_TYPE=postgres
+export DB_HOST=localhost
+export DB_USERNAME=postgres
+export DB_PASSWORD=your_password
+export DB_NAME=audit_db
+go run .
 ```
 
-#### PostgreSQL (External Database)
+See [docs/DATABASE_CONFIGURATION.md](docs/DATABASE_CONFIGURATION.md) for complete database setup guide.
 
-Use PostgreSQL for production deployments requiring high concurrency.
+### Environment Variables
 
-**Environment Variables:**
-- `DB_TYPE` - Set to `postgres`
-- `DB_HOST` - Database host (default: `localhost`)
-- `DB_PORT` - Database port (default: `5432`)
-- `DB_USERNAME` - Database username (default: `postgres`)
-- `DB_PASSWORD` - Database password (required)
-- `DB_NAME` - Database name (default: `audit_db`)
-- `DB_SSLMODE` - SSL mode (default: `disable`)
+Copy `.env.example` to `.env` and configure:
 
-**Example:**
-```bash
-DB_TYPE=postgres \
-DB_HOST=localhost \
-DB_PORT=5432 \
-DB_USERNAME=postgres \
-DB_PASSWORD=your_password \
-DB_NAME=audit_db \
-go run main.go
-```
+| Variable               | Default                 | Description                                 |
+| ---------------------- | ----------------------- | ------------------------------------------- |
+| `PORT`                 | `3001`                  | Service port                                |
+| `DB_TYPE`              | -                       | Database type: `sqlite` or `postgres`. If not set, uses in-memory SQLite |
+| `DB_PATH`              | `./data/audit.db`       | SQLite database path (only used when `DB_TYPE=sqlite` or `DB_PATH` is explicitly set) |
+| `LOG_LEVEL`            | `info`                  | Log level: `debug`, `info`, `warn`, `error` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Allowed CORS origins                        |
 
-**Switching:**
-Simply change `DB_TYPE` environment variable:
-- `DB_TYPE=sqlite` (or omit) → SQLite
-- `DB_TYPE=postgres` → PostgreSQL
-
-### Service Configuration
-
-**Environment Variables:**
-- `PORT` - Service port (default: `3001`)
-- `ENVIRONMENT` - Environment mode (default: `production`)
-- `AUDIT_ENUMS_CONFIG` - Path to enum configuration YAML file (default: `config/enums.yaml`)
+For PostgreSQL configuration and advanced settings, see [.env.example](.env.example).
 
 ## API Endpoints
 
-### Audit Logs
-- `GET /api/audit-logs` - Retrieve audit logs with filtering and pagination
-- `POST /api/audit-logs` - Create a new audit log entry
+### Core Endpoints
 
-### System Endpoints
-- `GET /health` - Service health check
-- `GET /version` - Service version information
+| Method | Endpoint          | Description                              |
+| ------ | ----------------- | ---------------------------------------- |
+| POST   | `/api/audit-logs` | Create audit log entry                   |
+| GET    | `/api/audit-logs` | Retrieve audit logs (filtered/paginated) |
+| GET    | `/health`         | Health check                             |
+| GET    | `/version`        | Version information                      |
 
-### Query Parameters
+### Quick API Examples
 
-**Get Audit Logs** (`GET /api/audit-logs`) supports:
-- `traceId` - Filter by trace ID (UUID format)
-- `eventType` - Filter by event type (e.g., `POLICY_CHECK`, `MANAGEMENT_EVENT`)
-- `limit` - Maximum number of logs to return (default: 100, max: 1000)
-- `offset` - Number of logs to skip for pagination (default: 0)
+**Create Audit Log:**
 
-### Request Format
-
-**Create Audit Log** (`POST /api/audit-logs`):
-
-**Required Fields:**
-- `timestamp` - ISO 8601 timestamp (e.g., `2024-01-20T10:00:00Z`)
-- `status` - Event status: `SUCCESS` or `FAILURE`
-- `actorType` - Actor type: `SERVICE`, `ADMIN`, `MEMBER`, or `SYSTEM`
-- `actorId` - Actor identifier (email, UUID, or service name)
-- `targetType` - Target type: `SERVICE` or `RESOURCE`
-
-**Optional Fields:**
-- `traceId` - UUID for distributed tracing (nullable for standalone events)
-- `eventType` - User-defined event type (e.g., `POLICY_CHECK`, `MANAGEMENT_EVENT`)
-- `eventAction` - Event action: `CREATE`, `READ`, `UPDATE`, `DELETE`
-- `targetId` - Target identifier (resource ID or service name)
-- `requestMetadata` - JSON object with request payload (without PII/sensitive data)
-- `responseMetadata` - JSON object with response or error details
-- `additionalMetadata` - JSON object with additional context-specific data
-
-**Example Request:**
-```json
-{
-  "traceId": "550e8400-e29b-41d4-a716-446655440000",
-  "timestamp": "2024-01-20T10:00:00Z",
-  "eventType": "POLICY_CHECK",
-  "eventAction": "READ",
-  "status": "SUCCESS",
-  "actorType": "SERVICE",
-  "actorId": "orchestration-engine",
-  "targetType": "SERVICE",
-  "targetId": "policy-decision-point",
-  "requestMetadata": {
-    "schemaId": "schema-123",
-    "requestedFields": ["name", "address"]
-  },
-  "responseMetadata": {
-    "decision": "ALLOWED"
-  }
-}
+```bash
+curl -X POST http://localhost:3001/api/audit-logs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "traceId": "550e8400-e29b-41d4-a716-446655440000",
+    "timestamp": "2024-01-20T10:00:00Z",
+    "eventType": "POLICY_CHECK",
+    "eventAction": "READ",
+    "status": "SUCCESS",
+    "actorType": "SERVICE",
+    "actorId": "orchestration-engine",
+    "targetType": "SERVICE",
+    "targetId": "policy-decision-point"
+  }'
 ```
 
-### Response Format
+**Get Audit Logs:**
 
-**Get Audit Logs Response:**
-```json
-{
-  "logs": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
-      "timestamp": "2024-01-20T10:00:00Z",
-      "traceId": "550e8400-e29b-41d4-a716-446655440000",
-      "eventType": "POLICY_CHECK",
-      "eventAction": "READ",
-      "status": "SUCCESS",
-      "actorType": "SERVICE",
-      "actorId": "orchestration-engine",
-      "targetType": "SERVICE",
-      "targetId": "policy-decision-point",
-      "requestMetadata": {
-        "schemaId": "schema-123"
-      },
-      "responseMetadata": {
-        "decision": "ALLOWED"
-      },
-      "additionalMetadata": null,
-      "createdAt": "2024-01-20T10:00:00Z"
-    }
-  ],
-  "total": 100,
-  "limit": 100,
-  "offset": 0
-}
+```bash
+# All logs
+curl http://localhost:3001/api/audit-logs
+
+# Filter by trace ID
+curl http://localhost:3001/api/audit-logs?traceId=550e8400-e29b-41d4-a716-446655440000
+
+# Filter by event type
+curl http://localhost:3001/api/audit-logs?eventType=POLICY_CHECK&status=SUCCESS
 ```
 
-**Create Audit Log Response:**
-Returns the created audit log entry in the same format as above.
+See [docs/API.md](docs/API.md) for complete API documentation.
 
-For complete API documentation, see [openapi.yaml](./openapi.yaml).
+## Documentation
 
-## Testing
+- **[API Documentation](docs/API.md)** - Complete API reference with examples
+- **[Database Configuration](docs/DATABASE_CONFIGURATION.md)** - Database setup and configuration guide
+- **[Architecture](docs/ARCHITECTURE.md)** - Project structure and design patterns
+- **[OpenAPI Spec](openapi.yaml)** - OpenAPI 3.0 specification
 
-### Local Test Setup
+## Development
 
-Tests use SQLite by default and create temporary database files. No additional setup is required.
+### Project Structure
 
-### Run Tests
+```
+audit-service/
+├── config/          # Configuration management
+├── database/        # Database connection layer
+├── middleware/      # HTTP middleware (CORS)
+├── v1/              # API Version 1
+│   ├── database/    # Repository interface & implementation
+│   ├── handlers/    # HTTP handlers
+│   ├── models/      # Domain models & DTOs
+│   ├── services/    # Business logic
+│   └── testutil/    # Test utilities
+├── docs/            # Documentation
+└── main.go          # Entry point
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+
+### Running Tests
 
 ```bash
 # Run all tests
@@ -215,114 +197,143 @@ go test ./...
 
 # Run with coverage
 go test ./... -cover
+
+# Run with verbose output
+go test ./... -v
+
+# Generate coverage report
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out
 ```
 
-**Note**: Tests use in-memory SQLite databases and clean up automatically after execution.
+Tests use in-memory SQLite and require no external dependencies.
 
-## Health Check
+### Building
 
-- `GET /health` - Returns service health status
+```bash
+# Build binary
+go build -o audit-service
 
-## Security
+# Run binary
+./audit-service
 
-- **CORS enabled**: Cross-origin requests are supported via CORS middleware
-- **Internal service**: Service is intended for internal use within the OpenDIF ecosystem
-- **No authentication required**: Authentication is handled by upstream services (Orchestration Engine, Portal Backend)
-- **Database security**: Uses configurable SSL modes for database connections
+# Build with version information
+go build -ldflags="-X main.Version=1.0.0 -X main.GitCommit=$(git rev-parse HEAD)" -o audit-service
+```
 
 ## Deployment
 
-The Audit Service is **optional** and can be deployed separately from the main OpenDIF services. Services (Orchestration Engine, Portal Backend) will function normally without audit logging enabled.
+### Docker
 
-### Deployment Steps
-
-**Using Docker Compose:**
-```bash
-cd audit-service
-docker compose up -d
-```
-
-**Using Docker:**
 ```bash
 # Build image
 docker build -t audit-service .
 
-# Run container
+# Run with file-based SQLite
 docker run -d \
   -p 3001:3001 \
-  -e DB_PATH=/data/audit.db \
   -v audit-data:/data \
-  --name audit-service \
-  audit-service
-```
-
-**Using Standalone Binary:**
-```bash
-cd audit-service
-go build -o audit-service
-./audit-service
-```
-
-### Verify Deployment
-
-1. Check service health: `GET http://localhost:3001/health`
-2. Check service version: `GET http://localhost:3001/version`
-3. Query audit logs: `GET http://localhost:3001/api/audit-logs`
-
-### Environment Variables Summary
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DB_TYPE` | `sqlite` | Database type: `sqlite` or `postgres` |
-| `DB_PATH` | `./data/audit.db` | SQLite database file path (when `DB_TYPE=sqlite`) |
-| `DB_HOST` | `localhost` | PostgreSQL host (when `DB_TYPE=postgres`) |
-| `DB_PORT` | `5432` | PostgreSQL port (when `DB_TYPE=postgres`) |
-| `DB_USERNAME` | `postgres` | PostgreSQL username (when `DB_TYPE=postgres`) |
-| `DB_PASSWORD` | - | PostgreSQL password (required when `DB_TYPE=postgres`) |
-| `DB_NAME` | `audit_db` | PostgreSQL database name (when `DB_TYPE=postgres`) |
-| `DB_SSLMODE` | `disable` | PostgreSQL SSL mode (when `DB_TYPE=postgres`) |
-| `DB_MAX_OPEN_CONNS` | `1` (SQLite) / `25` (PostgreSQL) | Maximum open database connections |
-| `DB_MAX_IDLE_CONNS` | `1` (SQLite) / `5` (PostgreSQL) | Maximum idle database connections |
-| `DB_CONN_MAX_LIFETIME` | `1h` | Connection max lifetime |
-| `DB_CONN_MAX_IDLE_TIME` | `15m` | Connection max idle time |
-| `PORT` | `3001` | Service port |
-| `ENVIRONMENT` | `production` | Environment mode |
-| `AUDIT_ENUMS_CONFIG` | `config/enums.yaml` | Enum configuration file path |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
-
-**Note:** For information on enabling/disabling audit logging in other services (Orchestration Engine, Portal Backend), refer to the deployment documentation of those respective services.
-
-### Docker Examples
-
-**Using SQLite (Default):**
-```bash
-# Build image
-docker build -t audit-service .
-
-# Run container with SQLite (default)
-docker run -d \
-  -p 3001:3001 \
+  -e DB_TYPE=sqlite \
   -e DB_PATH=/data/audit.db \
-  -v audit-data:/data \
-  --name audit-service \
   audit-service
-```
 
-**Using PostgreSQL:**
-```bash
-# Run container with PostgreSQL
+# Run with PostgreSQL
 docker run -d \
   -p 3001:3001 \
   -e DB_TYPE=postgres \
   -e DB_HOST=postgres \
-  -e DB_PORT=5432 \
-  -e DB_USERNAME=user \
-  -e DB_PASSWORD=password \
-  -e DB_NAME=audit_db \
-  -e DB_SSLMODE=disable \
-  --name audit-service \
+  -e DB_PASSWORD=your_password \
   audit-service
 ```
 
-**Note:** The audit service has its own `docker-compose.yml` for standalone deployment. The main `exchange/docker-compose.yml` does not include audit-service by default. Deploy it separately or add it manually if needed.
+### Docker Compose
 
+```bash
+# Start service
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop service
+docker compose down
+```
+
+### Production Considerations
+
+1. **Database**: Use PostgreSQL for production deployments
+2. **Logging**: Set `LOG_LEVEL=info` or `LOG_LEVEL=warn` in production
+3. **CORS**: Configure `CORS_ALLOWED_ORIGINS` appropriately
+4. **Monitoring**: Monitor service health via `/health` endpoint
+5. **Backup**: Implement database backup strategy
+
+## Integration with OpenDIF Services
+
+The Audit Service integrates with:
+
+- **Orchestration Engine** - Tracks data exchange operations
+- **Portal Backend** - Logs administrative actions
+- **Consent Engine** - Records consent changes
+
+Audit logging is **optional** - services function normally without it.
+
+### Configuration in Other Services
+
+```bash
+# Enable audit logging in orchestration-engine
+export AUDIT_SERVICE_ENABLED=true
+export AUDIT_SERVICE_URL=http://audit-service:3001
+
+# Enable audit logging in portal-backend
+export AUDIT_SERVICE_ENABLED=true
+export AUDIT_SERVICE_URL=http://audit-service:3001
+```
+
+See [../exchange/AUDIT_SERVICE.md](../exchange/AUDIT_SERVICE.md) for integration documentation.
+
+## Troubleshooting
+
+### Common Issues
+
+**Service won't start:**
+
+- Check port 3001 is available: `lsof -i :3001`
+- Verify database configuration
+- Check logs for error messages
+
+**Database locked error (SQLite):**
+
+- Ensure `DB_MAX_OPEN_CONNS=1` (default)
+- Switch to PostgreSQL for high concurrency
+
+**Connection timeout (PostgreSQL):**
+
+- Verify database is running and accessible
+- Check credentials and SSL settings
+- Verify network connectivity
+
+See [docs/DATABASE_CONFIGURATION.md](docs/DATABASE_CONFIGURATION.md) for detailed troubleshooting.
+
+## Contributing
+
+We welcome contributions! Please see:
+
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Architecture overview
+- [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) - Code of conduct
+
+## License
+
+This project is licensed under the Apache License 2.0 - see [LICENSE](../LICENSE) for details.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/OpenDIF/opendif-core/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/OpenDIF/opendif-core/discussions)
+- **Documentation**: [OpenDIF Documentation](https://github.com/OpenDIF/opendif-core/tree/main/docs)
+
+## Related Services
+
+- [Orchestration Engine](../exchange/orchestration-engine/) - Data exchange orchestration
+- [Portal Backend](../portal-backend/) - Admin portal backend
+- [Consent Engine](../exchange/consent-engine/) - Consent management
