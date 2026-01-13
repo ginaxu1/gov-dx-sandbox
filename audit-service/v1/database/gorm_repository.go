@@ -77,6 +77,8 @@ func (r *GormRepository) GetAuditLogs(ctx context.Context, filters *AuditLogFilt
 	}
 
 	// Apply pagination and ordering
+	// Note: Results are ordered by timestamp DESC (newest first) for general queries.
+	// For trace-specific queries, use GetAuditLogsByTraceID which orders by ASC (chronological).
 	limit := filters.Limit
 	if limit <= 0 {
 		limit = 100 // default

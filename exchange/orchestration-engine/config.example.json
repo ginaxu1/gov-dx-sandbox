@@ -1,6 +1,11 @@
 {
   "ceUrl": "http://localhost:8081",
   "pdpUrl": "http://localhost:8082",
+  "auditConfig": {
+    "serviceUrl": "http://localhost:3001",
+    "actorType": "SERVICE",
+    "actorId": "orchestration-engine"
+  },
   "providers": [
     {
       "providerKey": "drp",

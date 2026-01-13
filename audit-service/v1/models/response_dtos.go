@@ -52,9 +52,9 @@ func ToAuditLogResponse(log AuditLog) AuditLogResponse {
 		ActorID:            log.ActorID,
 		TargetType:         log.TargetType,
 		TargetID:           log.TargetID,
-		RequestMetadata:    log.RequestMetadata,
-		ResponseMetadata:   log.ResponseMetadata,
-		AdditionalMetadata: log.AdditionalMetadata,
+		RequestMetadata:    json.RawMessage(log.RequestMetadata),
+		ResponseMetadata:   json.RawMessage(log.ResponseMetadata),
+		AdditionalMetadata: json.RawMessage(log.AdditionalMetadata),
 		CreatedAt:          log.CreatedAt,
 	}
 }

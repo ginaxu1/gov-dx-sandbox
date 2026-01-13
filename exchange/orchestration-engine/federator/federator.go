@@ -21,6 +21,9 @@ import (
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/pkg/graphql"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/policy"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/provider"
+	"github.com/google/uuid"
+	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
+	auditpkg "github.com/gov-dx-sandbox/shared/audit"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -146,6 +149,17 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
 // sends them to the respective providers, and merges the responses.
 func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, consumerInfo *auth.ConsumerAssertion) graphql.Response {
+	// Ensure traceID is in context (should already be set by monitoring.TraceIDMiddleware, but ensure it)
+	traceID := monitoring.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = uuid.New().String()
+		ctx = monitoring.WithTraceID(ctx, traceID)
+	}
+
+	// Log orchestration request received event
+	// Update context with traceID if one was generated
+	ctx = f.logOrchestrationRequestReceived(ctx, consumerInfo.ApplicationId, request.Query)
+
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
 		Body: []byte(request.Query),
@@ -287,6 +301,11 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		pdpRequest.RequiredFields = requiredFields
 
 		pdpResponse, err = pdpClient.MakePdpRequest(ctx, pdpRequest)
+
+		// Log policy check audit event
+		// Update context with traceID if one was generated
+		ctx = f.logPolicyCheck(ctx, consumerInfo.ApplicationId, pdpRequest, pdpResponse, err)
+
 		if err != nil {
 			logger.Log.Error("PDP request failed", "error", err)
 			return createErrorResponseWithCode(fmt.Sprintf("Authorization check failed: %v", err), errors.CodePDPError)
@@ -390,6 +409,11 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		}
 
 		ceResp, err := ceClient.CreateConsent(ctx, ceRequest)
+
+		// Log consent check audit event
+		// Update context with traceID if one was generated
+		ctx = f.logConsentCheck(ctx, consumerInfo.ApplicationId, ownerEmail, ownerEmail, ceRequest, ceResp, err)
+
 		if err != nil {
 			logger.Log.Info("CE request failed", "error", err)
 			return createErrorResponseWithCode("CE request failed", errors.CodeCEError)
@@ -534,6 +558,95 @@ func (f *Federator) performFederation(ctx context.Context, r *federationRequest)
 
 	wg.Wait()
 	return FederationResponse
+}
+
+// logOrchestrationRequestReceived logs an ORCHESTRATION_REQUEST_RECEIVED event
+// Returns the updated context with traceID to ensure trace correlation
+func (f *Federator) logOrchestrationRequestReceived(ctx context.Context, consumerAppID string, query string) context.Context {
+	requestMetadata := map[string]interface{}{
+		"applicationId": consumerAppID,
+		"query":         query,
+	}
+	// No target for orchestration request received (it's the entry point)
+	return middleware.LogRequestReceived(ctx, "DATA_REQUEST", "APPLICATION", consumerAppID, requestMetadata)
+}
+
+// logPolicyCheck logs a POLICY_CHECK event from orchestration-engine's perspective
+// This is called after making a request to the Policy Decision Point
+// Returns the updated context with traceID to ensure trace correlation
+func (f *Federator) logPolicyCheck(ctx context.Context, applicationID string, req *policy.PdpRequest, resp *policy.PdpResponse, err error) context.Context {
+	targetID := "policy-decision-point"
+	status := auditpkg.StatusSuccess
+	requestMetadata := make(map[string]interface{})
+	responseMetadata := make(map[string]interface{})
+
+	// Populate request metadata
+	requestMetadata["applicationId"] = applicationID
+	if req != nil {
+		requestMetadata["requiredFields"] = req.RequiredFields
+	}
+
+	if err != nil {
+		status = auditpkg.StatusFailure
+		responseMetadata["error"] = err.Error()
+	} else if resp != nil {
+		responseMetadata["authorized"] = resp.AppAuthorized
+		responseMetadata["consentRequired"] = resp.AppRequiresOwnerConsent
+		responseMetadata["accessExpired"] = resp.AppAccessExpired
+		if !resp.AppAuthorized {
+			status = auditpkg.StatusFailure
+			responseMetadata["unauthorizedFields"] = resp.UnauthorizedFields
+		}
+		if resp.AppAccessExpired {
+			status = auditpkg.StatusFailure
+			responseMetadata["expiredFields"] = resp.ExpiredFields
+		}
+		if resp.AppRequiresOwnerConsent {
+			responseMetadata["consentRequiredFields"] = resp.ConsentRequiredFields
+		}
+	}
+
+	// Update context with traceID if one was generated
+	// Policy Decision Point is a service, so targetType is "SERVICE"
+	ctx = middleware.LogAuditEvent(ctx, "POLICY_CHECK", &targetID, "SERVICE", requestMetadata, responseMetadata, status)
+	return ctx
+}
+
+// logConsentCheck logs a CONSENT_CHECK event from orchestration-engine's perspective
+// This is called after making a request to the Consent Engine
+// Returns the updated context with traceID to ensure trace correlation
+func (f *Federator) logConsentCheck(ctx context.Context, applicationID, ownerEmail, ownerID string, req *consent.CreateConsentRequest, resp *consent.ConsentResponseInternalView, err error) context.Context {
+	targetID := "consent-engine"
+	status := auditpkg.StatusSuccess
+	requestMetadata := make(map[string]interface{})
+	responseMetadata := make(map[string]interface{})
+
+	// Populate request metadata from request context
+	requestMetadata["applicationId"] = applicationID
+	if ownerEmail != "" {
+		requestMetadata["ownerEmail"] = ownerEmail
+	}
+	if ownerID != "" {
+		requestMetadata["ownerId"] = ownerID
+	}
+	if req != nil {
+		requestMetadata["fieldsCount"] = len(req.ConsentRequirement.Fields)
+	}
+
+	if err != nil {
+		status = auditpkg.StatusFailure
+		responseMetadata["error"] = err.Error()
+	} else if resp != nil {
+		responseMetadata["consentId"] = resp.ConsentID
+		responseMetadata["status"] = resp.Status
+		if resp.ConsentPortalURL != nil {
+			responseMetadata["consentPortalUrl"] = *resp.ConsentPortalURL
+		}
+	}
+
+	// Update context with traceID if one was generated
+	// Consent Engine is a service, so targetType is "SERVICE"
+	return middleware.LogAuditEvent(ctx, "CONSENT_CHECK", &targetID, "SERVICE", requestMetadata, responseMetadata, status)
 }
 
 func (f *Federator) mergeResponses(responses []*ProviderResponse) graphql.Response {

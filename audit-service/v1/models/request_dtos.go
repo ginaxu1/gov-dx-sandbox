@@ -1,9 +1,5 @@
 package models
 
-import (
-	"encoding/json"
-)
-
 // CreateAuditLogRequest represents the request payload for creating a generalized audit log
 // This matches the final SQL schema with unified actor/target approach
 type CreateAuditLogRequest struct {
@@ -27,7 +23,9 @@ type CreateAuditLogRequest struct {
 	TargetID   *string `json:"targetId,omitempty"`             // resource_id or service_name
 
 	// Metadata (Payload without PII/sensitive data)
-	RequestMetadata    json.RawMessage `json:"requestMetadata,omitempty"`    // Request payload without PII/sensitive data
-	ResponseMetadata   json.RawMessage `json:"responseMetadata,omitempty"`   // Response or Error details
-	AdditionalMetadata json.RawMessage `json:"additionalMetadata,omitempty"` // Additional context-specific data
+	// Using JSONBRawMessage instead of json.RawMessage to avoid type conversion
+	// JSONBRawMessage implements json.Unmarshaler, so it works seamlessly with JSON decoding
+	RequestMetadata    JSONBRawMessage `json:"requestMetadata,omitempty"`    // Request payload without PII/sensitive data
+	ResponseMetadata   JSONBRawMessage `json:"responseMetadata,omitempty"`   // Response or Error details
+	AdditionalMetadata JSONBRawMessage `json:"additionalMetadata,omitempty"` // Additional context-specific data
 }
