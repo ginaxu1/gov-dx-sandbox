@@ -7,22 +7,16 @@ import (
 	"github.com/graphql-go/graphql/language/printer"
 )
 
-func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
-
+func QueryBuilder(maps []string, args []*ArgSource) ([]*federationServiceRequest, error) {
 	// initialize return variable
-	var requests = make([]*federationServiceRequest, 0)
+	requests := make([]*federationServiceRequest, 0)
 
-	var schema = configs.AppConfig.Schema
-
-	// Collect the directives from the query
-	var maps, args = ProviderSchemaCollector(schema, doc)
-
-	var queries = BuildProviderLevelQuery(maps)
+	queries := BuildProviderLevelQuery(maps)
 
 	// convert the queries into federationServiceRequest
 	for _, q := range queries {
 		// find the arguments to the specific provider
-		var providerArgs = make([]*ArgSource, 0)
+		providerArgs := make([]*ArgSource, 0)
 
 		for _, arg := range args {
 			if arg == nil {
@@ -36,7 +30,7 @@ func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
 
 		PushArgumentsToProviderQueryAst(providerArgs, q)
 
-		var query = printer.Print(q.QueryAst).(string)
+		query := printer.Print(q.QueryAst).(string)
 		println(printer.Print(q.QueryAst).(string))
 
 		requests = append(requests, &federationServiceRequest{
@@ -48,12 +42,12 @@ func QueryBuilder(doc *ast.Document) []*federationServiceRequest {
 		})
 	}
 
-	return requests
+	return requests, nil
 }
 
 // ProviderFieldMap A function to convert the directives into a map of service key to list of fields.
 func ProviderFieldMap(directives []*ast.Directive) []string {
-	var fieldMap = make([]string, 0)
+	fieldMap := make([]string, 0)
 
 	for _, dir := range directives {
 		if dir.Name.Value == "sourceInfo" {
@@ -78,32 +72,37 @@ func ProviderFieldMap(directives []*ast.Directive) []string {
 	return fieldMap
 }
 
-func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]string, []*ArgSource) {
+func ProviderSchemaCollector(schema *ast.Document, query *ast.Document) ([]string, []*ArgSource, error) {
 	// map of service key to list of fields
-	var providerFieldMap = make([]string, 0)
 
 	// only query is supported not mutations or subscriptions
 	if len(query.Definitions) != 1 || query.Definitions[0].(*ast.OperationDefinition).Operation != "query" {
-		panic("Only query operation is supported")
+		return nil, nil, &graphql.JSONError{
+			Message: "Only query operation is supported",
+		}
 	}
 
 	// iterate through the query fields
-	var selections = query.Definitions[0].(*ast.OperationDefinition).SelectionSet
+	selections := query.Definitions[0].(*ast.OperationDefinition).SelectionSet
 	// get the query object definition from the schema
-	var queryObjectDef = getQueryObjectDefinition(schema)
+	queryObjectDef := getQueryObjectDefinition(schema)
 
 	if queryObjectDef == nil {
-		panic("No Query object found in schema")
+		return nil, nil, &graphql.JSONError{
+			Message: "Query object definition not found in schema",
+		}
 	}
-	var providerDirectives, arguments = recursivelyExtractSourceSchemaInfo(selections, schema, queryObjectDef, nil, nil)
+	providerDirectives, arguments := recursivelyExtractSourceSchemaInfo(selections, schema, queryObjectDef, nil, nil)
+
+	providerFieldMap := make([]string, 0)
 
 	providerFieldMap = ProviderFieldMap(providerDirectives)
 
-	var requiredArguments = FindRequiredArguments(providerFieldMap, configs.AppConfig.ArgMapping)
+	requiredArguments := FindRequiredArguments(providerFieldMap, configs.AppConfig.ArgMapping)
 
-	var extractedArgs = ExtractRequiredArguments(requiredArguments, arguments)
+	extractedArgs := ExtractRequiredArguments(requiredArguments, arguments)
 
-	return providerFieldMap, extractedArgs
+	return providerFieldMap, extractedArgs, nil
 }
 
 // This function recursively traverses the selection set to extract @sourceInfo directives.
@@ -128,7 +127,7 @@ func recursivelyExtractSourceSchemaInfo(
 	for _, selection := range selectionSet.Selections {
 		if field, ok := selection.(*ast.Field); ok {
 			// Find the field definition in the schema
-			var fieldDef = FindFieldDefinitionFromFieldName(field.Name.Value, schema, objectDefinition.Name.Value)
+			fieldDef := FindFieldDefinitionFromFieldName(field.Name.Value, schema, objectDefinition.Name.Value)
 
 			// Check for @sourceInfo directive
 			if fieldDef != nil && len(fieldDef.Directives) > 0 {
@@ -158,7 +157,7 @@ func recursivelyExtractSourceSchemaInfo(
 					nestedObjectDef = findTopLevelObjectDefinitionInSchema(fieldDef.Type.(*ast.List).Type.(*ast.Named).Name.Value, schema)
 				}
 				if nestedObjectDef != nil {
-					var selectionSet = field.GetSelectionSet()
+					selectionSet := field.GetSelectionSet()
 					directives, arguments = recursivelyExtractSourceSchemaInfo(selectionSet, schema, nestedObjectDef, directives, arguments)
 				}
 			}

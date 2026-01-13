@@ -12,9 +12,10 @@ import (
 )
 
 func TestProviderSchemaSDLAPI(t *testing.T) {
-	apiServer := handlers.NewAPIServer()
-	mux := http.NewServeMux()
-	apiServer.SetupRoutes(mux)
+	ts := NewTestServer()
+	defer ts.Close()
+	apiServer := ts.APIServer
+	mux := ts.Mux
 
 	// First, create a provider profile so we can submit schemas
 	providerID := createProviderProfile(t, mux, apiServer)

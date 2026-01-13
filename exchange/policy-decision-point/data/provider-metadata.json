@@ -21,6 +21,30 @@
       "access_control_type": "public",
       "allow_list": []
     },
+    "drp.person.permanentAddress": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "",
+          "expiry_time": ""
+        }
+      ]
+    },
+    "drp.person.profession": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "",
+          "expiry_time": ""
+        }
+      ]
+    },
     "person.birthDate": {
       "owner": "rgd",
       "provider": "drp",
@@ -31,6 +55,11 @@
           "consumer_id": "driver-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -46,18 +75,34 @@
       "provider": "drp",
       "consent_required": true,
       "access_control_type": "public",
-      "allow_list": []
-    },
-    "person.permanentAddress": {
-      "owner": "rgd",
-      "provider": "drp",
-      "consent_required": false,
-      "access_control_type": "restricted",
       "allow_list": [
         {
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
           "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
+        }
+      ]
+    },
+    "person.permanentAddress": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
     },
@@ -65,14 +110,33 @@
       "owner": "citizen",
       "provider": "drp",
       "consent_required": true,
-      "access_control_type": "restricted",
+      "access_control_type": "public",
       "allow_list": [
         {
           "consumer_id": "passport-app",
           "expires_at": 1757560679,
-          "grant_duration": "7d"
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
         }
       ]
+    },
+    "person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
+    },
+    "person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": false,
+      "access_control_type": "public",
+      "allow_list": []
     },
     "user.birthInfo": {
       "owner": "prov_947c7b7992fbf6e7",
@@ -102,6 +166,132 @@
       "consent_required": false,
       "access_control_type": "public",
       "allow_list": []
+    },
+    "drp.person.permanentAddress": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
+        }
+      ]
+    },
+    "drp.person.profession": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": ""
+        }
+      ]
+    },
+    "rgd.getPersonInfo.birthDate": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "rgd.getPersonInfo.sex": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "drp.person.fullName": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "public",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "drp.person.otherNames": {
+      "owner": "citizen",
+      "provider": "drp",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
+    },
+    "rgd.getPersonInfo.district": {
+      "owner": "citizen",
+      "provider": "rgd",
+      "consent_required": true,
+      "access_control_type": "restricted",
+      "allow_list": [
+        {
+          "consumer_id": "passport-app",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        },
+        {
+          "consumer_id": "7a16e556-70a1-4014-8ec1-9397a5212fee",
+          "expires_at": 1757560679,
+          "grant_duration": "30d"
+        }
+      ]
     }
   }
 }

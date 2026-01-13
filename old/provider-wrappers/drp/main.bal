@@ -1,5 +1,5 @@
 import ballerina/graphql;
-import ballerina/graphql.subgraph;
+// import ballerina/graphql.subgraph;
 import ballerina/http;
 import ballerina/log;
 import ballerina/os;
@@ -45,8 +45,23 @@ public function initializeDRPClient() returns DRPAPIClient|error {
 final DRPAPIClient sharedDRPClient = check initializeDRPClient();
 
 // --- GraphQL Subgraph Service ---
-@subgraph:Subgraph
-isolated service / on new graphql:Listener(port) {
+@graphql:ServiceConfig {
+    cors: {
+        allowOrigins: ["http://localhost:5173"],
+        allowCredentials: false,
+        allowMethods: ["GET", "POST", "OPTIONS"],
+        // allowHeaders: ["CORELATION_ID"],
+        // exposeHeaders: ["X-CUSTOM-HEADER"],
+        maxAge: 84900
+    }
+    // graphiql: {
+    //     enabled: true,
+    //     printUrl: true
+    // }
+}
+isolated service / on new graphql:Listener(
+    port
+) {
     // Fetches the full person data for a given NIC.
     resource function get person(@graphql:ID string|int nic) returns PersonData? {
         PersonData|error personData = sharedDRPClient.getPersonByNic(nic.toString());

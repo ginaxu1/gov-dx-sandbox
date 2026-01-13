@@ -32,8 +32,16 @@ all_fields_authorized(requested_fields, app_id) {
 field_authorized(field, app_id) {
     field_metadata := provider_metadata.fields[field]
     
-    # Public fields are always authorized
+    # Public fields with no allow list are always authorized
     field_metadata.access_control_type == "public"
+    count(field_metadata.allow_list) == 0
+} else = true {
+    field_metadata := provider_metadata.fields[field]
+    
+    # Public fields with allow list require app to be in allow list
+    field_metadata.access_control_type == "public"
+    count(field_metadata.allow_list) > 0
+    app_in_allow_list(field, app_id)
 } else = true {
     field_metadata := provider_metadata.fields[field]
     
