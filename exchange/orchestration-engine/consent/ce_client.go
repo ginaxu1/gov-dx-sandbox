@@ -42,7 +42,7 @@ func (c *CEServiceClient) CreateConsent(ctx context.Context, request *CreateCons
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// Propagate traceID from context to header for audit correlation
 	traceID := monitoring.GetTraceIDFromContext(ctx)
 	if traceID != "" {

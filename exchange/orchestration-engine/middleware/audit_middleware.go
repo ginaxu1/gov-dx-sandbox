@@ -198,3 +198,37 @@ func LogProviderFetch(ctx context.Context, providerSchemaID string, req *Federat
 	// Providers are services, so targetType is "SERVICE"
 	ctx = LogAuditEvent(ctx, "PROVIDER_FETCH", &req.ServiceKey, "SERVICE", nil, responseMetadata, auditStatus)
 }
+
+// LogRequestReceived logs a request received event to the audit service asynchronously
+func LogRequestReceived(ctx context.Context, eventType string, actorType string, actorId string, requestMetadata map[string]interface{}) context.Context {
+	// Get or generate traceID
+	traceID := monitoring.GetTraceIDFromContext(ctx)
+	if traceID == "" {
+		traceID = uuid.New().String()
+		ctx = monitoring.WithTraceID(ctx, traceID)
+	}
+	status := auditpkg.StatusSuccess
+
+	targetID := "SERVICE"
+	// Marshal metadata using shared utility
+	requestMetadataJSON := auditpkg.MarshalMetadata(requestMetadata)
+
+	// Create audit request
+	auditRequest := &auditpkg.AuditLogRequest{
+		TraceID:         &traceID,
+		Timestamp:       auditpkg.CurrentTimestamp(),
+		EventType:       &eventType,
+		Status:          status,
+		ActorType:       actorType,
+		ActorID:         actorId,
+		TargetType:      "SERVICE",
+		TargetID:        &targetID,
+		RequestMetadata: requestMetadataJSON,
+	}
+
+	// Log the audit event asynchronously using the global audit package
+	auditpkg.LogAuditEvent(ctx, auditRequest)
+
+	// Return the updated context to ensure traceID correlation across the request flow
+	return ctx
+}
