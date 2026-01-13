@@ -4,8 +4,7 @@
   "auditConfig": {
     "serviceUrl": "http://localhost:3001",
     "actorType": "SERVICE",
-    "actorId": "orchestration-engine",
-    "targetType": "SERVICE"
+    "actorId": "orchestration-engine"
   },
   "providers": [
     {

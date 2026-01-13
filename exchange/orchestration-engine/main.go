@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/federator"
@@ -23,19 +22,15 @@ func main() {
 	}
 
 	// Initialize audit middleware
-	// Environment variable takes precedence over config.json for flexibility
-	auditServiceURL := os.Getenv("AUDIT_SERVICE_URL")
-	if auditServiceURL == "" {
-		auditServiceURL = config.AuditConfig.ServiceURL
-	}
-	auditClient := auditclient.NewClient(auditServiceURL)
+	// All configuration comes from config.json for consistency
+	auditClient := auditclient.NewClient(config.AuditConfig.ServiceURL)
 	auditclient.InitializeGlobalAudit(auditClient)
 
-	// Initialize audit configuration (actorType, actorID, targetType)
+	// Initialize audit configuration (actorType, actorID)
+	// Note: targetType is determined per API call, not from global config
 	middleware.InitializeAuditConfig(
 		config.AuditConfig.ActorType,
 		config.AuditConfig.ActorID,
-		config.AuditConfig.TargetType,
 	)
 
 	providerHandler := provider.NewProviderHandler(config.GetProviders())

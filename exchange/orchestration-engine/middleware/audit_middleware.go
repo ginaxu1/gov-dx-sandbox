@@ -14,9 +14,8 @@ import (
 // auditConfig holds the audit configuration values
 var (
 	auditConfig struct {
-		actorType  string
-		actorID    string
-		targetType string
+		actorType string
+		actorID   string
 	}
 	auditConfigOnce sync.Once
 )
@@ -24,21 +23,12 @@ var (
 // InitializeAuditConfig initializes the audit configuration from config values
 // This should be called once during application startup from main.go
 // Values are read from config.json via config.AuditConfig
-func InitializeAuditConfig(actorType, actorID, targetType string) {
+// Note: targetType is not stored here as it varies per API call
+func InitializeAuditConfig(actorType, actorID string) {
 	auditConfigOnce.Do(func() {
-		// Set values with defaults if not provided (defensive programming)
-		if actorType == "" {
-			actorType = "SERVICE"
-		}
-		if actorID == "" {
-			actorID = "orchestration-engine"
-		}
-		if targetType == "" {
-			targetType = "SERVICE"
-		}
+		// These values are expected to be pre-populated with defaults from the configs package.
 		auditConfig.actorType = actorType
 		auditConfig.actorID = actorID
-		auditConfig.targetType = targetType
 	})
 }
 
@@ -52,12 +42,6 @@ func getAuditActorType() string {
 // InitializeAuditConfig guarantees this is always set (with default if needed)
 func getAuditActorID() string {
 	return auditConfig.actorID
-}
-
-// getAuditTargetType returns the configured target type
-// InitializeAuditConfig guarantees this is always set (with default if needed)
-func getAuditTargetType() string {
-	return auditConfig.targetType
 }
 
 // maxAuditErrorsToLog is the maximum number of errors to include in audit log metadata
@@ -103,7 +87,8 @@ func MetadataFromContext(ctx context.Context) *Metadata {
 // - Creates AuditLogRequest struct
 // - Logs the event asynchronously
 // Returns the updated context with traceID (if one was generated) to ensure trace correlation
-func LogAuditEvent(ctx context.Context, eventType string, targetID *string, requestMetadata map[string]interface{}, responseMetadata map[string]interface{}, status string) context.Context {
+// targetType should be determined per API call (e.g., "SERVICE" for service-to-service calls, "RESOURCE" for resource operations)
+func LogAuditEvent(ctx context.Context, eventType string, targetID *string, targetType string, requestMetadata map[string]interface{}, responseMetadata map[string]interface{}, status string) context.Context {
 	// Get or generate traceID
 	traceID := monitoring.GetTraceIDFromContext(ctx)
 	if traceID == "" {
@@ -115,7 +100,6 @@ func LogAuditEvent(ctx context.Context, eventType string, targetID *string, requ
 	// These are initialized in main.go via InitializeAuditConfig() from config.AuditConfig
 	actorType := getAuditActorType()
 	actorID := getAuditActorID()
-	targetType := getAuditTargetType()
 
 	// Marshal metadata using shared utility
 	requestMetadataJSON := auditpkg.MarshalMetadata(requestMetadata)
@@ -211,5 +195,6 @@ func LogProviderFetch(ctx context.Context, providerSchemaID string, req *Federat
 
 	// Use shared helper function to log audit event
 	// Update context with traceID if one was generated
-	ctx = LogAuditEvent(ctx, "PROVIDER_FETCH", &req.ServiceKey, nil, responseMetadata, auditStatus)
+	// Providers are services, so targetType is "SERVICE"
+	ctx = LogAuditEvent(ctx, "PROVIDER_FETCH", &req.ServiceKey, "SERVICE", nil, responseMetadata, auditStatus)
 }

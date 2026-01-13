@@ -69,9 +69,9 @@ type CeConfig struct {
 // AuditConfig holds Audit Service configuration
 type AuditConfig struct {
 	ServiceURL string `json:"serviceUrl,omitempty"`
-	ActorType  string `json:"actorType,omitempty"`  // Default: "SERVICE"
-	ActorID    string `json:"actorId,omitempty"`    // Default: "orchestration-engine"
-	TargetType string `json:"targetType,omitempty"` // Default: "SERVICE"
+	ActorType  string `json:"actorType,omitempty"` // Default: "SERVICE"
+	ActorID    string `json:"actorId,omitempty"`   // Default: "orchestration-engine"
+	// Note: targetType is not configured here as it varies per API call
 }
 
 // LoadConfigFromBytes unmarshals JSON into config (pure function, testable)
@@ -99,9 +99,7 @@ func LoadConfigFromBytes(data []byte) (*Config, error) {
 	if config.AuditConfig.ActorID == "" {
 		config.AuditConfig.ActorID = "orchestration-engine"
 	}
-	if config.AuditConfig.TargetType == "" {
-		config.AuditConfig.TargetType = "SERVICE"
-	}
+	// Note: targetType is not set here as it's determined per API call
 
 	return &config, nil
 }
