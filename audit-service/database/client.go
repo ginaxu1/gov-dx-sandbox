@@ -68,7 +68,7 @@ func NewDatabaseConfig() *Config {
 
 	// For SQLite: only DB_TYPE=sqlite or DB_PATH count as configuration
 	// DB_HOST is only relevant when DB_TYPE=postgres
-useFileBasedSQLite := dbPathSet || (dbTypeSet && dbTypeStr != "postgres" && dbTypeStr != "postgresql")
+	useFileBasedSQLite := dbPathSet || (dbTypeSet && dbTypeStr != "postgres" && dbTypeStr != "postgresql")
 
 	switch dbTypeStr {
 	case "postgres", "postgresql":
@@ -103,7 +103,7 @@ useFileBasedSQLite := dbPathSet || (dbTypeSet && dbTypeStr != "postgres" && dbTy
 		config.MaxIdleConns = parseIntOrDefault("DB_MAX_IDLE_CONNS", 1)
 
 		// Determine database path based on configuration
-if !useFileBasedSQLite {
+		if !useFileBasedSQLite {
 			// No SQLite configuration at all → in-memory database for quick testing
 			config.DatabasePath = ":memory:"
 			slog.Info("No database configuration found, using in-memory SQLite")

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -10,6 +11,71 @@ import (
 	"github.com/gov-dx-sandbox/audit-service/config"
 	"gorm.io/gorm"
 )
+
+// JSONBRawMessage is a custom type that properly handles JSONB scanning from PostgreSQL
+// It implements sql.Scanner and driver.Valuer interfaces to handle both PostgreSQL JSONB
+// (which can return as string or []byte) and SQLite TEXT (which returns as []byte)
+// This type wraps json.RawMessage to provide database scanning capabilities while maintaining
+// the same JSON marshaling behavior as json.RawMessage.
+type JSONBRawMessage json.RawMessage
+
+// Scan implements the sql.Scanner interface for JSONBRawMessage
+// Handles both PostgreSQL JSONB (string or []byte) and SQLite TEXT ([]byte)
+func (j *JSONBRawMessage) Scan(value interface{}) error {
+	if value == nil {
+		*j = JSONBRawMessage(nil)
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan %T into JSONBRawMessage", value)
+	}
+
+	// Note: We don't validate JSON here to avoid performance overhead.
+	// The database should already contain valid JSON. If validation is needed,
+	// it should be done at the application layer when unmarshaling.
+	*j = JSONBRawMessage(bytes)
+	return nil
+}
+
+// Value implements the driver.Valuer interface for JSONBRawMessage
+func (j JSONBRawMessage) Value() (driver.Value, error) {
+	if len(j) == 0 {
+		return nil, nil
+	}
+	return []byte(j), nil
+}
+
+// MarshalJSON implements json.Marshaler for JSONBRawMessage
+// Delegates to the underlying json.RawMessage behavior
+func (j JSONBRawMessage) MarshalJSON() ([]byte, error) {
+	if len(j) == 0 {
+		return []byte("null"), nil
+	}
+	return []byte(j), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler for JSONBRawMessage
+// Delegates to the underlying json.RawMessage behavior
+func (j *JSONBRawMessage) UnmarshalJSON(data []byte) error {
+	if j == nil {
+		return fmt.Errorf("JSONBRawMessage: UnmarshalJSON on nil pointer")
+	}
+	*j = JSONBRawMessage(data)
+	return nil
+}
+
+// GormDataType returns the GORM data type for JSONBRawMessage
+// This helps GORM understand the database column type
+func (JSONBRawMessage) GormDataType() string {
+	return "jsonb"
+}
 
 // Audit log status constants (not configurable via YAML as they are core to the system)
 const (
@@ -66,9 +132,9 @@ type AuditLog struct {
 	TargetID   *string `gorm:"type:varchar(255)" json:"targetId,omitempty"` // resource_id or service_name
 
 	// Metadata (Payload without PII/sensitive data)
-	RequestMetadata    json.RawMessage `gorm:"type:text" json:"requestMetadata,omitempty"`    // Request payload without PII/sensitive data
-	ResponseMetadata   json.RawMessage `gorm:"type:text" json:"responseMetadata,omitempty"`   // Response or Error details
-	AdditionalMetadata json.RawMessage `gorm:"type:text" json:"additionalMetadata,omitempty"` // Additional context-specific data
+	RequestMetadata    JSONBRawMessage `gorm:"type:jsonb" json:"requestMetadata,omitempty"`    // Request payload without PII/sensitive data
+	ResponseMetadata   JSONBRawMessage `gorm:"type:jsonb" json:"responseMetadata,omitempty"`   // Response or Error details
+	AdditionalMetadata JSONBRawMessage `gorm:"type:jsonb" json:"additionalMetadata,omitempty"` // Additional context-specific data
 
 	// BaseModel provides CreatedAt
 	BaseModel

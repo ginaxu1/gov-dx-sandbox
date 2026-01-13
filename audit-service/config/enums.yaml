@@ -9,8 +9,9 @@ enums:
     - POLICY_CHECK
     - MANAGEMENT_EVENT
     - USER_MANAGEMENT
-    - DATA_FETCH
     - CONSENT_CHECK
+    - DATA_REQUEST
+    - PROVIDER_FETCH
 
   # Event Action: CRUD operations
   eventActions:
@@ -29,6 +30,7 @@ enums:
     - ADMIN
     - MEMBER
     - SYSTEM
+    - APPLICATION
 
   # Target Type: Types of targets that actions can be performed on
   targetTypes:
