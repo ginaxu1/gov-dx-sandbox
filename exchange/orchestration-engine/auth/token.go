@@ -1,16 +1,19 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/configs"
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -24,15 +27,122 @@ var httpClient = &http.Client{
 	},
 }
 
-// TokenValidator handles JWT token validation with cached JWKS
+// filteringTransport wraps an http.RoundTripper to filter x5c certificates from JWKS responses.
+// This is necessary because some identity providers include x5c certificates that cause parsing errors.
+type filteringTransport struct {
+	base http.RoundTripper
+}
+
+// RoundTrip implements http.RoundTripper interface
+func (t *filteringTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Use base transport to make the request
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
+
+	// Only filter JWKS responses (application/json)
+	if resp.StatusCode != http.StatusOK {
+		return resp, nil
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Try to parse and filter JWKS
+	var jwks map[string]interface{}
+	if err := json.Unmarshal(body, &jwks); err != nil {
+		// Not valid JSON or not a JWKS, return original response
+		resp.Body = io.NopCloser(strings.NewReader(string(body)))
+		return resp, nil
+	}
+
+	// Check if this is a JWKS response
+	keys, ok := jwks["keys"].([]interface{})
+	if !ok {
+		// Not a JWKS, return original response
+		resp.Body = io.NopCloser(strings.NewReader(string(body)))
+		return resp, nil
+	}
+
+	// Filter x5c from keys
+	filteredKeys := make([]interface{}, 0, len(keys))
+	for _, key := range keys {
+		keyMap, ok := key.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Validate minimum required fields
+		kid, hasKid := keyMap["kid"].(string)
+		kty, hasKty := keyMap["kty"].(string)
+		if !hasKid || !hasKty || kid == "" || kty == "" {
+			continue
+		}
+
+		// Remove x5c field if present
+		delete(keyMap, "x5c")
+
+		filteredKeys = append(filteredKeys, keyMap)
+	}
+
+	jwks["keys"] = filteredKeys
+
+	// Marshal back to JSON
+	filteredBody, err := json.Marshal(jwks)
+	if err != nil {
+		// If marshaling fails, return original response
+		resp.Body = io.NopCloser(strings.NewReader(string(body)))
+		return resp, nil
+	}
+
+	// Create new response with filtered body
+	resp.Body = io.NopCloser(strings.NewReader(string(filteredBody)))
+	resp.ContentLength = int64(len(filteredBody))
+
+	return resp, nil
+}
+
+// TokenValidator handles JWT token validation with auto-refreshing JWKS.
+// The JWKS is automatically refreshed in the background to handle key rotation.
 type TokenValidator struct {
-	jwks    keyfunc.Keyfunc
+	jwks    keyfunc.Keyfunc // Keyfunc with background refresh goroutine
 	jwksURL string
 }
 
 // fetchAndFilterJWKS fetches JWKS from URL and removes keys with x5c certificates to avoid parsing errors
-func fetchAndFilterJWKS(jwksURL string) (json.RawMessage, error) {
-	resp, err := httpClient.Get(jwksURL)
+func fetchAndFilterJWKS(ctx context.Context, jwksURL string) (json.RawMessage, error) {
+	// Validate URL format before attempting to fetch
+	parsedURL, err := url.Parse(jwksURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid JWKS URL format: %w", err)
+	}
+
+	// Validate URL scheme
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return nil, fmt.Errorf("invalid JWKS URL scheme: expected http or https, got %s", parsedURL.Scheme)
+	}
+
+	// Warn if not using HTTPS (security best practice)
+	if parsedURL.Scheme != "https" {
+		logger.Log.Warn("JWKS URL does not use HTTPS", "jwksUrl", jwksURL)
+	}
+
+	// Validate URL has a host
+	if parsedURL.Host == "" {
+		return nil, fmt.Errorf("invalid JWKS URL: missing host")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
@@ -77,7 +187,7 @@ func fetchAndFilterJWKS(jwksURL string) (json.RawMessage, error) {
 		kid, hasKid := keyMap["kid"].(string)
 		kty, hasKty := keyMap["kty"].(string)
 		if !hasKid || !hasKty || kid == "" || kty == "" {
-			log.Printf("Warning: Skipping key with missing kid or kty")
+			logger.Log.Warn("Skipping key with missing kid or kty")
 			continue
 		}
 
@@ -85,7 +195,7 @@ func fetchAndFilterJWKS(jwksURL string) (json.RawMessage, error) {
 		if _, hasX5c := keyMap["x5c"]; hasX5c {
 			delete(keyMap, "x5c")
 			skippedCount++
-			log.Printf("Removed x5c certificate from key %s to avoid parsing errors", kid)
+			logger.Log.Warn("Removed x5c certificate from key to avoid parsing errors", "kid", kid)
 		}
 		filteredKeys = append(filteredKeys, keyMap)
 	}
@@ -95,32 +205,72 @@ func fetchAndFilterJWKS(jwksURL string) (json.RawMessage, error) {
 	}
 
 	if skippedCount > 0 {
-		log.Printf("Filtered %d key(s) with x5c certificates from JWKS", skippedCount)
+		logger.Log.Info("Filtered keys with x5c certificates from JWKS", "count", skippedCount)
 	}
 
 	jwks["keys"] = filteredKeys
 	return json.Marshal(jwks)
 }
 
-// NewTokenValidator creates a new TokenValidator instance with auto-refresh
-func NewTokenValidator(jwksURL string) (*TokenValidator, error) {
+// NewTokenValidator creates a new TokenValidator instance with automatic JWKS refresh.
+// The provided context controls the lifecycle of the background refresh goroutine.
+// When the context is cancelled, the refresh goroutine will stop.
+//
+// Implementation uses keyfunc.NewDefaultOverrideCtx with a custom HTTP client that:
+//   - Filters x5c certificates from JWKS (prevents parsing errors)
+//   - Fetches JWKS immediately (fail-fast validation)
+//   - Starts background goroutine to refresh JWKS every hour
+//   - Handles automatic key rotation
+//   - Refreshes on unknown kid (rate-limited to prevent abuse)
+//
+// This ensures:
+//  1. Service won't start if JWKS is unavailable (when trustUpstream=false)
+//  2. Automatic key rotation handling without manual intervention
+//  3. High availability during key rotation periods
+//  4. No x5c certificate parsing errors
+func NewTokenValidator(ctx context.Context, jwksURL string) (*TokenValidator, error) {
 	if jwksURL == "" {
 		return &TokenValidator{}, nil
 	}
 
-	// Fetch and filter the JWKS to remove problematic x5c certificates
-	jwksJSON, err := fetchAndFilterJWKS(jwksURL)
+	// First, validate and fetch JWKS to ensure fail-fast behavior
+	// This ensures the service won't start with an invalid JWKS URL
+	fetchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Validate URL and perform initial fetch for fail-fast validation
+	_, err := fetchAndFilterJWKS(fetchCtx, jwksURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch and filter JWKS: %w", err)
 	}
 
-	// Create JWKS from filtered JSON
-	jwks, err := keyfunc.NewJWKSetJSON(jwksJSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create JWKS from JSON: %w", err)
+	// Create custom HTTP client with filtering transport to remove x5c certificates
+	// This ensures keyfunc's auto-refresh also gets filtered JWKS
+	filteringClient := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &filteringTransport{
+			base: &http.Transport{
+				MaxIdleConns:        100,
+				IdleConnTimeout:     90 * time.Second,
+				TLSHandshakeTimeout: 10 * time.Second,
+			},
+		},
 	}
 
-	log.Printf("Successfully loaded JWKS from endpoint: %s", jwksURL)
+	// Now create keyfunc with auto-refresh using the filtering HTTP client
+	// This will:
+	// - Fetch JWKS immediately (with x5c filtered)
+	// - Start background refresh goroutine (default: every 1 hour)
+	// - Refresh on unknown kid (rate-limited: once per 5 minutes)
+	// - Stop refresh goroutine when ctx is cancelled
+	jwks, err := keyfunc.NewDefaultOverrideCtx(ctx, []string{jwksURL}, keyfunc.Override{
+		Client: filteringClient,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWKS with auto-refresh: %w", err)
+	}
+
+	logger.Log.Info("Successfully loaded JWKS from endpoint with auto-refresh enabled", "url", jwksURL, "refreshInterval", "1h")
 
 	return &TokenValidator{
 		jwks:    jwks,
@@ -132,18 +282,17 @@ func NewTokenValidator(jwksURL string) (*TokenValidator, error) {
 func (v *TokenValidator) validateSignature(tokenString string) (*jwt.Token, error) {
 	token, err := jwt.Parse(tokenString, v.jwks.Keyfunc)
 	if err != nil {
-		// Provide more specific error messages based on error content
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "signature") {
+		// Use error type checking for more robust error handling instead of string matching
+		switch {
+		case errors.Is(err, jwt.ErrTokenSignatureInvalid):
 			return nil, fmt.Errorf("token signature verification failed (JWKS URL: %s): %w", v.jwksURL, err)
-		}
-		if strings.Contains(errMsg, "malformed") || strings.Contains(errMsg, "invalid number of segments") {
+		case errors.Is(err, jwt.ErrTokenMalformed):
 			return nil, fmt.Errorf("malformed token: %w", err)
-		}
-		if strings.Contains(errMsg, "key not found") || strings.Contains(errMsg, "keyfunc") {
+		case errors.Is(err, jwt.ErrTokenUnverifiable):
 			return nil, fmt.Errorf("token key not found in JWKS (JWKS URL: %s): %w", v.jwksURL, err)
+		default:
+			return nil, fmt.Errorf("failed to parse and verify token (JWKS URL: %s): %w", v.jwksURL, err)
 		}
-		return nil, fmt.Errorf("failed to parse and verify token (JWKS URL: %s): %w", v.jwksURL, err)
 	}
 
 	if !token.Valid {
@@ -347,7 +496,7 @@ func GetConsumerJwtFromTokenWithValidator(env string, jwtConfig *configs.JWTConf
 		// Bypass all validation and parsing
 		// WARNING: This should NEVER be used in production
 		// TODO: Remove this bypass by implementing proper test token generation and validation
-		log.Printf("WARNING: Using development mode bypass for token validation")
+		logger.Log.Warn("Using development mode bypass for token validation")
 		return &ConsumerAssertion{
 			ApplicationID: "passport-app",
 			ClientID:      "passport-app",

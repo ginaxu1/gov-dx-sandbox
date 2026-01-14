@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/configs"
@@ -14,6 +15,9 @@ import (
 
 func main() {
 	logger.Init()
+
+	// Create context for application lifecycle (controls background operations like JWKS refresh)
+	ctx := context.Background()
 
 	// Load configuration with proper error handling
 	config, err := configs.LoadConfig()
@@ -35,7 +39,7 @@ func main() {
 
 	providerHandler := provider.NewProviderHandler(config.GetProviders())
 
-	federationObject, err := federator.Initialize(config, providerHandler, nil)
+	federationObject, err := federator.Initialize(ctx, config, providerHandler, nil)
 	if err != nil {
 		log.Fatalf("Failed to initialize federator: %v", err)
 	}

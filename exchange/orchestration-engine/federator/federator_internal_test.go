@@ -104,7 +104,7 @@ func TestFederateQuery_WithMockSchema(t *testing.T) {
 	`
 
 	mockService := &MockSchemaServiceWithSignature{SDL: schemaSDL}
-	f, err := Initialize(cfg, providerHandler, mockService)
+	f, err := Initialize(context.Background(), cfg, providerHandler, mockService)
 	if err != nil {
 		t.Fatalf("Failed to initialize federator: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestFederateQuery_PDPDeny(t *testing.T) {
 		}
 	`
 	mockService := &MockSchemaServiceWithSignature{SDL: schemaSDL}
-	f, err := Initialize(cfg, providerHandler, mockService)
+	f, err := Initialize(context.Background(), cfg, providerHandler, mockService)
 	if err != nil {
 		t.Fatalf("Failed to initialize federator: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestInitialize_FailsWithInvalidConfig(t *testing.T) {
 			},
 		}
 
-		_, err := Initialize(cfg, providerHandler, nil)
+		_, err := Initialize(context.Background(), cfg, providerHandler, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "trustUpstream is false")
 		assert.Contains(t, err.Error(), "JwksUrl is not configured")
@@ -224,7 +224,7 @@ func TestInitialize_FailsWithInvalidConfig(t *testing.T) {
 			},
 		}
 
-		_, err := Initialize(cfg, providerHandler, nil)
+		_, err := Initialize(context.Background(), cfg, providerHandler, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to initialize TokenValidator")
 	})
@@ -238,7 +238,7 @@ func TestInitialize_FailsWithInvalidConfig(t *testing.T) {
 			},
 		}
 
-		_, err := Initialize(cfg, providerHandler, nil)
+		_, err := Initialize(context.Background(), cfg, providerHandler, nil)
 		require.NoError(t, err)
 	})
 
@@ -251,7 +251,7 @@ func TestInitialize_FailsWithInvalidConfig(t *testing.T) {
 			},
 		}
 
-		_, err := Initialize(cfg, providerHandler, nil)
+		_, err := Initialize(context.Background(), cfg, providerHandler, nil)
 		require.NoError(t, err) // Should not fail, just log warning
 	})
 }

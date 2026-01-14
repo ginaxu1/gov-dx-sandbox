@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func TestSetupRouter_Health(t *testing.T) {
 		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f, err := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(context.Background(), cfg, providerHandler, nil)
 	if err != nil {
 		t.Fatalf("Failed to initialize federator: %v", err)
 	}
@@ -43,7 +44,7 @@ func TestSetupRouter_SDL_Endpoints(t *testing.T) {
 		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f, err := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(context.Background(), cfg, providerHandler, nil)
 	if err != nil {
 		t.Fatalf("Failed to initialize federator: %v", err)
 	}
@@ -79,7 +80,7 @@ func TestSetupRouter_PublicGraphQL_BadRequest(t *testing.T) {
 		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f, err := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(context.Background(), cfg, providerHandler, nil)
 	if err != nil {
 		t.Fatalf("Failed to initialize federator: %v", err)
 	}
@@ -101,7 +102,7 @@ func TestSetupRouter_PublicGraphQL_Unauthorized(t *testing.T) {
 		TrustUpstream: true, // Trust upstream to avoid JWT validation requirements
 	}
 	providerHandler := provider.NewProviderHandler(nil)
-	f, err := federator.Initialize(cfg, providerHandler, nil)
+	f, err := federator.Initialize(context.Background(), cfg, providerHandler, nil)
 	if err != nil {
 		t.Fatalf("Failed to initialize federator: %v", err)
 	}

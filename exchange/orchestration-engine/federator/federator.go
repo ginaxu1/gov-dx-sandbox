@@ -102,7 +102,8 @@ func createErrorResponseWithCode(message string, code string) graphql.Response {
 
 // Initialize sets up the Federator with providers and an HTTP client.
 // Returns error if critical configuration is invalid (fail-fast approach).
-func Initialize(configs *configs.Config, providerHandler *provider.Handler, schemaService interface{}) (*Federator, error) {
+// The provided context controls the lifecycle of background operations (e.g., JWKS auto-refresh).
+func Initialize(ctx context.Context, configs *configs.Config, providerHandler *provider.Handler, schemaService interface{}) (*Federator, error) {
 	federator := &Federator{
 		ProviderHandler: providerHandler,
 		SchemaService:   schemaService,
@@ -117,23 +118,23 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 			return nil, fmt.Errorf("fatal configuration error: trustUpstream is false but JWT.JwksUrl is not configured - cannot verify token signatures")
 		}
 
-		// Attempt to create TokenValidator with the configured JWKS URL
-		validator, err := auth.NewTokenValidator(configs.JWT.JwksUrl)
+		// Attempt to create TokenValidator with the configured JWKS URL and auto-refresh
+		validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl)
 		if err != nil {
 			return nil, fmt.Errorf("fatal configuration error: failed to initialize TokenValidator with JWKS URL %s: %w", configs.JWT.JwksUrl, err)
 		}
 
 		federator.TokenValidator = validator
-		logger.Log.Info("TokenValidator initialized successfully", "jwksUrl", configs.JWT.JwksUrl, "trustUpstream", false)
+		logger.Log.Info("TokenValidator initialized successfully with auto-refresh", "jwksUrl", configs.JWT.JwksUrl, "trustUpstream", false)
 	} else {
 		// When trusting upstream, TokenValidator is optional (may still be used for additional validation)
 		if configs.JWT.JwksUrl != "" {
-			validator, err := auth.NewTokenValidator(configs.JWT.JwksUrl)
+			validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl)
 			if err != nil {
 				logger.Log.Warn("Failed to initialize TokenValidator (non-fatal with trustUpstream=true)", "error", err, "jwksUrl", configs.JWT.JwksUrl)
 			} else {
 				federator.TokenValidator = validator
-				logger.Log.Info("TokenValidator initialized successfully", "jwksUrl", configs.JWT.JwksUrl, "trustUpstream", true)
+				logger.Log.Info("TokenValidator initialized successfully with auto-refresh", "jwksUrl", configs.JWT.JwksUrl, "trustUpstream", true)
 			}
 		} else {
 			logger.Log.Info("TokenValidator not configured (trustUpstream=true, no JWKS URL provided)")
