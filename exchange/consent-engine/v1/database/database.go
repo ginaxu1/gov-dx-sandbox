@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/consent-engine/internal/config"
 	"github.com/gov-dx-sandbox/exchange/consent-engine/v1/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -29,28 +30,20 @@ type Config struct {
 }
 
 // NewDatabaseConfig creates a new GORM database configuration for V1
-func NewDatabaseConfig() *Config {
+func NewDatabaseConfig(cfg *config.DBConfigs) *Config {
 	return &Config{
-		Host:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", "localhost"),
-		Port:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432"),
-		Username:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres"),
-		Password:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password"),
-		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "testdb"),
-		SSLMode:         getEnvOrDefault("DB_SSLMODE", "prefer"),
+		Host:            cfg.Host,
+		Port:            cfg.Port,
+		Username:        cfg.Username,
+		Password:        cfg.Password,
+		Database:        cfg.Database,
+		SSLMode:         cfg.SSLMode,
 		MaxOpenConns:    25,
 		MaxIdleConns:    5,
 		ConnMaxLifetime: time.Hour,
 		ConnMaxIdleTime: 30 * time.Minute,
 		MaxRetries:      5,
 	}
-}
-
-// getEnvOrDefault gets environment variable or returns default value
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // ConnectGormDB establishes a GORM connection to PostgreSQL

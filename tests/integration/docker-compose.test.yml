@@ -2,8 +2,8 @@ services:
   # Policy Decision Point Service
   policy-decision-point:
     build:
-      context: ../../exchange
-      dockerfile: policy-decision-point/Dockerfile
+      context: ../..
+      dockerfile: exchange/policy-decision-point/Dockerfile
     environment:
       PORT: 8082
       LOG_LEVEL: info
@@ -37,29 +37,23 @@ services:
   # Consent Engine Service
   consent-engine:
     build:
-      context: ../../exchange
-      dockerfile: consent-engine/Dockerfile
+      context: ../..
+      dockerfile: exchange/consent-engine/Dockerfile
     environment:
       PORT: 8081
       LOG_LEVEL: info
-      # Legacy database env vars (for old database.go)
-      CHOREO_DB_CE_HOSTNAME: ce-db
-      CHOREO_DB_CE_PORT: 5432
-      CHOREO_DB_CE_USERNAME: postgres
-      CHOREO_DB_CE_PASSWORD: password
-      CHOREO_DB_CE_DATABASENAME: consent_db
       # V1 database env vars (for v1/database/database.go)
-      CHOREO_OPENDIF_DATABASE_HOSTNAME: ce-db
-      CHOREO_OPENDIF_DATABASE_PORT: 5432
-      CHOREO_OPENDIF_DATABASE_USERNAME: postgres
-      CHOREO_OPENDIF_DATABASE_PASSWORD: password
-      CHOREO_OPENDIF_DATABASE_DATABASENAME: consent_db
+      DB_HOST: ce-db
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: consent_db
       DB_SSLMODE: disable
       # JWT/Asgardeo configuration for V1 auth (using Google's public JWKS for testing)
-      ASGARDEO_JWKS_URL: "https://www.googleapis.com/oauth2/v3/certs"
-      ASGARDEO_ISSUER: "https://accounts.google.com"
-      ASGARDEO_AUDIENCE: "test-audience"
-      ASGARDEO_ORG_NAME: "test-org"
+      IDP_JWKS_URL: "https://www.googleapis.com/oauth2/v3/certs"
+      IDP_ISSUER: "https://accounts.google.com"
+      IDP_AUDIENCE: "test-audience"
+      IDP_ORG_NAME: "test-org"
     ports:
       - "8081:8081"
     depends_on:
@@ -83,8 +77,8 @@ services:
   # Orchestration Engine Service
   orchestration-engine:
     build:
-      context: ../../exchange
-      dockerfile: orchestration-engine/Dockerfile
+      context: ../..
+      dockerfile: exchange/orchestration-engine/Dockerfile
     environment:
       PORT: 4000
       LOG_LEVEL: info

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/shared/config"
+	"github.com/gov-dx-sandbox/exchange/consent-engine/internal/config"
 	"github.com/gov-dx-sandbox/exchange/shared/monitoring"
 	"github.com/gov-dx-sandbox/exchange/shared/utils"
 
@@ -17,14 +17,6 @@ import (
 	v1router "github.com/gov-dx-sandbox/exchange/consent-engine/v1/router"
 	v1services "github.com/gov-dx-sandbox/exchange/consent-engine/v1/services"
 )
-
-// getEnvOrDefault returns the environment variable value or a default
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
 
 // Build information - set during build
 var (
@@ -49,7 +41,7 @@ func main() {
 
 	// Initialize V1 database connection
 	slog.Info("Initializing V1 database connection...")
-	v1DBConfig := v1db.NewDatabaseConfig()
+	v1DBConfig := v1db.NewDatabaseConfig(&cfg.DBConfigs)
 	v1DB, err := v1db.ConnectGormDB(v1DBConfig)
 	if err != nil {
 		slog.Error("Failed to connect to V1 database", "error", err)
@@ -72,7 +64,7 @@ func main() {
 	}()
 
 	// Get consent portal URL from environment
-	consentPortalUrl := getEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
+	consentPortalUrl := utils.GetEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
 	slog.Info("Using consent portal URL", "url", consentPortalUrl)
 
 	// Initialize V1 consent service
@@ -86,23 +78,17 @@ func main() {
 	v1InternalHandler := v1handlers.NewInternalHandler(v1ConsentService)
 	v1PortalHandler := v1handlers.NewPortalHandler(v1ConsentService)
 
-	// Initialize V1 JWT verifier
-	orgName := getEnvOrDefault("ASGARDEO_ORG_NAME", "YOUR_ORG_NAME")
-	userIssuer := getEnvOrDefault("ASGARDEO_ISSUER", "https://api.asgardeo.io/t/"+orgName+"/oauth2/token")
-	userAudience := getEnvOrDefault("ASGARDEO_AUDIENCE", "YOUR_AUDIENCE")
-	userJwksURL := getEnvOrDefault("ASGARDEO_JWKS_URL", "https://api.asgardeo.io/t/"+orgName+"/oauth2/jwks")
-
 	slog.Info("JWT verifier configuration",
-		"org_name", orgName,
-		"issuer", userIssuer,
-		"audience", userAudience,
-		"jwks_url", userJwksURL)
+		"org_name", cfg.IDPConfig.OrgName,
+		"issuer", cfg.IDPConfig.Issuer,
+		"audience", cfg.IDPConfig.Audience,
+		"jwks_url", cfg.IDPConfig.JwksUrl)
 
 	v1JWTVerifier, err := v1auth.NewJWTVerifier(v1auth.JWTVerifierConfig{
-		JWKSUrl:      userJwksURL,
-		Issuer:       userIssuer,
-		Audience:     userAudience,
-		Organization: orgName,
+		JWKSUrl:      cfg.IDPConfig.JwksUrl,
+		Issuer:       cfg.IDPConfig.Issuer,
+		Audience:     cfg.IDPConfig.Audience,
+		Organization: cfg.IDPConfig.OrgName,
 	})
 	if err != nil {
 		slog.Error("Failed to initialize V1 JWT verifier", "error", err)

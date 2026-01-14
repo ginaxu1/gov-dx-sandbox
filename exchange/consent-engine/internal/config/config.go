@@ -3,8 +3,9 @@ package config
 
 import (
 	"flag"
-	"os"
 	"time"
+
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
 // Config holds all configuration for a service
@@ -13,6 +14,8 @@ type Config struct {
 	Service     ServiceConfig
 	Logging     LoggingConfig
 	Security    SecurityConfig
+	IDPConfig   IDPConfig
+	DBConfigs   DBConfigs
 }
 
 // ServiceConfig holds service-specific configuration
@@ -31,28 +34,59 @@ type LoggingConfig struct {
 
 // SecurityConfig holds security configuration
 type SecurityConfig struct {
-	JWTSecret  string
 	EnableCORS bool
 	RateLimit  int
+}
+
+// IDPConfig holds IDP configuration
+type IDPConfig struct {
+	Issuer   string
+	JwksUrl  string
+	Audience string
+	OrgName  string
+}
+
+// DBConfigs holds database configuration
+type DBConfigs struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	Database string
+	SSLMode  string
 }
 
 // LoadConfig loads configuration from flags and environment variables
 func LoadConfig(serviceName string) *Config {
 	// Get environment first to determine defaults
-	env := getEnvOrDefault("ENVIRONMENT", "local")
+	env := utils.GetEnvOrDefault("ENVIRONMENT", "local")
 
 	// Define flags
 	envFlag := flag.String("env", env, "Environment: local or production")
-	port := flag.String("port", getDefaultPort(serviceName), "Service port")
-	host := flag.String("host", getEnvOrDefault("HOST", "0.0.0.0"), "Host address")
+	port := flag.String("port", utils.GetEnvOrDefault("PORT", "8081"), "Service port")
+	host := flag.String("host", utils.GetEnvOrDefault("HOST", "0.0.0.0"), "Host address")
 	timeout := flag.Duration("timeout", 10*time.Second, "Request timeout")
 	logLevel := flag.String("log-level", getDefaultLogLevel(env), "Log level")
 	logFormat := flag.String("log-format", getDefaultLogFormat(env), "Log format")
-	jwtSecret := flag.String("jwt-secret", getDefaultJWTSecret(env), "JWT secret")
 	enableCORS := flag.Bool("cors", getDefaultCORS(env), "Enable CORS")
 	rateLimit := flag.Int("rate-limit", getDefaultRateLimit(env), "Rate limit per minute")
+
 	// Parse flags
 	flag.Parse()
+
+	// Reading IDP Configs
+	orgName := utils.GetEnvOrDefault("IDP_ORG_NAME", "YOUR_ORG_NAME")
+	userIssuer := utils.GetEnvOrDefault("IDP_ISSUER", "https://api.asgardeo.io/t/"+orgName+"/oauth2/token")
+	userAudience := utils.GetEnvOrDefault("IDP_AUDIENCE", "YOUR_AUDIENCE")
+	userJwksURL := utils.GetEnvOrDefault("IDP_JWKS_URL", "https://api.asgardeo.io/t/"+orgName+"/oauth2/jwks")
+
+	// Reading DB Configs
+	dbHost := utils.GetEnvOrDefault("DB_HOST", "localhost")
+	dbPort := utils.GetEnvOrDefault("DB_PORT", "5432")
+	dbUsername := utils.GetEnvOrDefault("DB_USERNAME", "postgres")
+	dbPassword := utils.GetEnvOrDefault("DB_PASSWORD", "")
+	dbName := utils.GetEnvOrDefault("DB_NAME", "consent_engine")
+	dbSslMode := utils.GetEnvOrDefault("DB_SSLMODE", "require")
 
 	// Use flag value if provided, otherwise use environment default
 	finalEnv := *envFlag
@@ -70,37 +104,26 @@ func LoadConfig(serviceName string) *Config {
 			Format: *logFormat,
 		},
 		Security: SecurityConfig{
-			JWTSecret:  *jwtSecret,
 			EnableCORS: *enableCORS,
 			RateLimit:  *rateLimit,
 		},
+		IDPConfig: IDPConfig{
+			Issuer:   userIssuer,
+			JwksUrl:  userJwksURL,
+			Audience: userAudience,
+			OrgName:  orgName,
+		},
+		DBConfigs: DBConfigs{
+			Host:     dbHost,
+			Port:     dbPort,
+			Username: dbUsername,
+			Password: dbPassword,
+			Database: dbName,
+			SSLMode:  dbSslMode,
+		},
 	}
-
-	// Validate configuration
-	validateConfig(config)
 
 	return config
-}
-
-// Helper functions
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getDefaultPort(serviceName string) string {
-	ports := map[string]string{
-		"consent-engine":        "8081",
-		"policy-decision-point": "8082",
-		"orchestration-engine":  "4000",
-	}
-	if port, exists := ports[serviceName]; exists {
-		return port
-	}
-	// Fallback to environment variable or default
-	return getEnvOrDefault("PORT", "8081")
 }
 
 func getDefaultLogLevel(env string) string {
@@ -117,14 +140,6 @@ func getDefaultLogFormat(env string) string {
 	return "text"
 }
 
-func getDefaultJWTSecret(env string) string {
-	if env == "production" {
-		// In production, require JWT secret to be set via environment variable
-		return getEnvOrDefault("JWT_SECRET", "")
-	}
-	return "local-secret-key"
-}
-
 func getDefaultCORS(env string) bool {
 	return env != "production"
 }
@@ -134,14 +149,4 @@ func getDefaultRateLimit(env string) int {
 		return 100
 	}
 	return 1000
-}
-
-// validateConfig validates the configuration and logs warnings for production
-func validateConfig(cfg *Config) {
-	if cfg.Environment == "production" {
-		if cfg.Security.JWTSecret == "" {
-			// Log warning but don't fail - let the service handle it
-			// This allows for graceful degradation
-		}
-	}
 }

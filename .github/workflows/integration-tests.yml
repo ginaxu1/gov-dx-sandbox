@@ -134,17 +134,17 @@ jobs:
           CHOREO_DB_CE_USERNAME=postgres \
           CHOREO_DB_CE_PASSWORD=password \
           CHOREO_DB_CE_DATABASENAME=consent_db \
-          CHOREO_OPENDIF_DATABASE_HOSTNAME=localhost \
-          CHOREO_OPENDIF_DATABASE_PORT=5434 \
-          CHOREO_OPENDIF_DATABASE_USERNAME=postgres \
-          CHOREO_OPENDIF_DATABASE_PASSWORD=password \
-          CHOREO_OPENDIF_DATABASE_DATABASENAME=consent_db \
+          DB_HOSTNAME=localhost \
+          DB_PORT=5434 \
+          DB_USERNAME=postgres \
+          DB_PASSWORD=password \
+          DB_NAME=consent_db \
           DB_SSLMODE=disable \
           RUN_MIGRATION=true \
-          ASGARDEO_JWKS_URL="https://www.googleapis.com/oauth2/v3/certs" \
-          ASGARDEO_ISSUER="https://accounts.google.com" \
-          ASGARDEO_AUDIENCE="test-audience" \
-          ASGARDEO_ORG_NAME="test-org" \
+          IDP_JWKS_URL="https://www.googleapis.com/oauth2/v3/certs" \
+          IDP_ISSUER="https://accounts.google.com" \
+          IDP_AUDIENCE="test-audience" \
+          IDP_ORG_NAME="test-org" \
           ./bin/consent-engine > logs/ce.log 2>&1 &
           CE_PID=$!
           echo "CE PID: $CE_PID"
