@@ -235,7 +235,8 @@ func NewTokenValidator(ctx context.Context, jwksURL string) (*TokenValidator, er
 
 	// First, validate and fetch JWKS to ensure fail-fast behavior
 	// This ensures the service won't start with an invalid JWKS URL
-	fetchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Use parent context with timeout to respect cancellation
+	fetchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// Validate URL and perform initial fetch for fail-fast validation
@@ -282,16 +283,19 @@ func NewTokenValidator(ctx context.Context, jwksURL string) (*TokenValidator, er
 func (v *TokenValidator) validateSignature(tokenString string) (*jwt.Token, error) {
 	token, err := jwt.Parse(tokenString, v.jwks.Keyfunc)
 	if err != nil {
-		// Use error type checking for more robust error handling instead of string matching
+		// Log detailed error with JWKS URL for debugging, but don't expose it in error messages
 		switch {
 		case errors.Is(err, jwt.ErrTokenSignatureInvalid):
-			return nil, fmt.Errorf("token signature verification failed (JWKS URL: %s): %w", v.jwksURL, err)
+			logger.Log.Error("Token signature verification failed", "jwksUrl", v.jwksURL, "error", err)
+			return nil, fmt.Errorf("token signature verification failed: %w", err)
 		case errors.Is(err, jwt.ErrTokenMalformed):
 			return nil, fmt.Errorf("malformed token: %w", err)
 		case errors.Is(err, jwt.ErrTokenUnverifiable):
-			return nil, fmt.Errorf("token key not found in JWKS (JWKS URL: %s): %w", v.jwksURL, err)
+			logger.Log.Error("Token key not found in JWKS", "jwksUrl", v.jwksURL, "error", err)
+			return nil, fmt.Errorf("token key not found in JWKS: %w", err)
 		default:
-			return nil, fmt.Errorf("failed to parse and verify token (JWKS URL: %s): %w", v.jwksURL, err)
+			logger.Log.Error("Failed to parse and verify token", "jwksUrl", v.jwksURL, "error", err)
+			return nil, fmt.Errorf("failed to parse and verify token: %w", err)
 		}
 	}
 

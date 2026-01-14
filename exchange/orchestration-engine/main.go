@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/configs"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/federator"
@@ -16,8 +19,10 @@ import (
 func main() {
 	logger.Init()
 
-	// Create context for application lifecycle (controls background operations like JWKS refresh)
-	ctx := context.Background()
+	// Create context with signal handling for graceful shutdown
+	// This ensures background goroutines (like JWKS refresh) are properly cancelled
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	// Load configuration with proper error handling
 	config, err := configs.LoadConfig()
@@ -44,5 +49,7 @@ func main() {
 		log.Fatalf("Failed to initialize federator: %v", err)
 	}
 
-	server.RunServer(federationObject)
+	// Run server with graceful shutdown support
+	// Server will stop when ctx is cancelled (on SIGINT/SIGTERM)
+	server.RunServer(ctx, federationObject)
 }
