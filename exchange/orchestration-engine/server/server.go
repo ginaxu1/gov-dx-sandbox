@@ -138,7 +138,8 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 		// Parse request body
 		var req graphql.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+			logger.Log.Error("Failed to decode request body", "error", err)
+			http.Error(w, "Bad request: invalid JSON", http.StatusBadRequest)
 			return
 		}
 
@@ -146,7 +147,8 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 		consumerAssertion, err := auth.GetConsumerJwtFromTokenWithValidator(f.Configs.Environment, &f.Configs.JWT, f.Configs.TrustUpstream, r, f.TokenValidator)
 		if err != nil {
 			logger.Log.Error("Failed to get consumer JWT from token", "error", err)
-			http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+			// Return generic error to client to avoid exposing internal details
+			http.Error(w, "Unauthorized: invalid or expired token", http.StatusUnauthorized)
 			return
 		}
 

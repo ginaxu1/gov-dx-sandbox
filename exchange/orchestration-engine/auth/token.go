@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -114,8 +115,19 @@ type TokenValidator struct {
 	jwksURL string
 }
 
+// isPrivateIP checks if the given host is a private, loopback, or link-local IP address.
+// This is used to prevent SSRF attacks by blocking requests to internal networks.
+func isPrivateIP(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
 // fetchAndFilterJWKS fetches JWKS from URL and removes keys with x5c certificates to avoid parsing errors
-func fetchAndFilterJWKS(ctx context.Context, jwksURL string) (json.RawMessage, error) {
+// environment parameter controls SSRF protection: only enforced in production/staging environments
+func fetchAndFilterJWKS(ctx context.Context, jwksURL string, environment string) (json.RawMessage, error) {
 	// Validate URL format before attempting to fetch
 	parsedURL, err := url.Parse(jwksURL)
 	if err != nil {
@@ -135,6 +147,25 @@ func fetchAndFilterJWKS(ctx context.Context, jwksURL string) (json.RawMessage, e
 	// Validate URL has a host
 	if parsedURL.Host == "" {
 		return nil, fmt.Errorf("invalid JWKS URL: missing host")
+	}
+
+	// SSRF Protection: Validate hostname to prevent attacks on private networks
+	// Only enforce in production/staging environments
+	enforceSSRFProtection := environment == "production" || environment == "staging"
+	hostname := parsedURL.Hostname()
+
+	if enforceSSRFProtection {
+		// Block cloud metadata endpoints (AWS, GCP, Azure use 169.254.169.254)
+		if strings.Contains(hostname, "169.254.169.254") {
+			return nil, fmt.Errorf("JWKS URL cannot point to cloud metadata endpoint")
+		}
+
+		// Block private/internal network addresses
+		if isPrivateIP(hostname) {
+			return nil, fmt.Errorf("JWKS URL cannot point to private/internal network")
+		}
+	} else {
+		logger.Log.Warn("SSRF protection disabled in non-production environment", "environment", environment)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
@@ -228,7 +259,7 @@ func fetchAndFilterJWKS(ctx context.Context, jwksURL string) (json.RawMessage, e
 //  2. Automatic key rotation handling without manual intervention
 //  3. High availability during key rotation periods
 //  4. No x5c certificate parsing errors
-func NewTokenValidator(ctx context.Context, jwksURL string) (*TokenValidator, error) {
+func NewTokenValidator(ctx context.Context, jwksURL string, environment string) (*TokenValidator, error) {
 	if jwksURL == "" {
 		return &TokenValidator{}, nil
 	}
@@ -240,7 +271,7 @@ func NewTokenValidator(ctx context.Context, jwksURL string) (*TokenValidator, er
 	defer cancel()
 
 	// Validate URL and perform initial fetch for fail-fast validation
-	_, err := fetchAndFilterJWKS(fetchCtx, jwksURL)
+	_, err := fetchAndFilterJWKS(fetchCtx, jwksURL, environment)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch and filter JWKS: %w", err)
 	}

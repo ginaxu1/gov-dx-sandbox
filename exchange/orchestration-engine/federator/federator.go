@@ -119,7 +119,7 @@ func Initialize(ctx context.Context, configs *configs.Config, providerHandler *p
 		}
 
 		// Attempt to create TokenValidator with the configured JWKS URL and auto-refresh
-		validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl)
+		validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl, configs.Environment)
 		if err != nil {
 			return nil, fmt.Errorf("fatal configuration error: failed to initialize TokenValidator with JWKS URL %s: %w", configs.JWT.JwksUrl, err)
 		}
@@ -129,7 +129,7 @@ func Initialize(ctx context.Context, configs *configs.Config, providerHandler *p
 	} else {
 		// When trusting upstream, TokenValidator is optional (may still be used for additional validation)
 		if configs.JWT.JwksUrl != "" {
-			validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl)
+			validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl, configs.Environment)
 			if err != nil {
 				logger.Log.Warn("Failed to initialize TokenValidator (non-fatal with trustUpstream=true)", "error", err, "jwksUrl", configs.JWT.JwksUrl)
 			} else {

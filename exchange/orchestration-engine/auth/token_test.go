@@ -16,6 +16,8 @@ import (
 // Initialize logger for tests
 func init() {
 	logger.Init()
+	// Ensure we're not in production mode for tests
+	// (ENVIRONMENT is not set by default, so SSRF protection won't block localhost)
 }
 
 // Helper function to create a token without signing (matches ParseUnverified usage)
@@ -625,7 +627,7 @@ func TestGetConsumerJwtFromToken_NoAudienceValidationWhenNotConfigured(t *testin
 
 // Tests for fetchAndFilterJWKS function
 func TestFetchAndFilterJWKS_InvalidURL(t *testing.T) {
-	_, err := fetchAndFilterJWKS(context.Background(), "http://invalid-url-that-does-not-exist:99999/jwks")
+	_, err := fetchAndFilterJWKS(context.Background(), "http://invalid-url-that-does-not-exist:99999/jwks", "test")
 	if err == nil {
 		t.Error("Expected error for invalid URL")
 	}
@@ -640,7 +642,7 @@ func TestFetchAndFilterJWKS_Non200Status(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFilterJWKS(context.Background(), server.URL)
+	_, err := fetchAndFilterJWKS(context.Background(), server.URL, "test")
 	if err == nil {
 		t.Error("Expected error for non-200 status")
 	}
@@ -656,7 +658,7 @@ func TestFetchAndFilterJWKS_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFilterJWKS(context.Background(), server.URL)
+	_, err := fetchAndFilterJWKS(context.Background(), server.URL, "test")
 	if err == nil {
 		t.Error("Expected error for invalid JSON")
 	}
@@ -672,7 +674,7 @@ func TestFetchAndFilterJWKS_MissingKeysArray(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFilterJWKS(context.Background(), server.URL)
+	_, err := fetchAndFilterJWKS(context.Background(), server.URL, "test")
 	if err == nil {
 		t.Error("Expected error for missing keys array")
 	}
@@ -688,7 +690,7 @@ func TestFetchAndFilterJWKS_EmptyKeys(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFilterJWKS(context.Background(), server.URL)
+	_, err := fetchAndFilterJWKS(context.Background(), server.URL, "test")
 	if err == nil {
 		t.Error("Expected error for empty keys array")
 	}
@@ -723,7 +725,7 @@ func TestFetchAndFilterJWKS_FilterX5c(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFilterJWKS(context.Background(), server.URL)
+	result, err := fetchAndFilterJWKS(context.Background(), server.URL, "test")
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
@@ -762,7 +764,7 @@ func TestFetchAndFilterJWKS_SkipInvalidKeys(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFilterJWKS(context.Background(), server.URL)
+	result, err := fetchAndFilterJWKS(context.Background(), server.URL, "test")
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
@@ -790,7 +792,7 @@ func TestFetchAndFilterJWKS_AllKeysInvalid(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFilterJWKS(context.Background(), server.URL)
+	_, err := fetchAndFilterJWKS(context.Background(), server.URL, "test")
 	if err == nil {
 		t.Error("Expected error when all keys are invalid")
 	}
@@ -801,7 +803,7 @@ func TestFetchAndFilterJWKS_AllKeysInvalid(t *testing.T) {
 
 // Tests for NewTokenValidator function
 func TestNewTokenValidator_EmptyURL(t *testing.T) {
-	validator, err := NewTokenValidator(context.Background(), "")
+	validator, err := NewTokenValidator(context.Background(), "", "test")
 	if err != nil {
 		t.Errorf("Expected no error for empty URL, got: %v", err)
 	}
@@ -811,7 +813,7 @@ func TestNewTokenValidator_EmptyURL(t *testing.T) {
 }
 
 func TestNewTokenValidator_InvalidURL(t *testing.T) {
-	_, err := NewTokenValidator(context.Background(), "http://invalid-url:99999/jwks")
+	_, err := NewTokenValidator(context.Background(), "http://invalid-url:99999/jwks", "test")
 	if err == nil {
 		t.Error("Expected error for invalid URL")
 	}
@@ -838,7 +840,7 @@ func TestNewTokenValidator_ValidJWKS(t *testing.T) {
 	}))
 	defer server.Close()
 
-	validator, err := NewTokenValidator(context.Background(), server.URL)
+	validator, err := NewTokenValidator(context.Background(), server.URL, "test")
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
@@ -975,7 +977,7 @@ func TestValidateSignature_MalformedToken(t *testing.T) {
 	}))
 	defer server.Close()
 
-	validator, err := NewTokenValidator(context.Background(), server.URL)
+	validator, err := NewTokenValidator(context.Background(), server.URL, "test")
 	if err != nil {
 		t.Fatalf("Failed to create validator: %v", err)
 	}
@@ -1009,7 +1011,7 @@ func TestValidateSignature_KeyNotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	validator, err := NewTokenValidator(context.Background(), server.URL)
+	validator, err := NewTokenValidator(context.Background(), server.URL, "test")
 	if err != nil {
 		t.Fatalf("Failed to create validator: %v", err)
 	}
