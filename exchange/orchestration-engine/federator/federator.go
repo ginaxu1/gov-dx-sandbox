@@ -567,8 +567,8 @@ func (f *Federator) logOrchestrationRequestReceived(ctx context.Context, consume
 		"applicationId": consumerAppID,
 		"query":         query,
 	}
-	// No target for orchestration request received (it's the entry point)
-	return middleware.LogRequestReceived(ctx, "DATA_REQUEST", "APPLICATION", consumerAppID, requestMetadata)
+	// Log ORCHESTRATION_REQUEST_RECEIVED event (no target as it's the entry point)
+	return middleware.LogRequestReceived(ctx, "ORCHESTRATION_REQUEST_RECEIVED", "APPLICATION", consumerAppID, requestMetadata)
 }
 
 // logPolicyCheck logs a POLICY_CHECK event from orchestration-engine's perspective

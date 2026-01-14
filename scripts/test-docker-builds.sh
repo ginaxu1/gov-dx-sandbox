@@ -64,11 +64,8 @@ echo ""
 # Keep track of overall status
 OVERALL_STATUS=0
 
-# Build audit-service
-if ! build_service "audit-service" "audit-service/Dockerfile" "audit-service"; then
-    OVERALL_STATUS=1
-fi
-echo ""
+# Note: Audit logging is handled by Argus (https://github.com/LSFLK/argus), an external service
+# echo ""
 
 # Build orchestration-engine
 if ! build_service "orchestration-engine" "exchange/orchestration-engine/Dockerfile" "exchange/orchestration-engine"; then

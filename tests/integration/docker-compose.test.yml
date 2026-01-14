@@ -92,7 +92,8 @@ services:
       CONSENT_ENGINE_URL: http://consent-engine:8081
       CONFIG_PATH: /app/config/config.json
       # Audit service configuration for integration tests
-      AUDIT_SERVICE_URL: http://audit-service:3001
+      # Uses Argus (https://github.com/LSFLK/argus) for audit logging
+      AUDIT_SERVICE_URL: http://argus:3001
       ENABLE_AUDIT: "true"
     volumes:
       - ./config.json:/app/config/config.json:ro
@@ -119,25 +120,22 @@ services:
       retries: 5
       start_period: 10s
 
-  # Audit Service
-  audit-service:
-    build:
-      context: ../..
-      dockerfile: audit-service/Dockerfile
+  # Argus Audit Service (https://github.com/LSFLK/argus)
+  argus:
+    image: lsflk/argus:latest
     environment:
       PORT: 3001
       DB_TYPE: postgres
-      DB_HOST: audit-db
+      DB_HOST: argus-db
       DB_PORT: 5432
       DB_USERNAME: postgres
       DB_PASSWORD: password
       DB_NAME: audit_db
       DB_SSLMODE: disable
-      AUDIT_LOGS_TABLE_NAME: audit_logs_unified
     ports:
       - "3001:3001"
     depends_on:
-      audit-db:
+      argus-db:
         condition: service_healthy
     healthcheck:
       test:
@@ -154,8 +152,8 @@ services:
       retries: 5
       start_period: 10s
 
-  # PostgreSQL Database for Audit Service
-  audit-db:
+  # PostgreSQL Database for Argus
+  argus-db:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres

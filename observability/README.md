@@ -250,7 +250,7 @@ sum by (external_target, external_operation) (rate(external_call_errors_total[5m
 
 **Service Availability:**
 ```promql
-up{job=~"orchestration-engine|consent-engine|policy-decision-point|portal-backend|audit-service"}
+up{job=~"orchestration-engine|consent-engine|policy-decision-point|portal-backend|argus"}
 ```
 
 ---
