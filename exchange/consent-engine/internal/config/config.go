@@ -10,20 +10,22 @@ import (
 
 // Config holds all configuration for a service
 type Config struct {
-	Environment string
-	Service     ServiceConfig
-	Logging     LoggingConfig
-	Security    SecurityConfig
-	IDPConfig   IDPConfig
-	DBConfigs   DBConfigs
+	Environment      string
+	ConsentPortalUrl string
+	Service          ServiceConfig
+	Logging          LoggingConfig
+	Security         SecurityConfig
+	IDPConfig        IDPConfig
+	DBConfigs        DBConfigs
 }
 
 // ServiceConfig holds service-specific configuration
 type ServiceConfig struct {
-	Name    string
-	Port    string
-	Host    string
-	Timeout time.Duration
+	Name           string
+	Port           string
+	Host           string
+	Timeout        time.Duration
+	AllowedOrigins string
 }
 
 // LoggingConfig holds logging configuration
@@ -88,16 +90,25 @@ func LoadConfig(serviceName string) *Config {
 	dbName := utils.GetEnvOrDefault("DB_NAME", "consent_engine")
 	dbSslMode := utils.GetEnvOrDefault("DB_SSLMODE", "require")
 
+	// Reading ConsentPortal Url
+	consentPortalUrl := utils.GetEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
+	allowedOrigins := utils.GetEnvOrDefault("CORS_ALLOWED_ORIGINS", "")
+
+	// add the consent portal url to the allowed origins list
+	allowedOrigins += "," + consentPortalUrl
+
 	// Use flag value if provided, otherwise use environment default
 	finalEnv := *envFlag
 
 	config := &Config{
-		Environment: finalEnv,
+		Environment:      finalEnv,
+		ConsentPortalUrl: consentPortalUrl,
 		Service: ServiceConfig{
-			Name:    serviceName,
-			Port:    *port,
-			Host:    *host,
-			Timeout: *timeout,
+			Name:           serviceName,
+			Port:           *port,
+			Host:           *host,
+			Timeout:        *timeout,
+			AllowedOrigins: allowedOrigins,
 		},
 		Logging: LoggingConfig{
 			Level:  *logLevel,

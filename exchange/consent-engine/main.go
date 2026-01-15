@@ -64,11 +64,10 @@ func main() {
 	}()
 
 	// Get consent portal URL from environment
-	consentPortalUrl := utils.GetEnvOrDefault("CONSENT_PORTAL_URL", "http://localhost:5173")
-	slog.Info("Using consent portal URL", "url", consentPortalUrl)
+	slog.Info("Using consent portal URL", "url", cfg.ConsentPortalUrl)
 
 	// Initialize V1 consent service
-	v1ConsentService, err := v1services.NewConsentService(v1DB, consentPortalUrl)
+	v1ConsentService, err := v1services.NewConsentService(v1DB, cfg.ConsentPortalUrl)
 	if err != nil {
 		slog.Error("Failed to initialize V1 consent service", "error", err)
 		os.Exit(1)
@@ -96,7 +95,7 @@ func main() {
 	}
 
 	// Initialize V1 router and register all V1 routes
-	v1Router := v1router.NewV1Router(v1InternalHandler, v1PortalHandler, v1JWTVerifier)
+	v1Router := v1router.NewV1Router(cfg.Service.AllowedOrigins, v1InternalHandler, v1PortalHandler, v1JWTVerifier)
 	mux := http.NewServeMux()
 
 	slog.Info("Registering V1 API routes")

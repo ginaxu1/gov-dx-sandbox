@@ -20,6 +20,7 @@ type V1Router struct {
 
 // NewV1Router creates a new V1 router with all dependencies
 func NewV1Router(
+	allowedOrigins string,
 	internalHandler *handlers.InternalHandler,
 	portalHandler *handlers.PortalHandler,
 	jwtVerifier *auth.JWTVerifier,
@@ -28,7 +29,7 @@ func NewV1Router(
 		internalHandler: internalHandler,
 		portalHandler:   portalHandler,
 		authMiddleware:  middleware.NewJWTAuthMiddleware(jwtVerifier),
-		corsMiddleware:  middleware.NewCORSMiddleware(),
+		corsMiddleware:  middleware.NewCORSMiddleware(allowedOrigins),
 	}
 }
 
