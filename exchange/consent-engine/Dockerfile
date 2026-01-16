@@ -12,17 +12,21 @@ ARG GIT_COMMIT
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
+# Copy all shared dependencies
+COPY exchange/consent-engine/go.mod exchange/consent-engine/go.sum ./exchange/consent-engine/
+COPY exchange/shared/monitoring/ ./exchange/shared/monitoring/
+COPY exchange/shared/utils/ ./exchange/shared/utils/
+
 # Copy go mod files and source code
-COPY exchange/consent-engine/go.mod exchange/consent-engine/go.sum ./
-COPY exchange/consent-engine/ .
+COPY exchange/consent-engine/ ./exchange/consent-engine/
 
-# Copy shared packages from exchange/shared
-COPY exchange/shared/ /shared/
-
-# Download dependencies
+WORKDIR /app/exchange/consent-engine/
 RUN go mod download
 
-# Build the application with build info
+# Copy source code
+COPY exchange/consent-engine/ .
+
+# Build the application with build info from consent-engine directory
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
     -o /app/service_binary .

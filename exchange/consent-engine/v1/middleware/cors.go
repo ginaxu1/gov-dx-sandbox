@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -19,22 +18,22 @@ type CORSConfig struct {
 
 // DefaultCORSConfig returns the default CORS configuration.
 // The allowed origins can be overridden by setting the CORS_ALLOWED_ORIGINS environment variable (comma-separated).
-func DefaultCORSConfig() CORSConfig {
+func DefaultCORSConfig(allowedOrigins string) CORSConfig {
 	// Get allowed origins from environment variable, default to localhost:5173
-	allowedOrigins := []string{"http://localhost:5173"}
-	if envOrigins := os.Getenv("CORS_ALLOWED_ORIGINS"); envOrigins != "" {
+	var allowedOriginsArr []string
+	if envOrigins := allowedOrigins; envOrigins != "" {
 		envOriginsList := strings.Split(envOrigins, ",")
 		// Append environment origins to the default
 		for _, origin := range envOriginsList {
 			trimmed := strings.TrimSpace(origin)
 			if trimmed != "" {
-				allowedOrigins = append(allowedOrigins, trimmed)
+				allowedOriginsArr = append(allowedOriginsArr, trimmed)
 			}
 		}
 	}
 
 	return CORSConfig{
-		AllowedOrigins: allowedOrigins,
+		AllowedOrigins: allowedOriginsArr,
 		AllowedMethods: []string{
 			"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS",
 		},
@@ -119,6 +118,6 @@ func CORSMiddleware(config CORSConfig) func(http.Handler) http.Handler {
 }
 
 // NewCORSMiddleware creates a CORS middleware with default configuration
-func NewCORSMiddleware() func(http.Handler) http.Handler {
-	return CORSMiddleware(DefaultCORSConfig())
+func NewCORSMiddleware(allowedOrigins string) func(http.Handler) http.Handler {
+	return CORSMiddleware(DefaultCORSConfig(allowedOrigins))
 }

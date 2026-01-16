@@ -5,7 +5,6 @@ go 1.24.6
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/gov-dx-sandbox/exchange/shared/config v0.0.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
 )
 
@@ -59,10 +58,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
-
-replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constants
-
 replace github.com/gov-dx-sandbox/exchange/shared/monitoring => ../shared/monitoring
 
-replace github.com/gov-dx-sandbox/exchange/shared/utils => ./shared/utils
+replace github.com/gov-dx-sandbox/exchange/shared/utils => ../shared/utils
