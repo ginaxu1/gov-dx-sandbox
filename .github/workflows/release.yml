@@ -3,11 +3,11 @@ name: Release - Build and Publish All Services
 on:
   push:
     tags:
-      - 'v*.*.*'  # Matches semantic version tags like v1.0.0, v2.1.3, etc.
+      - "v*.*.*" # Matches semantic version tags like v1.0.0, v2.1.3, etc.
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., v1.0.0)'
+        description: "Release version (e.g., v1.0.0)"
         required: true
         type: string
 
@@ -26,7 +26,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history for proper versioning
+          fetch-depth: 0 # Fetch all history for proper versioning
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -46,167 +46,248 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
-          # Remove 'v' prefix if present
-          VERSION=${VERSION#v}
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "full_version=v${VERSION}" >> $GITHUB_OUTPUT
-          echo "Extracted version: ${VERSION}"
+          echo "tag=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Extracted version tag: ${VERSION}"
+
+      - name: Extract metadata for Portal Backend
+        id: meta-portal
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend
+          tags: |
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=Portal Backend service for the Government Data Exchange platform
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
 
       - name: Build and push Portal Backend
         uses: docker/build-push-action@v5
         with:
           context: ./portal-backend
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend:latest
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.description=Portal Backend service for the Government Data Exchange platform
-            org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          tags: ${{ steps.meta-portal.outputs.tags }}
+          labels: ${{ steps.meta-portal.outputs.labels }}
           build-args: |
             SERVICE_PATH=portal-backend
-            BUILD_VERSION=${{ steps.version.outputs.version }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
+            BUILD_VERSION=${{ steps.version.outputs.tag }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Extract metadata for Audit Service
+        id: meta-audit
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/audit-service
+          tags: |
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=Audit Service for tracking and logging system events
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
 
       - name: Build and push Audit Service
         uses: docker/build-push-action@v5
         with:
           context: ./audit-service
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/audit-service:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/audit-service:latest
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.description=Audit Service for tracking and logging system events
-            org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          tags: ${{ steps.meta-audit.outputs.tags }}
+          labels: ${{ steps.meta-audit.outputs.labels }}
           build-args: |
             SERVICE_PATH=audit-service
-            BUILD_VERSION=${{ steps.version.outputs.version }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
+            BUILD_VERSION=${{ steps.version.outputs.tag }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push Policy Decision Point
-        uses: docker/build-push-action@v5
+      - name: Extract metadata for Policy Decision Point
+        id: meta-pdp
+        uses: docker/metadata-action@v5
         with:
-          context: ./exchange
-          file: ./exchange/policy-decision-point/Dockerfile
-          push: true
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point:latest
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Policy Decision Point service for authorization decisions
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+
+      - name: Build and push Policy Decision Point
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./exchange/policy-decision-point/Dockerfile
+          push: true
+          tags: ${{ steps.meta-pdp.outputs.tags }}
+          labels: ${{ steps.meta-pdp.outputs.labels }}
           build-args: |
             SERVICE_PATH=policy-decision-point
-            BUILD_VERSION=${{ steps.version.outputs.version }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
+            BUILD_VERSION=${{ steps.version.outputs.tag }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push Consent Engine
-        uses: docker/build-push-action@v5
+      - name: Extract metadata for Consent Engine
+        id: meta-consent
+        uses: docker/metadata-action@v5
         with:
-          context: ./exchange
-          file: ./exchange/consent-engine/Dockerfile
-          push: true
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine:latest
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Consent Engine service for managing data consent workflows
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+
+      - name: Build and push Consent Engine
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./exchange/consent-engine/Dockerfile
+          push: true
+          tags: ${{ steps.meta-consent.outputs.tags }}
+          labels: ${{ steps.meta-consent.outputs.labels }}
           build-args: |
             SERVICE_PATH=consent-engine
-            BUILD_VERSION=${{ steps.version.outputs.version }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
+            BUILD_VERSION=${{ steps.version.outputs.tag }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push Orchestration Engine
-        uses: docker/build-push-action@v5
+      - name: Extract metadata for Orchestration Engine
+        id: meta-orchestration
+        uses: docker/metadata-action@v5
         with:
-          context: ./exchange/orchestration-engine
-          push: true
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine:latest
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Orchestration Engine service for coordinating data exchange workflows
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+
+      - name: Build and push Orchestration Engine
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./exchange/orchestration-engine/Dockerfile
+          push: true
+          tags: ${{ steps.meta-orchestration.outputs.tags }}
+          labels: ${{ steps.meta-orchestration.outputs.labels }}
           build-args: |
             SERVICE_PATH=orchestration-engine
-            BUILD_VERSION=${{ steps.version.outputs.version }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at || github.run_started_at }}
+            BUILD_VERSION=${{ steps.version.outputs.tag }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Trivy vulnerability scanner on all images
+      - name: Run Trivy vulnerability scanner - Portal Backend
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
-          image-ref: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/audit-service:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine:${{ steps.version.outputs.full_version }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine:${{ steps.version.outputs.full_version }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          image-ref: ${{ fromJSON(steps.meta-portal.outputs.json).tags[0] }}
+          format: "sarif"
+          output: "trivy-portal-backend.sarif"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: false
+
+      - name: Run Trivy vulnerability scanner - Audit Service
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ fromJSON(steps.meta-audit.outputs.json).tags[0] }}
+          format: "sarif"
+          output: "trivy-audit-service.sarif"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: false
+
+      - name: Run Trivy vulnerability scanner - Policy Decision Point
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ fromJSON(steps.meta-pdp.outputs.json).tags[0] }}
+          format: "sarif"
+          output: "trivy-policy-decision-point.sarif"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: false
+
+      - name: Run Trivy vulnerability scanner - Consent Engine
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ fromJSON(steps.meta-consent.outputs.json).tags[0] }}
+          format: "sarif"
+          output: "trivy-consent-engine.sarif"
+          severity: "CRITICAL,HIGH"
+          ignore-unfixed: false
+
+      - name: Run Trivy vulnerability scanner - Orchestration Engine
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: ${{ fromJSON(steps.meta-orchestration.outputs.json).tags[0] }}
+          format: "sarif"
+          output: "trivy-orchestration-engine.sarif"
+          severity: "CRITICAL,HIGH"
           ignore-unfixed: false
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: |
+            trivy-portal-backend.sarif
+            trivy-audit-service.sarif
+            trivy-policy-decision-point.sarif
+            trivy-consent-engine.sarif
+            trivy-orchestration-engine.sarif
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: github.event_name == 'push'
         with:
           tag_name: ${{ github.ref }}
-          name: Release ${{ steps.version.outputs.full_version }}
+          name: Release ${{ steps.version.outputs.tag }}
           body: |
-            ## Release ${{ steps.version.outputs.full_version }}
+            ## Release ${{ steps.version.outputs.tag }}
 
             This release includes Docker images for all services:
 
-            - **Portal Backend**: `ghcr.io/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}`
-            - **Audit Service**: `ghcr.io/${{ github.repository }}/audit-service:${{ steps.version.outputs.full_version }}`
-            - **Policy Decision Point**: `ghcr.io/${{ github.repository }}/policy-decision-point:${{ steps.version.outputs.full_version }}`
-            - **Consent Engine**: `ghcr.io/${{ github.repository }}/consent-engine:${{ steps.version.outputs.full_version }}`
-            - **Orchestration Engine**: `ghcr.io/${{ github.repository }}/orchestration-engine:${{ steps.version.outputs.full_version }}`
+            - **Portal Backend**: `${{ fromJSON(steps.meta-portal.outputs.json).tags[0] }}`
+            - **Audit Service**: `${{ fromJSON(steps.meta-audit.outputs.json).tags[0] }}`
+            - **Policy Decision Point**: `${{ fromJSON(steps.meta-pdp.outputs.json).tags[0] }}`
+            - **Consent Engine**: `${{ fromJSON(steps.meta-consent.outputs.json).tags[0] }}`
+            - **Orchestration Engine**: `${{ fromJSON(steps.meta-orchestration.outputs.json).tags[0] }}`
 
             ### Pull Images
 
             ```bash
-            docker pull ghcr.io/${{ github.repository }}/portal-backend:${{ steps.version.outputs.full_version }}
-            docker pull ghcr.io/${{ github.repository }}/audit-service:${{ steps.version.outputs.full_version }}
-            docker pull ghcr.io/${{ github.repository }}/policy-decision-point:${{ steps.version.outputs.full_version }}
-            docker pull ghcr.io/${{ github.repository }}/consent-engine:${{ steps.version.outputs.full_version }}
-            docker pull ghcr.io/${{ github.repository }}/orchestration-engine:${{ steps.version.outputs.full_version }}
+            docker pull ${{ fromJSON(steps.meta-portal.outputs.json).tags[0] }}
+            docker pull ${{ fromJSON(steps.meta-audit.outputs.json).tags[0] }}
+            docker pull ${{ fromJSON(steps.meta-pdp.outputs.json).tags[0] }}
+            docker pull ${{ fromJSON(steps.meta-consent.outputs.json).tags[0] }}
+            docker pull ${{ fromJSON(steps.meta-orchestration.outputs.json).tags[0] }}
             ```
           draft: false
           prerelease: false
-
