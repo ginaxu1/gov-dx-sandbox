@@ -28,6 +28,19 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for proper versioning
 
+      - name: Determine if this is a dry run
+        id: dry-run
+        run: |
+          # Only push images for tag pushes on main branch or manual dispatch
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/* ]] || \
+             [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+            echo "✅ Real release mode - will push images"
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "🧪 DRY RUN mode - will build but NOT push images"
+          fi
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -68,7 +81,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./portal-backend
-          push: true
+          push: ${{ steps.dry-run.outputs.enabled == 'true' }}
           tags: ${{ steps.meta-portal.outputs.tags }}
           labels: ${{ steps.meta-portal.outputs.labels }}
           build-args: |
@@ -98,7 +111,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./audit-service
-          push: true
+          push: ${{ steps.dry-run.outputs.enabled == 'true' }}
           tags: ${{ steps.meta-audit.outputs.tags }}
           labels: ${{ steps.meta-audit.outputs.labels }}
           build-args: |
@@ -129,7 +142,7 @@ jobs:
         with:
           context: .
           file: ./exchange/policy-decision-point/Dockerfile
-          push: true
+          push: ${{ steps.dry-run.outputs.enabled == 'true' }}
           tags: ${{ steps.meta-pdp.outputs.tags }}
           labels: ${{ steps.meta-pdp.outputs.labels }}
           build-args: |
@@ -160,7 +173,7 @@ jobs:
         with:
           context: .
           file: ./exchange/consent-engine/Dockerfile
-          push: true
+          push: ${{ steps.dry-run.outputs.enabled == 'true' }}
           tags: ${{ steps.meta-consent.outputs.tags }}
           labels: ${{ steps.meta-consent.outputs.labels }}
           build-args: |
@@ -191,7 +204,7 @@ jobs:
         with:
           context: .
           file: ./exchange/orchestration-engine/Dockerfile
-          push: true
+          push: ${{ steps.dry-run.outputs.enabled == 'true' }}
           tags: ${{ steps.meta-orchestration.outputs.tags }}
           labels: ${{ steps.meta-orchestration.outputs.labels }}
           build-args: |
@@ -203,6 +216,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run Trivy vulnerability scanner - Portal Backend
+        if: steps.dry-run.outputs.enabled == 'true'
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
@@ -213,6 +227,7 @@ jobs:
           ignore-unfixed: false
 
       - name: Run Trivy vulnerability scanner - Audit Service
+        if: steps.dry-run.outputs.enabled == 'true'
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
@@ -223,6 +238,7 @@ jobs:
           ignore-unfixed: false
 
       - name: Run Trivy vulnerability scanner - Policy Decision Point
+        if: steps.dry-run.outputs.enabled == 'true'
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
@@ -233,6 +249,7 @@ jobs:
           ignore-unfixed: false
 
       - name: Run Trivy vulnerability scanner - Consent Engine
+        if: steps.dry-run.outputs.enabled == 'true'
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
@@ -243,6 +260,7 @@ jobs:
           ignore-unfixed: false
 
       - name: Run Trivy vulnerability scanner - Orchestration Engine
+        if: steps.dry-run.outputs.enabled == 'true'
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
@@ -253,8 +271,8 @@ jobs:
           ignore-unfixed: false
 
       - name: Upload Trivy results to GitHub Security
+        if: steps.dry-run.outputs.enabled == 'true' && always()
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: |
             trivy-portal-backend.sarif
