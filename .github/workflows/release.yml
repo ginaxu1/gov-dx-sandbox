@@ -80,7 +80,8 @@ jobs:
       - name: Build and push Portal Backend
         uses: docker/build-push-action@v5
         with:
-          context: ./portal-backend
+          context: .
+          file: ./portal-backend/Dockerfile
           push: ${{ steps.dry-run.outputs.enabled == 'true' }}
           tags: ${{ steps.meta-portal.outputs.tags }}
           labels: ${{ steps.meta-portal.outputs.labels }}
@@ -110,7 +111,8 @@ jobs:
       - name: Build and push Audit Service
         uses: docker/build-push-action@v5
         with:
-          context: ./audit-service
+          context: .
+          file: ./audit-service/Dockerfile
           push: ${{ steps.dry-run.outputs.enabled == 'true' }}
           tags: ${{ steps.meta-audit.outputs.tags }}
           labels: ${{ steps.meta-audit.outputs.labels }}
