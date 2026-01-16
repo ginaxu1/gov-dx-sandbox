@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"runtime/debug"
+	"time"
 
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/auth"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/database"
@@ -23,31 +25,60 @@ type Response struct {
 
 const DefaultPort = "4000"
 
-// RunServer starts a simple HTTP server with a health check endpoint.
-func RunServer(f *federator.Federator) {
+// RunServer starts an HTTP server with graceful shutdown support.
+// The server will shut down gracefully when the context is cancelled (e.g., on SIGINT/SIGTERM).
+func RunServer(ctx context.Context, f *federator.Federator) {
 	mux := SetupRouter(f)
 
-	// Start server
+	// Get port configuration
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = DefaultPort
 	}
 
 	// Convert port to string with colon prefix
-	// e.g., "8000" -> ":8000"
-	// This is needed for http.ListenAndServe
-	// which expects the port in the format ":port"
-	// If the port already has a colon, we don't add another one
 	if port[0] != ':' {
 		port = ":" + port
 	}
 
-	logger.Log.Info("Server is Listening", "port", port)
+	// Create HTTP server with proper configuration
+	srv := &http.Server{
+		Addr:    port,
+		Handler: corsMiddleware(mux),
+	}
 
-	if err := http.ListenAndServe(port, corsMiddleware(mux)); err != nil {
-		logger.Log.Error("Failed to start server", "error", err)
-	} else {
-		logger.Log.Info("Server stopped")
+	// Channel to signal server errors
+	serverErrors := make(chan error, 1)
+
+	// Start server in a goroutine
+	go func() {
+		logger.Log.Info("Server is Listening", "port", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErrors <- err
+		}
+	}()
+
+	// Wait for shutdown signal or server error
+	select {
+	case err := <-serverErrors:
+		logger.Log.Error("Server error", "error", err)
+	case <-ctx.Done():
+		logger.Log.Info("Shutdown signal received, starting graceful shutdown")
+
+		// Create shutdown context with timeout
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// Attempt graceful shutdown
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Log.Error("Server shutdown error", "error", err)
+			// Force close if graceful shutdown fails
+			if closeErr := srv.Close(); closeErr != nil {
+				logger.Log.Error("Server close error", "error", closeErr)
+			}
+		} else {
+			logger.Log.Info("Server stopped gracefully")
+		}
 	}
 }
 
@@ -107,15 +138,17 @@ func SetupRouter(f *federator.Federator) *chi.Mux {
 		// Parse request body
 		var req graphql.Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+			logger.Log.Error("Failed to decode request body", "error", err)
+			http.Error(w, "Bad request: invalid JSON", http.StatusBadRequest)
 			return
 		}
 
-		// decode the token
-		consumerAssertion, err := auth.GetConsumerJwtFromToken(f.Configs.Environment, r)
+		// decode the token using the cached TokenValidator
+		consumerAssertion, err := auth.GetConsumerJwtFromTokenWithValidator(f.Configs.Environment, &f.Configs.JWT, f.Configs.TrustUpstream, r, f.TokenValidator)
 		if err != nil {
 			logger.Log.Error("Failed to get consumer JWT from token", "error", err)
-			http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+			// Return generic error to client to avoid exposing internal details
+			http.Error(w, "Unauthorized: invalid or expired token", http.StatusUnauthorized)
 			return
 		}
 

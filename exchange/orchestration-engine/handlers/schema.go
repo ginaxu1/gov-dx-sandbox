@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/logger"
 	"github.com/ginaxu1/gov-dx-sandbox/exchange/orchestration-engine/services"
 	"github.com/go-chi/chi/v5"
 )
@@ -66,7 +67,9 @@ func (h *SchemaHandler) CreateSchema(w http.ResponseWriter, r *http.Request) {
 
 	schema, err := h.schemaService.CreateSchema(req.Version, req.SDL, req.CreatedBy)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		logger.Log.Error("Failed to create schema", "error", err, "version", req.Version)
+		// Return generic error to avoid exposing internal details
+		http.Error(w, "Failed to create schema", http.StatusBadRequest)
 		return
 	}
 
@@ -83,7 +86,10 @@ func (h *SchemaHandler) GetSchemas(w http.ResponseWriter, r *http.Request) {
 
 	schemas, err := h.schemaService.GetAllSchemas()
 	if err != nil {
-		http.Error(w, "Internal server error: "+err.Error(), http.StatusInternalServerError)
+		logger.Log.Error("Failed to get schemas", "error", err)
+		// Log detailed error but return generic message to client
+		// Avoid exposing database structure or query details
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -100,7 +106,9 @@ func (h *SchemaHandler) GetActiveSchema(w http.ResponseWriter, r *http.Request) 
 
 	schema, err := h.schemaService.GetActiveSchema()
 	if err != nil {
-		http.Error(w, "Internal server error: "+err.Error(), http.StatusInternalServerError)
+		logger.Log.Error("Failed to get active schema", "error", err)
+		// Log detailed error but return generic message to client
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -126,7 +134,9 @@ func (h *SchemaHandler) ActivateSchema(w http.ResponseWriter, r *http.Request) {
 
 	err := h.schemaService.ActivateSchema(version)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		logger.Log.Error("Failed to activate schema", "error", err, "version", version)
+		// Return generic error to avoid exposing internal details
+		http.Error(w, "Schema not found or cannot be activated", http.StatusNotFound)
 		return
 	}
 

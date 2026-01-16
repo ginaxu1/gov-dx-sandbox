@@ -36,7 +36,8 @@ type Federator struct {
 	ProviderHandler *provider.Handler
 	Client          *http.Client
 	Schema          *ast.Document
-	SchemaService   interface{} // Will be *services.SchemaService, using interface{} to avoid circular import
+	SchemaService   interface{}          // Will be *services.SchemaService, using interface{} to avoid circular import
+	TokenValidator  *auth.TokenValidator // Cached validator for JWT token signature verification
 }
 
 type FederationServiceAST struct {
@@ -100,11 +101,44 @@ func createErrorResponseWithCode(message string, code string) graphql.Response {
 }
 
 // Initialize sets up the Federator with providers and an HTTP client.
-func Initialize(configs *configs.Config, providerHandler *provider.Handler, schemaService interface{}) *Federator {
+// Returns error if critical configuration is invalid (fail-fast approach).
+// The provided context controls the lifecycle of background operations (e.g., JWKS auto-refresh).
+func Initialize(ctx context.Context, configs *configs.Config, providerHandler *provider.Handler, schemaService interface{}) (*Federator, error) {
 	federator := &Federator{
 		ProviderHandler: providerHandler,
 		SchemaService:   schemaService,
 		Configs:         configs,
+	}
+
+	// Validate JWT configuration based on trustUpstream setting
+	// If trustUpstream is false, we MUST have a valid TokenValidator
+	if !configs.TrustUpstream {
+		// When not trusting upstream, JWT signature verification is required
+		if configs.JWT.JwksUrl == "" {
+			return nil, fmt.Errorf("fatal configuration error: trustUpstream is false but JWT.JwksUrl is not configured - cannot verify token signatures")
+		}
+
+		// Attempt to create TokenValidator with the configured JWKS URL and auto-refresh
+		validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl, configs.Environment)
+		if err != nil {
+			return nil, fmt.Errorf("fatal configuration error: failed to initialize TokenValidator with JWKS URL %s: %w", configs.JWT.JwksUrl, err)
+		}
+
+		federator.TokenValidator = validator
+		logger.Log.Info("TokenValidator initialized successfully with auto-refresh", "jwksUrl", configs.JWT.JwksUrl, "trustUpstream", false)
+	} else {
+		// When trusting upstream, TokenValidator is optional (may still be used for additional validation)
+		if configs.JWT.JwksUrl != "" {
+			validator, err := auth.NewTokenValidator(ctx, configs.JWT.JwksUrl, configs.Environment)
+			if err != nil {
+				logger.Log.Warn("Failed to initialize TokenValidator (non-fatal with trustUpstream=true)", "error", err, "jwksUrl", configs.JWT.JwksUrl)
+			} else {
+				federator.TokenValidator = validator
+				logger.Log.Info("TokenValidator initialized successfully with auto-refresh", "jwksUrl", configs.JWT.JwksUrl, "trustUpstream", true)
+			}
+		} else {
+			logger.Log.Info("TokenValidator not configured (trustUpstream=true, no JWKS URL provided)")
+		}
 	}
 
 	// Initialize with providers from config if available
@@ -143,7 +177,7 @@ func Initialize(configs *configs.Config, providerHandler *provider.Handler, sche
 		},
 	}
 
-	return federator
+	return federator, nil
 }
 
 // FederateQuery takes a raw GraphQL query, splits it into sub-queries for each service,
@@ -158,7 +192,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// Log orchestration request received event
 	// Update context with traceID if one was generated
-	ctx = f.logOrchestrationRequestReceived(ctx, consumerInfo.ApplicationId, request.Query)
+	ctx = f.logOrchestrationRequestReceived(ctx, consumerInfo.ApplicationID, request.Query)
 
 	// Convert the query string into its ast
 	src := source.NewSource(&source.Source{
@@ -286,7 +320,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 		// Continue without PDP check - this allows the system to work without PDP
 	} else {
 		pdpRequest := &policy.PdpRequest{
-			AppId: consumerInfo.ApplicationId,
+			AppId: consumerInfo.ApplicationID,
 		}
 
 		requiredFields := make([]policy.RequiredField, 0)
@@ -304,7 +338,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		// Log policy check audit event
 		// Update context with traceID if one was generated
-		ctx = f.logPolicyCheck(ctx, consumerInfo.ApplicationId, pdpRequest, pdpResponse, err)
+		ctx = f.logPolicyCheck(ctx, consumerInfo.ApplicationID, pdpRequest, pdpResponse, err)
 
 		if err != nil {
 			logger.Log.Error("PDP request failed", "error", err)
@@ -398,7 +432,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		typeRealTime := consent.TypeRealtime
 		ceRequest := &consent.CreateConsentRequest{
-			AppID: consumerInfo.ApplicationId,
+			AppID: consumerInfo.ApplicationID,
 			ConsentRequirement: consent.ConsentRequirement{
 				Owner:      consent.OwnerCitizen,
 				OwnerID:    ownerEmail,
@@ -412,7 +446,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 		// Log consent check audit event
 		// Update context with traceID if one was generated
-		ctx = f.logConsentCheck(ctx, consumerInfo.ApplicationId, ownerEmail, ownerEmail, ceRequest, ceResp, err)
+		ctx = f.logConsentCheck(ctx, consumerInfo.ApplicationID, ownerEmail, ownerEmail, ceRequest, ceResp, err)
 
 		if err != nil {
 			logger.Log.Info("CE request failed", "error", err)
@@ -462,7 +496,7 @@ func (f *Federator) FederateQuery(ctx context.Context, request graphql.Request, 
 
 	// Inject audit metadata into context
 	auditMetadata := &middleware.Metadata{
-		ConsumerAppID:    consumerInfo.ApplicationId,
+		ConsumerAppID:    consumerInfo.ApplicationID,
 		ProviderFieldMap: convertToAuditFieldRecords(schemaCollection.ProviderFieldMap),
 	}
 	ctxWithAudit := middleware.NewContextWithMetadata(ctx, auditMetadata)

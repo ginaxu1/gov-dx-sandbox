@@ -17,20 +17,22 @@ import (
 // The json tags (`json:"..."`) are essential for correctly mapping the
 // keys from the config.json file to the fields in this struct.
 type Config struct {
-	CeURL       string                `json:"ceUrl"`
-	PdpURL      string                `json:"pdpUrl"`
-	Providers   []*ProviderConfig     `json:"providers"`
-	ArgMappings []*graphql.ArgMapping `json:"argMappings"`
-	Environment string                `json:"environment,omitempty"`
-	Server      ServerConfig          `json:"server,omitempty"`
-	Log         LogConfig             `json:"log,omitempty"`
-	Services    ServicesConfig        `json:"services,omitempty"`
-	PdpConfig   PdpConfig             `json:"pdpConfig,omitempty"`
-	CeConfig    CeConfig              `json:"ceConfig,omitempty"`
-	AuditConfig AuditConfig           `json:"auditConfig,omitempty"`
-	Schema      *string               `json:"schema,omitempty"`
-	Sdl         *string               `json:"sdl,omitempty"`
-	ArgMapping  []*graphql.ArgMapping `json:"argMapping,omitempty"`
+	CeURL         string                `json:"ceUrl"`
+	PdpURL        string                `json:"pdpUrl"`
+	Providers     []*ProviderConfig     `json:"providers"`
+	ArgMappings   []*graphql.ArgMapping `json:"argMappings"`
+	Environment   string                `json:"environment,omitempty"`
+	Server        ServerConfig          `json:"server,omitempty"`
+	Log           LogConfig             `json:"log,omitempty"`
+	Services      ServicesConfig        `json:"services,omitempty"`
+	PdpConfig     PdpConfig             `json:"pdpConfig,omitempty"`
+	CeConfig      CeConfig              `json:"ceConfig,omitempty"`
+	AuditConfig   AuditConfig           `json:"auditConfig,omitempty"`
+	Schema        *string               `json:"schema,omitempty"`
+	Sdl           *string               `json:"sdl,omitempty"`
+	ArgMapping    []*graphql.ArgMapping `json:"argMapping,omitempty"`
+	TrustUpstream bool                  `json:"trustUpstream"`
+	JWT           JWTConfig             `json:"jwt,omitempty"`
 }
 
 // ProviderConfig represents a provider configuration
@@ -72,6 +74,13 @@ type AuditConfig struct {
 	ActorType  string `json:"actorType,omitempty"` // Default: "SERVICE"
 	ActorID    string `json:"actorId,omitempty"`   // Default: "orchestration-engine"
 	// Note: targetType is not configured here as it varies per API call
+}
+
+// JWTConfig holds JWT validation configuration
+type JWTConfig struct {
+	ExpectedIssuer string   `json:"expectedIssuer,omitempty"`
+	ValidAudiences []string `json:"validAudiences,omitempty"`
+	JwksUrl        string   `json:"jwksUrl,omitempty"`
 }
 
 // LoadConfigFromBytes unmarshals JSON into config (pure function, testable)

@@ -163,6 +163,10 @@ jobs:
           sed -i 's|http://consent-engine:8081|http://localhost:8081|g' config.json
           sed -i 's|http://policy-decision-point:8082|http://localhost:8082|g' config.json
           sed -i 's|http://mock-provider:8083|http://localhost:8083|g' config.json
+          # Add trustUpstream flag if not present (for JWT token validation)
+          if ! grep -q "trustUpstream" config.json; then
+            sed -i '1s/^{$/{\n  "trustUpstream": true,/' config.json
+          fi
 
           echo "🚀 Starting Orchestration Engine..."
           PORT=4000 \
