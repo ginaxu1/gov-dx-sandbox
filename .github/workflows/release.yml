@@ -22,7 +22,6 @@ jobs:
       packages: write
       security-events: write
     env:
-      BUILD_TIME: ${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
       GIT_COMMIT: ${{ github.sha }}
 
     steps:
@@ -30,6 +29,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Fetch all history for proper versioning
+
+      - name: Set Build Time
+        id: build-time
+        run: |
+          # Fallback logic: head_commit.timestamp -> repository.pushed_at -> current time
+          TIMESTAMP="${{ github.event.head_commit.timestamp }}"
+          if [ -z "$TIMESTAMP" ]; then
+            TIMESTAMP="${{ github.event.repository.pushed_at }}"
+          fi
+          if [ -z "$TIMESTAMP" ]; then
+            TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          fi
+          echo "build_time=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "Build time set to: $TIMESTAMP"
 
       - name: Determine if this is a dry run
         id: dry-run
@@ -62,11 +75,8 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
-          # Remove 'v' prefix if present for Docker tags
-          VERSION_NO_V="${VERSION#v}"
           echo "tag=${VERSION}" >> $GITHUB_OUTPUT
-          echo "tag_no_v=${VERSION_NO_V}" >> $GITHUB_OUTPUT
-          echo "Extracted version tag: ${VERSION} (Docker tag: ${VERSION_NO_V})"
+          echo "Extracted version tag: ${VERSION}"
 
       - name: Extract metadata for Portal Backend
         id: meta-portal
@@ -94,7 +104,7 @@ jobs:
           build-args: |
             SERVICE_PATH=portal-backend
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ env.BUILD_TIME }}
+            BUILD_TIME=${{ steps.build-time.outputs.build_time }}
             GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -106,7 +116,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/audit-service
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -125,7 +135,7 @@ jobs:
           build-args: |
             SERVICE_PATH=audit-service
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ env.BUILD_TIME }}
+            BUILD_TIME=${{ steps.build-time.outputs.build_time }}
             GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -137,7 +147,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -156,7 +166,7 @@ jobs:
           build-args: |
             SERVICE_PATH=policy-decision-point
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ env.BUILD_TIME }}
+            BUILD_TIME=${{ steps.build-time.outputs.build_time }}
             GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -168,7 +178,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -187,7 +197,7 @@ jobs:
           build-args: |
             SERVICE_PATH=consent-engine
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ env.BUILD_TIME }}
+            BUILD_TIME=${{ steps.build-time.outputs.build_time }}
             GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -199,7 +209,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -218,7 +228,7 @@ jobs:
           build-args: |
             SERVICE_PATH=orchestration-engine
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ env.BUILD_TIME }}
+            BUILD_TIME=${{ steps.build-time.outputs.build_time }}
             GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
