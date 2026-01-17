@@ -10,7 +10,6 @@ on:
       - ".github/workflows/audit-service-publish.yml"
     tags:
       - "audit-service-v*"
-      - "v*"
   workflow_dispatch:
 
 env:
@@ -22,6 +21,8 @@ env:
 
 jobs:
   publish:
+    # Skip if triggered by v*.*.* tag (handled by release.yml)
+    if: "!startsWith(github.ref, 'refs/tags/v') || contains(github.ref, 'audit-service-v')"
     runs-on: ubuntu-latest
     permissions:
       contents: read # To check out the code
