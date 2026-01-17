@@ -2,11 +2,11 @@ name: Validate Portal Backend
 
 on:
   pull_request:
-    branches: [main]
     paths:
       - "portal-backend/**"
       - "shared/**"
       - ".github/workflows/portal-backend-validate.yml"
+      - ".github/workflows/reusable-go-validate.yml"
   workflow_dispatch:
 
 concurrency:
