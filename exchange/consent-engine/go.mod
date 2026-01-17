@@ -9,7 +9,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/gov-dx-sandbox/exchange/shared/monitoring v0.0.0
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.6.0
@@ -57,6 +56,8 @@ require (
 	google.golang.org/protobuf v1.35.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/gov-dx-sandbox/exchange/shared/config => ../shared/config
 
 replace github.com/gov-dx-sandbox/exchange/shared/monitoring => ../shared/monitoring
 
