@@ -1,0 +1,72 @@
+name: Validate Consent Portal
+
+on:
+    pull_request:
+        branches: [main]
+        paths:
+            - "portals/consent-portal/**"
+            - ".github/workflows/consent-portal-validate.yml"
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    validate:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            security-events: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: "npm"
+                  cache-dependency-path: portals/consent-portal/package-lock.json
+
+            - name: Install dependencies
+              working-directory: portals/consent-portal
+              run: npm ci
+
+            - name: Lint
+              working-directory: portals/consent-portal
+              run: npm run lint
+
+            - name: Set lowercase repository name
+              id: repo
+              run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Build Docker image
+              uses: docker/build-push-action@v5
+              with:
+                  context: portals/consent-portal
+                  push: false
+                  load: true
+                  tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/consent-portal:pr-${{ github.event.pull_request.number || 'manual' }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+
+            - name: Run Trivy vulnerability scanner
+              uses: aquasecurity/trivy-action@master
+              with:
+                  image-ref: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/consent-portal:pr-${{ github.event.pull_request.number || 'manual' }}
+                  format: "sarif"
+                  output: "trivy-results.sarif"
+
+            - name: Upload Trivy scan results
+              uses: github/codeql-action/upload-sarif@v3
+              if: always()
+              with:
+                  sarif_file: "trivy-results.sarif"
+
+env:
+    REGISTRY: ghcr.io
