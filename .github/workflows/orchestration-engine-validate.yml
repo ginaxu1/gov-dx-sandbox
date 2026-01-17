@@ -60,7 +60,7 @@ jobs:
       - name: Build application
         run: cd ${{ env.SERVICE_PATH }} && go build .
 
-      - name: Run unit & integration tests
+      - name: Run unit tests
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
 
       - name: Set lowercase repository name

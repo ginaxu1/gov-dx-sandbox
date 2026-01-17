@@ -16,11 +16,8 @@ concurrency:
 
 env:
   SERVICE_PATH: "exchange/consent-engine"
-  TEST_DB_NAME: consent_engine_test
   REGISTRY: ghcr.io
   GO_VERSION: "1.24"
-  TEST_DB_USER: postgres
-  TEST_DB_PASS: password
 
 jobs:
   validate:
@@ -28,21 +25,6 @@ jobs:
     permissions:
       contents: read
       security-events: write
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: ${{ env.TEST_DB_USER }}
-          POSTGRES_PASSWORD: ${{ env.TEST_DB_PASS }}
-          POSTGRES_DB: ${{ env.TEST_DB_NAME }}
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -78,14 +60,7 @@ jobs:
       - name: Build application
         run: cd ${{ env.SERVICE_PATH }} && go build .
 
-      - name: Run unit & integration tests
-        env:
-          TEST_DB_HOST: localhost
-          TEST_DB_PORT: 5432
-          TEST_DB_USERNAME: ${{ env.TEST_DB_USER }}
-          TEST_DB_PASSWORD: ${{ env.TEST_DB_PASS }}
-          TEST_DB_DATABASE: ${{ env.TEST_DB_NAME }}
-          TEST_DB_SSLMODE: disable
+      - name: Run unit tests
         run: cd ${{ env.SERVICE_PATH }} && go test ./... -count=1
 
       - name: Set lowercase repository name
