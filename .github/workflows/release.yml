@@ -62,8 +62,11 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
+          # Remove 'v' prefix if present for Docker tags
+          VERSION_NO_V="${VERSION#v}"
           echo "tag=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Extracted version tag: ${VERSION}"
+          echo "tag_no_v=${VERSION_NO_V}" >> $GITHUB_OUTPUT
+          echo "Extracted version tag: ${VERSION} (Docker tag: ${VERSION_NO_V})"
 
       - name: Extract metadata for Portal Backend
         id: meta-portal
@@ -103,7 +106,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/audit-service
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -134,7 +137,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -165,7 +168,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -196,7 +199,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
-            type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.version.outputs.tag_no_v }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
