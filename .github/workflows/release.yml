@@ -21,6 +21,9 @@ jobs:
       contents: write
       packages: write
       security-events: write
+    env:
+      BUILD_TIME: ${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
+      GIT_COMMIT: ${{ github.sha }}
 
     steps:
       - name: Checkout repository
@@ -88,8 +91,8 @@ jobs:
           build-args: |
             SERVICE_PATH=portal-backend
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
-            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ env.BUILD_TIME }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -119,8 +122,8 @@ jobs:
           build-args: |
             SERVICE_PATH=audit-service
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
-            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ env.BUILD_TIME }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -150,8 +153,8 @@ jobs:
           build-args: |
             SERVICE_PATH=policy-decision-point
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
-            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ env.BUILD_TIME }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -181,8 +184,8 @@ jobs:
           build-args: |
             SERVICE_PATH=consent-engine
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
-            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ env.BUILD_TIME }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -212,8 +215,8 @@ jobs:
           build-args: |
             SERVICE_PATH=orchestration-engine
             BUILD_VERSION=${{ steps.version.outputs.tag }}
-            BUILD_TIME=${{ github.event.head_commit.timestamp || github.event.repository.pushed_at }}
-            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ env.BUILD_TIME }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -311,3 +314,26 @@ jobs:
             ```
           draft: false
           prerelease: false
+
+      - name: Generate workflow summary
+        if: always()
+        run: |
+          echo "## Release Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ steps.dry-run.outputs.enabled == 'true' && '✅ Release' || '🧪 Dry Run' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ env.GIT_COMMIT }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Built Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.dry-run.outputs.enabled }}" == "true" ]; then
+            echo "| Service | Image |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Portal Backend | \`${{ fromJSON(steps.meta-portal.outputs.json).tags[0] }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Audit Service | \`${{ fromJSON(steps.meta-audit.outputs.json).tags[0] }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Policy Decision Point | \`${{ fromJSON(steps.meta-pdp.outputs.json).tags[0] }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Consent Engine | \`${{ fromJSON(steps.meta-consent.outputs.json).tags[0] }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Orchestration Engine | \`${{ fromJSON(steps.meta-orchestration.outputs.json).tags[0] }}\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Images built but not pushed (dry run mode)" >> $GITHUB_STEP_SUMMARY
+          fi
