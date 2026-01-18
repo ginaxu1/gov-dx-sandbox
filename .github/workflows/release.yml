@@ -85,11 +85,14 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/portal-backend
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'push' }}
             type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
+            type=sha,format=long
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.description=Portal Backend service for the Government Data Exchange platform
+            org.opencontainers.image.description=Portal Backend service for the Data Exchange platform
             org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.version=${{ steps.version.outputs.tag }}
 
@@ -116,11 +119,14 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/audit-service
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'push' }}
             type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
+            type=sha,format=long
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.description=Audit Service for tracking and logging system events
+            org.opencontainers.image.description=Audit Service for tracking and logging events
             org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.version=${{ steps.version.outputs.tag }}
 
@@ -147,8 +153,11 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/policy-decision-point
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'push' }}
             type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
+            type=sha,format=long
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Policy Decision Point service for authorization decisions
@@ -178,8 +187,11 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/consent-engine
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'push' }}
             type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
+            type=sha,format=long
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Consent Engine service for managing data consent workflows
@@ -209,8 +221,11 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/orchestration-engine
           tags: |
             type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'push' }}
             type=raw,value=${{ steps.version.outputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=raw,value=latest
+            type=sha,format=long
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Orchestration Engine service for coordinating data exchange workflows
