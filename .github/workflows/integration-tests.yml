@@ -46,9 +46,10 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('tests/integration/go.sum') }}
+          # Hash ALL go.sum files so shared dependencies are cached effectively across services
+          key: ${{ runner.os }}-go-integ-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            ${{ runner.os }}-go-integ-
 
       - name: Install test dependencies
         working-directory: tests/integration
@@ -75,55 +76,30 @@ jobs:
           # Basic check to ensure containers are running
           docker compose -f docker-compose.db.yml ps
 
-      - name: Download service artifacts (if available)
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          path: tests/integration/bin/
-          pattern: "*-binary"
-          merge-multiple: true
-
-      - name: Build Services (fallback if artifacts not available)
+      - name: Build Services
         run: |
           mkdir -p tests/integration/bin
+          echo "📦 Building all services in parallel..."
 
-          # Check which binaries are missing and build only those
-          build_jobs=""
+          # Build Policy Decision Point
+          echo "Building Policy Decision Point..."
+          (cd exchange/policy-decision-point && go build -o ../../tests/integration/bin/policy-decision-point .) &
 
-          if [ ! -f tests/integration/bin/policy-decision-point ]; then
-            echo "📦 Building Policy Decision Point..."
-            (cd exchange/policy-decision-point && go build -o ../../tests/integration/bin/policy-decision-point .) &
-            build_jobs="$build_jobs pdp"
-          else
-            echo "✅ Policy Decision Point binary already available"
-          fi
+          # Build Consent Engine
+          echo "Building Consent Engine..."
+          (cd exchange/consent-engine && go build -o ../../tests/integration/bin/consent-engine .) &
 
-          if [ ! -f tests/integration/bin/consent-engine ]; then
-            echo "📦 Building Consent Engine..."
-            (cd exchange/consent-engine && go build -o ../../tests/integration/bin/consent-engine .) &
-            build_jobs="$build_jobs ce"
-          else
-            echo "✅ Consent Engine binary already available"
-          fi
+          # Build Orchestration Engine
+          echo "Building Orchestration Engine..."
+          (cd exchange/orchestration-engine && go build -o ../../tests/integration/bin/orchestration-engine .) &
 
-          if [ ! -f tests/integration/bin/orchestration-engine ]; then
-            echo "📦 Building Orchestration Engine..."
-            (cd exchange/orchestration-engine && go build -o ../../tests/integration/bin/orchestration-engine .) &
-            build_jobs="$build_jobs oe"
-          else
-            echo "✅ Orchestration Engine binary already available"
-          fi
-
-          # Always build mock provider (not built in validation workflows)
-          echo "📦 Building Mock Provider..."
+          # Build Mock Provider (Always built locally)
+          echo "Building Mock Provider..."
           (cd tests/integration/mock-provider && go build -o ../bin/mock-provider .) &
-          build_jobs="$build_jobs mock"
 
           # Wait for all background builds
-          if [ -n "$build_jobs" ]; then
-            wait
-            echo "✅ Finished building: $build_jobs"
-          fi
+          wait
+          echo "✅ All services built successfully"
 
           # Make binaries executable
           chmod +x tests/integration/bin/*
