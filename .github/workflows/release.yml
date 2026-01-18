@@ -75,6 +75,8 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
+          # Remove leading 'v' if present
+          VERSION="${VERSION#v}"
           echo "tag=${VERSION}" >> $GITHUB_OUTPUT
           echo "Extracted version tag: ${VERSION}"
 
