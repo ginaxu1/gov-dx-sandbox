@@ -12,14 +12,15 @@ ARG GIT_COMMIT
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Copy go mod files and source code
+# Copy go mod files first for better layer caching
 COPY exchange/policy-decision-point/go.mod exchange/policy-decision-point/go.sum ./exchange/policy-decision-point/
-COPY exchange/policy-decision-point/ ./exchange/policy-decision-point/
+# Copy shared dependencies
+COPY exchange/shared/utils/ ./exchange/shared/utils/
 
 WORKDIR /app/exchange/policy-decision-point/
 RUN go mod download
 
-# Copy source code
+# Copy source code (this layer will be invalidated only on code changes)
 COPY exchange/policy-decision-point/ .
 
 # Build the application with build info from policy-decision-point directory

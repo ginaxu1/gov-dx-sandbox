@@ -5,7 +5,7 @@ import (
 	"flag"
 	"time"
 
-	"github.com/gov-dx-sandbox/exchange/policy-decision-point/internal/utils"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
 // Config holds all configuration for a service
@@ -41,7 +41,7 @@ type SecurityConfig struct {
 // IDPConfig holds IDP configuration
 type IDPConfig struct {
 	Issuer   string
-	JwksUrl  string
+	JwksURL  string
 	Audience string
 	OrgName  string
 }
@@ -109,7 +109,7 @@ func LoadConfig(serviceName string) *Config {
 		},
 		IDPConfig: IDPConfig{
 			Issuer:   userIssuer,
-			JwksUrl:  userJwksURL,
+			JwksURL:  userJwksURL,
 			Audience: userAudience,
 			OrgName:  orgName,
 		},

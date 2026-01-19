@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/internal/config"
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/v1/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -27,7 +28,7 @@ type DatabaseConfig struct {
 }
 
 // NewDatabaseConfig creates a new GORM database configuration for V1
-func NewDatabaseConfig(dbConfigs *DatabaseConfigs) *DatabaseConfig {
+func NewDatabaseConfig(dbConfigs *config.DBConfigs) *DatabaseConfig {
 	return &DatabaseConfig{
 		Host:            dbConfigs.Host,
 		Port:            dbConfigs.Port,
@@ -40,16 +41,6 @@ func NewDatabaseConfig(dbConfigs *DatabaseConfigs) *DatabaseConfig {
 		ConnMaxLifetime: time.Hour,
 		ConnMaxIdleTime: 30 * time.Minute,
 	}
-}
-
-// DatabaseConfigs holds database configuration values (matches internal/config.DBConfigs)
-type DatabaseConfigs struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	Database string
-	SSLMode  string
 }
 
 // ConnectGormDB establishes a GORM connection to PostgreSQL

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -11,7 +12,7 @@ import (
 )
 
 func TestNewDatabaseConfig(t *testing.T) {
-	dbConfigs := &DatabaseConfigs{
+	dbConfigs := &config.DBConfigs{
 		Host:     "localhost",
 		Port:     "5432",
 		Username: "postgres",
@@ -19,22 +20,22 @@ func TestNewDatabaseConfig(t *testing.T) {
 		Database: "pdp",
 		SSLMode:  "require",
 	}
-	config := NewDatabaseConfig(dbConfigs)
-	assert.NotNil(t, config)
-	assert.Equal(t, "localhost", config.Host)
-	assert.Equal(t, "5432", config.Port)
-	assert.Equal(t, "postgres", config.Username)
-	assert.Equal(t, "password", config.Password)
-	assert.Equal(t, "pdp", config.Database)
-	assert.Equal(t, "require", config.SSLMode)
-	assert.Equal(t, 25, config.MaxOpenConns)
-	assert.Equal(t, 5, config.MaxIdleConns)
-	assert.Equal(t, time.Hour, config.ConnMaxLifetime)
-	assert.Equal(t, 30*time.Minute, config.ConnMaxIdleTime)
+	dbConfig := NewDatabaseConfig(dbConfigs)
+	assert.NotNil(t, dbConfig)
+	assert.Equal(t, "localhost", dbConfig.Host)
+	assert.Equal(t, "5432", dbConfig.Port)
+	assert.Equal(t, "postgres", dbConfig.Username)
+	assert.Equal(t, "password", dbConfig.Password)
+	assert.Equal(t, "pdp", dbConfig.Database)
+	assert.Equal(t, "require", dbConfig.SSLMode)
+	assert.Equal(t, 25, dbConfig.MaxOpenConns)
+	assert.Equal(t, 5, dbConfig.MaxIdleConns)
+	assert.Equal(t, time.Hour, dbConfig.ConnMaxLifetime)
+	assert.Equal(t, 30*time.Minute, dbConfig.ConnMaxIdleTime)
 }
 
 func TestNewDatabaseConfig_WithConfig(t *testing.T) {
-	dbConfigs := &DatabaseConfigs{
+	dbConfigs := &config.DBConfigs{
 		Host:     "test-host",
 		Port:     "5432",
 		Username: "test-user",
@@ -42,13 +43,13 @@ func TestNewDatabaseConfig_WithConfig(t *testing.T) {
 		Database: "test-db",
 		SSLMode:  "disable",
 	}
-	config := NewDatabaseConfig(dbConfigs)
-	assert.Equal(t, "test-host", config.Host)
-	assert.Equal(t, "5432", config.Port)
-	assert.Equal(t, "test-user", config.Username)
-	assert.Equal(t, "test-pass", config.Password)
-	assert.Equal(t, "test-db", config.Database)
-	assert.Equal(t, "disable", config.SSLMode)
+	dbConfig := NewDatabaseConfig(dbConfigs)
+	assert.Equal(t, "test-host", dbConfig.Host)
+	assert.Equal(t, "5432", dbConfig.Port)
+	assert.Equal(t, "test-user", dbConfig.Username)
+	assert.Equal(t, "test-pass", dbConfig.Password)
+	assert.Equal(t, "test-db", dbConfig.Database)
+	assert.Equal(t, "disable", dbConfig.SSLMode)
 }
 
 func TestConnectGormDB_WithSQLite(t *testing.T) {

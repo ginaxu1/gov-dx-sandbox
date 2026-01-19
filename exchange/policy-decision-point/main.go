@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/gov-dx-sandbox/exchange/policy-decision-point/internal/config"
-	"github.com/gov-dx-sandbox/exchange/policy-decision-point/internal/utils"
 	v1 "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1"
-	"github.com/joho/godotenv"
+	"github.com/gov-dx-sandbox/exchange/shared/utils"
 )
 
 // Build information - set during build
@@ -21,9 +20,6 @@ var (
 )
 
 func main() {
-	// Load .env file if it exists (optional - fails silently if not found)
-	_ = godotenv.Load()
-
 	// Load configuration using flags
 	cfg := config.LoadConfig("policy-decision-point")
 
@@ -50,17 +46,10 @@ func main() {
 		"org_name", cfg.IDPConfig.OrgName,
 		"issuer", cfg.IDPConfig.Issuer,
 		"audience", cfg.IDPConfig.Audience,
-		"jwks_url", cfg.IDPConfig.JwksUrl)
+		"jwks_url", cfg.IDPConfig.JwksURL)
 
 	// Initialize V1 GORM database connection
-	v1DbConfig := v1.NewDatabaseConfig(&v1.DatabaseConfigs{
-		Host:     cfg.DBConfigs.Host,
-		Port:     cfg.DBConfigs.Port,
-		Username: cfg.DBConfigs.Username,
-		Password: cfg.DBConfigs.Password,
-		Database: cfg.DBConfigs.Database,
-		SSLMode:  cfg.DBConfigs.SSLMode,
-	})
+	v1DbConfig := v1.NewDatabaseConfig(&cfg.DBConfigs)
 	gormDB, err := v1.ConnectGormDB(v1DbConfig)
 	if err != nil {
 		slog.Error("Failed to connect to GORM database", "error", err)
