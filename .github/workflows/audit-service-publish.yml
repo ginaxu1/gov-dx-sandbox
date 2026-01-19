@@ -8,9 +8,6 @@ on:
       - "audit-service/**"
       - "shared/**"
       - ".github/workflows/audit-service-publish.yml"
-    tags:
-      - "audit-service-v*"
-      - "v*"
   workflow_dispatch:
 
 env:
@@ -22,6 +19,8 @@ env:
 
 jobs:
   publish:
+    # Skip if triggered by v*.*.* tag (handled by release.yml)
+    if: "!startsWith(github.ref, 'refs/tags/v') || contains(github.ref, 'audit-service-v')"
     runs-on: ubuntu-latest
     permissions:
       contents: read # To check out the code
@@ -48,11 +47,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha,format=long
-            type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Audit Service for logging and tracking system events

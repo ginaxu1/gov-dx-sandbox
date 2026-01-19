@@ -8,9 +8,6 @@ on:
       - "portal-backend/**"
       - "shared/**"
       - ".github/workflows/portal-backend-publish.yml"
-    tags:
-      - "portal-backend-v*"
-      - "v*"
   workflow_dispatch:
 
 env:
@@ -22,6 +19,8 @@ env:
 
 jobs:
   publish:
+    # Skip if triggered by v*.*.* tag (handled by release.yml)
+    if: "!startsWith(github.ref, 'refs/tags/v') || contains(github.ref, 'portal-backend-v')"
     runs-on: ubuntu-latest
     permissions:
       contents: read # To check out the code
@@ -48,11 +47,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha,format=long
-            type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Portal Backend service for managing data exchange
