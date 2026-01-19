@@ -9,8 +9,6 @@ on:
       - "exchange/shared/**"
       - "shared/**"
       - ".github/workflows/policy-decision-point-publish.yml"
-    tags:
-      - "policy-decision-point-v*"
   workflow_dispatch:
 
 env:
@@ -50,11 +48,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha,format=long
-            type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.description=Policy Decision Point service for authorization decisions

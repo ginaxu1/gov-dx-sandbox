@@ -7,8 +7,6 @@ on:
         paths:
             - "portals/member-portal/**"
             - ".github/workflows/member-portal-publish.yml"
-        tags:
-            - "member-portal-v*"
     workflow_dispatch:
 
 env:
@@ -42,11 +40,7 @@ jobs:
                   images: ${{ env.REGISTRY }}/${{ github.repository }}/member-portal
                   tags: |
                       type=ref,event=branch
-                      type=semver,pattern={{version}}
-                      type=semver,pattern={{major}}.{{minor}}
-                      type=semver,pattern={{major}}
                       type=sha,format=long
-                      type=raw,value=latest,enable={{is_default_branch}}
                   labels: |
                       org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
                       org.opencontainers.image.description=Member Portal for OpenDIF

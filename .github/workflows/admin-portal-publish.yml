@@ -7,8 +7,6 @@ on:
         paths:
             - "portals/admin-portal/**"
             - ".github/workflows/admin-portal-publish.yml"
-        tags:
-            - "admin-portal-v*"
     workflow_dispatch:
 
 env:
@@ -42,11 +40,7 @@ jobs:
                   images: ${{ env.REGISTRY }}/${{ github.repository }}/admin-portal
                   tags: |
                       type=ref,event=branch
-                      type=semver,pattern={{version}}
-                      type=semver,pattern={{major}}.{{minor}}
-                      type=semver,pattern={{major}}
                       type=sha,format=long
-                      type=raw,value=latest,enable={{is_default_branch}}
                   labels: |
                       org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
                       org.opencontainers.image.description=Admin Portal for OpenDIF
