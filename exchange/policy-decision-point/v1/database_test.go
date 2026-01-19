@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -12,13 +11,21 @@ import (
 )
 
 func TestNewDatabaseConfig(t *testing.T) {
-	config := NewDatabaseConfig()
+	dbConfigs := &DatabaseConfigs{
+		Host:     "localhost",
+		Port:     "5432",
+		Username: "postgres",
+		Password: "password",
+		Database: "pdp",
+		SSLMode:  "require",
+	}
+	config := NewDatabaseConfig(dbConfigs)
 	assert.NotNil(t, config)
 	assert.Equal(t, "localhost", config.Host)
 	assert.Equal(t, "5432", config.Port)
 	assert.Equal(t, "postgres", config.Username)
 	assert.Equal(t, "password", config.Password)
-	assert.Equal(t, "testdb", config.Database)
+	assert.Equal(t, "pdp", config.Database)
 	assert.Equal(t, "require", config.SSLMode)
 	assert.Equal(t, 25, config.MaxOpenConns)
 	assert.Equal(t, 5, config.MaxIdleConns)
@@ -26,45 +33,22 @@ func TestNewDatabaseConfig(t *testing.T) {
 	assert.Equal(t, 30*time.Minute, config.ConnMaxIdleTime)
 }
 
-func TestNewDatabaseConfig_WithEnvVars(t *testing.T) {
-	cleanup := WithEnvVars(t, TestEnvVarsChoreo())
-	defer cleanup()
-
-	config := NewDatabaseConfig()
+func TestNewDatabaseConfig_WithConfig(t *testing.T) {
+	dbConfigs := &DatabaseConfigs{
+		Host:     "test-host",
+		Port:     "5432",
+		Username: "test-user",
+		Password: "test-pass",
+		Database: "test-db",
+		SSLMode:  "disable",
+	}
+	config := NewDatabaseConfig(dbConfigs)
 	assert.Equal(t, "test-host", config.Host)
-	assert.Equal(t, "5433", config.Port)
+	assert.Equal(t, "5432", config.Port)
 	assert.Equal(t, "test-user", config.Username)
 	assert.Equal(t, "test-pass", config.Password)
 	assert.Equal(t, "test-db", config.Database)
 	assert.Equal(t, "disable", config.SSLMode)
-}
-
-func TestGetEnvOrDefault(t *testing.T) {
-	t.Run("Returns env var when set", func(t *testing.T) {
-		key := "TEST_ENV_VAR_12345"
-		os.Setenv(key, "test-value")
-		defer os.Unsetenv(key)
-
-		result := getEnvOrDefault(key, "default")
-		assert.Equal(t, "test-value", result)
-	})
-
-	t.Run("Returns default when not set", func(t *testing.T) {
-		key := "TEST_ENV_VAR_NONEXISTENT_12345"
-		os.Unsetenv(key)
-
-		result := getEnvOrDefault(key, "default-value")
-		assert.Equal(t, "default-value", result)
-	})
-
-	t.Run("Returns default when empty string", func(t *testing.T) {
-		key := "TEST_ENV_VAR_EMPTY_12345"
-		os.Setenv(key, "")
-		defer os.Unsetenv(key)
-
-		result := getEnvOrDefault(key, "default")
-		assert.Equal(t, "default", result)
-	})
 }
 
 func TestConnectGormDB_WithSQLite(t *testing.T) {

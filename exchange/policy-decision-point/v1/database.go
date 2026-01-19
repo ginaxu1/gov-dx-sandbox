@@ -27,14 +27,14 @@ type DatabaseConfig struct {
 }
 
 // NewDatabaseConfig creates a new GORM database configuration for V1
-func NewDatabaseConfig() *DatabaseConfig {
+func NewDatabaseConfig(dbConfigs *DatabaseConfigs) *DatabaseConfig {
 	return &DatabaseConfig{
-		Host:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_HOSTNAME", "localhost"),
-		Port:            getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PORT", "5432"),
-		Username:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_USERNAME", "postgres"),
-		Password:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_PASSWORD", "password"),
-		Database:        getEnvOrDefault("CHOREO_OPENDIF_DATABASE_DATABASENAME", "testdb"),
-		SSLMode:         getEnvOrDefault("DB_SSLMODE", "require"),
+		Host:            dbConfigs.Host,
+		Port:            dbConfigs.Port,
+		Username:        dbConfigs.Username,
+		Password:        dbConfigs.Password,
+		Database:        dbConfigs.Database,
+		SSLMode:         dbConfigs.SSLMode,
 		MaxOpenConns:    25,
 		MaxIdleConns:    5,
 		ConnMaxLifetime: time.Hour,
@@ -42,12 +42,14 @@ func NewDatabaseConfig() *DatabaseConfig {
 	}
 }
 
-// getEnvOrDefault gets environment variable or returns default value
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
+// DatabaseConfigs holds database configuration values (matches internal/config.DBConfigs)
+type DatabaseConfigs struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	Database string
+	SSLMode  string
 }
 
 // ConnectGormDB establishes a GORM connection to PostgreSQL

@@ -7,8 +7,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/internal/config"
+	"github.com/gov-dx-sandbox/exchange/policy-decision-point/internal/utils"
 	v1 "github.com/gov-dx-sandbox/exchange/policy-decision-point/v1"
-	"github.com/gov-dx-sandbox/exchange/shared/utils"
 	"github.com/joho/godotenv"
 )
 
@@ -23,30 +24,63 @@ func main() {
 	// Load .env file if it exists (optional - fails silently if not found)
 	_ = godotenv.Load()
 
-	// Setup logging
-	utils.SetupLogging("json", getEnvOrDefault("LOG_LEVEL", "info"))
+	// Load configuration using flags
+	cfg := config.LoadConfig("policy-decision-point")
 
-	slog.Info("Starting policy decision point (V1)",
+	// Setup logging
+	utils.SetupLogging(cfg.Logging.Format, cfg.Logging.Level)
+
+	slog.Info("Starting policy decision point",
+		"environment", cfg.Environment,
+		"port", cfg.Service.Port,
 		"version", Version,
 		"build_time", BuildTime,
 		"git_commit", GitCommit)
 
 	// Log database configuration being used
 	slog.Info("Database configuration",
-		"choreo_host", os.Getenv("CHOREO_OPENDIF_DATABASE_HOSTNAME"),
-		"choreo_port", os.Getenv("CHOREO_OPENDIF_DATABASE_PORT"),
-		"choreo_user", os.Getenv("CHOREO_OPENDIF_DATABASE_USERNAME"),
-		"choreo_database", os.Getenv("CHOREO_OPENDIF_DATABASE_DATABASENAME"),
-		"sslmode", os.Getenv("DB_SSLMODE"),
-	)
+		"host", cfg.DBConfigs.Host,
+		"port", cfg.DBConfigs.Port,
+		"username", cfg.DBConfigs.Username,
+		"database", cfg.DBConfigs.Database,
+		"sslmode", cfg.DBConfigs.SSLMode)
+
+	// Log IDP configuration (for future use)
+	slog.Info("IDP configuration",
+		"org_name", cfg.IDPConfig.OrgName,
+		"issuer", cfg.IDPConfig.Issuer,
+		"audience", cfg.IDPConfig.Audience,
+		"jwks_url", cfg.IDPConfig.JwksUrl)
 
 	// Initialize V1 GORM database connection
-	v1DbConfig := v1.NewDatabaseConfig()
+	v1DbConfig := v1.NewDatabaseConfig(&v1.DatabaseConfigs{
+		Host:     cfg.DBConfigs.Host,
+		Port:     cfg.DBConfigs.Port,
+		Username: cfg.DBConfigs.Username,
+		Password: cfg.DBConfigs.Password,
+		Database: cfg.DBConfigs.Database,
+		SSLMode:  cfg.DBConfigs.SSLMode,
+	})
 	gormDB, err := v1.ConnectGormDB(v1DbConfig)
 	if err != nil {
 		slog.Error("Failed to connect to GORM database", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("V1 database connected successfully")
+
+	// Get underlying SQL DB for proper cleanup
+	v1SqlDB, err := gormDB.DB()
+	if err != nil {
+		slog.Error("Failed to get V1 database connection", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := v1SqlDB.Close(); err != nil {
+			slog.Error("Failed to close V1 database connection", "error", err)
+		} else {
+			slog.Info("V1 database connection closed successfully")
+		}
+	}()
 
 	// Initialize V1 handlers
 	v1Handler := v1.NewHandler(gormDB)
@@ -128,12 +162,11 @@ func main() {
 		utils.RespondWithJSON(w, http.StatusOK, debugInfo)
 	})))
 
-	// Create server using utils
-	port := getEnvOrDefault("PORT", "8082")
+	// Create server configuration
 	serverConfig := &utils.ServerConfig{
-		Port:         port,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Port:         cfg.Service.Port,
+		ReadTimeout:  cfg.Service.Timeout,
+		WriteTimeout: cfg.Service.Timeout,
 		IdleTimeout:  60 * time.Second,
 	}
 	server := utils.CreateServer(serverConfig, mux)
@@ -143,23 +176,4 @@ func main() {
 		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
-
-	// Cleanup database connection on shutdown
-	defer func() {
-		if gormDB != nil {
-			if sqlDB, err := gormDB.DB(); err == nil {
-				if err := sqlDB.Close(); err != nil {
-					slog.Error("Failed to close database connection", "error", err)
-				}
-			}
-		}
-	}()
-}
-
-// getEnvOrDefault gets an environment variable with a default value
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

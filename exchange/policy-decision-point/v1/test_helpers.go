@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// TestConstants contains shared test constants
+// TestConstants contains test constants
 const (
 	TestHost     = "localhost"
 	TestPort     = "5432"
@@ -50,26 +50,14 @@ func WithEnvVars(t *testing.T, vars map[string]string) func() {
 	}
 }
 
-// TestEnvVarsChoreo returns Choreo environment variables for testing
-func TestEnvVarsChoreo() map[string]string {
+// TestEnvVars returns standard environment variables for testing
+func TestEnvVars() map[string]string {
 	return map[string]string{
-		"CHOREO_OPENDIF_DATABASE_HOSTNAME":     "test-host",
-		"CHOREO_OPENDIF_DATABASE_PORT":         "5433",
-		"CHOREO_OPENDIF_DATABASE_USERNAME":     "test-user",
-		"CHOREO_OPENDIF_DATABASE_PASSWORD":     "test-pass",
-		"CHOREO_OPENDIF_DATABASE_DATABASENAME": "test-db",
-		"DB_SSLMODE":                           "disable",
-	}
-}
-
-// TestEnvVarsStandard returns standard environment variables for testing
-func TestEnvVarsStandard() map[string]string {
-	return map[string]string{
-		"DB_HOST":     "standard-host",
-		"DB_PORT":     "5434",
-		"DB_USER":     "standard-user",
-		"DB_PASSWORD": "standard-password",
-		"DB_NAME":     "standard-db",
-		"DB_SSLMODE":  "prefer",
+		"DB_HOST":     "test-host",
+		"DB_PORT":     "5432",
+		"DB_USERNAME": "test-user",
+		"DB_PASSWORD": "test-pass",
+		"DB_NAME":     "test-db",
+		"DB_SSLMODE":  "disable",
 	}
 }
