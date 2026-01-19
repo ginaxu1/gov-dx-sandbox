@@ -123,15 +123,14 @@ jobs:
           mkdir -p logs
 
           echo "🚀 Starting Policy Decision Point..."
-          # Running with env vars mapping to what the code expects (based on docker-compose.test.yml analysis)
           PORT=8082 \
           LOG_LEVEL=debug \
+          DB_HOST=localhost \
+          DB_PORT=5433 \
+          DB_USERNAME=postgres \
+          DB_PASSWORD=password \
+          DB_NAME=policy_db \
           DB_SSLMODE=disable \
-          CHOREO_OPENDIF_DATABASE_HOSTNAME=localhost \
-          CHOREO_OPENDIF_DATABASE_PORT=5433 \
-          CHOREO_OPENDIF_DATABASE_USERNAME=postgres \
-          CHOREO_OPENDIF_DATABASE_PASSWORD=password \
-          CHOREO_OPENDIF_DATABASE_DATABASENAME=policy_db \
           RUN_MIGRATION=true \
           ./bin/policy-decision-point > logs/pdp.log 2>&1 &
           PDP_PID=$!

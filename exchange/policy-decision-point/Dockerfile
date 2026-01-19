@@ -12,17 +12,18 @@ ARG GIT_COMMIT
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Copy go mod files and source code
-COPY exchange/policy-decision-point/go.mod exchange/policy-decision-point/go.sum ./
-COPY exchange/policy-decision-point/ .
+# Copy go mod files first for better layer caching
+COPY exchange/policy-decision-point/go.mod exchange/policy-decision-point/go.sum ./exchange/policy-decision-point/
+# Copy shared dependencies
+COPY exchange/shared/utils/ ./exchange/shared/utils/
 
-# Copy shared packages from exchange/shared
-COPY exchange/shared/ /shared/
-
-# Download dependencies
+WORKDIR /app/exchange/policy-decision-point/
 RUN go mod download
 
-# Build the application with build info
+# Copy source code (this layer will be invalidated only on code changes)
+COPY exchange/policy-decision-point/ .
+
+# Build the application with build info from policy-decision-point directory
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s -X main.Version=${BUILD_VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
     -o /app/service_binary .

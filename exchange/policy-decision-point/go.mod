@@ -5,12 +5,13 @@ go 1.24.6
 require (
 	github.com/google/uuid v1.6.0
 	github.com/gov-dx-sandbox/exchange/shared/utils v0.0.0
-	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.0
 )
+
+replace github.com/gov-dx-sandbox/exchange/shared/utils => ../shared/utils
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -29,9 +30,3 @@ require (
 	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/gov-dx-sandbox/exchange/shared/config => ./shared/config
-
-replace github.com/gov-dx-sandbox/exchange/shared/constants => ./shared/constants
-
-replace github.com/gov-dx-sandbox/exchange/shared/utils => ./shared/utils

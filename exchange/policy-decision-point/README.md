@@ -22,7 +22,7 @@ The PDP provides attribute-based access control (ABAC) with field-level permissi
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.24+
 - PostgreSQL 13+
 
 ### Run the Service
@@ -30,6 +30,16 @@ The PDP provides attribute-based access control (ABAC) with field-level permissi
 ```bash
 # Install dependencies
 go mod download
+
+# Copy environment template
+cp .env.template .env
+
+# Edit .env with your database configuration
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_USERNAME=postgres
+# DB_PASSWORD=password
+# DB_NAME=pdp
 
 # Run locally
 go run main.go
@@ -45,21 +55,26 @@ The service runs on port 8082 by default.
 
 ### Environment Variables
 
-```bash
-# Database Configuration (Choreo)
-CHOREO_DB_PDP_HOSTNAME=your-db-host
-CHOREO_DB_PDP_PORT=your-db-port
-CHOREO_DB_PDP_USERNAME=your-db-username
-CHOREO_DB_PDP_PASSWORD=your-db-password
-CHOREO_DB_PDP_DATABASENAME=your-db-name
+All configuration is done via environment variables. See `.env.template` for a complete list.
 
-# Or use standard DB variables
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_NAME=pdp
-DB_SSLMODE=disable
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Service port | `8082` |
+| `ENVIRONMENT` | `production` or `local` | `local` |
+| `IDP_ORG_NAME` | IDP organization name | - |
+| `IDP_ISSUER` | JWT issuer URL | - |
+| `IDP_AUDIENCE` | JWT audience | - |
+| `IDP_JWKS_URL` | JWKS endpoint URL | - |
+| `DB_HOST` | Database host | `localhost` |
+| `DB_PORT` | Database port | `5432` |
+| `DB_USERNAME` | Database username | `postgres` |
+| `DB_PASSWORD` | Database password | - |
+| `DB_NAME` | Database name | `pdp` |
+| `DB_SSLMODE` | SSL mode | `require` |
+
+**Optional:**
+```bash
+RUN_MIGRATION=false       # Set to "true" to run migrations on startup
 ```
 
 ## API Endpoints
@@ -70,6 +85,8 @@ DB_SSLMODE=disable
 | `/api/v1/policy/metadata` | POST | Create policy metadata for fields |
 | `/api/v1/policy/update-allowlist` | POST | Update allow list for applications |
 | `/health` | GET | Health check |
+| `/debug` | GET | Debug information |
+| `/debug/db` | GET | Database connection status |
 
 ### Authorization Request
 
@@ -118,7 +135,13 @@ DB_SSLMODE=disable
 ```json
 {
   "schema_id": "schema-123",
-  "sdl": "type Person { fullName: String }"
+  "records": [
+    {
+      "field_name": "person.fullName",
+      "display_name": "Full Name",
+      "access_control_type": "public"
+    }
+  ]
 }
 ```
 
@@ -176,9 +199,13 @@ go test ./... -cover
 curl -X POST http://localhost:8082/api/v1/policy/decide \
   -H "Content-Type: application/json" \
   -d '{
-    "consumer_id": "passport-app",
-    "app_id": "passport-app",
-    "required_fields": ["person.fullName"]
+    "applicationId": "passport-app",
+    "requiredFields": [
+      {
+        "fieldName": "person.fullName",
+        "schemaId": "schema-123"
+      }
+    ]
   }'
 ```
 
@@ -188,6 +215,7 @@ curl -X POST http://localhost:8082/api/v1/policy/decide \
 
 **`policy_metadata` Table:**
 - `id` (UUID) - Primary key
+- `schema_id` (TEXT) - Schema identifier
 - `field_name` (TEXT) - Data field name
 - `display_name` (TEXT) - Human-readable name
 - `access_control_type` (ENUM) - public/restricted
