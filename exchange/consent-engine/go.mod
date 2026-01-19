@@ -57,8 +57,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/gov-dx-sandbox/exchange/shared/config => ../shared/config
-
 replace github.com/gov-dx-sandbox/exchange/shared/monitoring => ../shared/monitoring
 
 replace github.com/gov-dx-sandbox/exchange/shared/utils => ../shared/utils
