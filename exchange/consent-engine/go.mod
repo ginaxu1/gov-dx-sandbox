@@ -9,7 +9,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/gov-dx-sandbox/exchange/shared/monitoring v0.0.0
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.6.0
