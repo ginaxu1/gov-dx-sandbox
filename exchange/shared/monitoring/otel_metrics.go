@@ -87,9 +87,28 @@ type Config struct {
 }
 
 // DefaultConfig returns a default configuration
+// Observability can be disabled by setting ENABLE_OBSERVABILITY=false or OTEL_METRICS_ENABLED=false
 func DefaultConfig(serviceName string) Config {
+	// Check if observability is explicitly disabled
+	enableObservability := getEnvBoolOrDefault("ENABLE_OBSERVABILITY", true)
+	otelMetricsEnabled := getEnvBoolOrDefault("OTEL_METRICS_ENABLED", true)
+
+	// If either flag is false, disable observability
+	observabilityEnabled := enableObservability && otelMetricsEnabled
+
+	var exporterType string
+	if !observabilityEnabled {
+		exporterType = "none"
+		slog.Info("Observability disabled via environment variable",
+			"service", serviceName,
+			"ENABLE_OBSERVABILITY", enableObservability,
+			"OTEL_METRICS_ENABLED", otelMetricsEnabled)
+	} else {
+		exporterType = getEnvOrDefault("OTEL_METRICS_EXPORTER", "prometheus")
+	}
+
 	return Config{
-		ExporterType:     getEnvOrDefault("OTEL_METRICS_EXPORTER", "prometheus"),
+		ExporterType:     exporterType,
 		ServiceName:      serviceName,
 		ServiceVersion:   getEnvOrDefault("SERVICE_VERSION", "dev"),
 		OTLPEndpoint:     getEnvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
